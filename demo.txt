@@ -1,0 +1,36 @@
+import layoutz._
+
+ val tableElement = table(
+      headers = Seq("Name", "Role", "Status"),
+      rows = Seq(
+        Seq("Alice", "Engineer", "Online"),
+        Seq("Bob", "Designer", "Offline"),
+        Seq("Eve", "QA", "Away")
+      )
+    )
+
+val demo = layout(
+  row(
+    statusCard("API", "UP"),
+    statusCard("Users", "1.2K"),
+    statusCard("CPU", "23%"),
+    tableElement
+  ),
+  row(
+    box("🚀 Deploy Status") {
+      layout(
+        inlineBar("Build", 1.0),
+        inlineBar("Test", 0.8),
+        inlineBar("Deploy", 0.3)
+      )
+    },
+    tree("📁 Project") {
+      branch("src",
+        leaf("main.scala"),
+        leaf("api.scala")
+      )
+    }
+  )
+)
+
+println(demo.render)
