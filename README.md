@@ -6,3 +6,8 @@
 **Composable layouts for beautiful CLI output 🪶✨**
 
 Build sections, trees, tables and dashboards for console outputs - declaratively. Part of [d4](https://github.com/mattlianje/d4)
+
+## Of note...
+- With LLM's, boilerplace code that "spaces", "pads", "formats" is _cheaper than ever_...
+- Which is why, _more than ever_, this boilerplate is spawning, duplicating and becoming muddled with domain logic
+- **layoutz** is just a tiny DSL to combat this
