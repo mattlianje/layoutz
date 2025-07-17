@@ -14,7 +14,7 @@ Build declarative and composable sections, trees, tables and dashboards for your
 
 ## Core concepts
 `Element`
-- Every piece of content is an `Element` - a composable unit that knows how to render itself to ASCII text with known dimensions.
+- Every piece of content is an `Element`
 - Elements are **immutable** and **composable** - you build complex layouts by combining simple elements.
 
 `Layout`
