@@ -12,18 +12,6 @@ Build declarative and composable sections, trees, tables and dashboards for your
 - Which is why, **_more than ever_**, "string formatting code" is spawning, duplicating and becoming muddled with domain logic
 - **layoutz** is just a tiny, declarative DSL to combat this
 
-## Core concepts
-`Element`
-- Every piece of content is an `Element`
-- Elements are **immutable** and **composable** - you build complex layouts by combining simple elements.
-
-`Layout`
-- A Layout is just a special element that arranges other elements **vertically** with consistent spacing:
-```scala
-layout(elem1, elem2, elem3)  /* Joins with "\n\n" */
-```
-The power comes from uniform composition, since everything is an `Element`, everything can be combined with everything else.
-
 ## Quickstart
 ```scala
 import layoutz._
@@ -61,6 +49,20 @@ yields:
 │ • 3 new deployments         │
 └─────────────────────────────┘
 ```
+
+## Core concepts
+You just need to know two things
+
+**Element**
+- Every piece of content is an `Element`
+- Elements are **immutable** and **composable** - you build complex layouts by combining simple elements.
+
+**Layout**
+- A `layout` is just a special element that arranges other elements **vertically** with consistent spacing:
+```scala
+layout(elem1, elem2, elem3)  /* Joins with "\n\n" */
+```
+The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
