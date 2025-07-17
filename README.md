@@ -5,7 +5,7 @@
 # <img src="pix/testd-logo.png" width="60"> layoutz
 **Composable layouts for beautiful CLI output 🪶✨**
 
-Build declarative & composable sections, trees, tables and dashboards for your console outputs. Part of [d4](https://github.com/mattlianje/d4)
+Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
 ## Of note...
 - With LLM's, boilerplate code that "spaces", "pads", "formats" and "pretty-prints" is **_cheaper than ever_**...
