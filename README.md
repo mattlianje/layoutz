@@ -62,7 +62,9 @@ yields:
 └─────────────────────────────┘
 ```
 
-## `Element`s
+## Elements
+All components implementing the Element interface you can use in your layouts...
+
 ### Text
 layoutz implicitly convert Strings to `Text` element
 ```scala
@@ -70,7 +72,7 @@ layoutz implicitly convert Strings to `Text` element
 ```
 this lets you splice strings into layouts as you build them with var-arg shorthand
 
-## Line Break
+### Line Break
 Add extra line-break "\n" with `br`:
 ```scala
 layout("Line 1", br, "Line 2")
