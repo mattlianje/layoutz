@@ -70,6 +70,11 @@ package object layoutz {
     def render: String = content
   }
 
+  /** Line break element - renders as an empty line */
+case object LineBreak extends Element {
+  def render: String = "\n"
+}
+
   /** Structured key-value pairs */
   final case class KeyValue(pairs: Seq[(String, String)]) extends Element {
     def render: String = {
@@ -380,6 +385,7 @@ package object layoutz {
   def branch(name: String, children: TreeNode*): TreeBranch =
     TreeBranch(name, children)
   def leaf(name: String): TreeLeaf = TreeLeaf(name)
+  def br: LineBreak.type = LineBreak
 
   /** Implicit conversions for ergonomic DSL usage */
   implicit def stringToText(s: String): Text = Text(s)

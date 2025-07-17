@@ -227,4 +227,17 @@ Another line"""
     val emptyKv = kv()
     assertEquals(emptyKv.render, "")
   }
+
+test("line break element") {
+  // Test br within bullets or similar
+  val elements = Seq(Text("First line"), br, Text("Second line"), br, br, Text("Third line"))
+  val result = elements.map(_.render).mkString
+  
+  val expected = """First line
+Second line
+
+Third line"""
+  
+  assertEquals(result, expected)
+}
 }
