@@ -202,6 +202,34 @@ Project
         └── AppSpec.scala
 ```
 
+## Working with collections
+The full power of Scala functional collections is at your fingertips to render your strings with layoutz
+```scala
+case class User(name: String, role: String)
+val users = Seq(User("Alice", "Admin"), User("Bob", "User"))
+
+val usersByRole = users.groupBy(_.role)
+section("Users by Role") {
+  layout(
+    usersByRole.map { case (role, roleUsers) =>
+      box(role) {
+        bullets(roleUsers.map(_.name): _*)
+      }
+    }.toSeq: _*
+  )
+}
+```
+```
+=== Users by Role ===
+┌──Admin──┐
+│ • Alice │
+└─────────┘
+
+┌──User──┐
+│ • Bob  │
+└────────┘
+```
+
 ## Inspiration
-- [ScalaTags](https://github.com/com-lihaoyi/scalatags)
+- [ScalaTags](https://github.com/com-lihaoyi/scalatags) and countless templating libraries via osmosis ...
 
