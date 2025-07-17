@@ -29,20 +29,20 @@ The power comes from uniform composition, since everything is an `Element`, ever
 import layoutz._
 
 val dashboard = layout(
-  section("System Status") {
+  section("System Status")(
     row(
       statusCard("CPU", "45%"),
       statusCard("Memory", "78%"), 
       statusCard("Disk", "23%")
     )
-  },
-  box("Recent Activity") {
+  ),
+  box("Recent Activity")(
     bullets(
       "User alice logged in",
       "Database backup completed", 
       "3 new deployments"
     )
-  }
+  )
 )
 
 println(dashboard.render)
