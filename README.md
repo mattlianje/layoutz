@@ -211,15 +211,15 @@ case class User(name: String, role: String)
 val users = Seq(User("Alice", "Admin"), User("Bob", "User"))
 
 val usersByRole = users.groupBy(_.role)
-section("Users by Role") {
+section("Users by Role")(
   layout(
     usersByRole.map { case (role, roleUsers) =>
-      box(role) {
+      box(role)(
         bullets(roleUsers.map(_.name): _*)
-      }
+      )
     }.toSeq: _*
   )
-}
+)
 ```
 ```
 === Users by Role ===
