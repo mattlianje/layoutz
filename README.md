@@ -236,5 +236,5 @@ section("Users by Role")(
 ```
 
 ## Inspiration
-- [ScalaTags](https://github.com/com-lihaoyi/scalatags) and countless templating libraries via osmosis ...
-
+- [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Mr. Li Haoyi
+- Countless templating libraries via osmosis ...
