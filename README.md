@@ -3,7 +3,7 @@
 </p>
 
 # <img src="pix/layoutz.png" width="60"> layoutz
-**Composable layouts for beautiful CLI output 🪶✨**
+**Composable layouts for beautiful CLI output 🖋️✨**
 
 Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
