@@ -2,7 +2,7 @@
   <img src="pix/layoutz-demo.png" width="700">
 </p>
 
-# <img src="pix/layoutz.png" width="60"> layoutz
+# <img src="pix/layoutz.png" width="60"> layout
 **Composable layouts for beautiful CLI output 🖋️✨**
 
 Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
@@ -10,11 +10,11 @@ Build declarative and composable sections, trees, tables and dashboards for your
 ## Of note...
 - With LLM's, boilerplate code that "spaces", "pads", "formats" and "pretty-prints" is **_cheaper than ever_**...
 - Which is why, **_more than ever_**, "string formatting code" is spawning, duplicating and becoming muddled with domain logic
-- **layoutz** is just a tiny, declarative DSL to combat this
+- **layout** is just a tiny, declarative DSL to combat this
 
 ## Quickstart
 ```scala
-import layoutz._
+import layout._
 
 val dashboard = layout(
   section("System Status")(
@@ -68,7 +68,7 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 All components implementing the Element interface you can use in your layouts...
 
 ### Text
-layoutz implicitly convert Strings to `Text` element
+**layout** implicitly convert Strings to `Text` element
 ```scala
 "Simple text" // <- valid Element
 ```
@@ -205,7 +205,7 @@ Project
 ```
 
 ## Working with collections
-The full power of Scala functional collections is at your fingertips to render your strings with layoutz
+The full power of Scala functional collections is at your fingertips to render your strings with **layout**
 ```scala
 case class User(name: String, role: String)
 val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
@@ -222,7 +222,7 @@ section("Users by Role")(
 )
 ```
 ```
-Users by Role ===
+=== Users by Role ===
 ┌──Admin──┐
 │ • Alice │
 └─────────┘
