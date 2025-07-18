@@ -16,7 +16,7 @@ Build declarative and composable sections, trees, tables and dashboards for your
 
 ## Quickstart
 ```scala
-import layout._
+import layoutz._
 
 val dashboard = layout(
   section("System Status")(
@@ -71,10 +71,11 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
 
-### Text
-**layoutz** implicitly convert Strings to `Text` element
+### Text: `Text`
+**layoutz** implicitly converts Strings to `Text` element
 ```scala
 "Simple text" // <- valid Element
+Text("Simple text") // <- you don't need to do this
 ```
 this lets you splice strings into layouts as you build them with var-arg shorthand
 
