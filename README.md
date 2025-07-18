@@ -208,7 +208,7 @@ Project
 The full power of Scala functional collections is at your fingertips to render your strings with layoutz
 ```scala
 case class User(name: String, role: String)
-val users = Seq(User("Alice", "Admin"), User("Bob", "User"))
+val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
 
 val usersByRole = users.groupBy(_.role)
 section("Users by Role")(
@@ -222,13 +222,14 @@ section("Users by Role")(
 )
 ```
 ```
-=== Users by Role ===
+Users by Role ===
 ┌──Admin──┐
 │ • Alice │
 └─────────┘
 
 ┌──User──┐
 │ • Bob  │
+│ • Tom  │
 └────────┘
 ```
 
