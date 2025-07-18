@@ -3,46 +3,34 @@
 </p>
 
 # <img src="pix/layoutz.png" width="60"> layoutz
-**Composable layouts for beautiful CLI output 🪶✨**
+**Simple, beautiful CLI output 🪶✨**
 
 Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
 ## Of note...
-- With LLM's, boilerplate code that "spaces", "pads", "formats" and "pretty-prints" is **_cheaper than ever_**...
-- Which is why, **_more than ever_**, "string formatting code" is spawning, duplicating and becoming muddled with domain logic
+- With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
+- This is why, **_more than ever_**, "string formatting code" is spawning and polluting domain logic
 - **layoutz** is just a tiny, declarative DSL to combat this
-
-## Core concepts
-`Element`
-- Every piece of content is an `Element`
-- Elements are **immutable** and **composable** - you build complex layouts by combining simple elements.
-
-`Layout`
-- A Layout is just a special element that arranges other elements **vertically** with consistent spacing:
-```scala
-layout(elem1, elem2, elem3)  /* Joins with "\n\n" */
-```
-The power comes from uniform composition, since everything is an `Element`, everything can be combined with everything else.
 
 ## Quickstart
 ```scala
-import layoutz._
+import layout._
 
 val dashboard = layout(
-  section("System Status") {
+  section("System Status")(
     row(
       statusCard("CPU", "45%"),
       statusCard("Memory", "78%"), 
       statusCard("Disk", "23%")
     )
-  },
-  box("Recent Activity") {
+  ),
+  box("Recent Activity")(
     bullets(
       "User alice logged in",
       "Database backup completed", 
       "3 new deployments"
     )
-  }
+  )
 )
 
 println(dashboard.render)
@@ -62,11 +50,27 @@ yields:
 └─────────────────────────────┘
 ```
 
+## Core concepts
+You just need to know two things
+
+**Element**
+- Every piece of content is an `Element`
+- Elements are **immutable** and **composable** - you build complex layouts by combining simple elements.
+
+**Layout**
+- A `layout` is just a special element that arranges other elements **vertically** with consistent spacing:
+```scala
+layout(elem1, elem2, elem3)  /* Joins with "\n\n" */
+```
+Call `.render` on an element to get a String
+
+The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
+
 ## Elements
 All components implementing the Element interface you can use in your layouts...
 
 ### Text
-layoutz implicitly convert Strings to `Text` element
+**layoutz** implicitly convert Strings to `Text` element
 ```scala
 "Simple text" // <- valid Element
 ```
@@ -256,21 +260,21 @@ Project
 ```
 
 ## Working with collections
-The full power of Scala functional collections is at your fingertips to render your strings with layoutz
+The full power of Scala functional collections is at your fingertips to render your strings with **layoutz**
 ```scala
 case class User(name: String, role: String)
-val users = Seq(User("Alice", "Admin"), User("Bob", "User"))
+val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
 
 val usersByRole = users.groupBy(_.role)
-section("Users by Role") {
+section("Users by Role")(
   layout(
     usersByRole.map { case (role, roleUsers) =>
-      box(role) {
+      box(role)(
         bullets(roleUsers.map(_.name): _*)
-      }
+      )
     }.toSeq: _*
   )
-}
+)
 ```
 ```
 === Users by Role ===
@@ -280,9 +284,10 @@ section("Users by Role") {
 
 ┌──User──┐
 │ • Bob  │
+│ • Tom  │
 └────────┘
 ```
 
 ## Inspiration
-- [ScalaTags](https://github.com/com-lihaoyi/scalatags) and countless templating libraries via osmosis ...
-
+- [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Mr. Li Haoyi
+- Countless templating libraries via osmosis ...
