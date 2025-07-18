@@ -54,8 +54,8 @@ yields:
 
 ## Of note...
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
-- This is why, **_more than ever_**, "string formatting code" is spawning and polluting domain logic
-- **layoutz** is just a tiny, declarative DSL to combat this
+- This is why, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
+- Utlimately, **layoutz** is just a tiny, declarative DSL to combat this
 
 ## Core concepts
 - Every piece of content is an `Element`
