@@ -1,8 +1,8 @@
 #!/bin/bash
 GITHUB_USER="mattlianje"
 ARTIFACT_NAME="layoutz"
-SCALA_VERSION="3"
-VERSION="0.0.1"
+SCALA_VERSION="2.12"
+VERSION="0.1.0"
 BUNDLE_DIR="$HOME/maven-bundle"
 
 # Derived variables
