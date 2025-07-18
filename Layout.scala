@@ -2,7 +2,7 @@
  * +==========================================================================+
  * |                                layoutz                                   |
  * |                  Friendly, expressive print-layout DSL                   |
- * |                            Version 0.0.1                                 |
+ * |                            Version 0.0.2                                 |
  * |                 Compatible with Scala 2.12, 2.13, and 3                  |
  * |                                                                          |
  * | Copyright 2025 Matthieu Court (matthieu.court@protonmail.com)            |
@@ -20,6 +20,8 @@ package object layoutz {
     val ProgressBarWidth = 20
     val TreeIndentation = 4 // Standard tree level indentation
     val TreeConnectorSpacing = 3 // Spaces after "│" for tree continuation
+    val DefaultRuleWidth = 50
+    val BulletIndentation = 2 // Indentation per nesting level
   }
 
   private object Glyphs {
@@ -71,9 +73,63 @@ package object layoutz {
   }
 
   /** Line break element - renders as an empty line */
-case object LineBreak extends Element {
-  def render: String = "\n"
-}
+  case object LineBreak extends Element {
+    def render: String = "\n"
+  }
+
+  /** Horizontal rule with customizable character and width */
+  final case class HorizontalRule(
+      char: String = "─",
+      ruleWidth: Option[Int] = None
+  ) extends Element {
+    def render: String = {
+      val actualWidth = ruleWidth.getOrElse(Dimensions.DefaultRuleWidth)
+      char * actualWidth
+    }
+  }
+
+  /** Bullet list with nesting support */
+  final case class Bullet(text: Option[String], children: Seq[Element])
+      extends Element {
+
+    def render: String = renderAtLevel(0)
+
+    private def renderAtLevel(level: Int): String = {
+      val indent = " " * (level * Dimensions.BulletIndentation)
+
+      text match {
+        case Some(txt) =>
+          val mainItem = s"$indent${Glyphs.Bullet} $txt"
+          if (children.isEmpty) {
+            mainItem
+          } else {
+            val childItems = children.map(renderChildAtLevel(_, level + 1))
+            (mainItem +: childItems).mkString("\n")
+          }
+        case None =>
+          children.map(renderChildAtLevel(_, level)).mkString("\n")
+      }
+    }
+
+    private def renderChildAtLevel(element: Element, level: Int): String = {
+      element match {
+        case Bullet(Some(childText), grandchildren) =>
+          val indent = " " * (level * Dimensions.BulletIndentation)
+          val mainItem = s"$indent${Glyphs.Bullet} $childText"
+          if (grandchildren.isEmpty) {
+            mainItem
+          } else {
+            val childItems = grandchildren.map(renderChildAtLevel(_, level + 1))
+            (mainItem +: childItems).mkString("\n")
+          }
+        case Bullet(None, grandchildren) =>
+          grandchildren.map(renderChildAtLevel(_, level)).mkString("\n")
+        case other =>
+          val indent = " " * (level * Dimensions.BulletIndentation)
+          s"$indent${Glyphs.Bullet} ${other.render}"
+      }
+    }
+  }
 
   /** Structured key-value pairs */
   final case class KeyValue(pairs: Seq[(String, String)]) extends Element {
@@ -153,12 +209,6 @@ case object LineBreak extends Element {
           s" ${Glyphs.Vertical} ",
           s" ${Glyphs.Vertical}"
         )
-  }
-
-  /** Bulleted list of items */
-  final case class Bullets(items: Seq[String]) extends Element {
-    def render: String =
-      items.map(item => s"${Glyphs.Bullet} $item").mkString("\n")
   }
 
   /** Horizontal progress indicator */
@@ -365,7 +415,6 @@ case object LineBreak extends Element {
   def kv(pairs: (String, String)*): KeyValue = KeyValue(pairs)
   def table(headers: Seq[String], rows: Seq[Seq[String]]): Table =
     Table(headers, rows)
-  def bullets(items: String*): Bullets = Bullets(items)
   def inlineBar(label: String, progress: Double): InlineBar =
     InlineBar(label, progress)
   def statusCard(
@@ -386,7 +435,25 @@ case object LineBreak extends Element {
     TreeBranch(name, children)
   def leaf(name: String): TreeLeaf = TreeLeaf(name)
   def br: LineBreak.type = LineBreak
+  def hr(char: String = "─", width: Int): HorizontalRule =
+    HorizontalRule(char, Some(width))
+  def hr(char: String): HorizontalRule = HorizontalRule(char, None)
+  def hr: HorizontalRule = HorizontalRule()
 
-  /** Implicit conversions for ergonomic DSL usage */
+  /** API for bullets/bullet */
+  def bullet(text: String, children: Element*): Bullet = {
+    Bullet(Some(text), children)
+  }
+
+  def bullets(items: Bullet*): Bullet = {
+    Bullet(None, items)
+  }
+
+  def bullets(first: String, rest: String*): Bullet = {
+    val allItems = (first +: rest).map(text => Text(text))
+    Bullet(None, allItems)
+  }
+
+  /** Implicit conversions so you can just drop Strings into layouts */
   implicit def stringToText(s: String): Text = Text(s)
 }

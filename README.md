@@ -72,13 +72,13 @@ layoutz implicitly convert Strings to `Text` element
 ```
 this lets you splice strings into layouts as you build them with var-arg shorthand
 
-### Line Break
+### Line Break: `br`
 Add extra line-break "\n" with `br`:
 ```scala
 layout("Line 1", br, "Line 2")
 ```
 
-### Section
+### Section: `section`
 ```scala
 section("Config")(kv("env" -> "prod"))
 ```
@@ -87,7 +87,7 @@ section("Config")(kv("env" -> "prod"))
 env : prod
 ```
 
-### Layout (vertical)
+### Layout (vertical): `layout`
 ```scala
 layout("First", "Second", "Third")
 ```
@@ -99,7 +99,7 @@ Second
 Third
 ```
 
-### Row (horizontal)
+### Row (horizontal): `row`
 ```scala
 row("Left", "Middle", "Right")
 ```
@@ -107,7 +107,7 @@ row("Left", "Middle", "Right")
 Left Middle Right
 ```
 
-### Key-value pairs
+### Key-value pairs: `kv`
 ```scala
 kv("name" -> "Alice", "role" -> "admin")
 ```
@@ -116,7 +116,7 @@ name : Alice
 role : admin
 ```
 
-### Table
+### Table: `table`
 ```scala
 table(
   headers = Seq("Name", "Status"),
@@ -132,7 +132,8 @@ table(
 └───────┴────────┘
 ```
 
-### Bullets
+### Bullets: `bullets`/`bullet`
+Simple bullet list
 ```scala
 bullets("Task 1", "Task 2", "Task 3")
 ```
@@ -141,8 +142,60 @@ bullets("Task 1", "Task 2", "Task 3")
 • Task 2
 • Task 3
 ```
+Single bullet with nested children
+```scala
+bullet("Backend", 
+  bullet("API"),
+  bullet("Database")
+)
+```
+```
+• Backend
+  • API
+  • Database
+```
+Complex nesting
+```scala
+bullets(
+  bullet("Frontend",
+    bullet("Components",
+      bullet("Header"),
+      bullet("Footer")
+    ),
+    bullet("Styles")
+  ),
+  bullet("Backend",
+    bullet("API"),
+    bullet("Database")
+  )
+)
+```
+```
+• Frontend
+  • Components
+    • Header
+    • Footer
+  • Styles
+• Backend
+  • API
+  • Database
+```
+Mix bullets with other elements
+```scala
+bullet("Status",
+  "System online",
+  inlineBar("Health", 0.95),
+  "All services running"
+)
+```
+```
+• Status
+  • System online
+  • Health [███████████████████─] 95%
+  • All services running
+```
 
-### Box
+### Box: `box`
 ```scala
 box("Summary")(kv("total" -> "42"))
 ```
@@ -152,7 +205,7 @@ box("Summary")(kv("total" -> "42"))
 └────────────┘
 ```
 
-### Status card
+### Status card: `statusCard`
 ```scala
 statusCard("CPU", "45%")
 ```
@@ -163,7 +216,7 @@ statusCard("CPU", "45%")
 └───────┘
 ```
 
-### Progress bar
+### Progress bar: `inlineBar`
 ```scala
 inlineBar("Download", 0.75)
 ```
@@ -171,7 +224,7 @@ inlineBar("Download", 0.75)
 Download [███████████████─────] 75%
 ```
 
-### Diff block
+### Diff block: `diffBlock`
 ```scala
 diffBlock(
   added = Seq("new feature"),
@@ -184,7 +237,7 @@ Changes:
 + new feature
 ```
 
-### Tree
+### Tree: `tree`/`branch`/`leaf`
 ```scala
 tree("Project")(
   branch("src",

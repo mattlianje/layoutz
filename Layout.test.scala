@@ -144,6 +144,35 @@ status : active"""
       )
     )
 
+    test("horizontal rules") {
+      val rule1 = hr
+      val rule2 = hr("=", 20)
+      val rule3 = hr("*")
+
+      assertEquals(rule1.render, "─" * 50)
+      assertEquals(rule2.render, "=" * 20)
+      assertEquals(rule3.render, "*" * 50)
+    }
+
+    test("nested bullets") {
+      val nestedBullets = bullets(
+        bullet("Backend", bullet("API"), bullet("Database")),
+        bullet(
+          "Frontend",
+          bullet("Components", bullet("Header"), bullet("Footer"))
+        )
+      )
+
+      val expected = """• Backend
+  • API
+  • Database
+• Frontend
+  • Components
+    • Header
+    • Footer"""
+
+      assertEquals(nestedBullets.render, expected)
+    }
     println(dashboard.render)
     val rendered = dashboard.render
     assert(rendered.contains("=== System Status ==="))
@@ -175,7 +204,7 @@ Another line"""
       section("Database") {
         layout(
           kv("Host" -> "localhost", "Port" -> "5432"),
-          bullets("Connected", "Healthy", "Low latency")
+          bullet("Connected", "Healthy", "Low latency")
         )
       }
     )
@@ -228,16 +257,51 @@ Another line"""
     assertEquals(emptyKv.render, "")
   }
 
-test("line break element") {
-  // Test br within bullets or similar
-  val elements = Seq(Text("First line"), br, Text("Second line"), br, br, Text("Third line"))
-  val result = elements.map(_.render).mkString
-  
-  val expected = """First line
+  test("line break element") {
+    val elements = Seq(
+      Text("First line"),
+      br,
+      Text("Second line"),
+      br,
+      br,
+      Text("Third line")
+    )
+    val result = elements.map(_.render).mkString
+
+    val expected = """First line
 Second line
 
 Third line"""
-  
-  assertEquals(result, expected)
-}
+
+    assertEquals(result, expected)
+  }
+  test("horizontal rules") {
+    val rule1 = hr
+    val rule2 = hr("=", 20)
+    val rule3 = hr("*")
+
+    assertEquals(rule1.render, "─" * 50)
+    assertEquals(rule2.render, "=" * 20)
+    assertEquals(rule3.render, "*" * 50)
+  }
+
+  test("nested bullets") {
+    val nestedBullets = bullets(
+      bullet("Backend", bullet("API"), bullet("Database")),
+      bullet(
+        "Frontend",
+        bullet("Components", bullet("Header"), bullet("Footer"))
+      )
+    )
+
+    val expected = """• Backend
+  • API
+  • Database
+• Frontend
+  • Components
+    • Header
+    • Footer"""
+
+    assertEquals(nestedBullets.render, expected)
+  }
 }
