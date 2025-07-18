@@ -9,8 +9,8 @@ Build declarative and composable sections, trees, tables and dashboards for your
 
 ## Features
 - Zero dependencies, use Layoutz.scala like a header-file
-- Everything renders to `Element` = everything composes
-- Immutable, thread-safe, purely functional rendering
+- Effortless composition of elements
+- Thread-safe, purely functional rendering
 - Scala 2.12/2.13/3 compatible
 
 
