@@ -3,7 +3,7 @@
 </p>
 
 # <img src="pix/layoutz.png" width="60"> layout
-**Composable layouts for beautiful CLI output 🖋️✨**
+**Simple, beautiful CLI output 🖋️✨**
 
 Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
@@ -62,6 +62,8 @@ You just need to know two things
 ```scala
 layout(elem1, elem2, elem3)  /* Joins with "\n\n" */
 ```
+Call `.render` on an element to get a String
+
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Elements
