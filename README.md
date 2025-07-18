@@ -128,6 +128,16 @@ row("Left", "Middle", "Right")
 Left Middle Right
 ```
 
+### Horizontal rule: `hr`
+```scala
+hr
+hr("~", 10)
+```
+```
+──────────────────────────────────────────────────
+~~~~~~~~~
+```
+
 ### Key-value pairs: `kv`
 ```scala
 kv("name" -> "Alice", "role" -> "admin")
