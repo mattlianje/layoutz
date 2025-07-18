@@ -7,14 +7,16 @@
 
 Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
-## Of note...
-- With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
-- This is why, **_more than ever_**, "string formatting code" is spawning and polluting domain logic
-- **layoutz** is just a tiny, declarative DSL to combat this
+## Features
+- Zero dependencies, use Layoutz.scala like a header-file
+- Effortless composition of elements
+- Thread-safe, purely functional rendering
+- Scala 2.12/2.13/3 compatible
+
 
 ## Quickstart
 ```scala
-import layout._
+import layoutz._
 
 val dashboard = layout(
   section("System Status")(
@@ -50,14 +52,14 @@ yields:
 └─────────────────────────────┘
 ```
 
-## Core concepts
-You just need to know two things
+## Of note...
+- With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
+- This is why, **_more than ever_**, "string formatting code" is spawning and polluting domain logic
+- **layoutz** is just a tiny, declarative DSL to combat this
 
-**Element**
+## Core concepts
 - Every piece of content is an `Element`
 - Elements are **immutable** and **composable** - you build complex layouts by combining simple elements.
-
-**Layout**
 - A `layout` is just a special element that arranges other elements **vertically** with consistent spacing:
 ```scala
 layout(elem1, elem2, elem3)  /* Joins with "\n\n" */
@@ -69,10 +71,11 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
 
-### Text
-**layoutz** implicitly convert Strings to `Text` element
+### Text: `Text`
+**layoutz** implicitly converts Strings to `Text` element
 ```scala
 "Simple text" // <- valid Element
+Text("Simple text") // <- you don't need to do this
 ```
 this lets you splice strings into layouts as you build them with var-arg shorthand
 
@@ -289,5 +292,5 @@ section("Users by Role")(
 ```
 
 ## Inspiration
-- [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Mr. Li Haoyi
+- [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
 - Countless templating libraries via osmosis ...
