@@ -15,13 +15,13 @@ package object layoutz {
   /** Styling constants */
   private object Dimensions {
     val MinContentPadding = 2
-    val BorderThickness = 2 // For "┌" and "┐"
-    val SidePadding = 2 // For "│ "
+    val BorderThickness = 2
+    val SidePadding = 2
     val ProgressBarWidth = 20
-    val TreeIndentation = 4 // Standard tree level indentation
-    val TreeConnectorSpacing = 3 // Spaces after "│" for tree continuation
+    val TreeIndentation = 4
+    val TreeConnectorSpacing = 3
     val DefaultRuleWidth = 50
-    val BulletIndentation = 2 // Indentation per nesting level
+    val BulletIndentation = 2
   }
 
   private object Glyphs {
