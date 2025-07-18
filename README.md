@@ -8,11 +8,24 @@
 Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
 ## Features
-- Zero dependencies, use Layoutz.scala like a header-file
+- Zero dependencies, use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Thread-safe, purely functional rendering
-- Scala 2.12/2.13/3 compatible
 
+## Installation
+**layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
+```scala
+"xyz.matthieucourt" %% "layoutz" % "0.1.0"
+```
+Or try in REPL:
+```bash
+scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.1.0
+```
+
+All you need:
+```scala
+import layoutz._
+```
 
 ## Quickstart
 ```scala
