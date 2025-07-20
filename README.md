@@ -65,10 +65,10 @@ yields:
 └─────────────────────────────┘
 ```
 
-## Of note...
-- There is a void to be filled between `s"..."` and a full-blown TUI
+## Motivation
+- We have `s"..."`, and full-blown TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
-- This is why, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
+- Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
 - Utlimately, **layoutz** is just a tiny, declarative DSL to combat this
 
 ## Core concepts
