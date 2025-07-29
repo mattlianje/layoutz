@@ -92,38 +92,21 @@ package object layoutz {
   final case class Bullet(text: Option[String], children: Seq[Element])
       extends Element {
 
-    def render: String = renderAtLevel(0)
+    def render: String = renderAtLevel(this, 0)
 
-    private def renderAtLevel(level: Int): String = {
-      val indent = " " * (level * Dimensions.BulletIndentation)
-
-      text match {
-        case Some(txt) =>
-          val mainItem = s"$indent${Glyphs.Bullet} $txt"
+    private def renderAtLevel(element: Element, level: Int): String = {
+      element match {
+        case Bullet(Some(text), children) =>
+          val indent = " " * (level * Dimensions.BulletIndentation)
+          val mainItem = s"$indent${Glyphs.Bullet} $text"
           if (children.isEmpty) {
             mainItem
           } else {
-            val childItems = children.map(renderChildAtLevel(_, level + 1))
+            val childItems = children.map(renderAtLevel(_, level + 1))
             (mainItem +: childItems).mkString("\n")
           }
-        case None =>
-          children.map(renderChildAtLevel(_, level)).mkString("\n")
-      }
-    }
-
-    private def renderChildAtLevel(element: Element, level: Int): String = {
-      element match {
-        case Bullet(Some(childText), grandchildren) =>
-          val indent = " " * (level * Dimensions.BulletIndentation)
-          val mainItem = s"$indent${Glyphs.Bullet} $childText"
-          if (grandchildren.isEmpty) {
-            mainItem
-          } else {
-            val childItems = grandchildren.map(renderChildAtLevel(_, level + 1))
-            (mainItem +: childItems).mkString("\n")
-          }
-        case Bullet(None, grandchildren) =>
-          grandchildren.map(renderChildAtLevel(_, level)).mkString("\n")
+        case Bullet(None, children) =>
+          children.map(renderAtLevel(_, level)).mkString("\n")
         case other =>
           val indent = " " * (level * Dimensions.BulletIndentation)
           s"$indent${Glyphs.Bullet} ${other.render}"
