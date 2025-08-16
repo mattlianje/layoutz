@@ -5,7 +5,7 @@
 # <img src="pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
+Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
 ## Features
 - Zero dependencies, use **Layoutz.scala** like a header-file
