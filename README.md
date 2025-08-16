@@ -5,12 +5,13 @@
 # <img src="pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables and dashboards for your consoles. Part of [d4](https://github.com/mattlianje/d4)
+Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
 ## Features
 - Zero dependencies, use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Thread-safe, purely functional rendering
+- Use `LayoutzApp` trait + `LayoutzRuntime` for Elm-style TUI's
 
 ## Installation
 **layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
@@ -46,11 +47,8 @@ val dashboard = layout(
       "3 new deployments"
     )
   )
-)
-
-println(dashboard.render)
+).render
 ```
-yields:
 ```
 === System Status ===
 ┌───────┐ ┌──────────┐ ┌────────┐
@@ -85,13 +83,12 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
 
-### Text: `Text`
-**layoutz** implicitly converts Strings to `Text` element
+### Text: `Text` *(optional)*
+**layoutz** implicitly converts Strings to `Text` elements - the `Text()` wrapper is technically redundant:
 ```scala
-"Simple text" // <- valid Element
+"Simple text" // <- automatically converted to Text element
 Text("Simple text") // <- you don't need to do this
 ```
-this lets you splice strings into layouts as you build them with var-arg shorthand
 
 ### Line Break: `br`
 Add extra line-break "\n" with `br`:
@@ -102,10 +99,18 @@ layout("Line 1", br, "Line 2")
 ### Section: `section`
 ```scala
 section("Config")(kv("env" -> "prod"))
+section("Status", "-")(kv("health" -> "ok"))
+section("Report", "#", 5)(kv("items" -> "42"))
 ```
 ```
 === Config ===
 env : prod
+
+--- Status ---
+health : ok
+
+##### Report #####
+items : 42
 ```
 
 ### Layout (vertical): `layout`
@@ -227,11 +232,22 @@ bullet("Status",
 ```
 
 ### Box: `box`
+With title:
 ```scala
 box("Summary")(kv("total" -> "42"))
 ```
 ```
 ┌──Summary───┐
+│ total : 42 │
+└────────────┘
+```
+
+Without title:
+```scala
+box(kv("total" -> "42"))
+```
+```
+┌────────────┐
 │ total : 42 │
 └────────────┘
 ```
@@ -254,6 +270,17 @@ inlineBar("Download", 0.75)
 ```
 Download [███████████████─────] 75%
 ```
+
+### Spinner: `spinner`
+```scala
+spinner("Loading...", frame = 3)
+spinner("Processing", frame = 0, SpinnerStyle.Line)
+```
+```
+⠸ Loading...
+|| Processing
+```
+Styles: `Dots` (default), `Line`, `Clock`, `Bounce`
 
 ### Diff block: `diffBlock`
 ```scala
@@ -286,6 +313,89 @@ Project
         └── AppSpec.scala
 ```
 
+### Banner: `banner`
+```scala
+banner("System Dashboard", BorderStyle.Double)
+```
+```
+╔═══════════════════╗
+║ System Dashboard  ║
+╚═══════════════════╝
+```
+
+### Chart: `chart`
+```scala
+chart(
+  "Web" -> 10,
+  "Mobile" -> 20,
+  "API" -> 15
+)
+```
+```
+Web            │████████████████ 10.0
+Mobile         │████████████████████████████████ 20.0
+API            │███████████████████████████ 15.0
+```
+
+### Border Styles
+Elements like `box`, `table`, and `banner` support different `BorderStyle` options:
+
+**Single** (default):
+```scala
+box("Title", BorderStyle.Single)("")
+```
+```
+┌─Title─┐
+│       │
+└───────┘
+```
+
+**Double**:
+```scala
+banner("Welcome", BorderStyle.Double)
+```
+```
+╔═════════╗
+║ Welcome ║
+╚═════════╝
+```
+
+**Thick**:
+```scala
+table(headers, rows, BorderStyle.Thick)
+```
+```
+┏━━━━━━━┳━━━━━━━━┓
+┃ Name  ┃ Status ┃
+┣━━━━━━━╋━━━━━━━━┫
+┃ Alice ┃ Online ┃
+┗━━━━━━━┻━━━━━━━━┛
+```
+
+**Round**:
+```scala
+box("Info", BorderStyle.Round)("")
+```
+```
+╭─Info─╮
+│      │
+╰──────╯
+```
+
+**Custom**:
+```scala
+box("Alert", BorderStyle.Custom(
+  corner = "+", 
+  horizontal = "=", 
+  vertical = "|"
+))("")
+```
+```
++=Alert=+
+|       |
++=======+
+```
+
 ## Working with collections
 The full power of Scala functional collections is at your fingertips to render your strings with **layoutz**
 ```scala
@@ -313,6 +423,57 @@ section("Users by Role")(
 │ • Bob  │
 │ • Tom  │
 └────────┘
+```
+
+## Interactive Apps
+Build **Elm-style terminal applications** with the `LayoutzApp` architecture.
+
+### `LayoutzApp[State, Message]`
+The type parameters define your app's contract:
+- **State**: Your application's state type (primitive like `Int`, case class like `TodoState`, etc.)  
+- **Message**: Union type of all possible actions your app can handle (often sealed trait or simple strings)
+
+You implement four methods:
+- `init: State` - Initial state when app starts
+- `view(state: State): Element` - Render current state to UI elements  
+- `onKey(key: Key): Option[Message]` - Convert keyboard input to optional messages
+- `update(message: Message, state: State): State` - Apply message to state, return new state
+
+`LayoutzRuntime.run()` handles the event loop, terminal management, and threading automatically.
+
+```scala
+object CounterApp extends LayoutzApp[Int, String] {
+  def init = 0
+  def update(msg: String, count: Int) = msg match {
+    case "inc" => count + 1
+    case "dec" => count - 1
+    case _ => count
+  }
+  def onKey(k: Key) = k match {
+    case CharKey('+') => Some("inc")
+    case CharKey('-') => Some("dec") 
+    case _ => None
+  }
+  def view(count: Int) = 
+    section("Counter")(Text(s"Count: $count"))
+}
+
+LayoutzRuntime.run(CounterApp)
+```
+
+## Key System
+**Key types**: `CharKey(c)`, `EnterKey`, `ArrowUpKey`, `SpecialKey("Ctrl+S")`, auto-generated `SpinnerTickKey`/`ProgressTickKey`
+
+### Input Handling Pattern
+```scala
+def onKey(k: Key): Option[Message] = k match {
+  case CharKey(c) if c.isPrintable => Some(AddChar(c))
+  case BackspaceKey => Some(DeleteChar)
+  case ArrowLeftKey => Some(MoveLeft)
+  case SpecialKey("Ctrl+S") => Some(Save)
+  case SpinnerTickKey => Some(UpdateAnimation)
+  case _ => None
+}
 ```
 
 ## Inspiration

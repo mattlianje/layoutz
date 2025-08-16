@@ -1,4 +1,6 @@
 //> using dep "org.scalameta::munit:1.1.1"
+//> using dep "org.jline:jline-terminal:3.30.5"
+//> using dep "org.jline:jline-reader:3.30.5"
 //> using scala "2.12"
 
 //> using publish.name "layoutz"
@@ -9,4 +11,4 @@
 //> using publish.license "Apache-2.0"
 
 //> using publish.developer "mattlianje|Matthieu Court|https://github.com/mattlianje"
-//> using publish.gpgKey "EBD031A099D734786A3D035A58C96F93A67A96E9"
+//> using publish.gpgKey "7CCC3BED8373C09380A4EEF5E610BC543D796B05"
