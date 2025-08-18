@@ -34,42 +34,38 @@ import layoutz._
 ```scala
 import layoutz._
 
-val dashboard = layout(
-  center(underline(Text("📊 SYSTEM DASHBOARD")), 50),
-  
-  section("System Status")(
-    row(
-      statusCard("CPU", "45%"),
-      statusCard("Memory", "78%"), 
-      statusCard("Disk", "23%")
-    )
-  ),
+val build = layout(
+  center(underline("DEPLOY PIPELINE"), 30),
   
   row(
-    box("Recent Activity")(
-      ul("User alice logged in", "Database backup completed", "3 new deployments")
-    ),
-    box("Next Steps")(
-      ol("Review logs", "Update configs", "Deploy v2.1")
-    )
-  )
+    statusCard("Build", "PASS"),
+    statusCard("Tests", "2/8"), 
+    statusCard("Deploy", "RUNNING")
+  ),
+  
+  box("Latest")(
+    ul("→")("Fix auth bug", "Add metrics", "Update deps")
+  ),
+  
+  inlineBar("Progress", 0.75)
 ).render
 ```
 ```
-               📊 SYSTEM DASHBOARD               
-               ────────────────────               
+        DEPLOY PIPELINE        
+        ───────────────        
 
-=== System Status ===
-┌───────┐ ┌──────────┐ ┌────────┐
-│ CPU   │ │ Memory   │ │ Disk   │
-│ 45%   │ │ 78%      │ │ 23%    │
-└───────┘ └──────────┘ └────────┘
+┌─────────┐ ┌───────┐ ┌─────────┐
+│ Build   │ │ Tests │ │ Deploy  │
+│ PASS    │ │ 2/8   │ │ RUNNING │
+└─────────┘ └───────┘ └─────────┘
 
-┌───────Recent Activity───────┐ ┌────────Next Steps────────┐
-│ • User alice logged in      │ │ 1. Review logs            │
-│ • Database backup completed │ │ 2. Update configs         │
-│ • 3 new deployments         │ │ 3. Deploy v2.1            │
-└─────────────────────────────┘ └───────────────────────────┘
+┌─────Latest─────┐
+│ → Fix auth bug │
+│ → Add metrics  │
+│ → Update deps  │
+└────────────────┘
+
+Progress [███████████████─────] 75%
 ```
 
 ## Motivation
