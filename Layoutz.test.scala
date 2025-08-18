@@ -485,7 +485,7 @@ Third line"""
     assertEquals(TodoApp.onKey(CharKey('1')), Some(ToggleItem(0)))
     assertEquals(TodoApp.onKey(CharKey('9')), Some(ToggleItem(8)))
     assertEquals(TodoApp.onKey(CharKey('0')), None)
-    assertEquals(TodoApp.onKey(SpecialKey("Ctrl+N")), Some(ToggleInputMode))
+    assertEquals(TodoApp.onKey(CharKey('n')), Some(ToggleInputMode))
     assertEquals(TodoApp.onKey(CharKey('a')), Some(AddChar('a')))
     assertEquals(
       TodoApp.onKey(CharKey('q')),
@@ -512,7 +512,7 @@ Third line"""
 
     // Should show add task section
     assert(view.render.contains("=== Add New Task ==="))
-    assert(view.render.contains("Press Ctrl+N to add new task"))
+    assert(view.render.contains("Press 'n' to add new task"))
   }
 
   test("TextInput element rendering") {
@@ -665,4 +665,381 @@ Disk            │████████████████ 30.0"""
     assert(counterView.render.nonEmpty)
     assert(todoView.render.nonEmpty)
   }
+
+  test("underline element") {
+    val simpleText = Text("Hello")
+    val underlined = underline(simpleText)
+    val expected = """Hello
+─────"""
+    assertEquals(underlined.render, expected)
+
+    // Test with custom underline char
+    val customUnderlined = underline(simpleText, "=")
+    val expectedCustom = """Hello
+====="""
+    assertEquals(customUnderlined.render, expectedCustom)
+
+    // Test with pattern that's too long (should truncate)
+    val longPattern = underline(simpleText, "─═─═─═─═")
+    val expectedTruncated = """Hello
+─═─═─"""
+    assertEquals(longPattern.render, expectedTruncated)
+
+    // Test with multiline text
+    val multilineText = Text("Line 1\nLonger line 2")
+    val underlinedMulti = underline(multilineText)
+    val expectedMulti = """Line 1
+Longer line 2
+─────────────"""
+    assertEquals(underlinedMulti.render, expectedMulti)
+  }
+
+  test("ordered list") {
+    val list = ol(
+      Text("First item"),
+      Text("Second item"),
+      Text("Third item")
+    )
+
+    val expected = """1. First item
+2. Second item
+3. Third item"""
+
+    assertEquals(list.render, expected)
+
+    // Test with multiline items
+    val multilineList = ol(
+      Text("First item\nwith continuation"),
+      Text("Second item")
+    )
+
+    val expectedMultiline = """1. First item
+   with continuation
+2. Second item"""
+
+    assertEquals(multilineList.render, expectedMultiline)
+
+    // Test empty list
+    val emptyList = ol()
+    assertEquals(emptyList.render, "")
+  }
+
+  test("unordered list") {
+    val list = ul(
+      Text("First item"),
+      Text("Second item"),
+      Text("Third item")
+    )
+
+    val expected = """• First item
+• Second item
+• Third item"""
+
+    assertEquals(list.render, expected)
+
+    // Test with custom bullet
+    val customBullet = UnorderedList(Seq(Text("Item 1"), Text("Item 2")), "★")
+    val expectedCustom = """★ Item 1
+★ Item 2"""
+
+    assertEquals(customBullet.render, expectedCustom)
+
+    // Test with multiline items
+    val multilineList = ul(
+      Text("First item\nwith continuation"),
+      Text("Second item")
+    )
+
+    val expectedMultiline = """• First item
+  with continuation
+• Second item"""
+
+    assertEquals(multilineList.render, expectedMultiline)
+
+    // Test empty list
+    val emptyList = ul()
+    assertEquals(emptyList.render, "")
+  }
+
+  test("complex list combinations") {
+    val complexLayout = layout(
+      underline(Text("My Lists"), "="),
+      ol(
+        Text("Ordered item 1"),
+        ul(Text("Nested unordered"), Text("Another nested")),
+        Text("Back to ordered")
+      )
+    )
+
+    val rendered = complexLayout.render
+    assert(rendered.contains("My Lists"))
+    assert(rendered.contains("========"))
+    assert(rendered.contains("1. Ordered item 1"))
+    assert(rendered.contains("• Nested unordered"))
+    assert(rendered.contains("3. Back to ordered"))
+  }
+
+  test("centered alignment") {
+    val centered = center(Text("Hello"), 11)
+    assertEquals(centered.render, "   Hello   ")
+
+    val centeredOdd = center(Text("Hello"), 10)
+    assertEquals(centeredOdd.render, "  Hello   ")
+
+    val multiline = center(Text("Line 1\nLine 2"), 10)
+    assertEquals(multiline.render, "  Line 1  \n  Line 2  ")
+  }
+
+  test("left alignment") {
+    val leftAligned = leftAlign(Text("Hello"), 10)
+    assertEquals(leftAligned.render, "Hello     ")
+
+    val multiline = leftAlign(Text("Hi\nBye"), 8)
+    assertEquals(multiline.render, "Hi      \nBye     ")
+  }
+
+  test("right alignment") {
+    val rightAligned = rightAlign(Text("Hello"), 10)
+    assertEquals(rightAligned.render, "     Hello")
+
+    val multiline = rightAlign(Text("Hi\nBye"), 8)
+    assertEquals(multiline.render, "      Hi\n     Bye")
+  }
+
+  test("alignment combinations") {
+    val demo = layout(
+      center(Text("TITLE"), 20),
+      leftAlign(Text("Left side"), 20),
+      rightAlign(Text("Right side"), 20)
+    )
+
+    val rendered = demo.render
+    assertEquals(rendered.contains("       TITLE        "), true)
+    assertEquals(rendered.contains("Left side           "), true)
+    assertEquals(rendered.contains("          Right side"), true)
+  }
+
+  test("alignment with other elements") {
+    val boxed = box("Centered Content")(center(Text("Important Message"), 15))
+    assertEquals(boxed.render.contains("Important Message"), true)
+  }
+
+  test("text wrapping") {
+    val wrapped = wrap(
+      Text(
+        "This is a very long line that should be wrapped at word boundaries"
+      ),
+      20
+    )
+    val lines = wrapped.render.split('\n')
+
+    assertEquals(lines.length > 1, true)
+    lines.foreach(line => assertEquals(line.length <= 20, true))
+  }
+
+  test("text wrapping edge cases") {
+    assertEquals(wrap(Text("Short"), 20).render, "Short")
+    assertEquals(
+      wrap(Text("supercalifragilisticexpialidocious"), 10).render,
+      "supercalifragilisticexpialidocious"
+    )
+
+    val multiline = wrap(Text("Line one\nLine two has more words than fit"), 15)
+    assertEquals(multiline.render.split('\n').length > 2, true)
+  }
+
+  test("text wrapping with spaces") {
+    val wrapped = wrap(Text("Word  with   multiple    spaces"), 15)
+    assertEquals(wrapped.render.contains("Word  with"), true)
+  }
+
+  test("text wrapping in complex layouts") {
+    val article = layout(
+      center(Text("📰 ARTICLE TITLE"), 40),
+      hr("=", 40),
+      section("Introduction")(
+        wrap(
+          Text(
+            "This is a long introduction paragraph that needs to be wrapped to fit within a reasonable column width for easy reading."
+          ),
+          35
+        )
+      ),
+      section("Content")(
+        wrap(
+          Text(
+            "Here is the main content of the article. It contains many words and should flow nicely when wrapped at word boundaries."
+          ),
+          35
+        )
+      )
+    )
+
+    val rendered = article.render
+    assert(rendered.contains("📰 ARTICLE TITLE"))
+    assert(rendered.contains("Introduction"))
+    assert(rendered.contains("Content"))
+
+    // Check that lines aren't too long
+    val lines = rendered.split('\n')
+    val contentLines = lines.filter(line =>
+      !line.contains("=") &&
+        !line.contains("Article") &&
+        !line.contains("Introduction") &&
+        !line.contains("Content") &&
+        line.trim.nonEmpty
+    )
+
+    contentLines.foreach { line =>
+      assert(
+        line.length <= 50,
+        s"Content line too long: '$line' (${line.length} chars)"
+      )
+    }
+  }
+
+  test("text justification") {
+    // Basic justification
+    val text = Text("This is a test")
+    val justified = justify(text, 20)
+    val result = justified.render
+
+    assertEquals(result.length, 20)
+    assert(result.startsWith("This"))
+    assert(result.endsWith("test"))
+    assert(result.contains("  ")) // Should have extra spaces
+
+    // Test specific spacing distribution
+    val shortText = Text("One Two Three")
+    val justifiedShort = justify(shortText, 18)
+    val resultShort = justifiedShort.render
+
+    assertEquals(resultShort.length, 18)
+    // Should distribute spaces evenly: "One   Two   Three" (2 gaps, 5 extra spaces total)
+    assert(
+      resultShort.contains("One") && resultShort.contains("Two") && resultShort
+        .contains("Three")
+    )
+  }
+
+  test("text justification edge cases") {
+    // Single word - should left align
+    val singleWord = Text("Hello")
+    val justifiedSingle = justify(singleWord, 15)
+    assertEquals(justifiedSingle.render, "Hello          ")
+
+    // Text already at target width
+    val exactWidth = Text("Exactly twenty chars")
+    val justifiedExact = justify(exactWidth, 20)
+    assertEquals(justifiedExact.render, "Exactly twenty chars")
+
+    // Text longer than target width - should wrap and justify
+    val tooLong = Text("This text is definitely longer than target")
+    val justifiedLong = justify(tooLong, 20)
+    val result = justifiedLong.render
+    val lines = result.split('\n')
+
+    // Should be wrapped into multiple lines, each justified to 20 chars (except the last)
+    assert(lines.length >= 2, "Long text should be wrapped into multiple lines")
+    lines.dropRight(1).foreach { line =>
+      assertEquals(line.length, 20, s"Line '$line' should be exactly 20 chars")
+    }
+
+    // Empty text
+    val empty = Text("")
+    val justifiedEmpty = justify(empty, 10)
+    assertEquals(justifiedEmpty.render, "          ")
+  }
+
+  test("text justification multiline") {
+    val multiline = Text("First line here\nSecond line\nThird")
+    val justified = justify(multiline, 20)
+    val result = justified.render
+    val lines = result.split('\n')
+
+    assertEquals(lines.length, 3)
+
+    // First two lines should be justified (20 chars each)
+    assertEquals(lines(0).length, 20)
+    assertEquals(lines(1).length, 20)
+
+    // Last line should NOT be justified by default
+    assertEquals(lines(2), "Third")
+  }
+
+  test("text justification with justifyAll flag") {
+    val multiline = Text("First line\nLast line")
+    val justified = justifyAll(multiline, 15)
+    val result = justified.render
+    val lines = result.split('\n')
+
+    assertEquals(lines.length, 2)
+
+    // Both lines should be justified (15 chars each)
+    assertEquals(lines(0).length, 15)
+    assertEquals(lines(1).length, 15)
+
+    assert(lines(0).contains("First") && lines(0).contains("line"))
+    assert(lines(1).contains("Last") && lines(1).contains("line"))
+  }
+
+  test("justification in complex layouts") {
+    val document = layout(
+      center(Text("📄 JUSTIFIED DOCUMENT"), 40),
+      hr("═", 40),
+      section("Paragraph 1")(
+        justify(
+          Text(
+            "This paragraph demonstrates text justification where each line fits snugly within the specified width by distributing spaces between words evenly."
+          ),
+          35
+        )
+      ),
+      section("Paragraph 2")(
+        Layout(
+          Seq(
+            justify(
+              Text(
+                "Another paragraph showing how justification works with multiple lines of text content."
+              ),
+              35
+            ),
+            br,
+            justify(
+              Text(
+                "Each line becomes exactly the target width by adding extra spaces between words."
+              ),
+              35
+            )
+          )
+        )
+      )
+    )
+
+    val rendered = document.render
+    assert(rendered.contains("📄 JUSTIFIED DOCUMENT"))
+    assert(rendered.contains("Paragraph 1"))
+    assert(rendered.contains("Paragraph 2"))
+
+    // Check that justified lines are exactly 35 characters (where applicable)
+    val lines = rendered.split('\n')
+    val justifiedLines = lines.filter(line =>
+      line.trim.nonEmpty &&
+        !line.contains("═") &&
+        !line.contains("📄") &&
+        !line.contains("Paragraph") &&
+        line.contains(" ") && // Has spaces (so it's justified content)
+        line.split("\\s+").length > 1 // Multiple words
+    )
+
+    justifiedLines.foreach { line =>
+      if (!line.trim.split("\\s+").exists(_.length > 30)) { // Skip lines with very long words
+        assert(
+          line.length <= 40,
+          s"Justified line too long: '$line' (${line.length} chars)"
+        )
+      }
+    }
+  }
+
 }

@@ -308,9 +308,9 @@ object Examples {
 
   // Navigation demo with arrow keys
   case class NavigationState(
-    selectedItem: Int,
-    items: List[String],
-    message: String
+      selectedItem: Int,
+      items: List[String],
+      message: String
   )
 
   sealed trait NavigationMessage
@@ -323,10 +323,10 @@ object Examples {
 
   /** Arrow key navigation demo */
   object NavigationApp extends LayoutzApp[NavigationState, NavigationMessage] {
-    
+
     private val menuItems = List(
       "🏠 Home",
-      "📄 Documents", 
+      "📄 Documents",
       "⚙️ Settings",
       "📊 Analytics",
       "👤 Profile",
@@ -339,25 +339,33 @@ object Examples {
       message = "Use arrow keys to navigate!"
     )
 
-    def update(msg: NavigationMessage, state: NavigationState): NavigationState = msg match {
+    def update(
+        msg: NavigationMessage,
+        state: NavigationState
+    ): NavigationState = msg match {
       case MoveUp =>
-        val newSelected = if (state.selectedItem > 0) state.selectedItem - 1 else state.items.length - 1
+        val newSelected =
+          if (state.selectedItem > 0) state.selectedItem - 1
+          else state.items.length - 1
         state.copy(selectedItem = newSelected, message = "Moved up")
-        
+
       case MoveDown =>
-        val newSelected = if (state.selectedItem < state.items.length - 1) state.selectedItem + 1 else 0
+        val newSelected =
+          if (state.selectedItem < state.items.length - 1)
+            state.selectedItem + 1
+          else 0
         state.copy(selectedItem = newSelected, message = "Moved down")
-        
+
       case MoveLeft =>
         state.copy(message = "← Left arrow pressed")
-        
+
       case MoveRight =>
         state.copy(message = "→ Right arrow pressed")
-        
+
       case SelectItem =>
         val selected = state.items(state.selectedItem)
         state.copy(message = s"✅ Selected: $selected")
-        
+
       case ResetSelection =>
         state.copy(selectedItem = 0, message = "Reset to top")
     }
@@ -368,23 +376,25 @@ object Examples {
       case CharKey('s') | CharKey('S') => Some(MoveDown)
       case CharKey('a') | CharKey('A') => Some(MoveLeft)
       case CharKey('d') | CharKey('D') => Some(MoveRight)
-      
+
       // Arrow keys (when escape sequence parsing works)
       case ArrowUpKey    => Some(MoveUp)
       case ArrowDownKey  => Some(MoveDown)
       case ArrowLeftKey  => Some(MoveLeft)
       case ArrowRightKey => Some(MoveRight)
-      
+
       // Other controls
-      case EnterKey      => Some(SelectItem)
+      case EnterKey                    => Some(SelectItem)
       case CharKey('r') | CharKey('R') => Some(ResetSelection)
-      case _             => None
+      case _                           => None
     }
 
     def view(state: NavigationState): Element = {
       val menuList = state.items.zipWithIndex.map { case (item, index) =>
         val marker = if (index == state.selectedItem) "►" else " "
-        val style = if (index == state.selectedItem) s"$marker $item ◄" else s"$marker $item"
+        val style =
+          if (index == state.selectedItem) s"$marker $item ◄"
+          else s"$marker $item"
         Text(style)
       }
 
@@ -398,7 +408,7 @@ object Examples {
         section("Controls")(
           bullets(
             "W/S keys - Navigate up/down",
-            "A/D keys - Move left/right", 
+            "A/D keys - Move left/right",
             "↑↓←→ Arrow keys - Also work (when supported)",
             "Enter - Select current item",
             "R - Reset to top",

@@ -10,6 +10,8 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 ## Features
 - Zero dependencies, use **Layoutz.scala** like a header-file
 - Effortless composition of elements
+- Rich text formatting: alignment, wrapping, justification, underlines
+- Lists, trees, tables, charts, progress bars, and more
 - Thread-safe, purely functional rendering
 - Use `LayoutzApp` trait + `LayoutzRuntime` for Elm-style TUI's
 
@@ -33,6 +35,8 @@ import layoutz._
 import layoutz._
 
 val dashboard = layout(
+  center(underline(Text("📊 SYSTEM DASHBOARD")), 50),
+  
   section("System Status")(
     row(
       statusCard("CPU", "45%"),
@@ -40,27 +44,32 @@ val dashboard = layout(
       statusCard("Disk", "23%")
     )
   ),
-  box("Recent Activity")(
-    bullets(
-      "User alice logged in",
-      "Database backup completed", 
-      "3 new deployments"
+  
+  row(
+    box("Recent Activity")(
+      ul("User alice logged in", "Database backup completed", "3 new deployments")
+    ),
+    box("Next Steps")(
+      ol("Review logs", "Update configs", "Deploy v2.1")
     )
   )
 ).render
 ```
 ```
+               📊 SYSTEM DASHBOARD               
+               ────────────────────               
+
 === System Status ===
 ┌───────┐ ┌──────────┐ ┌────────┐
 │ CPU   │ │ Memory   │ │ Disk   │
 │ 45%   │ │ 78%      │ │ 23%    │
 └───────┘ └──────────┘ └────────┘
 
-┌───────Recent Activity───────┐
-│ • User alice logged in      │
-│ • Database backup completed │
-│ • 3 new deployments         │
-└─────────────────────────────┘
+┌───────Recent Activity───────┐ ┌────────Next Steps────────┐
+│ • User alice logged in      │ │ 1. Review logs            │
+│ • Database backup completed │ │ 2. Update configs         │
+│ • 3 new deployments         │ │ 3. Deploy v2.1            │
+└─────────────────────────────┘ └───────────────────────────┘
 ```
 
 ## Motivation
@@ -231,6 +240,60 @@ bullet("Status",
   • All services running
 ```
 
+### Ordered Lists: `ol`
+Automatically numbered lists
+```scala
+ol("First step", "Second step", "Third step")
+```
+```
+1. First step
+2. Second step
+3. Third step
+```
+With nested elements
+```scala
+ol(
+  "Setup project",
+  ul("Install dependencies", "Configure settings"),
+  "Run tests"
+)
+```
+```
+1. Setup project
+2. • Install dependencies
+   • Configure settings
+3. Run tests
+```
+
+### Unordered Lists: `ul`
+Clean unordered lists with custom bullets
+```scala
+ul("Feature A", "Feature B", "Feature C")
+ul("Item 1", "Item 2", bullet = "→")
+```
+```
+• Feature A
+• Feature B
+• Feature C
+
+→ Item 1
+→ Item 2
+```
+
+### Underline: `underline`
+Add underlines to any element
+```scala
+underline(Text("Important Title"))
+underline(Text("Custom"), "=")
+```
+```
+Important Title
+───────────────
+
+Custom
+══════
+```
+
 ### Box: `box`
 With title:
 ```scala
@@ -335,6 +398,55 @@ chart(
 Web            │████████████████ 10.0
 Mobile         │████████████████████████████████ 20.0
 API            │███████████████████████████ 15.0
+```
+
+## Text Formatting & Layout
+
+### Alignment: `center`/`leftAlign`/`rightAlign`
+Align text within a specified width
+```scala
+center(Text("TITLE"), 20)
+leftAlign(Text("Left side"), 20)
+rightAlign(Text("Right side"), 20)
+```
+```
+       TITLE        
+Left side           
+          Right side
+```
+
+Works with multiline text:
+```scala
+center(Text("Line 1\nLine 2"), 15)
+```
+```
+   Line 1   
+   Line 2   
+```
+
+### Text Wrapping: `wrap`
+Wrap long text at word boundaries
+```scala
+wrap(Text("This is a very long line that should be wrapped at word boundaries"), 20)
+```
+```
+This is a very long
+line that should be
+wrapped at word
+boundaries
+```
+
+### Text Justification: `justify`/`justifyAll`
+Distribute spaces to fit exact width
+```scala
+justify(Text("This text will be justified to fit exactly"), 25)
+justifyAll(Text("All lines\neven the last"), 15)
+```
+```
+This text will be justified to fit exactly
+
+All lines even
+even  the  last
 ```
 
 ### Border Styles

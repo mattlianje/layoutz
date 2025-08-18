@@ -69,6 +69,287 @@ package object layoutz {
   case object LineBreak extends Element {
     def render: String = "\n"
   }
+
+  /** Underline element that draws a line under any element */
+  final case class Underline(
+      element: Element,
+      underlineChar: String = "─"
+  ) extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+      val maxWidth = if (lines.isEmpty) 0 else lines.map(_.length).max
+
+      if (maxWidth == 0) return content
+
+      // Create underline, truncating if underlineChar pattern is too long
+      val underlinePattern = underlineChar
+      val underline = if (underlinePattern.length >= maxWidth) {
+        underlinePattern.take(maxWidth)
+      } else {
+        val repeats = maxWidth / underlinePattern.length
+        val remainder = maxWidth % underlinePattern.length
+        (underlinePattern * repeats) + underlinePattern.take(remainder)
+      }
+
+      content + "\n" + underline
+    }
+  }
+
+  /** Ordered list with numbered items */
+  final case class OrderedList(items: Seq[Element]) extends Element {
+    def render: String = {
+      if (items.isEmpty) return ""
+
+      items.zipWithIndex
+        .map { case (item, index) =>
+          val number = (index + 1).toString
+          val content = item.render
+          val lines = content.split('\n')
+          if (lines.length == 1) {
+            s"$number. ${lines.head}"
+          } else {
+            val firstLine = s"$number. ${lines.head}"
+            val indent =
+              " " * (number.length + 2) // "1. " = 3 chars, "10. " = 4 chars, etc.
+            val remainingLines = lines.tail.map(line => s"$indent$line")
+            (firstLine +: remainingLines).mkString("\n")
+          }
+        }
+        .mkString("\n")
+    }
+  }
+
+  /** Unordered list with bullet points */
+  final case class UnorderedList(items: Seq[Element], bullet: String = "•")
+      extends Element {
+    def render: String = {
+      if (items.isEmpty) return ""
+
+      items
+        .map { item =>
+          val content = item.render
+          val lines = content.split('\n')
+          if (lines.length == 1) {
+            s"$bullet ${lines.head}"
+          } else {
+            val firstLine = s"$bullet ${lines.head}"
+            val indent = " " * (bullet.length + 1) // bullet + space
+            val remainingLines = lines.tail.map(line => s"$indent$line")
+            (firstLine +: remainingLines).mkString("\n")
+          }
+        }
+        .mkString("\n")
+    }
+  }
+
+  /** Center-align element within specified width */
+  final case class Centered(element: Element, targetWidth: Int)
+      extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+
+      lines
+        .map { line =>
+          val lineLength = line.length
+          if (lineLength >= targetWidth) {
+            line // If line is already wider than target width, don't truncate
+          } else {
+            val totalPadding = targetWidth - lineLength
+            val leftPadding = totalPadding / 2
+            val rightPadding = totalPadding - leftPadding
+            (" " * leftPadding) + line + (" " * rightPadding)
+          }
+        }
+        .mkString("\n")
+    }
+  }
+
+  /** Left-align element within specified width */
+  final case class LeftAligned(element: Element, targetWidth: Int)
+      extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+
+      lines
+        .map { line =>
+          val lineLength = line.length
+          if (lineLength >= targetWidth) {
+            line // If line is already wider than target width, don't truncate
+          } else {
+            line + (" " * (targetWidth - lineLength))
+          }
+        }
+        .mkString("\n")
+    }
+  }
+
+  /** Right-align element within specified width */
+  final case class RightAligned(element: Element, targetWidth: Int)
+      extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+
+      lines
+        .map { line =>
+          val lineLength = line.length
+          if (lineLength >= targetWidth) {
+            line // If line is already wider than target width, don't truncate
+          } else {
+            (" " * (targetWidth - lineLength)) + line
+          }
+        }
+        .mkString("\n")
+    }
+  }
+
+  /** Text wrapping element that breaks long lines at word boundaries */
+  final case class Wrapped(element: Element, maxWidth: Int) extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+
+      lines.flatMap(wrapLine).mkString("\n")
+    }
+
+    private def wrapLine(line: String): Seq[String] = {
+      if (line.length <= maxWidth) {
+        Seq(line)
+      } else {
+        val words = line.split(" ", -1) // -1 to preserve trailing empty strings
+        val result = scala.collection.mutable.ArrayBuffer[String]()
+        var currentLine = ""
+
+        for (word <- words) {
+          val testLine =
+            if (currentLine.isEmpty) word else currentLine + " " + word
+
+          if (testLine.length <= maxWidth) {
+            currentLine = testLine
+          } else {
+            // Current line + word would be too long
+            if (currentLine.nonEmpty) {
+              result += currentLine
+              currentLine = word
+            } else {
+              // Single word longer than maxWidth - add it anyway (don't break words)
+              result += word
+              currentLine = ""
+            }
+          }
+        }
+
+        if (currentLine.nonEmpty) {
+          result += currentLine
+        }
+
+        if (result.isEmpty) Seq("") else result.toSeq
+      }
+    }
+  }
+
+  /** Text justification - wraps and makes each line fit exactly the target
+    * width by distributing spaces
+    */
+  final case class Justified(
+      element: Element,
+      targetWidth: Int,
+      justifyLastLine: Boolean = false
+  ) extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+
+      // First wrap each line, then justify the wrapped lines
+      val allLines = lines.flatMap(wrapLine)
+
+      allLines.zipWithIndex
+        .map { case (line, index) =>
+          val isLastLine = index == allLines.length - 1
+          // Only skip justification for last line if there are multiple lines AND justifyLastLine is false
+          if (isLastLine && !justifyLastLine && allLines.length > 1) {
+            line // Don't justify the last line unless explicitly requested
+          } else {
+            justifyLine(line, targetWidth)
+          }
+        }
+        .mkString("\n")
+    }
+
+    private def wrapLine(line: String): Seq[String] = {
+      if (line.length <= targetWidth) {
+        Seq(line)
+      } else {
+        val words = line.split(" ", -1)
+        val result = scala.collection.mutable.ArrayBuffer[String]()
+        var currentLine = ""
+
+        for (word <- words) {
+          val testLine =
+            if (currentLine.isEmpty) word else currentLine + " " + word
+
+          if (testLine.length <= targetWidth) {
+            currentLine = testLine
+          } else {
+            if (currentLine.nonEmpty) {
+              result += currentLine
+              currentLine = word
+            } else {
+              result += word
+              currentLine = ""
+            }
+          }
+        }
+
+        if (currentLine.nonEmpty) {
+          result += currentLine
+        }
+
+        if (result.isEmpty) Seq("") else result.toSeq
+      }
+    }
+
+    private def justifyLine(line: String, width: Int): String = {
+      val trimmedLine = line.trim
+      if (trimmedLine.length >= width) {
+        return trimmedLine
+      }
+
+      val words = trimmedLine.split("\\s+").filter(_.nonEmpty)
+      if (words.length <= 1) {
+        // Single word or empty line - left align with padding
+        return trimmedLine.padTo(width, ' ')
+      }
+
+      val totalWordLength = words.map(_.length).sum
+      val totalSpacesNeeded = width - totalWordLength
+      val gaps = words.length - 1
+
+      if (gaps == 0) {
+        return trimmedLine.padTo(width, ' ')
+      }
+
+      val baseSpaces = totalSpacesNeeded / gaps
+      val extraSpaces = totalSpacesNeeded % gaps
+
+      val result = new StringBuilder()
+      for (i <- words.indices) {
+        result.append(words(i))
+        if (i < words.length - 1) {
+          result.append(" " * baseSpaces)
+          if (i < extraSpaces) {
+            result.append(" ")
+          }
+        }
+      }
+
+      result.toString
+    }
+  }
+
   final case class HorizontalRule(
       char: String = "─",
       ruleWidth: Option[Int] = None
@@ -78,6 +359,7 @@ package object layoutz {
       char * actualWidth
     }
   }
+
   final case class Bullet(text: Option[String], children: Seq[Element])
       extends Element {
 
@@ -545,12 +827,10 @@ package object layoutz {
       title: String,
       content: Element,
       glyph: String = "=",
-      flankingChars: Option[Int] = None
+      flankingChars: Int = 3
   ) extends Element {
     def render: String = {
-      val flanking =
-        flankingChars.getOrElse(3) // Default to 3 chars per side like "==="
-      val header = s"${glyph * flanking} $title ${glyph * flanking}"
+      val header = s"${glyph * flankingChars} $title ${glyph * flankingChars}"
       s"$header\n${content.render}"
     }
   }
@@ -646,7 +926,7 @@ package object layoutz {
     Section(title, content, glyph)
   def section(title: String, glyph: String, flankingChars: Int)(
       content: Element
-  ): Section = Section(title, content, glyph, Some(flankingChars))
+  ): Section = Section(title, content, glyph, flankingChars)
   def kv(pairs: (String, String)*): KeyValue = KeyValue(pairs)
   def table(
       headers: Seq[String],
@@ -718,6 +998,30 @@ package object layoutz {
   ): Banner = Banner(text, style)
 
   implicit def stringToText(s: String): Text = Text(s)
+
+  // DSL constructors for new elements
+  def underline(element: Element, char: String = "─"): Underline =
+    Underline(element, char)
+  def ol(items: Element*): OrderedList = OrderedList(items)
+  def ul(items: Element*): UnorderedList = UnorderedList(items)
+  def ul(items: Seq[Element], bullet: String): UnorderedList =
+    UnorderedList(items, bullet)
+
+  // Alignment DSL
+  def center(element: Element, width: Int): Centered = Centered(element, width)
+  def leftAlign(element: Element, width: Int): LeftAligned =
+    LeftAligned(element, width)
+  def rightAlign(element: Element, width: Int): RightAligned =
+    RightAligned(element, width)
+
+  // Text wrapping DSL
+  def wrap(element: Element, width: Int): Wrapped = Wrapped(element, width)
+
+  // Text justification DSL
+  def justify(element: Element, width: Int): Justified =
+    Justified(element, width)
+  def justifyAll(element: Element, width: Int): Justified =
+    Justified(element, width, justifyLastLine = true)
 
   /* Elm-style App Architecture */
   sealed trait Key
