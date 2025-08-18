@@ -36,28 +36,25 @@ import layoutz._
 
 val build = layout(
   center(underline("DEPLOY PIPELINE"), 30),
-  
   row(
     statusCard("Build", "PASS"),
     statusCard("Tests", "2/8"), 
     statusCard("Deploy", "RUNNING")
   ),
-  
   box("Latest")(
     ul("→")("Fix auth bug", "Add metrics", "Update deps")
   ),
-  
   inlineBar("Progress", 0.75)
 ).render
 ```
 ```
-        DEPLOY PIPELINE        
-        ───────────────        
+       DEPLOY PIPELINE
+       ───────────────
 
-┌─────────┐ ┌───────┐ ┌─────────┐
-│ Build   │ │ Tests │ │ Deploy  │
-│ PASS    │ │ 2/8   │ │ RUNNING │
-└─────────┘ └───────┘ └─────────┘
+┌─────────┐ ┌─────────┐ ┌───────────┐
+│ Build   │ │ Tests   │ │ Deploy    │
+│ PASS    │ │ 2/8     │ │ RUNNING   │
+└─────────┘ └─────────┘ └───────────┘
 
 ┌─────Latest─────┐
 │ → Fix auth bug │
