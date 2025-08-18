@@ -269,7 +269,7 @@ ol(
 Clean unordered lists with custom bullets
 ```scala
 ul("Feature A", "Feature B", "Feature C")
-ul("Item 1", "Item 2", bullet = "→")
+ul("→")("Item 1", "Item 2")
 ```
 ```
 • Feature A

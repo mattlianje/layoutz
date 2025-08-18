@@ -1004,8 +1004,7 @@ package object layoutz {
     Underline(element, char)
   def ol(items: Element*): OrderedList = OrderedList(items)
   def ul(items: Element*): UnorderedList = UnorderedList(items)
-  def ul(items: Seq[Element], bullet: String): UnorderedList =
-    UnorderedList(items, bullet)
+  def ul(bullet: String)(items: Element*): UnorderedList = UnorderedList(items, bullet)
 
   // Alignment DSL
   def center(element: Element, width: Int): Centered = Centered(element, width)
