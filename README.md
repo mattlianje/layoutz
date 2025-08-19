@@ -256,7 +256,7 @@ Nested lists with auto-styling
 ul("Backend",
   ul("API", "Database"),
   "Frontend", 
-  ul("Components", ul("Header", "Footer")))
+  ul("Components", ul("Header", ul("Footer"))))
 ```
 ```
 • Backend
@@ -265,7 +265,7 @@ ul("Backend",
 • Frontend
   ◦ Components
     ▪ Header
-    ▪ Footer
+      ‣ Footer
 ```
 
 Mix with other elements
