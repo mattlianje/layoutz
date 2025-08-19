@@ -415,7 +415,7 @@ leftAlign("Left side", 20)
 rightAlign("Right side", 20)
 ```
 ```
-       TITLE        
+        TITLE  
 Left side           
           Right side
 ```
@@ -448,9 +448,10 @@ justify("This text will be justified to fit exactly", 25)
 justifyAll("All lines\neven the last", 15)
 ```
 ```
-This text will be justified to fit exactly
+This    text    will   be
+justified to fit exactly
 
-All lines even
+All       lines
 even  the  last
 ```
 
