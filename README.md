@@ -444,15 +444,15 @@ boundaries
 ### Text Justification: `justify`/`justifyAll`
 Distribute spaces to fit exact width
 ```scala
-justify("This text will be justified to fit exactly", 25)
-justifyAll("All lines\neven the last", 15)
+justify("All the lines\nmaybe the last", 20).render
+justifyAll("All the lines\nmaybe the last", 20).render
 ```
 ```
-This    text    will   be
-justified to fit exactly
+All     the    lines
+maybe the last
 
-All       lines
-even  the  last
+All     the    lines
+maybe    the    last
 ```
 
 ### Border Styles
