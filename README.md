@@ -38,9 +38,9 @@ val build = layout(
   center(underline("DEPLOY PIPELINE"), 30),
   br,
   row(
-    statusCard("Build", "PASS"),
-    statusCard("Tests", "2/8"), 
-    statusCard("Deploy", "RUNNING")
+    statusCard("API", "LIVE", Border.Double),
+    statusCard("DB", "99.9%"),
+    statusCard("Cache", "READY", Border.Thick)
   ),
   br,
   box("Latest")(
@@ -51,21 +51,23 @@ val build = layout(
 ).render
 ```
 ```
-        DEPLOY PIPELINE        
-        ───────────────        
+           Test Dashboard
+           ^^^^^^^^^^^^^^
 
-┌─────────┐ ┌───────┐ ┌─────────┐
-│ Build   │ │ Tests │ │ Deploy  │
-│ PASS    │ │ 2/8   │ │ RUNNING │
-└─────────┘ └───────┘ └─────────┘
+╔════════╗ ┌─────────┐ ┏━━━━━━━━━┓
+║ API    ║ │ DB      │ ┃ Cache   ┃
+║ LIVE   ║ │ 99.9%   │ ┃ READY   ┃
+╚════════╝ └─────────┘ ┗━━━━━━━━━┛
 
-┌─────Latest─────┐
-│ → Fix auth bug │
-│ → Add metrics  │
-│ → Update deps  │
-└────────────────┘
-
-Progress [███████████████─────] 75%
+╭─────────────Services──────────────╮
+│ • Production                      │
+│   → auth-service                  │
+│ • Staging                         │
+│   ◦ test-api                      │
+│     ▪ more nest                   │
+│                                   │
+│ Health [██████████████████──] 94% │
+╰───────────────────────────────────╯
 ```
 
 ## Motivation
