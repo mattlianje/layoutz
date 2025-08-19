@@ -32,10 +32,8 @@ import layoutz._
 
 ## Quickstart
 ```scala
-import layoutz._
-
-val build = layout(
-  center(underline("DEPLOY PIPELINE"), 30),
+val demo = layout(
+  center(underline("Test Dashboard", "^")),
   br,
   row(
     statusCard("API", "LIVE", Border.Double),
@@ -43,11 +41,15 @@ val build = layout(
     statusCard("Cache", "READY", Border.Thick)
   ),
   br,
-  box("Latest")(
-    ul("→")("Fix auth bug", "Add metrics", "Update deps")
-  ),
-  br,
-  inlineBar("Progress", 0.75)
+  box("Services", Border.Round)(
+    ul("Production",
+      ul("→")("auth-service"),
+      "Staging",
+      ul("test-api",
+        ul("more nest"))),
+    br,
+    inlineBar("Health", 0.94)
+  )
 ).render
 ```
 ```
