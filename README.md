@@ -36,17 +36,17 @@ import layoutz._
 
 val build = layout(
   center(underline("DEPLOY PIPELINE"), 30),
-  
+  br,
   row(
     statusCard("Build", "PASS"),
     statusCard("Tests", "2/8"), 
     statusCard("Deploy", "RUNNING")
   ),
-  
+  br,
   box("Latest")(
     ul("→")("Fix auth bug", "Add metrics", "Update deps")
   ),
-  
+  br,
   inlineBar("Progress", 0.75)
 ).render
 ```
@@ -79,7 +79,7 @@ Progress [███████████████─────] 75%
 - Elements are **immutable** and **composable** - you build complex layouts by combining simple elements.
 - A `layout` is just a special element that arranges other elements **vertically** with consistent spacing:
 ```scala
-layout(elem1, elem2, elem3)  /* Joins with "\n\n" */
+layout(elem1, elem2, elem3)  /* Joins with "\n" */
 ```
 Call `.render` on an element to get a String
 
@@ -124,9 +124,7 @@ layout("First", "Second", "Third")
 ```
 ```
 First
-
 Second
-
 Third
 ```
 
@@ -136,6 +134,22 @@ row("Left", "Middle", "Right")
 ```
 ```
 Left Middle Right
+```
+
+### Columns: `columns`
+
+```scala
+columns(
+  layout("Tasks", ul("Setup", "Code", ul("more stuff"))),
+  layout("Status", "foo", "bar", "baz")
+)
+
+```
+```
+Tasks           Status
+• Setup         foo
+• Code          bar
+  ◦ more stuff  baz
 ```
 
 ### Horizontal rule: `hr`
@@ -173,68 +187,7 @@ table(
 └───────┴────────┘
 ```
 
-### Bullets: `bullets`/`bullet`
-Simple bullet list
-```scala
-bullets("Task 1", "Task 2", "Task 3")
-```
-```
-• Task 1
-• Task 2
-• Task 3
-```
-Single bullet with nested children
-```scala
-bullet("Backend", 
-  bullet("API"),
-  bullet("Database")
-)
-```
-```
-• Backend
-  • API
-  • Database
-```
-Complex nesting
-```scala
-bullets(
-  bullet("Frontend",
-    bullet("Components",
-      bullet("Header"),
-      bullet("Footer")
-    ),
-    bullet("Styles")
-  ),
-  bullet("Backend",
-    bullet("API"),
-    bullet("Database")
-  )
-)
-```
-```
-• Frontend
-  • Components
-    • Header
-    • Footer
-  • Styles
-• Backend
-  • API
-  • Database
-```
-Mix bullets with other elements
-```scala
-bullet("Status",
-  "System online",
-  inlineBar("Health", 0.95),
-  "All services running"
-)
-```
-```
-• Status
-  • System online
-  • Health [███████████████████─] 95%
-  • All services running
-```
+
 
 ### Ordered Lists: `ol`
 Automatically numbered lists
@@ -246,19 +199,39 @@ ol("First step", "Second step", "Third step")
 2. Second step
 3. Third step
 ```
-With nested elements
+
+Hierarchical nested numbering
 ```scala
-ol(
-  "Setup project",
-  ul("Install dependencies", "Configure settings"),
-  "Run tests"
-)
+ol("Setup",
+  ol("Install tools", "Configure IDE"),
+  "Development", 
+  ol("Write code", ol("Unit tests", "Integration tests")),
+  "Deploy")
 ```
 ```
-1. Setup project
-2. • Install dependencies
-   • Configure settings
-3. Run tests
+1. Setup
+  a. Install tools
+  b. Configure IDE
+2. Development
+  a. Write code
+    i. Unit tests
+    ii. Integration tests
+3. Deploy
+```
+
+Mix with other elements
+```scala
+ol("Initialize project",
+  ul("Create repo", "Setup CI/CD"),
+  inlineBar("Progress", 0.6),
+  "Ready to code!")
+```
+```
+1. Initialize project
+2. • Create repo
+   • Setup CI/CD
+3. Progress [████████████────────] 60%
+4. Ready to code!
 ```
 
 ### Unordered Lists: `ul`
@@ -276,11 +249,45 @@ ul("→")("Item 1", "Item 2")
 → Item 2
 ```
 
+Nested lists with auto-styling
+```scala
+ul("Backend",
+  ul("API", "Database"),
+  "Frontend", 
+  ul("Components", ul("Header", "Footer")))
+```
+```
+• Backend
+  ◦ API
+  ◦ Database
+• Frontend
+  ◦ Components
+    ▪ Header
+    ▪ Footer
+```
+
+Mix with other elements
+```scala
+ul("System Status",
+  "CPU: 45%",
+  inlineBar("Memory", 0.78),
+  statusCard("Health", "OK"))
+```
+```
+• System Status
+• CPU: 45%
+• Memory [███████████████▌─────] 78%
+• ┌─────────┐
+  │ Health  │
+  │ OK      │
+  └─────────┘
+```
+
 ### Underline: `underline`
 Add underlines to any element
 ```scala
-underline(Text("Important Title"))
-underline(Text("Custom"), "=")
+underline("Important Title")
+underline("Custom", "=")
 ```
 ```
 Important Title
@@ -401,9 +408,9 @@ API            │████████████████████�
 ### Alignment: `center`/`leftAlign`/`rightAlign`
 Align text within a specified width
 ```scala
-center(Text("TITLE"), 20)
-leftAlign(Text("Left side"), 20)
-rightAlign(Text("Right side"), 20)
+center("TITLE", 20)
+leftAlign("Left side", 20)
+rightAlign("Right side", 20)
 ```
 ```
        TITLE        
@@ -413,7 +420,7 @@ Left side
 
 Works with multiline text:
 ```scala
-center(Text("Line 1\nLine 2"), 15)
+center("Line 1\nLine 2", 15)
 ```
 ```
    Line 1   
@@ -423,7 +430,7 @@ center(Text("Line 1\nLine 2"), 15)
 ### Text Wrapping: `wrap`
 Wrap long text at word boundaries
 ```scala
-wrap(Text("This is a very long line that should be wrapped at word boundaries"), 20)
+wrap("This is a very long line that should be wrapped at word boundaries", 20)
 ```
 ```
 This is a very long
@@ -435,8 +442,8 @@ boundaries
 ### Text Justification: `justify`/`justifyAll`
 Distribute spaces to fit exact width
 ```scala
-justify(Text("This text will be justified to fit exactly"), 25)
-justifyAll(Text("All lines\neven the last"), 15)
+justify("This text will be justified to fit exactly", 25)
+justifyAll("All lines\neven the last", 15)
 ```
 ```
 This text will be justified to fit exactly
@@ -515,7 +522,7 @@ section("Users by Role")(
   layout(
     usersByRole.map { case (role, roleUsers) =>
       box(role)(
-        bullets(roleUsers.map(_.name): _*)
+        ul(roleUsers.map(_.name): _*)
       )
     }.toSeq: _*
   )
@@ -563,7 +570,7 @@ object CounterApp extends LayoutzApp[Int, String] {
     case _ => None
   }
   def view(count: Int) = 
-    section("Counter")(Text(s"Count: $count"))
+    section("Counter")(s"Count: $count")
 }
 
 LayoutzRuntime.run(CounterApp)

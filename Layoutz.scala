@@ -20,7 +20,6 @@ package object layoutz {
     val TreeIndentation = 4
     val TreeConnectorSpacing = 3
     val DefaultRuleWidth = 50
-    val BulletIndentation = 2
 
     /* Chart constants */
     val DefaultChartWidth = 40
@@ -96,47 +95,106 @@ package object layoutz {
     }
   }
 
-  /** Ordered list with numbered items */
+  /** Ordered list with numbered items - supports automatic nesting */
   final case class OrderedList(items: Seq[Element]) extends Element {
-    def render: String = {
+
+    /* Numbering styles for different nesting levels */
+    private def getNumbering(index: Int, level: Int): String = level % 3 match {
+      case 0 => (index + 1).toString // 1, 2, 3...
+      case 1 => ('a' + index).toChar.toString // a, b, c...
+      case 2 => toRomanNumeral(index + 1) // i, ii, iii...
+    }
+
+    private def toRomanNumeral(n: Int): String = {
+      val mappings = Seq((10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"))
+
+      def convert(num: Int, remaining: Seq[(Int, String)]): String = {
+        if (num == 0 || remaining.isEmpty) ""
+        else {
+          val (value, symbol) = remaining.head
+          if (num >= value) symbol + convert(num - value, remaining)
+          else convert(num, remaining.tail)
+        }
+      }
+
+      convert(n, mappings)
+    }
+
+    def render: String = renderAtLevel(0)
+
+    private def renderAtLevel(level: Int): String = {
       if (items.isEmpty) return ""
 
-      items.zipWithIndex
-        .map { case (item, index) =>
-          val number = (index + 1).toString
-          val content = item.render
-          val lines = content.split('\n')
-          if (lines.length == 1) {
-            s"$number. ${lines.head}"
-          } else {
-            val firstLine = s"$number. ${lines.head}"
-            val indent =
-              " " * (number.length + 2) // "1. " = 3 chars, "10. " = 4 chars, etc.
-            val remainingLines = lines.tail.map(line => s"$indent$line")
-            (firstLine +: remainingLines).mkString("\n")
+      var itemNumber = 0 /* Track numbering for non-nested items only */
+
+      items
+        .map { item =>
+          item match {
+            case nestedList: OrderedList =>
+              /* Nested list - render with increased level, don't increment numbering */
+              nestedList.renderAtLevel(level + 1)
+            case other =>
+              /* Regular item - render with current level numbering */
+              val number = getNumbering(itemNumber, level)
+              itemNumber += 1 /* Only increment for actual items */
+              val content = other.render
+              val lines = content.split('\n')
+              val indent = "  " * level /* 2 spaces per level */
+
+              if (lines.length == 1) {
+                s"$indent$number. ${lines.head}"
+              } else {
+                val firstLine = s"$indent$number. ${lines.head}"
+                val lineIndent = indent + " " * (number.length + 2)
+                val remainingLines = lines.tail.map(line => s"$lineIndent$line")
+                (firstLine +: remainingLines).mkString("\n")
+              }
           }
         }
         .mkString("\n")
     }
   }
 
-  /** Unordered list with bullet points */
+  /** Unordered list with bullet points - supports automatic nesting */
   final case class UnorderedList(items: Seq[Element], bullet: String = "•")
       extends Element {
-    def render: String = {
+
+    /* Bullet styles for different nesting levels */
+    private val bulletStyles = Array("•", "◦", "▪", "‣", "⁃")
+
+    def render: String = renderAtLevel(0)
+
+    private def renderAtLevel(level: Int): String = {
       if (items.isEmpty) return ""
+
+      val currentBullet = if (bullet == "•") {
+        /* Auto bullet - use level-appropriate style */
+        bulletStyles(level % bulletStyles.length)
+      } else {
+        /* Custom bullet - use as specified */
+        bullet
+      }
 
       items
         .map { item =>
-          val content = item.render
-          val lines = content.split('\n')
-          if (lines.length == 1) {
-            s"$bullet ${lines.head}"
-          } else {
-            val firstLine = s"$bullet ${lines.head}"
-            val indent = " " * (bullet.length + 1) // bullet + space
-            val remainingLines = lines.tail.map(line => s"$indent$line")
-            (firstLine +: remainingLines).mkString("\n")
+          item match {
+            case nestedList: UnorderedList =>
+              /* Nested list - render with increased level */
+              nestedList.renderAtLevel(level + 1)
+            case other =>
+              /* Regular item - render with current level indentation */
+              val content = other.render
+              val lines = content.split('\n')
+              val indent = "  " * level /* 2 spaces per level */
+
+              if (lines.length == 1) {
+                s"$indent$currentBullet ${lines.head}"
+              } else {
+                val firstLine = s"$indent$currentBullet ${lines.head}"
+                val lineIndent = indent + " " * (currentBullet.length + 1)
+                val remainingLines = lines.tail.map(line => s"$lineIndent$line")
+                (firstLine +: remainingLines).mkString("\n")
+              }
           }
         }
         .mkString("\n")
@@ -157,13 +215,19 @@ package object layoutz {
             line // If line is already wider than target width, don't truncate
           } else {
             val totalPadding = targetWidth - lineLength
-            val leftPadding = totalPadding / 2
+            val leftPadding =
+              (totalPadding + 1) / 2 /* Give extra space to left when odd */
             val rightPadding = totalPadding - leftPadding
             (" " * leftPadding) + line + (" " * rightPadding)
           }
         }
         .mkString("\n")
     }
+  }
+
+  /** Auto-center element based on layout context */
+  final case class AutoCentered(element: Element) extends Element {
+    def render: String = element.render // Will be resolved by container
   }
 
   /** Left-align element within specified width */
@@ -360,31 +424,6 @@ package object layoutz {
     }
   }
 
-  final case class Bullet(text: Option[String], children: Seq[Element])
-      extends Element {
-
-    def render: String = renderAtLevel(this, 0)
-
-    private def renderAtLevel(element: Element, level: Int): String = {
-      element match {
-        case Bullet(Some(text), children) =>
-          val indent = " " * (level * Dimensions.BulletIndentation)
-          val mainItem = s"$indent${Glyphs.Bullet} $text"
-          if (children.isEmpty) {
-            mainItem
-          } else {
-            val childItems = children.map(renderAtLevel(_, level + 1))
-            (mainItem +: childItems).mkString("\n")
-          }
-        case Bullet(None, children) =>
-          children.map(renderAtLevel(_, level)).mkString("\n")
-        case other =>
-          val indent = " " * (level * Dimensions.BulletIndentation)
-          s"$indent${Glyphs.Bullet} ${other.render}"
-      }
-    }
-  }
-
   /** Structured key-value pairs */
   final case class KeyValue(pairs: Seq[(String, String)]) extends Element {
     def render: String = {
@@ -404,7 +443,7 @@ package object layoutz {
   final case class Table(
       headers: Seq[String],
       rows: Seq[Seq[String]],
-      style: BorderStyle = BorderStyle.Single
+      style: Border = Border.Single
   ) extends Element {
     def render: String = {
       val allRows = headers +: rows
@@ -433,19 +472,19 @@ package object layoutz {
     )
 
     private object TableBorders {
-      def apply(widths: Seq[Int], style: BorderStyle): TableBorders = {
+      def apply(widths: Seq[Int], style: Border): TableBorders = {
         val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
           style.chars
         val segments = widths.map(horizontal * _)
 
         /* Table junction characters */
         val (teeDown, teeUp, teeLeft, teeRight, cross) = style match {
-          case BorderStyle.Single => ("┬", "┴", "┤", "├", "┼")
-          case BorderStyle.Double => ("╦", "╩", "╣", "╠", "╬")
-          case BorderStyle.Thick  => ("┳", "┻", "┫", "┣", "╋")
-          case BorderStyle.Round =>
+          case Border.Single => ("┬", "┴", "┤", "├", "┼")
+          case Border.Double => ("╦", "╩", "╣", "╠", "╬")
+          case Border.Thick  => ("┳", "┻", "┫", "┣", "╋")
+          case Border.Round =>
             ("┬", "┴", "┤", "├", "┼") /* Round uses single junctions */
-          case BorderStyle.Custom(_, h, _) =>
+          case Border.Custom(_, h, _) =>
             (h, h, h, h, h) /* Use horizontal char for all junctions */
         }
 
@@ -472,7 +511,7 @@ package object layoutz {
     private def buildTableRow(
         cells: Seq[String],
         widths: Seq[Int],
-        style: BorderStyle
+        style: Border
     ): String = {
       val (_, _, _, _, _, vertical) = style.chars
       cells
@@ -507,20 +546,23 @@ package object layoutz {
   final case class StatusCard(
       label: String,
       content: String,
-      color: Option[String] = None
+      style: Border = Border.Single
   ) extends Element {
     def render: String = {
       val maxTextLength = math.max(label.length, content.length)
       val contentWidth = maxTextLength + Dimensions.MinContentPadding
 
+      val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
+        style.chars
+
       val topBorder =
-        Glyphs.TopLeft + Glyphs.Horizontal * (contentWidth + 2) + Glyphs.TopRight
+        topLeft + horizontal * (contentWidth + 2) + topRight
       val bottomBorder =
-        Glyphs.BottomLeft + Glyphs.Horizontal * (contentWidth + 2) + Glyphs.BottomRight
+        bottomLeft + horizontal * (contentWidth + 2) + bottomRight
       val labelLine =
-        s"${Glyphs.Vertical} ${label.padTo(contentWidth, Glyphs.Space.head)} ${Glyphs.Vertical}"
+        s"$vertical ${label.padTo(contentWidth, ' ')} $vertical"
       val contentLine =
-        s"${Glyphs.Vertical} ${content.padTo(contentWidth, Glyphs.Space.head)} ${Glyphs.Vertical}"
+        s"$vertical ${content.padTo(contentWidth, ' ')} $vertical"
 
       Seq(topBorder, labelLine, contentLine, bottomBorder).mkString("\n")
     }
@@ -605,10 +647,10 @@ package object layoutz {
       extends Element {
     def render: String = style match {
       case BadgeStyle.Default => s"[$text]"
-      case BadgeStyle.Success => s"✅ $text"
-      case BadgeStyle.Error   => s"❌ $text"
-      case BadgeStyle.Warning => s"⚠️  $text"
-      case BadgeStyle.Info    => s"ℹ️  $text"
+      case BadgeStyle.Success => s"[OK] $text"
+      case BadgeStyle.Error   => s"[ERR] $text"
+      case BadgeStyle.Warning => s"[WARN] $text"
+      case BadgeStyle.Info    => s"[INFO] $text"
     }
   }
 
@@ -672,7 +714,7 @@ package object layoutz {
   }
 
   /** Banner - decorative text in a box */
-  final case class Banner(text: String, style: BorderStyle = BorderStyle.Double)
+  final case class Banner(text: String, style: Border = Border.Double)
       extends Element {
     def render: String = {
       val lines = if (text.isEmpty) Array("") else text.split('\n')
@@ -697,7 +739,7 @@ package object layoutz {
   }
 
   /** Unified border styling for all box-like elements */
-  sealed trait BorderStyle {
+  sealed trait Border {
     def chars: (
         String,
         String,
@@ -707,44 +749,54 @@ package object layoutz {
         String
     ) // TL, TR, BL, BR, H, V
   }
-  object BorderStyle {
-    case object Single extends BorderStyle {
+  object Border {
+    case object Single extends Border {
       val chars = ("┌", "┐", "└", "┘", "─", "│")
     }
-    case object Double extends BorderStyle {
+    case object Double extends Border {
       val chars = ("╔", "╗", "╚", "╝", "═", "║")
     }
-    case object Thick extends BorderStyle {
+    case object Thick extends Border {
       val chars = ("┏", "┓", "┗", "┛", "━", "┃")
     }
-    case object Round extends BorderStyle {
+    case object Round extends Border {
       val chars = ("╭", "╮", "╰", "╯", "─", "│")
     }
     final case class Custom(
         corner: String,
         horizontal: String,
         vertical: String
-    ) extends BorderStyle {
+    ) extends Border {
       val chars = (corner, corner, corner, corner, horizontal, vertical)
     }
   }
 
-  /* Keep BannerStyle for backward compatibility */
-  type BannerStyle = BorderStyle
+  /* Keep BannerStyle and BorderStyle for backward compatibility */
+  type BannerStyle = Border
+  type BorderStyle = Border
   object BannerStyle {
-    val Single = BorderStyle.Single
-    val Double = BorderStyle.Double
-    val Thick = BorderStyle.Thick
-    val Round = BorderStyle.Round
+    val Single = Border.Single
+    val Double = Border.Double
+    val Thick = Border.Thick
+    val Round = Border.Round
+  }
+  object BorderStyle {
+    val Single = Border.Single
+    val Double = Border.Double
+    val Thick = Border.Thick
+    val Round = Border.Round
   }
 
   /** Box - bordered container with optional title */
   final case class Box(
       title: String = "",
-      content: Element,
-      style: BorderStyle = BorderStyle.Single
+      elements: Seq[Element],
+      style: Border = Border.Single
   ) extends Element {
     def render: String = {
+      /* Combine all elements into a single layout */
+      val content =
+        if (elements.length == 1) elements.head else Layout(elements)
       val contentLines = content.render.split('\n')
       val contentWidth =
         if (contentLines.isEmpty) 0 else contentLines.map(_.length).max
@@ -915,7 +967,26 @@ package object layoutz {
 
   /** Root layout container */
   final case class Layout(elements: Seq[Element]) extends Element {
-    def render: String = elements.map(_.render).mkString("\n\n")
+    def render: String = {
+      /* Calculaute layout max width for auto-centering */
+      val layoutWidth = calculateLayoutWidth(elements)
+
+      /* Resolve auto-centred eneements and render */
+      val resolvedElements = elements.map {
+        case AutoCentered(element) => Centered(element, layoutWidth)
+        case other                 => other
+      }
+
+      resolvedElements.map(_.render).mkString("\n")
+    }
+
+    private def calculateLayoutWidth(elements: Seq[Element]): Int = {
+      val widths = elements.map {
+        case AutoCentered(element) => element.width
+        case other                 => other.width
+      }
+      if (widths.nonEmpty) widths.max else Dimensions.DefaultRuleWidth
+    }
   }
 
   /* DSL constructors */
@@ -931,31 +1002,36 @@ package object layoutz {
   def table(
       headers: Seq[String],
       rows: Seq[Seq[String]],
-      style: BorderStyle = BorderStyle.Single
+      style: Border = Border.Single
   ): Table =
     Table(headers, rows, style)
   def inlineBar(label: String, progress: Double): InlineBar =
     InlineBar(label, progress)
   def statusCard(
       label: String,
-      content: String,
-      color: String = ""
+      content: String
   ): StatusCard =
-    StatusCard(label, content, Option(color).filter(_.nonEmpty))
+    StatusCard(label, content)
+  def statusCard(
+      label: String,
+      content: String,
+      style: BorderStyle
+  ): StatusCard =
+    StatusCard(label, content, style)
   def diffBlock(
       added: Seq[String] = Seq.empty,
       removed: Seq[String] = Seq.empty
   ): DiffBlock =
     DiffBlock(added, removed)
   /* Empty box (no title) */
-  def box(content: Element): Box = Box("", content, BorderStyle.Single)
-  def box(content: Element, style: BorderStyle): Box = Box("", content, style)
+  def box(elements: Element*): Box = Box("", elements, Border.Single)
+  def box(style: Border)(elements: Element*): Box = Box("", elements, style)
 
   /* Box with title */
-  def box(title: String)(content: Element): Box =
-    Box(title, content, BorderStyle.Single)
-  def box(title: String, style: BorderStyle)(content: Element): Box =
-    Box(title, content, style)
+  def box(title: String)(elements: Element*): Box =
+    Box(title, elements, Border.Single)
+  def box(title: String, style: Border)(elements: Element*): Box =
+    Box(title, elements, style)
   def row(elements: Element*): Row = Row(elements)
   def tree(title: String)(root: TreeNode): Tree = Tree(title, root)
   def branch(name: String, children: TreeNode*): TreeBranch =
@@ -966,14 +1042,6 @@ package object layoutz {
     HorizontalRule(char, Some(width))
   def hr(char: String): HorizontalRule = HorizontalRule(char, None)
   def hr: HorizontalRule = HorizontalRule()
-
-  def bullet(text: String, children: Element*): Bullet =
-    Bullet(Some(text), children)
-  def bullets(items: Bullet*): Bullet = Bullet(None, items)
-  def bullets(first: String, rest: String*): Bullet = {
-    val allItems = (first +: rest).map(text => Text(text))
-    Bullet(None, allItems)
-  }
 
   def textInput(
       label: String,
@@ -994,7 +1062,7 @@ package object layoutz {
   def chart(data: (String, Double)*): Chart = Chart(data)
   def banner(
       text: String = "",
-      style: BorderStyle = BorderStyle.Double
+      style: Border = Border.Double
   ): Banner = Banner(text, style)
 
   implicit def stringToText(s: String): Text = Text(s)
@@ -1004,10 +1072,12 @@ package object layoutz {
     Underline(element, char)
   def ol(items: Element*): OrderedList = OrderedList(items)
   def ul(items: Element*): UnorderedList = UnorderedList(items)
-  def ul(bullet: String)(items: Element*): UnorderedList = UnorderedList(items, bullet)
+  def ul(bullet: String)(items: Element*): UnorderedList =
+    UnorderedList(items, bullet)
 
   // Alignment DSL
   def center(element: Element, width: Int): Centered = Centered(element, width)
+  def center(element: Element): AutoCentered = AutoCentered(element)
   def leftAlign(element: Element, width: Int): LeftAligned =
     LeftAligned(element, width)
   def rightAlign(element: Element, width: Int): RightAligned =
@@ -1016,11 +1086,15 @@ package object layoutz {
   // Text wrapping DSL
   def wrap(element: Element, width: Int): Wrapped = Wrapped(element, width)
 
-  // Text justification DSL
+  // Text justification DSL - wraps then distributes spaces evenly between words
   def justify(element: Element, width: Int): Justified =
-    Justified(element, width)
+    Justified(element, width) // Last line left-aligned (natural look)
   def justifyAll(element: Element, width: Int): Justified =
-    Justified(element, width, justifyLastLine = true)
+    Justified(
+      element,
+      width,
+      justifyLastLine = true
+    ) // Justify every line including last
 
   /* Elm-style App Architecture */
   sealed trait Key

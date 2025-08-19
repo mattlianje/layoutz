@@ -406,7 +406,7 @@ object Examples {
           Text(state.message)
         ),
         section("Controls")(
-          bullets(
+          ul(
             "W/S keys - Navigate up/down",
             "A/D keys - Move left/right",
             "↑↓←→ Arrow keys - Also work (when supported)",

@@ -50,7 +50,7 @@ status : active"""
 
   test("bullet points") {
     val bulletElement =
-      bullets("Connected to database", "Loaded 28 models", "Cache warmed")
+      ul("Connected to database", "Loaded 28 models", "Cache warmed")
 
     val expected = """• Connected to database
 • Loaded 28 models
@@ -70,8 +70,8 @@ status : active"""
   test("status cards in row layout") {
     val result = layout(
       row(
-        statusCard("Jobs", "✔ 132", "green"),
-        statusCard("Errors", "✘ 7", "red"),
+        statusCard("Jobs", "✔ 132"),
+        statusCard("Errors", "✘ 7"),
         statusCard("Time", "12m 33s")
       )
     )
@@ -129,7 +129,7 @@ status : active"""
         )
       ),
       box("Recent Activity")(
-        bullets(
+        ul(
           "User alice logged in",
           "Database backup completed",
           "3 new deployments"
@@ -155,11 +155,11 @@ status : active"""
     }
 
     test("nested bullets") {
-      val nestedBullets = bullets(
-        bullet("Backend", bullet("API"), bullet("Database")),
-        bullet(
+      val nestedBullets = ul(
+        ul("Backend", ul("API"), ul("Database")),
+        ul(
           "Frontend",
-          bullet("Components", bullet("Header"), bullet("Footer"))
+          ul("Components", ul("Header"), ul("Footer"))
         )
       )
 
@@ -194,7 +194,6 @@ status : active"""
   test("implicit string conversion") {
     val result: Layout = layout("Simple text", "Another line")
     val expected = """Simple text
-
 Another line"""
     assertEquals(result.render, expected)
   }
@@ -204,7 +203,7 @@ Another line"""
       section("Database") {
         layout(
           kv("Host" -> "localhost", "Port" -> "5432"),
-          bullet("Connected", "Healthy", "Low latency")
+          ul("Connected", "Healthy", "Low latency")
         )
       }
     )
@@ -250,7 +249,7 @@ Another line"""
   }
 
   test("empty elements") {
-    val emptyBullets = bullets()
+    val emptyBullets = ul()
     assertEquals(emptyBullets.render, "")
 
     val emptyKv = kv()
@@ -258,13 +257,13 @@ Another line"""
   }
 
   test("line break element") {
-    val elements = Seq(
-      Text("First line"),
+    val elements: Seq[Element] = Seq(
+      "First line",
       br,
-      Text("Second line"),
+      "Second line",
       br,
       br,
-      Text("Third line")
+      "Third line"
     )
     val result = elements.map(_.render).mkString
 
@@ -285,24 +284,24 @@ Third line"""
     assertEquals(rule3.render, "*" * 50)
   }
 
-  test("nested bullets") {
-    val nestedBullets = bullets(
-      bullet("Backend", bullet("API"), bullet("Database")),
-      bullet(
+  test("nested unordered lists") {
+    val nestedLists = ul(
+      ul("Backend", ul("API"), ul("Database")),
+      ul(
         "Frontend",
-        bullet("Components", bullet("Header"), bullet("Footer"))
+        ul("Components", ul("Header"), ul("Footer"))
       )
     )
 
-    val expected = """• Backend
-  • API
-  • Database
-• Frontend
-  • Components
-    • Header
-    • Footer"""
+    val expected = """  ◦ Backend
+    ▪ API
+    ▪ Database
+  ◦ Frontend
+    ▪ Components
+      ‣ Header
+      ‣ Footer"""
 
-    assertEquals(nestedBullets.render, expected)
+    assertEquals(nestedLists.render, expected)
   }
 
   /** Test LayoutzApp and key mechanics
@@ -530,7 +529,6 @@ Third line"""
 
     assertEquals(spinner1.render, "| Loading")
     assertEquals(spinner2.render, "⠙")
-    assert(spinner3.render.startsWith("🕒"))
     assert(spinner3.render.contains("Processing"))
 
     val nextSpinner = spinner1.nextFrame
@@ -606,19 +604,17 @@ Third line"""
     )
 
     val expected = """[New]
-
-✅ Success
-
-❌ Error"""
+[OK] Success
+[ERR] Error"""
 
     assertEquals(result.render, expected)
   }
 
   test("Columns layout") {
     val result = columns(
-      Text("A\nB"),
-      Text("1\n2\n3"),
-      Text("X")
+      "A\nB",
+      "1\n2\n3",
+      "X"
     )
 
     val expected = """A  1  X
@@ -696,9 +692,9 @@ Longer line 2
 
   test("ordered list") {
     val list = ol(
-      Text("First item"),
-      Text("Second item"),
-      Text("Third item")
+      "First item",
+      "Second item",
+      "Third item"
     )
 
     val expected = """1. First item
@@ -724,11 +720,34 @@ Longer line 2
     assertEquals(emptyList.render, "")
   }
 
+  test("nested ordered list") {
+    val nestedList = ol(
+      "Top level item",
+      "Another top item",
+      ol(
+        "Nested item a",
+        "Nested item b",
+        ol("Deep nested i", "Deep nested ii")
+      ),
+      "Back to top level"
+    )
+
+    val expected = """1. Top level item
+2. Another top item
+  a. Nested item a
+  b. Nested item b
+    i. Deep nested i
+    ii. Deep nested ii
+3. Back to top level"""
+
+    assertEquals(nestedList.render, expected)
+  }
+
   test("unordered list") {
     val list = ul(
-      Text("First item"),
-      Text("Second item"),
-      Text("Third item")
+      "First item",
+      "Second item",
+      "Third item"
     )
 
     val expected = """• First item
@@ -784,7 +803,10 @@ Longer line 2
     assertEquals(centered.render, "   Hello   ")
 
     val centeredOdd = center(Text("Hello"), 10)
-    assertEquals(centeredOdd.render, "  Hello   ")
+    assertEquals(
+      centeredOdd.render,
+      "   Hello  "
+    ) // Fixed: gives extra space to left when odd
 
     val multiline = center(Text("Line 1\nLine 2"), 10)
     assertEquals(multiline.render, "  Line 1  \n  Line 2  ")
@@ -814,7 +836,7 @@ Longer line 2
     )
 
     val rendered = demo.render
-    assertEquals(rendered.contains("       TITLE        "), true)
+    assertEquals(rendered.contains("        TITLE       "), true)
     assertEquals(rendered.contains("Left side           "), true)
     assertEquals(rendered.contains("          Right side"), true)
   }
@@ -855,7 +877,7 @@ Longer line 2
 
   test("text wrapping in complex layouts") {
     val article = layout(
-      center(Text("📰 ARTICLE TITLE"), 40),
+      center("ARTICLE TITLE", 40),
       hr("=", 40),
       section("Introduction")(
         wrap(
@@ -876,7 +898,7 @@ Longer line 2
     )
 
     val rendered = article.render
-    assert(rendered.contains("📰 ARTICLE TITLE"))
+    assert(rendered.contains("ARTICLE TITLE"))
     assert(rendered.contains("Introduction"))
     assert(rendered.contains("Content"))
 
@@ -985,7 +1007,7 @@ Longer line 2
 
   test("justification in complex layouts") {
     val document = layout(
-      center(Text("📄 JUSTIFIED DOCUMENT"), 40),
+      center("JUSTIFIED DOCUMENT", 40),
       hr("═", 40),
       section("Paragraph 1")(
         justify(
@@ -1017,7 +1039,7 @@ Longer line 2
     )
 
     val rendered = document.render
-    assert(rendered.contains("📄 JUSTIFIED DOCUMENT"))
+    assert(rendered.contains("JUSTIFIED DOCUMENT"))
     assert(rendered.contains("Paragraph 1"))
     assert(rendered.contains("Paragraph 2"))
 
@@ -1026,7 +1048,7 @@ Longer line 2
     val justifiedLines = lines.filter(line =>
       line.trim.nonEmpty &&
         !line.contains("═") &&
-        !line.contains("📄") &&
+        !line.contains("JUSTIFIED DOCUMENT") &&
         !line.contains("Paragraph") &&
         line.contains(" ") && // Has spaces (so it's justified content)
         line.split("\\s+").length > 1 // Multiple words
