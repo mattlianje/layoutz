@@ -11,7 +11,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Zero dependencies, use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines
-- Lists, trees, tables, charts, progress bars, and more
+- Lists, trees, tables, charts, progress bars, spinners, and more
 - Thread-safe, purely functional rendering
 - Use `LayoutzApp` trait + `LayoutzRuntime` for Elm-style TUI's
 
