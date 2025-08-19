@@ -383,7 +383,7 @@ Project
 
 ### Banner: `banner`
 ```scala
-banner("System Dashboard", BorderStyle.Double)
+banner("System Dashboard", Border.Double)
 ```
 ```
 ╔═══════════════════╗
@@ -455,11 +455,11 @@ even  the  last
 ```
 
 ### Border Styles
-Elements like `box`, `table`, and `banner` support different `BorderStyle` options:
+Elements like `box`, `table`, and `banner` support different `Border` options:
 
 **Single** (default):
 ```scala
-box("Title", BorderStyle.Single)("")
+box("Title", Border.Single)("")
 ```
 ```
 ┌─Title─┐
@@ -469,7 +469,7 @@ box("Title", BorderStyle.Single)("")
 
 **Double**:
 ```scala
-banner("Welcome", BorderStyle.Double)
+banner("Welcome", Border.Double)
 ```
 ```
 ╔═════════╗
@@ -479,7 +479,7 @@ banner("Welcome", BorderStyle.Double)
 
 **Thick**:
 ```scala
-table(headers, rows, BorderStyle.Thick)
+table(headers, rows, Border.Thick)
 ```
 ```
 ┏━━━━━━━┳━━━━━━━━┓
@@ -491,7 +491,7 @@ table(headers, rows, BorderStyle.Thick)
 
 **Round**:
 ```scala
-box("Info", BorderStyle.Round)("")
+box("Info", Border.Round)("")
 ```
 ```
 ╭─Info─╮
@@ -501,7 +501,7 @@ box("Info", BorderStyle.Round)("")
 
 **Custom**:
 ```scala
-box("Alert", BorderStyle.Custom(
+box("Alert", Border.Custom(
   corner = "+", 
   horizontal = "=", 
   vertical = "|"
