@@ -227,15 +227,13 @@ Mix with other elements
 ```scala
 ol("Initialize project",
   ul("Create repo", "Setup CI/CD"),
-  inlineBar("Progress", 0.6),
-  "Ready to code!")
+  inlineBar("Progress", 0.6))
 ```
 ```
 1. Initialize project
 2. • Create repo
    • Setup CI/CD
 3. Progress [████████████────────] 60%
-4. Ready to code!
 ```
 
 ### Unordered Lists: `ul`
