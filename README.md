@@ -449,14 +449,25 @@ Add and compose margin messages for nice "compiler-message style" layout element
 
 ```scala
 layout(
-  margin.error("Type mismatch at line 15",
+  margin.error(
+    "Ooops",
+    br,
+    row("val result: Int = ", underline("^")("getUserName()")),
+    "Expected Int, found String"
+  ),
   br,
-  row("val result: Int =", underline("^")("getUserName()")),
-  "Expected Int, found String"),
-  br,
-  margin.warn("Unused variable detected",
-  br,
-  margin("[custom ~>]")(row("val ", underline("~")("temp"), " = calculateTotal(items)")))
+  margin.warn(
+    "Unused variable detected",
+    row("val", underline("~")("temp"), "= calculateTotal(items)")
+  ),
+  "Clean code, cleaner layouts with layoutz",
+  margin.info(
+    "Pro tip",
+    br,
+    margin("[layoutz ~>]")(
+      row("val", underline("~")("beauty"), "= renderCode(perfectly)")
+    )
+  )
 )
 ```
 
