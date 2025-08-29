@@ -713,18 +713,28 @@ CounterApp.run()  // Start the app
 ### Complex Example
 A task manager with navigation, progress tracking, and stateful emojis. This example shows case classes for state, sealed traits for messages, conditional updates, and visual state changes.
 ```scala
-case class TaskState(tasks: List[String], selected: Int, isLoading: Boolean, completed: Set[Int])
+case class TaskState(
+  tasks: List[String], 
+  selected: Int, 
+  isLoading: Boolean, 
+  completed: Set[Int],
+  progress: Double,
+  startTime: Long,
+  spinnerFrame: Int
+)
 
 sealed trait TaskMessage
 case object MoveUp extends TaskMessage
 case object MoveDown extends TaskMessage  
 case object StartTask extends TaskMessage
 case object ProgressTick extends TaskMessage
+case object SpinnerTick extends TaskMessage
 
 object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
   def init = TaskState(
     tasks = List("Process data", "Generate reports", "Backup files"),
-    selected = 0, isLoading = false, completed = Set.empty
+    selected = 0, isLoading = false, completed = Set.empty,
+    progress = 0.0, startTime = 0, spinnerFrame = 0
   )
   
   def update(msg: TaskMessage, state: TaskState) = msg match {
@@ -736,8 +746,20 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
       val newSelected = if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
       state.copy(selected = newSelected)
       
-    case StartTask if !state.isLoading => state.copy(isLoading = true)
-    case ProgressTick if state.isLoading => state.copy(isLoading = false, completed = state.completed + state.selected)
+    case StartTask if !state.isLoading => 
+      state.copy(isLoading = true, progress = 0.0, startTime = System.currentTimeMillis())
+      
+    case ProgressTick if state.isLoading =>
+      val elapsed = System.currentTimeMillis() - state.startTime
+      val newProgress = math.min(1.0, elapsed / 3000.0)  // 3 seconds
+      
+      if (newProgress >= 1.0) {
+        state.copy(isLoading = false, completed = state.completed + state.selected, progress = 1.0)
+      } else {
+        state.copy(progress = newProgress)
+      }
+      
+    case SpinnerTick => state.copy(spinnerFrame = state.spinnerFrame + 1)
     case _ => state
   }
   
@@ -746,6 +768,7 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
     case CharKey('s') | ArrowDownKey => Some(MoveDown)
     case CharKey(' ') | EnterKey     => Some(StartTask)
     case ProgressTickKey             => Some(ProgressTick)  // Auto-generated
+    case SpinnerTickKey              => Some(SpinnerTick)   // Auto-generated
     case _                          => None
   }
   
@@ -758,10 +781,20 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
       s"$marker $emoji $task"
     }
     
+    val status = if (state.isLoading) {
+      layout(
+        spinner("Processing", state.spinnerFrame),
+        inlineBar("Progress", state.progress),
+        f"${state.progress * 100}%.0f%% complete"
+      )
+    } else {
+      layout("Press SPACE to start, W/S to navigate")
+    }
+    
     layout(
       section("Tasks")(Layout(taskList.map(Text))),
       br,
-      if (state.isLoading) spinner("Processing...") else "Press SPACE to start, W/S to navigate"
+      section("Status")(status)
     )
   }
 }
