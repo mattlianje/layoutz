@@ -11,7 +11,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Zero dependencies, use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines
-- Lists, trees, tables, charts, progress bars, and more
+- Lists, trees, tables, charts, progress bars, spinners, and more
 - Thread-safe, purely functional rendering
 - Use `LayoutzApp` trait for Elm-style interactive terminal applications
 
@@ -260,7 +260,7 @@ Nested lists with auto-styling
 ul("Backend",
   ul("API", "Database"),
   "Frontend", 
-  ul("Components", ul("Header", "Footer")))
+  ul("Components", ul("Header", ul("Footer"))))
 ```
 ```
 • Backend
@@ -269,7 +269,7 @@ ul("Backend",
 • Frontend
   ◦ Components
     ▪ Header
-    ▪ Footer
+      ‣ Footer
 ```
 
 Mix with other elements
@@ -467,7 +467,7 @@ leftAlign("Left side", 20)
 rightAlign("Right side", 20)
 ```
 ```
-       TITLE        
+        TITLE  
 Left side           
           Right side
 ```
@@ -496,14 +496,15 @@ boundaries
 ### Text Justification: `justify`/`justifyAll`
 Distribute spaces to fit exact width
 ```scala
-justify("This text will be justified to fit exactly", 25)
-justifyAll("All lines\neven the last", 15)
+justify("All the lines\nmaybe the last", 20).render
+justifyAll("All the lines\nmaybe the last", 20).render
 ```
 ```
-This text will be justified to fit exactly
+All     the    lines
+maybe the last
 
-All lines even
-even  the  last
+All     the    lines
+maybe    the    last
 ```
 
 ### Border Styles
