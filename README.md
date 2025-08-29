@@ -834,8 +834,6 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 TaskApp.run()
 ```
 
-The architecture guarantees that the same state always produces the same UI, making apps predictable and easy to test. The runtime handles all threading and automatically sends `ProgressTickKey`/`SpinnerTickKey` for animations.
-
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
