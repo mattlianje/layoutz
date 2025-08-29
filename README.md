@@ -13,7 +13,11 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Rich text formatting: alignment, wrapping, justification, underlines
 - Lists, trees, tables, charts, progress bars, and more
 - Thread-safe, purely functional rendering
-- Use `LayoutzApp` trait + `LayoutzRuntime` for Elm-style TUI's
+- Use `LayoutzApp` trait for Elm-style interactive terminal applications
+
+<p align="center">
+  <img src="pix/layoutzapp-demo.gif" width="700">
+</p>
 
 ## Installation
 **layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
@@ -405,6 +409,54 @@ Mobile         │████████████████████�
 API            │███████████████████████████ 15.0
 ```
 
+### Badge: `badge`
+```scala
+badge("New")
+badge("v2.0", BadgeStyle.Success)
+badge("Error", BadgeStyle.Error)
+```
+```
+[New]
+[v2.0]
+[Error]
+```
+
+### Text Input: `textInput`
+```scala
+textInput("Username", "alice", "Enter your username", active = true)
+textInput("Password", "", "Enter password", active = false)
+```
+```
+Username: alice_
+Password: [Enter password]
+```
+
+### Space: `space`
+Add horizontal spacing
+```scala
+layout("Left", space(10), "Right")
+```
+```
+Left          Right
+```
+
+### Margin: `margin`
+Add left margin with custom or status prefixes
+```scala
+margin("    ")("Indented content")
+margin.error()("Error message")
+margin.warn()("Warning message") 
+margin.success()("Success message")
+margin.info()("Info message")
+```
+```
+    Indented content
+❌  Error message
+⚠️   Warning message
+✅  Success message
+ℹ️   Info message
+```
+
 ## Text Formatting & Layout
 
 ### Alignment: `center`/`leftAlign`/`rightAlign`
@@ -545,53 +597,197 @@ section("Users by Role")(
 ## Interactive Apps
 Build **Elm-style terminal applications** with the `LayoutzApp` architecture.
 
-### `LayoutzApp[State, Message]`
-The type parameters define your app's contract:
-- **State**: Your application's state type (primitive like `Int`, case class like `TodoState`, etc.)  
-- **Message**: Union type of all possible actions your app can handle (often sealed trait or simple strings)
+### The Elm Architecture
+The Elm Architecture creates unidirectional data flow: User Input → Messages → State Updates → View Rendering. This makes applications predictable, testable, and thread-safe.
 
+### `LayoutzApp[State, Message]`
 You implement four methods:
 - `init: State` - Initial state when app starts
 - `view(state: State): Element` - Render current state to UI elements  
 - `onKey(key: Key): Option[Message]` - Convert keyboard input to optional messages
 - `update(message: Message, state: State): State` - Apply message to state, return new state
 
-`LayoutzRuntime.run()` handles the event loop, terminal management, and threading automatically.
+The `.run()` method handles the event loop, terminal management, and threading automatically.
 
+### Message Loop
+```mermaid
+graph TD
+    A["User Presses Key"] --> B["onKey: Key to Message"]
+    B --> C{Message?}
+    C -->|Some| D["update: Message + State"]
+    C -->|None| E["Ignore Input"]
+    D --> F["New State"]
+    F --> G["view: State to Element"]
+    G --> H["Render to Terminal"]
+    H --> I["Display Updated UI"]
+    I --> A
+    
+    J["Auto Ticks<br/>ProgressTickKey<br/>SpinnerTickKey"] --> D
+    
+    style A fill:#e1f5fe
+    style F fill:#f3e5f5
+    style G fill:#e8f5e8
+    style H fill:#fff3e0
+```
+
+### Key Types
+```scala
+// Character input
+case class CharKey(c: Char)              // 'a', '1', ' ', etc.
+
+// Special keys  
+case object EnterKey, BackspaceKey, TabKey, EscapeKey
+
+// Navigation
+case object ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey  
+
+// Shortcuts
+case class SpecialKey(name: String)      // "Ctrl+S", "Ctrl+Q"
+
+// Auto-generated (for animations)
+case object ProgressTickKey, SpinnerTickKey
+```
+
+### Input Patterns
+```scala
+// Basic commands
+def onKey(k: Key): Option[Message] = k match {
+  case CharKey('q')         => Some(Quit)
+  case ArrowUpKey           => Some(MoveUp)
+  case EnterKey             => Some(Confirm)
+  case SpecialKey("Ctrl+S") => Some(Save)
+  case _                    => None
+}
+
+// Text input
+def onKey(k: Key): Option[Message] = k match {
+  case CharKey(c) if c.isPrintable => Some(AddChar(c))
+  case BackspaceKey                => Some(DeleteChar) 
+  case EnterKey                    => Some(SubmitText)
+  case _                          => None
+}
+
+// State-dependent logic (recommended pattern)
+def onKey(k: Key): Option[Message] = k match {
+  case CharKey(c) => Some(HandleChar(c))  // Send all characters
+  case EnterKey   => Some(HandleEnter)    // Send all enters
+  case _          => None
+}
+
+def update(msg: Message, state: AppState): AppState = msg match {
+  case HandleChar(c) =>
+    if (state.inputMode) state.copy(text = state.text + c)
+    else if (c == 'q') state.copy(shouldExit = true)
+    else state
+    
+  case HandleEnter =>
+    if (state.inputMode) submitText(state) 
+    else selectCurrent(state)
+}
+```
+
+### Simple Example
 ```scala
 object CounterApp extends LayoutzApp[Int, String] {
   def init = 0
+  
   def update(msg: String, count: Int) = msg match {
     case "inc" => count + 1
     case "dec" => count - 1
-    case _ => count
+    case _     => count
   }
+  
   def onKey(k: Key) = k match {
     case CharKey('+') => Some("inc")
     case CharKey('-') => Some("dec") 
-    case _ => None
+    case _            => None
   }
-  def view(count: Int) = 
-    section("Counter")(s"Count: $count")
+  
+  def view(count: Int) = section("Counter")(s"Count: $count")
 }
 
-LayoutzRuntime.run(CounterApp)
+CounterApp.run()  // Start the app
 ```
 
-## Key System
-**Key types**: `CharKey(c)`, `EnterKey`, `ArrowUpKey`, `SpecialKey("Ctrl+S")`, auto-generated `SpinnerTickKey`/`ProgressTickKey`
-
-### Input Handling Pattern
+### Complex Example
+A task manager with navigation, progress tracking, and stateful emojis. This example shows case classes for state, sealed traits for messages, conditional updates, and visual state changes.
 ```scala
-def onKey(k: Key): Option[Message] = k match {
-  case CharKey(c) if c.isPrintable => Some(AddChar(c))
-  case BackspaceKey => Some(DeleteChar)
-  case ArrowLeftKey => Some(MoveLeft)
-  case SpecialKey("Ctrl+S") => Some(Save)
-  case SpinnerTickKey => Some(UpdateAnimation)
-  case _ => None
+case class TaskState(tasks: List[String], selected: Int, isLoading: Boolean, completed: Set[Int])
+
+sealed trait TaskMessage
+case object MoveUp extends TaskMessage
+case object MoveDown extends TaskMessage  
+case object StartTask extends TaskMessage
+case object ProgressTick extends TaskMessage
+
+object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
+  def init = TaskState(
+    tasks = List("Process data", "Generate reports", "Backup files"),
+    selected = 0, isLoading = false, completed = Set.empty
+  )
+  
+  def update(msg: TaskMessage, state: TaskState) = msg match {
+    case MoveUp if !state.isLoading =>
+      val newSelected = if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
+      state.copy(selected = newSelected)
+      
+    case MoveDown if !state.isLoading =>
+      val newSelected = if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
+      state.copy(selected = newSelected)
+      
+    case StartTask if !state.isLoading => state.copy(isLoading = true)
+    case ProgressTick if state.isLoading => state.copy(isLoading = false, completed = state.completed + state.selected)
+    case _ => state
+  }
+  
+  def onKey(k: Key) = k match {
+    case CharKey('w') | ArrowUpKey   => Some(MoveUp)
+    case CharKey('s') | ArrowDownKey => Some(MoveDown)
+    case CharKey(' ') | EnterKey     => Some(StartTask)
+    case ProgressTickKey             => Some(ProgressTick)  // Auto-generated
+    case _                          => None
+  }
+  
+  def view(state: TaskState) = {
+    val taskList = state.tasks.zipWithIndex.map { case (task, index) =>
+      val emoji = if (state.completed.contains(index)) "✅" 
+                 else if (state.isLoading && index == state.selected) "⚡" 
+                 else "📋"
+      val marker = if (index == state.selected) "►" else " "
+      s"$marker $emoji $task"
+    }
+    
+    layout(
+      section("Tasks")(Layout(taskList.map(Text))),
+      br,
+      if (state.isLoading) spinner("Processing...") else "Press SPACE to start, W/S to navigate"
+    )
+  }
 }
+
+TaskApp.run()
 ```
+
+The architecture guarantees that the same state always produces the same UI, making apps predictable and easy to test. The runtime handles all threading and automatically sends `ProgressTickKey`/`SpinnerTickKey` for animations.
+
+### Try the Examples
+The repository includes several demo applications:
+
+```bash
+# Simple counter app
+scala-cli run . --main-class layoutz.RunCounterDemo
+
+# Todo app with text input
+scala-cli run . --main-class layoutz.RunTodoDemo
+
+# Task navigator with progress bars, spinners, and stateful emojis
+scala-cli run . --main-class layoutz.RunNavLoadDemo
+
+# Margin styles showcase  
+scala-cli run . --main-class layoutz.RunMarginDemo
+```
+
+The `NavLoadDemo` is particularly feature-rich, demonstrating stateful emojis (📁 → ⚡ → ✅), dynamic text input with smart field switching, complex state management with custom task creation, and progress tracking with spinner animations.
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi

@@ -56,9 +56,28 @@ package object layoutz {
     def render: String
     final def width: Int = {
       val lines = render.split('\n')
-      if (lines.isEmpty) 0 else lines.map(_.length).max
+      if (lines.isEmpty) 0 else lines.map(stripAnsiCodes(_).length).max
     }
-    final def height: Int = render.split('\n').length
+    final def height: Int = {
+      val rendered = render
+      if (rendered.isEmpty) 0
+      else {
+        val lines = rendered.split("\n", -1)
+        math.max(1, lines.length)
+      }
+    }
+  }
+
+  /** Strip ANSI escape sequences to get visual width */
+  private def stripAnsiCodes(text: String): String = {
+    text.replaceAll("\u001b\\[[0-9;]*m", "")
+  }
+
+  /** Flatten multiline elements to single line for components that need
+    * single-line content
+    */
+  private def flattenToSingleLine(element: Element): String = {
+    element.render.split('\n').mkString(" ")
   }
 
   final case class Text(content: String) extends Element {
@@ -69,6 +88,19 @@ package object layoutz {
     def render: String = "\n"
   }
 
+  /** Margin element that adds a prefix to each line of content */
+  final case class Margin(prefix: String, elements: Seq[Element])
+      extends Element {
+    def render: String = {
+      val content =
+        if (elements.length == 1) elements.head else Layout(elements)
+      val rendered = content.render
+      val lines = rendered.split('\n')
+
+      lines.map(line => s"$prefix $line").mkString("\n")
+    }
+  }
+
   /** Underline element that draws a line under any element */
   final case class Underline(
       element: Element,
@@ -77,7 +109,9 @@ package object layoutz {
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
-      val maxWidth = if (lines.isEmpty) 0 else lines.map(_.length).max
+      val maxWidth =
+        if (lines.isEmpty) 0
+        else lines.map(line => stripAnsiCodes(line).length).max
 
       if (maxWidth == 0) return content
 
@@ -210,7 +244,7 @@ package object layoutz {
 
       lines
         .map { line =>
-          val lineLength = line.length
+          val lineLength = stripAnsiCodes(line).length
           if (lineLength >= targetWidth) {
             line // If line is already wider than target width, don't truncate
           } else {
@@ -239,7 +273,7 @@ package object layoutz {
 
       lines
         .map { line =>
-          val lineLength = line.length
+          val lineLength = stripAnsiCodes(line).length
           if (lineLength >= targetWidth) {
             line // If line is already wider than target width, don't truncate
           } else {
@@ -259,7 +293,7 @@ package object layoutz {
 
       lines
         .map { line =>
-          val lineLength = line.length
+          val lineLength = stripAnsiCodes(line).length
           if (lineLength >= targetWidth) {
             line // If line is already wider than target width, don't truncate
           } else {
@@ -294,12 +328,10 @@ package object layoutz {
           if (testLine.length <= maxWidth) {
             currentLine = testLine
           } else {
-            // Current line + word would be too long
             if (currentLine.nonEmpty) {
               result += currentLine
               currentLine = word
             } else {
-              // Single word longer than maxWidth - add it anyway (don't break words)
               result += word
               currentLine = ""
             }
@@ -327,15 +359,13 @@ package object layoutz {
       val content = element.render
       val lines = content.split('\n')
 
-      // First wrap each line, then justify the wrapped lines
       val allLines = lines.flatMap(wrapLine)
 
       allLines.zipWithIndex
         .map { case (line, index) =>
           val isLastLine = index == allLines.length - 1
-          // Only skip justification for last line if there are multiple lines AND justifyLastLine is false
           if (isLastLine && !justifyLastLine && allLines.length > 1) {
-            line // Don't justify the last line unless explicitly requested
+            line
           } else {
             justifyLine(line, targetWidth)
           }
@@ -384,7 +414,6 @@ package object layoutz {
 
       val words = trimmedLine.split("\\s+").filter(_.nonEmpty)
       if (words.length <= 1) {
-        // Single word or empty line - left align with padding
         return trimmedLine.padTo(width, ' ')
       }
 
@@ -430,10 +459,14 @@ package object layoutz {
       if (pairs.isEmpty) return ""
 
       val maxKeyLength = pairs.map(_._1.length).max
+      val alignmentPosition = maxKeyLength + 2
+
       pairs
         .map { case (key, value) =>
-          val paddedKey = key.padTo(maxKeyLength, ' ')
-          s"$paddedKey : $value"
+          val keyWithColon = s"$key:"
+          val spacesNeeded = alignmentPosition - keyWithColon.length
+          val padding = " " * math.max(1, spacesNeeded)
+          s"$keyWithColon$padding$value"
         }
         .mkString("\n")
     }
@@ -441,28 +474,48 @@ package object layoutz {
 
   /** Tabular data with headers and borders */
   final case class Table(
-      headers: Seq[String],
-      rows: Seq[Seq[String]],
+      headers: Seq[Element],
+      rows: Seq[Seq[Element]],
       style: Border = Border.Single
   ) extends Element {
     def render: String = {
-      val allRows = headers +: rows
-      val columnWidths = calculateColumnWidths(allRows)
+      // Render all elements to get their line structures
+      val headerLines = headers.map(_.render.split('\n'))
+      val rowLines = rows.map(_.map(_.render.split('\n')))
+      val allRowLines = headerLines +: rowLines
 
+      val columnWidths = calculateColumnWidths(allRowLines)
       val borders = TableBorders(columnWidths, style)
-      val headerRow = buildTableRow(headers, columnWidths, style)
-      val dataRows = rows.map(row => buildTableRow(row, columnWidths, style))
 
-      (Seq(
-        borders.top,
-        headerRow,
+      // Build header row(s)
+      val headerRowHeight = headerLines.map(_.length).max
+      val headerRows = buildMultilineTableRows(
+        headerLines,
+        columnWidths,
+        headerRowHeight,
+        style
+      )
+
+      // Build data rows
+      val dataRows = rowLines.flatMap { row =>
+        val rowHeight = row.map(_.length).max
+        buildMultilineTableRows(row, columnWidths, rowHeight, style)
+      }
+
+      (Seq(borders.top) ++ headerRows ++ Seq(
         borders.separator
       ) ++ dataRows :+ borders.bottom).mkString("\n")
     }
 
-    private def calculateColumnWidths(allRows: Seq[Seq[String]]): Seq[Int] =
+    private def calculateColumnWidths(
+        allRowLines: Seq[Seq[Array[String]]]
+    ): Seq[Int] =
       headers.indices.map { columnIndex =>
-        allRows.map(_(columnIndex).length).max
+        allRowLines.flatMap { row =>
+          if (columnIndex < row.length) {
+            row(columnIndex).map(line => stripAnsiCodes(line).length)
+          } else Seq(0)
+        }.max
       }
 
     private case class TableBorders(
@@ -508,27 +561,34 @@ package object layoutz {
       }
     }
 
-    private def buildTableRow(
-        cells: Seq[String],
+    private def buildMultilineTableRows(
+        cellLines: Seq[Array[String]],
         widths: Seq[Int],
+        rowHeight: Int,
         style: Border
-    ): String = {
+    ): Seq[String] = {
       val (_, _, _, _, _, vertical) = style.chars
-      cells
-        .zip(widths)
-        .map { case (cell, width) =>
-          cell.padTo(width, ' ')
-        }
-        .mkString(
-          s"$vertical ",
-          s" $vertical ",
-          s" $vertical"
-        )
+
+      (0 until rowHeight).map { lineIndex =>
+        cellLines
+          .zip(widths)
+          .map { case (lines, width) =>
+            val line = if (lineIndex < lines.length) lines(lineIndex) else ""
+            val visibleLength = stripAnsiCodes(line).length
+            val padding = width - visibleLength
+            line + (" " * math.max(0, padding))
+          }
+          .mkString(
+            s"$vertical ",
+            s" $vertical ",
+            s" $vertical"
+          )
+      }
     }
   }
 
   /** Horizontal progress indicator */
-  final case class InlineBar(label: String, progress: Double) extends Element {
+  final case class InlineBar(label: Element, progress: Double) extends Element {
     def render: String = {
       val clampedProgress = math.max(0.0, math.min(1.0, progress))
       val filledSegments = (clampedProgress * Dimensions.ProgressBarWidth).toInt
@@ -538,18 +598,29 @@ package object layoutz {
         Glyphs.BarFilled * filledSegments + Glyphs.BarEmpty * emptySegments
       val percentage = (clampedProgress * 100).toInt
 
-      s"$label [$bar] $percentage%"
+      s"${flattenToSingleLine(label)} [$bar] $percentage%"
     }
   }
 
   /** Dashboard status card */
   final case class StatusCard(
-      label: String,
-      content: String,
+      label: Element,
+      content: Element,
       style: Border = Border.Single
   ) extends Element {
     def render: String = {
-      val maxTextLength = math.max(label.length, content.length)
+      val labelRendered = label.render
+      val contentRendered = content.render
+
+      // Handle multiline content properly
+      val labelLines = labelRendered.split('\n')
+      val contentLines = contentRendered.split('\n')
+      val allLines = labelLines ++ contentLines
+
+      // Find maximum visible width across all lines
+      val maxTextLength =
+        if (allLines.isEmpty) 0
+        else allLines.map(line => stripAnsiCodes(line).length).max
       val contentWidth = maxTextLength + Dimensions.MinContentPadding
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
@@ -559,12 +630,22 @@ package object layoutz {
         topLeft + horizontal * (contentWidth + 2) + topRight
       val bottomBorder =
         bottomLeft + horizontal * (contentWidth + 2) + bottomRight
-      val labelLine =
-        s"$vertical ${label.padTo(contentWidth, ' ')} $vertical"
-      val contentLine =
-        s"$vertical ${content.padTo(contentWidth, ' ')} $vertical"
 
-      Seq(topBorder, labelLine, contentLine, bottomBorder).mkString("\n")
+      // Create lines for label and content, padding each line individually
+      val labelCardLines = labelLines.map { line =>
+        val visibleLength = stripAnsiCodes(line).length
+        val padding = contentWidth - visibleLength
+        s"$vertical $line${" " * padding} $vertical"
+      }
+
+      val contentCardLines = contentLines.map { line =>
+        val visibleLength = stripAnsiCodes(line).length
+        val padding = contentWidth - visibleLength
+        s"$vertical $line${" " * padding} $vertical"
+      }
+
+      (Seq(topBorder) ++ labelCardLines ++ contentCardLines :+ bottomBorder)
+        .mkString("\n")
     }
   }
 
@@ -643,14 +724,19 @@ package object layoutz {
   }
 
   /** Badge/tag for status indicators */
-  final case class Badge(text: String, style: BadgeStyle = BadgeStyle.Default)
-      extends Element {
-    def render: String = style match {
-      case BadgeStyle.Default => s"[$text]"
-      case BadgeStyle.Success => s"[OK] $text"
-      case BadgeStyle.Error   => s"[ERR] $text"
-      case BadgeStyle.Warning => s"[WARN] $text"
-      case BadgeStyle.Info    => s"[INFO] $text"
+  final case class Badge(
+      content: Element,
+      style: BadgeStyle = BadgeStyle.Default
+  ) extends Element {
+    def render: String = {
+      val text = content.render
+      style match {
+        case BadgeStyle.Default => s"[$text]"
+        case BadgeStyle.Success => s"[OK] $text"
+        case BadgeStyle.Error   => s"[ERR] $text"
+        case BadgeStyle.Warning => s"[WARN] $text"
+        case BadgeStyle.Info    => s"[INFO] $text"
+      }
     }
   }
 
@@ -689,7 +775,7 @@ package object layoutz {
 
   /** Simple horizontal bar chart */
   final case class Chart(
-      data: Seq[(String, Double)],
+      data: Seq[(Element, Double)],
       maxWidth: Int = Dimensions.DefaultChartWidth
   ) extends Element {
     def render: String = {
@@ -699,12 +785,17 @@ package object layoutz {
       val scale = maxWidth.toDouble / maxValue
 
       data
-        .map { case (label, value) =>
+        .map { case (labelElement, value) =>
+          // Flatten multiline labels to single line for chart display
+          val label = flattenToSingleLine(labelElement)
           val barLength = (value * scale).toInt
           val bar = "█" * barLength
-          val truncatedLabel = label.take(Dimensions.ChartLabelMaxWidth)
+          val visibleLabelLength = stripAnsiCodes(label).length
+          val truncatedLabel =
+            if (visibleLabelLength <= Dimensions.ChartLabelMaxWidth) label
+            else stripAnsiCodes(label).take(Dimensions.ChartLabelMaxWidth)
           val padding = " " * (Dimensions.ChartLabelSpacing - math.min(
-            label.length,
+            visibleLabelLength,
             Dimensions.ChartLabelMaxWidth
           ))
           s"$truncatedLabel$padding │$bar $value"
@@ -714,11 +805,14 @@ package object layoutz {
   }
 
   /** Banner - decorative text in a box */
-  final case class Banner(text: String, style: Border = Border.Double)
+  final case class Banner(content: Element, style: Border = Border.Double)
       extends Element {
     def render: String = {
-      val lines = if (text.isEmpty) Array("") else text.split('\n')
-      val maxWidth = if (lines.isEmpty) 0 else lines.map(_.length).max
+      val rendered = content.render
+      val lines = if (rendered.isEmpty) Array("") else rendered.split('\n')
+      val maxWidth =
+        if (lines.isEmpty) 0
+        else lines.map(line => stripAnsiCodes(line).length).max
       val totalWidth = maxWidth + Dimensions.BoxInnerPadding
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
@@ -729,12 +823,14 @@ package object layoutz {
       val bottom =
         bottomLeft + horizontal * (totalWidth - Dimensions.BoxBorderWidth) + bottomRight
 
-      val content = lines.map { line =>
-        val padding = maxWidth - line.length
-        s"$vertical $line${" " * padding} $vertical"
+      val contentLines = lines.map { line =>
+        val visibleLength = stripAnsiCodes(line).length
+        val padding = maxWidth - visibleLength
+        val actualPadding = " " * padding
+        s"$vertical $line$actualPadding $vertical"
       }
 
-      (top +: content :+ bottom).mkString("\n")
+      (top +: contentLines :+ bottom).mkString("\n")
     }
   }
 
@@ -799,7 +895,8 @@ package object layoutz {
         if (elements.length == 1) elements.head else Layout(elements)
       val contentLines = content.render.split('\n')
       val contentWidth =
-        if (contentLines.isEmpty) 0 else contentLines.map(_.length).max
+        if (contentLines.isEmpty) 0
+        else contentLines.map(line => stripAnsiCodes(line).length).max
       val titleWidth =
         if (title.nonEmpty) title.length + Dimensions.MinContentPadding else 0
       val innerWidth = math.max(contentWidth, titleWidth)
@@ -821,7 +918,7 @@ package object layoutz {
         s"$bottomLeft${horizontal * (totalWidth - Dimensions.BoxBorderWidth)}$bottomRight"
 
       val paddedContent = contentLines.map { line =>
-        val padding = innerWidth - line.length
+        val padding = innerWidth - stripAnsiCodes(line).length
         s"$vertical $line${" " * padding} $vertical"
       }
 
@@ -989,60 +1086,268 @@ package object layoutz {
     }
   }
 
-  /* DSL constructors */
+  /** DSL CONSTRUCTORS
+    */
+
+  /** Create a vertical layout of elements.
+    *
+    * @param elements
+    *   the elements to arrange vertically
+    * @return
+    *   a Layout containing all elements stacked vertically
+    */
   def layout(elements: Element*): Layout = Layout(elements)
+
+  /** Create a titled section with default separator (=).
+    *
+    * @param title
+    *   the section title
+    * @param content
+    *   the section content
+    * @return
+    *   a Section with title header and content
+    */
   def section(title: String)(content: Element): Section =
     Section(title, content)
+
+  /** Create a titled section with custom separator character.
+    *
+    * @param title
+    *   the section title
+    * @param glyph
+    *   the character used for the separator line
+    * @param content
+    *   the section content
+    * @return
+    *   a Section with custom separator
+    */
   def section(title: String, glyph: String)(content: Element): Section =
     Section(title, content, glyph)
+
+  /** Create a titled section with custom separator and flanking character
+    * count.
+    *
+    * @param title
+    *   the section title
+    * @param glyph
+    *   the character used for the separator line
+    * @param flankingChars
+    *   number of separator characters on each side of title
+    * @param content
+    *   the section content
+    * @return
+    *   a Section with fully customized separator
+    */
   def section(title: String, glyph: String, flankingChars: Int)(
       content: Element
   ): Section = Section(title, content, glyph, flankingChars)
+
+  /** Create aligned key-value pairs.
+    *
+    * @param pairs
+    *   tuples of (key, value) strings
+    * @return
+    *   a KeyValue element with aligned key-value pairs
+    */
   def kv(pairs: (String, String)*): KeyValue = KeyValue(pairs)
+
+  /** Create a table with custom border style (curried for composability).
+    *
+    * @param style
+    *   the border style to use
+    * @param headers
+    *   sequence of header elements
+    * @param rows
+    *   sequence of rows, each containing a sequence of cell elements
+    * @return
+    *   a Table with specified styling
+    */
   def table(
-      headers: Seq[String],
-      rows: Seq[Seq[String]],
       style: Border = Border.Single
-  ): Table =
+  )(headers: Seq[Element], rows: Seq[Seq[Element]]): Table =
     Table(headers, rows, style)
-  def inlineBar(label: String, progress: Double): InlineBar =
+
+  /** Create a table with single border style.
+    *
+    * @param headers
+    *   sequence of header elements
+    * @param rows
+    *   sequence of rows, each containing a sequence of cell elements
+    * @return
+    *   a Table with single-line borders
+    */
+  def table(headers: Seq[Element], rows: Seq[Seq[Element]]): Table =
+    Table(headers, rows, Border.Single)
+
+  /** Create a progress bar with label.
+    *
+    * @param label
+    *   the label element to display before the bar
+    * @param progress
+    *   progress value between 0.0 and 1.0
+    * @return
+    *   an InlineBar showing progress percentage
+    */
+  def inlineBar(label: Element, progress: Double): InlineBar =
     InlineBar(label, progress)
+
+  /** Create a status card with custom border style (curried for composability).
+    *
+    * @param style
+    *   the border style to use
+    * @param label
+    *   the card label element
+    * @param content
+    *   the card content element
+    * @return
+    *   a StatusCard with specified styling
+    */
   def statusCard(
-      label: String,
-      content: String
-  ): StatusCard =
-    StatusCard(label, content)
-  def statusCard(
-      label: String,
-      content: String,
-      style: BorderStyle
-  ): StatusCard =
+      style: Border = Border.Single
+  )(label: Element, content: Element): StatusCard =
     StatusCard(label, content, style)
+
+  /** Create a status card with single border style.
+    *
+    * @param label
+    *   the card label element
+    * @param content
+    *   the card content element
+    * @return
+    *   a StatusCard with single-line borders
+    */
+  def statusCard(label: Element, content: Element): StatusCard =
+    StatusCard(label, content)
+
+  /** Create a diff visualization showing added/removed items.
+    *
+    * @param added
+    *   sequence of strings that were added
+    * @param removed
+    *   sequence of strings that were removed
+    * @return
+    *   a DiffBlock showing changes with + and - prefixes
+    */
   def diffBlock(
       added: Seq[String] = Seq.empty,
       removed: Seq[String] = Seq.empty
   ): DiffBlock =
     DiffBlock(added, removed)
-  /* Empty box (no title) */
-  def box(elements: Element*): Box = Box("", elements, Border.Single)
-  def box(style: Border)(elements: Element*): Box = Box("", elements, style)
 
-  /* Box with title */
+  /** Create a bordered box with optional title and custom style (curried for
+    * composability).
+    *
+    * @param style
+    *   the border style to use
+    * @param title
+    *   optional title to display in the top border
+    * @param elements
+    *   the elements to contain within the box
+    * @return
+    *   a Box with specified styling and content
+    */
+  def box(style: Border = Border.Single)(title: String = "")(
+      elements: Element*
+  ): Box =
+    Box(title, elements, style)
+
+  /** Create a simple box without title.
+    *
+    * @param elements
+    *   the elements to contain within the box
+    * @return
+    *   a Box with single-line borders and no title
+    */
+  def box()(elements: Element*): Box = Box("", elements, Border.Single)
+
+  /** Create a titled box with single border style.
+    *
+    * @param title
+    *   the title to display in the top border
+    * @param elements
+    *   the elements to contain within the box
+    * @return
+    *   a Box with single-line borders and title
+    */
   def box(title: String)(elements: Element*): Box =
     Box(title, elements, Border.Single)
-  def box(title: String, style: Border)(elements: Element*): Box =
-    Box(title, elements, style)
+
+  /** Arrange elements horizontally.
+    *
+    * @param elements
+    *   the elements to arrange side by side
+    * @return
+    *   a Row with elements arranged horizontally
+    */
   def row(elements: Element*): Row = Row(elements)
+
+  /** Create a tree visualization with title.
+    *
+    * @param title
+    *   the title to display above the tree
+    * @param root
+    *   the root TreeNode of the tree structure
+    * @return
+    *   a Tree with title and hierarchical structure
+    */
   def tree(title: String)(root: TreeNode): Tree = Tree(title, root)
+
+  /** Create a tree branch node.
+    *
+    * @param name
+    *   the name of this branch
+    * @param children
+    *   the child nodes under this branch
+    * @return
+    *   a TreeBranch with child nodes
+    */
   def branch(name: String, children: TreeNode*): TreeBranch =
     TreeBranch(name, children)
-  def leaf(name: String): TreeLeaf = TreeLeaf(name)
-  def br: LineBreak.type = LineBreak
-  def hr(char: String = "─", width: Int): HorizontalRule =
-    HorizontalRule(char, Some(width))
-  def hr(char: String): HorizontalRule = HorizontalRule(char, None)
-  def hr: HorizontalRule = HorizontalRule()
 
+  /** Create a tree leaf node.
+    *
+    * @param name
+    *   the name of this leaf
+    * @return
+    *   a TreeLeaf with no children
+    */
+  def leaf(name: String): TreeLeaf = TreeLeaf(name)
+
+  /** SPACING & LAYOUT
+    */
+
+  /** Single line break */
+  def br: LineBreak.type = LineBreak
+
+  /** Multiple line breaks */
+  def br(n: Int): Element = {
+    if (n <= 0) Text("")
+    else if (n == 1) LineBreak
+    else Layout(List.fill(n)(LineBreak))
+  }
+
+  /** Single space */
+  def space: Element = Text(" ")
+
+  /** Multiple spaces */
+  def space(n: Int): Element = {
+    if (n <= 0) Text("")
+    else Text(" " * n)
+  }
+
+  /** Horizontal rule with custom character and width */
+  def hr(char: String = "─")(
+      width: Int = Dimensions.DefaultRuleWidth
+  ): HorizontalRule =
+    HorizontalRule(char, Some(width))
+
+  /** Default horizontal rule */
+  def hr(): HorizontalRule = HorizontalRule()
+
+  /** INTERACTIVE ELEMENTS
+    */
+
+  /** Interactive text input field */
   def textInput(
       label: String,
       value: String = "",
@@ -1050,53 +1355,122 @@ package object layoutz {
       active: Boolean = false
   ): TextInput = TextInput(label, value, placeholder, active)
 
+  /** Animated loading spinner */
   def spinner(
       label: String = "",
       frame: Int = 0,
       style: SpinnerStyle = SpinnerStyle.Dots
   ): Spinner = Spinner(label, frame, style)
 
-  def badge(text: String, style: BadgeStyle = BadgeStyle.Default): Badge =
-    Badge(text, style)
+  /** Status badge with optional styling */
+  def badge(content: Element, style: BadgeStyle = BadgeStyle.Default): Badge =
+    Badge(content, style)
+
+  /** Arrange elements in columns with spacing */
   def columns(elements: Element*): Columns = Columns(elements)
-  def chart(data: (String, Double)*): Chart = Chart(data)
-  def banner(
-      text: String = "",
-      style: Border = Border.Double
-  ): Banner = Banner(text, style)
 
-  implicit def stringToText(s: String): Text = Text(s)
+  /** Horizontal bar chart */
+  def chart(data: (Element, Double)*): Chart = Chart(data)
 
-  // DSL constructors for new elements
-  def underline(element: Element, char: String = "─"): Underline =
+  /** Decorative banner with custom border style (curried for composability) */
+  def banner(style: Border = Border.Double)(content: Element): Banner =
+    Banner(content, style)
+
+  /** Empty banner with double border */
+  def banner(): Banner = Banner(Text(""), Border.Double)
+
+  /** Banner with double border style */
+  def banner(content: Element): Banner = Banner(content, Border.Double)
+
+  /** TEXT FORMATTING
+    */
+
+  /** Add underline to an element with custom character */
+  def underline(char: String = "─")(element: Element): Underline =
     Underline(element, char)
+
+  /** Add default underline to an element */
+  def underline(element: Element): Underline = Underline(element, "─")
+
+  /** Ordered (numbered) list */
   def ol(items: Element*): OrderedList = OrderedList(items)
+
+  /** Unordered (bulleted) list with default bullets */
   def ul(items: Element*): UnorderedList = UnorderedList(items)
+
+  /** Unordered list with custom bullet character */
   def ul(bullet: String)(items: Element*): UnorderedList =
     UnorderedList(items, bullet)
 
-  // Alignment DSL
+  /** ALIGNMENT & FLOW
+    */
+
+  /** Center-align element within specified width */
   def center(element: Element, width: Int): Centered = Centered(element, width)
+
+  /** Auto-center element within layout context */
   def center(element: Element): AutoCentered = AutoCentered(element)
+
+  /** Left-align element within specified width */
   def leftAlign(element: Element, width: Int): LeftAligned =
     LeftAligned(element, width)
+
+  /** Right-align element within specified width */
   def rightAlign(element: Element, width: Int): RightAligned =
     RightAligned(element, width)
 
-  // Text wrapping DSL
+  /** Wrap text at word boundaries within specified width */
   def wrap(element: Element, width: Int): Wrapped = Wrapped(element, width)
 
-  // Text justification DSL - wraps then distributes spaces evenly between words
+  /** Justify text to exact width by distributing spaces */
   def justify(element: Element, width: Int): Justified =
-    Justified(element, width) // Last line left-aligned (natural look)
+    Justified(element, width)
+
+  /** Justify all lines including the last line */
   def justifyAll(element: Element, width: Int): Justified =
     Justified(
       element,
       width,
       justifyLastLine = true
-    ) // Justify every line including last
+    )
 
-  /* Elm-style App Architecture */
+  /** MARGINS & PREFIXES
+    */
+
+  /** Add a prefix margin to elements */
+  def margin(prefix: String)(elements: Element*): Margin =
+    Margin(prefix, elements)
+
+  /** Predefined status margins with color coding */
+  object margins {
+    def error()(elements: Element*): Margin =
+      Margin("[\u001b[31merror\u001b[0m]", elements)
+    def warn()(elements: Element*): Margin =
+      Margin("[\u001b[33mwarn\u001b[0m]", elements)
+    def success()(elements: Element*): Margin =
+      Margin("[\u001b[32msuccess\u001b[0m]", elements)
+    def info()(elements: Element*): Margin =
+      Margin("[\u001b[36minfo\u001b[0m]", elements)
+  }
+
+  /** Alias for margins object */
+  val margin = margins
+
+  /** IMPLICIT CONVERSIONS
+    */
+
+  /** Automatic conversion from String to Text element. Allows using strings
+    * directly wherever Elements are expected.
+    *
+    * @param s
+    *   the string to convert
+    * @return
+    *   a Text element containing the string
+    */
+  implicit def stringToText(s: String): Text = Text(s)
+
+  /** APP FRAMEWORK
+    */
   sealed trait Key
   final case class CharKey(c: Char) extends Key
   final case class SpecialKey(name: String) extends Key
@@ -1121,6 +1495,9 @@ package object layoutz {
     def update(msg: Message, state: State): State
     def onKey(k: Key): Option[Message]
     def view(state: State): Element
+
+    /** Run this application */
+    def run(): Unit = LayoutzRuntime.run(this)
   }
   object LayoutzRuntime {
     import java.util.concurrent.{Executors}
@@ -1232,14 +1609,17 @@ package object layoutz {
       }
     }
 
-    private def parseKey(c: Int, reader: Any): Key = c match {
+    private def parseKey(
+        c: Int,
+        reader: org.jline.utils.NonBlockingReader
+    ): Key = c match {
       case 10 | 13 => EnterKey
       case 27 => /* ESC - check for arrow keys */
         try {
           Thread.sleep(5) /* Brief pause for sequence to arrive */
-          val next1 = reader.asInstanceOf[{ def read(): Int }].read()
+          val next1 = reader.read()
           if (next1 == 91) { /* '[' character */
-            val next2 = reader.asInstanceOf[{ def read(): Int }].read()
+            val next2 = reader.read()
             next2 match {
               case 65 => ArrowUpKey /* ESC[A */
               case 66 => ArrowDownKey /* ESC[B */

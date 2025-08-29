@@ -10,8 +10,8 @@ class LayoutzSpecs extends munit.FunSuite {
     )
 
     val expected = """=== Config ===
-env    : prod
-region : us-east-1"""
+env:    prod
+region: us-east-1"""
 
     assertEquals(result.render, expected)
   }
@@ -20,9 +20,9 @@ region : us-east-1"""
     val kvElement =
       kv("user" -> "alice", "role" -> "admin", "status" -> "active")
 
-    val expected = """user   : alice
-role   : admin
-status : active"""
+    val expected = """user:   alice
+role:   admin
+status: active"""
 
     assertEquals(kvElement.render, expected)
   }
@@ -111,9 +111,9 @@ status : active"""
     }
 
     val expected = """┌──Pipeline Summary──┐
-│ Steps    : 5       │
-│ Failures : 1       │
-│ Time     : 6m 32s  │
+│ Steps:    5        │
+│ Failures: 1        │
+│ Time:     6m 32s   │
 └────────────────────┘"""
 
     assertEquals(boxElement.render, expected)
@@ -145,9 +145,9 @@ status : active"""
     )
 
     test("horizontal rules") {
-      val rule1 = hr
-      val rule2 = hr("=", 20)
-      val rule3 = hr("*")
+      val rule1 = hr()
+      val rule2 = hr("=")(20)
+      val rule3 = hr("*")()
 
       assertEquals(rule1.render, "─" * 50)
       assertEquals(rule2.render, "=" * 20)
@@ -182,11 +182,11 @@ status : active"""
   }
 
   test("element dimensions") {
-    val simpleText = Text("Hello")
+    val simpleText = "Hello"
     assertEquals(simpleText.width, 5)
     assertEquals(simpleText.height, 1)
 
-    val multilineText = Text("Line 1\nLonger line 2\nShort")
+    val multilineText = "Line 1\nLonger line 2\nShort"
     assertEquals(multilineText.width, 13) // "Longer line 2"
     assertEquals(multilineText.height, 3)
   }
@@ -210,7 +210,7 @@ Another line"""
 
     val rendered = result.render
     assert(rendered.contains("=== Database ==="))
-    assert(rendered.contains("Host : localhost"))
+    assert(rendered.contains("Host: localhost"))
     assert(rendered.contains("• Connected"))
   }
 
@@ -273,15 +273,70 @@ Second line
 Third line"""
 
     assertEquals(result, expected)
+
+    // Test basic properties
+    assertEquals(br.render, "\n")
+    assertEquals(br.width, 0)
+    assertEquals(br.height, 2)
+
+    // Test function call syntax
+    val tripleBreak = br(3)
+    // br(3) creates Layout(List.fill(3)(LineBreak)) which renders as "\n\n\n\n"
+    // br(3) renders as 5 newlines
+    assertEquals(tripleBreak.render.length, 5)
+    assertEquals(tripleBreak.render, "\n\n\n\n\n")
+    assertEquals(tripleBreak.height, 6)
+
+    // Test edge cases
+    assertEquals(br(0).render, "")
+    assertEquals(br(1).render, "\n")
   }
   test("horizontal rules") {
-    val rule1 = hr
-    val rule2 = hr("=", 20)
-    val rule3 = hr("*")
+    val rule1 = hr()
+    val rule2 = hr("=")(20)
+    val rule3 = hr("*")()
 
     assertEquals(rule1.render, "─" * 50)
     assertEquals(rule2.render, "=" * 20)
     assertEquals(rule3.render, "*" * 50)
+  }
+
+  test("space element") {
+    assertEquals(space.render, " ")
+    assertEquals(space.width, 1)
+    assertEquals(space.height, 1)
+
+    // Test function call syntax
+    val fiveSpaces = space(5)
+    assertEquals(fiveSpaces.render, "     ")
+    assertEquals(fiveSpaces.width, 5)
+
+    // Test edge cases
+    assertEquals(space(0).render, "")
+    assertEquals(space(1).render, " ")
+  }
+
+  test("multiplied elements in layouts") {
+    val spaced = layout(
+      "First line",
+      br(2),
+      "After double break",
+      space(3),
+      "With spaces"
+    )
+
+    val rendered = spaced.render
+    val lines = rendered.split("\n", -1) // -1 to preserve empty strings
+
+    assertEquals(lines.length, 8) // Each element gets its own line in Layout
+    assertEquals(lines(0), "First line")
+    assertEquals(lines(1), "")
+    assertEquals(lines(2), "")
+    assertEquals(lines(3), "")
+    assertEquals(lines(4), "")
+    assertEquals(lines(5), "After double break")
+    assertEquals(lines(6), "   ") // space(3) on its own line
+    assertEquals(lines(7), "With spaces")
   }
 
   test("nested unordered lists") {
@@ -314,12 +369,10 @@ Third line"""
 
     charKey match {
       case CharKey(c) => assertEquals(c, 'a')
-      case _          => fail("Should match CharKey")
     }
 
     specialKey match {
       case SpecialKey(name) => assertEquals(name, "F1")
-      case _                => fail("Should match SpecialKey")
     }
 
     assertEquals(enterKey, EnterKey)
@@ -327,18 +380,15 @@ Third line"""
   }
 
   test("Key parsing logic (through public interface)") {
-    // Test key parsing behavior indirectly since parseKey is private
     val charA = CharKey('a')
     val charPlus = CharKey('+')
     val charMinus = CharKey('-')
 
-    // Test that our Key ADT types work correctly
     assertEquals(charA.c, 'a')
     assertEquals(charPlus.c, '+')
     assertEquals(charMinus.c, '-')
   }
 
-  // Test CounterApp behavior
   test("CounterApp initial state") {
     import Examples.CounterApp
     assertEquals(CounterApp.init, 0)
@@ -351,7 +401,6 @@ Third line"""
     assertEquals(CounterApp.update("dec", 5), 4)
     assertEquals(CounterApp.update("unknown", 5), 5)
 
-    // Test edge cases
     assertEquals(CounterApp.update("inc", Int.MaxValue - 1), Int.MaxValue)
     assertEquals(CounterApp.update("dec", Int.MinValue + 1), Int.MinValue)
   }
@@ -387,36 +436,31 @@ Third line"""
     var state = CounterApp.init
     assertEquals(state, 0)
 
-    // Simulate pressing + key
     CounterApp.onKey(CharKey('+')) match {
       case Some(msg) => state = CounterApp.update(msg, state)
       case None      => fail("Should produce increment message")
     }
     assertEquals(state, 1)
 
-    // Simulate pressing + key again
     CounterApp.onKey(CharKey('+')) match {
       case Some(msg) => state = CounterApp.update(msg, state)
       case None      => fail("Should produce increment message")
     }
     assertEquals(state, 2)
 
-    // Simulate pressing - key
     CounterApp.onKey(CharKey('-')) match {
       case Some(msg) => state = CounterApp.update(msg, state)
       case None      => fail("Should produce decrement message")
     }
     assertEquals(state, 1)
 
-    // Simulate pressing an unmapped key
     CounterApp.onKey(CharKey('x')) match {
       case Some(_) => fail("Should not produce a message")
-      case None    => // Expected
+      case None    =>
     }
-    assertEquals(state, 1) // State unchanged
+    assertEquals(state, 1)
   }
 
-  // Test TodoApp behavior
   test("TodoApp initial state") {
     import Examples.{TodoApp, TodoState}
 
@@ -436,15 +480,12 @@ Third line"""
 
     val initialState = TodoApp.init
 
-    // Toggle item 0 (not completed initially, not in input mode)
     val state1 = TodoApp.update(ToggleItem(0), initialState)
     assertEquals(state1.completed, Set(0, 2))
 
-    // Toggle item 2 (completed initially)
     val state2 = TodoApp.update(ToggleItem(2), state1)
     assertEquals(state2.completed, Set(0))
 
-    // Toggle item 0 again (should remove it)
     val state3 = TodoApp.update(ToggleItem(0), state2)
     assertEquals(state3.completed, Set.empty[Int])
   }
@@ -460,17 +501,14 @@ Third line"""
 
     val initialState = TodoApp.init
 
-    // Enter input mode
     val state1 = TodoApp.update(ToggleInputMode, initialState)
     assertEquals(state1.inputMode, true)
     assertEquals(state1.inputText, "")
 
-    // Add characters
     val state2 = TodoApp.update(AddChar('H'), state1)
     val state3 = TodoApp.update(AddChar('i'), state2)
     assertEquals(state3.inputText, "Hi")
 
-    // Add current item
     val state4 = TodoApp.update(AddCurrentItem, state3)
     assertEquals(state4.items.length, 4)
     assert(state4.items.contains("Hi"))
@@ -489,7 +527,7 @@ Third line"""
     assertEquals(
       TodoApp.onKey(CharKey('q')),
       Some(AddChar('q'))
-    ) // 'q' is text, Ctrl+Q quits!
+    )
     assertEquals(TodoApp.onKey(CharKey(' ')), Some(AddChar(' ')))
   }
 
@@ -499,17 +537,14 @@ Third line"""
     val state = TodoApp.init
     val view = TodoApp.view(state)
 
-    // Should show the todo list
     assert(view.render.contains("=== Todo List ==="))
     assert(view.render.contains("1. ❌ Learn Scala"))
     assert(view.render.contains("2. ❌ Build awesome apps"))
     assert(view.render.contains("3. ✅ Drink coffee"))
 
-    // Should show stats
     assert(view.render.contains("=== Stats ==="))
     assert(view.render.contains("Progress: 1/3 completed"))
 
-    // Should show add task section
     assert(view.render.contains("=== Add New Task ==="))
     assert(view.render.contains("Press 'n' to add new task"))
   }
@@ -535,10 +570,9 @@ Third line"""
     assertEquals(nextSpinner.frame, 1)
     assertEquals(nextSpinner.render, "/ Loading")
 
-    // Test frame wrapping
     val lineSpinner =
       spinner("", SpinnerStyle.Line.frames.length, SpinnerStyle.Line)
-    assertEquals(lineSpinner.render, "|") // Should wrap to frame 0
+    assertEquals(lineSpinner.render, "|")
   }
 
   test("Spinner styles") {
@@ -553,10 +587,10 @@ Third line"""
     assert(Dots.frames.forall(_.isInstanceOf[String]))
   }
 
-  test("LoadingApp initial state") {
-    import Examples.{LoadingApp, LoadingState}
+  test("NavLoadApp initial state") {
+    import Examples.{NavLoadApp, NavLoadState}
 
-    val initialState = LoadingApp.init
+    val initialState = NavLoadApp.init
     assertEquals(initialState.selectedTask, 0)
     assertEquals(initialState.isLoading, false)
     assertEquals(initialState.progress, 0.0)
@@ -564,34 +598,37 @@ Third line"""
     assertEquals(initialState.completed, Set.empty[Int])
   }
 
-  test("LoadingApp task selection") {
-    import Examples.{LoadingApp, SelectTask}
+  test("NavLoadApp task selection") {
+    import Examples.{NavLoadApp, MoveUp, MoveDown}
 
-    val initialState = LoadingApp.init
+    val initialState = NavLoadApp.init
 
-    val state1 = LoadingApp.update(SelectTask(2), initialState)
-    assertEquals(state1.selectedTask, 2)
+    // Test moving down to task 2
+    val state1 = NavLoadApp.update(MoveDown, initialState)
+    val state2 = NavLoadApp.update(MoveDown, state1)
+    assertEquals(state2.selectedTask, 2)
 
-    // Invalid selection should be ignored
-    val state2 = LoadingApp.update(SelectTask(10), initialState)
-    assertEquals(state2.selectedTask, 0) /* remains unchanged */
+    // Test that selecting invalid task wraps around
+    val stateAtEnd = initialState.copy(selectedTask = 5) // last task
+    val wrappedState = NavLoadApp.update(MoveDown, stateAtEnd)
+    assertEquals(wrappedState.selectedTask, 0)
   }
 
-  test("LoadingApp loading lifecycle") {
-    import Examples.{LoadingApp, StartLoading, ProgressTick, SpinnerTick}
+  test("NavLoadApp loading lifecycle") {
+    import Examples.{NavLoadApp, StartTask, ProgressTick, SpinnerTick}
 
-    val initialState = LoadingApp.init
+    val initialState = NavLoadApp.init
 
-    val state1 = LoadingApp.update(StartLoading, initialState)
+    val state1 = NavLoadApp.update(StartTask, initialState)
     assertEquals(state1.isLoading, true)
     assertEquals(state1.progress, 0.0)
     assert(state1.startTime > 0)
 
-    val state2 = LoadingApp.update(SpinnerTick, state1)
+    val state2 = NavLoadApp.update(SpinnerTick, state1)
     assertEquals(state2.spinnerFrame, state1.spinnerFrame + 1)
 
     Thread.sleep(100)
-    val state3 = LoadingApp.update(ProgressTick, state2)
+    val state3 = NavLoadApp.update(ProgressTick, state2)
     assert(state3.progress >= 0.0)
     assert(state3.elapsedTime > 0)
   }
@@ -636,7 +673,7 @@ Disk            │████████████████ 30.0"""
   }
 
   test("Banner widget") {
-    val result = banner("Hello\nWorld", BannerStyle.Double)
+    val result = banner(BannerStyle.Double)("Hello\nWorld")
 
     val expected = """╔═══════╗
 ║ Hello ║
@@ -663,27 +700,24 @@ Disk            │████████████████ 30.0"""
   }
 
   test("underline element") {
-    val simpleText = Text("Hello")
-    val underlined = underline(simpleText)
+    val simpleText = "Hello"
+    val underlined = underline()(simpleText)
     val expected = """Hello
 ─────"""
     assertEquals(underlined.render, expected)
 
-    // Test with custom underline char
-    val customUnderlined = underline(simpleText, "=")
+    val customUnderlined = underline("=")(simpleText)
     val expectedCustom = """Hello
 ====="""
     assertEquals(customUnderlined.render, expectedCustom)
 
-    // Test with pattern that's too long (should truncate)
-    val longPattern = underline(simpleText, "─═─═─═─═")
+    val longPattern = underline("─═─═─═─═")(simpleText)
     val expectedTruncated = """Hello
 ─═─═─"""
     assertEquals(longPattern.render, expectedTruncated)
 
-    // Test with multiline text
-    val multilineText = Text("Line 1\nLonger line 2")
-    val underlinedMulti = underline(multilineText)
+    val multilineText = "Line 1\nLonger line 2"
+    val underlinedMulti = underline()(multilineText)
     val expectedMulti = """Line 1
 Longer line 2
 ─────────────"""
@@ -703,10 +737,9 @@ Longer line 2
 
     assertEquals(list.render, expected)
 
-    // Test with multiline items
     val multilineList = ol(
-      Text("First item\nwith continuation"),
-      Text("Second item")
+      "First item\nwith continuation",
+      "Second item"
     )
 
     val expectedMultiline = """1. First item
@@ -715,7 +748,6 @@ Longer line 2
 
     assertEquals(multilineList.render, expectedMultiline)
 
-    // Test empty list
     val emptyList = ol()
     assertEquals(emptyList.render, "")
   }
@@ -756,17 +788,15 @@ Longer line 2
 
     assertEquals(list.render, expected)
 
-    // Test with custom bullet
-    val customBullet = UnorderedList(Seq(Text("Item 1"), Text("Item 2")), "★")
+    val customBullet = UnorderedList(Seq("Item 1", "Item 2"), "★")
     val expectedCustom = """★ Item 1
 ★ Item 2"""
 
     assertEquals(customBullet.render, expectedCustom)
 
-    // Test with multiline items
     val multilineList = ul(
-      Text("First item\nwith continuation"),
-      Text("Second item")
+      "First item\nwith continuation",
+      "Second item"
     )
 
     val expectedMultiline = """• First item
@@ -775,18 +805,17 @@ Longer line 2
 
     assertEquals(multilineList.render, expectedMultiline)
 
-    // Test empty list
     val emptyList = ul()
     assertEquals(emptyList.render, "")
   }
 
   test("complex list combinations") {
     val complexLayout = layout(
-      underline(Text("My Lists"), "="),
+      underline("=")("My Lists"),
       ol(
-        Text("Ordered item 1"),
-        ul(Text("Nested unordered"), Text("Another nested")),
-        Text("Back to ordered")
+        "Ordered item 1",
+        ul("Nested unordered", "Another nested"),
+        "Back to ordered"
       )
     )
 
@@ -799,40 +828,40 @@ Longer line 2
   }
 
   test("centered alignment") {
-    val centered = center(Text("Hello"), 11)
+    val centered = center("Hello", 11)
     assertEquals(centered.render, "   Hello   ")
 
-    val centeredOdd = center(Text("Hello"), 10)
+    val centeredOdd = center("Hello", 10)
     assertEquals(
       centeredOdd.render,
       "   Hello  "
-    ) // Fixed: gives extra space to left when odd
+    )
 
-    val multiline = center(Text("Line 1\nLine 2"), 10)
+    val multiline = center("Line 1\nLine 2", 10)
     assertEquals(multiline.render, "  Line 1  \n  Line 2  ")
   }
 
   test("left alignment") {
-    val leftAligned = leftAlign(Text("Hello"), 10)
+    val leftAligned = leftAlign("Hello", 10)
     assertEquals(leftAligned.render, "Hello     ")
 
-    val multiline = leftAlign(Text("Hi\nBye"), 8)
+    val multiline = leftAlign("Hi\nBye", 8)
     assertEquals(multiline.render, "Hi      \nBye     ")
   }
 
   test("right alignment") {
-    val rightAligned = rightAlign(Text("Hello"), 10)
+    val rightAligned = rightAlign("Hello", 10)
     assertEquals(rightAligned.render, "     Hello")
 
-    val multiline = rightAlign(Text("Hi\nBye"), 8)
+    val multiline = rightAlign("Hi\nBye", 8)
     assertEquals(multiline.render, "      Hi\n     Bye")
   }
 
   test("alignment combinations") {
     val demo = layout(
-      center(Text("TITLE"), 20),
-      leftAlign(Text("Left side"), 20),
-      rightAlign(Text("Right side"), 20)
+      center("TITLE", 20),
+      leftAlign("Left side", 20),
+      rightAlign("Right side", 20)
     )
 
     val rendered = demo.render
@@ -842,15 +871,13 @@ Longer line 2
   }
 
   test("alignment with other elements") {
-    val boxed = box("Centered Content")(center(Text("Important Message"), 15))
+    val boxed = box("Centered Content")(center("Important Message", 15))
     assertEquals(boxed.render.contains("Important Message"), true)
   }
 
   test("text wrapping") {
     val wrapped = wrap(
-      Text(
-        "This is a very long line that should be wrapped at word boundaries"
-      ),
+      "This is a very long line that should be wrapped at word boundaries",
       20
     )
     val lines = wrapped.render.split('\n')
@@ -860,38 +887,34 @@ Longer line 2
   }
 
   test("text wrapping edge cases") {
-    assertEquals(wrap(Text("Short"), 20).render, "Short")
+    assertEquals(wrap("Short", 20).render, "Short")
     assertEquals(
-      wrap(Text("supercalifragilisticexpialidocious"), 10).render,
+      wrap("supercalifragilisticexpialidocious", 10).render,
       "supercalifragilisticexpialidocious"
     )
 
-    val multiline = wrap(Text("Line one\nLine two has more words than fit"), 15)
+    val multiline = wrap("Line one\nLine two has more words than fit", 15)
     assertEquals(multiline.render.split('\n').length > 2, true)
   }
 
   test("text wrapping with spaces") {
-    val wrapped = wrap(Text("Word  with   multiple    spaces"), 15)
+    val wrapped = wrap("Word  with   multiple    spaces", 15)
     assertEquals(wrapped.render.contains("Word  with"), true)
   }
 
   test("text wrapping in complex layouts") {
     val article = layout(
       center("ARTICLE TITLE", 40),
-      hr("=", 40),
+      hr("=")(40),
       section("Introduction")(
         wrap(
-          Text(
-            "This is a long introduction paragraph that needs to be wrapped to fit within a reasonable column width for easy reading."
-          ),
+          "This is a long introduction paragraph that needs to be wrapped to fit within a reasonable column width for easy reading.",
           35
         )
       ),
       section("Content")(
         wrap(
-          Text(
-            "Here is the main content of the article. It contains many words and should flow nicely when wrapped at word boundaries."
-          ),
+          "Here is the main content of the article. It contains many words and should flow nicely when wrapped at word boundaries.",
           35
         )
       )
@@ -922,22 +945,20 @@ Longer line 2
 
   test("text justification") {
     // Basic justification
-    val text = Text("This is a test")
+    val text = "This is a test"
     val justified = justify(text, 20)
     val result = justified.render
 
     assertEquals(result.length, 20)
     assert(result.startsWith("This"))
     assert(result.endsWith("test"))
-    assert(result.contains("  ")) // Should have extra spaces
+    assert(result.contains("  "))
 
-    // Test specific spacing distribution
-    val shortText = Text("One Two Three")
+    val shortText = "One Two Three"
     val justifiedShort = justify(shortText, 18)
     val resultShort = justifiedShort.render
 
     assertEquals(resultShort.length, 18)
-    // Should distribute spaces evenly: "One   Two   Three" (2 gaps, 5 extra spaces total)
     assert(
       resultShort.contains("One") && resultShort.contains("Two") && resultShort
         .contains("Three")
@@ -945,59 +966,51 @@ Longer line 2
   }
 
   test("text justification edge cases") {
-    // Single word - should left align
-    val singleWord = Text("Hello")
+    val singleWord = "Hello"
     val justifiedSingle = justify(singleWord, 15)
     assertEquals(justifiedSingle.render, "Hello          ")
 
-    // Text already at target width
-    val exactWidth = Text("Exactly twenty chars")
+    val exactWidth = "Exactly twenty chars"
     val justifiedExact = justify(exactWidth, 20)
     assertEquals(justifiedExact.render, "Exactly twenty chars")
 
-    // Text longer than target width - should wrap and justify
-    val tooLong = Text("This text is definitely longer than target")
+    val tooLong = "This text is definitely longer than target"
     val justifiedLong = justify(tooLong, 20)
     val result = justifiedLong.render
     val lines = result.split('\n')
 
-    // Should be wrapped into multiple lines, each justified to 20 chars (except the last)
     assert(lines.length >= 2, "Long text should be wrapped into multiple lines")
     lines.dropRight(1).foreach { line =>
       assertEquals(line.length, 20, s"Line '$line' should be exactly 20 chars")
     }
 
-    // Empty text
-    val empty = Text("")
+    val empty = ""
     val justifiedEmpty = justify(empty, 10)
     assertEquals(justifiedEmpty.render, "          ")
   }
 
   test("text justification multiline") {
-    val multiline = Text("First line here\nSecond line\nThird")
+    val multiline = "First line here\nSecond line\nThird"
     val justified = justify(multiline, 20)
     val result = justified.render
     val lines = result.split('\n')
 
     assertEquals(lines.length, 3)
 
-    // First two lines should be justified (20 chars each)
     assertEquals(lines(0).length, 20)
     assertEquals(lines(1).length, 20)
 
-    // Last line should NOT be justified by default
     assertEquals(lines(2), "Third")
   }
 
   test("text justification with justifyAll flag") {
-    val multiline = Text("First line\nLast line")
+    val multiline = "First line\nLast line"
     val justified = justifyAll(multiline, 15)
     val result = justified.render
     val lines = result.split('\n')
 
     assertEquals(lines.length, 2)
 
-    // Both lines should be justified (15 chars each)
     assertEquals(lines(0).length, 15)
     assertEquals(lines(1).length, 15)
 
@@ -1008,12 +1021,10 @@ Longer line 2
   test("justification in complex layouts") {
     val document = layout(
       center("JUSTIFIED DOCUMENT", 40),
-      hr("═", 40),
+      hr("═")(40),
       section("Paragraph 1")(
         justify(
-          Text(
-            "This paragraph demonstrates text justification where each line fits snugly within the specified width by distributing spaces between words evenly."
-          ),
+          "This paragraph demonstrates text justification where each line fits snugly within the specified width by distributing spaces between words evenly.",
           35
         )
       ),
@@ -1021,16 +1032,12 @@ Longer line 2
         Layout(
           Seq(
             justify(
-              Text(
-                "Another paragraph showing how justification works with multiple lines of text content."
-              ),
+              "Another paragraph showing how justification works with multiple lines of text content.",
               35
             ),
             br,
             justify(
-              Text(
-                "Each line becomes exactly the target width by adding extra spaces between words."
-              ),
+              "Each line becomes exactly the target width by adding extra spaces between words.",
               35
             )
           )
@@ -1043,25 +1050,212 @@ Longer line 2
     assert(rendered.contains("Paragraph 1"))
     assert(rendered.contains("Paragraph 2"))
 
-    // Check that justified lines are exactly 35 characters (where applicable)
     val lines = rendered.split('\n')
     val justifiedLines = lines.filter(line =>
       line.trim.nonEmpty &&
         !line.contains("═") &&
         !line.contains("JUSTIFIED DOCUMENT") &&
         !line.contains("Paragraph") &&
-        line.contains(" ") && // Has spaces (so it's justified content)
-        line.split("\\s+").length > 1 // Multiple words
+        line.contains(" ") &&
+        line.split("\\s+").length > 1
     )
 
     justifiedLines.foreach { line =>
-      if (!line.trim.split("\\s+").exists(_.length > 30)) { // Skip lines with very long words
+      if (!line.trim.split("\\s+").exists(_.length > 30)) {
         assert(
           line.length <= 40,
           s"Justified line too long: '$line' (${line.length} chars)"
         )
       }
     }
+  }
+
+  test("ansi width calculations") {
+    val coloredText = "\u001b[31mRed text\u001b[0m"
+    assertEquals(coloredText.width, 8)
+
+    val boxWithColor = box("Status")(coloredText)
+    assert(boxWithColor.render.contains("Red text"))
+    assert(boxWithColor.width > 8)
+  }
+
+  test("basic margin with custom prefix") {
+    val simpleMargin = margin("[LOG]")("Hello World")
+    assertEquals(simpleMargin.render, "[LOG] Hello World")
+
+    val customPrefix = margin(">>>")("Indented message")
+    assertEquals(customPrefix.render, ">>> Indented message")
+  }
+
+  test("margin with multiple elements") {
+    val multiElementMargin = margin("[INFO]")(
+      "Line 1",
+      "Line 2",
+      "Line 3"
+    )
+
+    val expected = """[INFO] Line 1
+[INFO] Line 2
+[INFO] Line 3"""
+
+    assertEquals(multiElementMargin.render, expected)
+  }
+
+  test("margin with single element vs layout") {
+    val singleElement = margin("[SINGLE]")("One line")
+    assertEquals(singleElement.render, "[SINGLE] One line")
+
+    val layoutElement = margin("[LAYOUT]")(
+      layout(
+        "First line",
+        "Second line"
+      )
+    )
+
+    val expectedLayout = """[LAYOUT] First line
+[LAYOUT] Second line"""
+
+    assertEquals(layoutElement.render, expectedLayout)
+  }
+
+  test("status margins - error") {
+    val errorMargin = margin.error()("Connection failed")
+    val rendered = errorMargin.render
+
+    // Red
+    assert(rendered.contains("\u001b[31m"))
+    assert(rendered.contains("error"))
+    assert(rendered.contains("Connection failed"))
+    // Reset
+    assert(rendered.contains("\u001b[0m"))
+  }
+
+  test("status margins - warn") {
+    val warnMargin = margin.warn()("Performance issue")
+    val rendered = warnMargin.render
+
+    assert(rendered.contains("\u001b[33m"))
+    assert(rendered.contains("warn"))
+    assert(rendered.contains("Performance issue"))
+    assert(rendered.contains("\u001b[0m"))
+  }
+
+  test("status margins - success") {
+    val successMargin = margin.success()("All systems operational")
+    val rendered = successMargin.render
+
+    assert(rendered.contains("\u001b[32m"))
+    assert(rendered.contains("success"))
+    assert(rendered.contains("All systems operational"))
+    assert(rendered.contains("\u001b[0m"))
+  }
+
+  test("status margins - info") {
+    val infoMargin = margin.info()("System information")
+    val rendered = infoMargin.render
+
+    assert(rendered.contains("\u001b[36m"))
+    assert(rendered.contains("info"))
+    assert(rendered.contains("System information"))
+    assert(rendered.contains("\u001b[0m"))
+  }
+
+  test("margin with complex nested elements") {
+    val complexMargin = margin.error()(
+      row(
+        statusCard("API", "DOWN"),
+        statusCard("DB", "SLOW")
+      )
+    )
+
+    val rendered = complexMargin.render
+    assert(rendered.contains("error"))
+    assert(rendered.contains("API"))
+    assert(rendered.contains("DOWN"))
+    assert(rendered.contains("DB"))
+    assert(rendered.contains("SLOW"))
+
+    val lines = rendered.split('\n')
+    assert(lines.forall(_.contains("error")))
+  }
+
+  test("margin preserves element structure") {
+    val boxedContent = box("Status")(
+      "Service is running",
+      "Memory usage: 45%"
+    )
+
+    val marginedBox = margin.info()(boxedContent)
+    val rendered = marginedBox.render
+
+    assert(rendered.contains("┌"))
+    assert(rendered.contains("│"))
+    assert(rendered.contains("└"))
+    assert(rendered.contains("Status"))
+    assert(rendered.contains("Service is running"))
+    assert(rendered.contains("Memory usage: 45%"))
+
+    val lines = rendered.split('\n')
+    assert(lines.forall(_.contains("info")))
+  }
+
+  test("user example - nested margins work correctly") {
+    val userExample = margin.info()(
+      row("yo", "man", "what"),
+      layout(
+        margin.error()(
+          row(
+            statusCard(Border.Double)("API", "LIVE"),
+            statusCard("DB", "99.9%"),
+            statusCard(Border.Thick)("Cache", "READY")
+          )
+        )
+      )
+    )
+
+    val rendered = userExample.render
+
+    assert(rendered.contains("info"))
+
+    assert(rendered.contains("yo"))
+    assert(rendered.contains("man"))
+    assert(rendered.contains("what"))
+
+    assert(rendered.contains("error"))
+
+    assert(rendered.contains("API"))
+    assert(rendered.contains("LIVE"))
+    assert(rendered.contains("DB"))
+    assert(rendered.contains("99.9%"))
+    assert(rendered.contains("Cache"))
+    assert(rendered.contains("READY"))
+
+    val lines = rendered.split('\n')
+    val infoLines = lines.filter(_.contains("info"))
+    val errorLines = lines.filter(_.contains("error"))
+
+    assert(infoLines.nonEmpty, "Should have info prefix lines")
+    assert(errorLines.nonEmpty, "Should have error prefix lines")
+  }
+
+  test("margin with empty content") {
+    val emptyMargin = margin("[EMPTY]")("")
+    assertEquals(emptyMargin.render, "[EMPTY] ")
+  }
+
+  test("margin ANSI codes don't affect element width calculations") {
+    val coloredMargin = margin.error()("Short message")
+    val plainMargin = margin("[error]")("Short message")
+
+    val coloredElement = coloredMargin
+    val plainElement = plainMargin
+
+    assert(coloredElement.width > 0)
+    assert(plainElement.width > 0)
+
+    val rendered = coloredMargin.render
+    assert(rendered.contains("\u001b[31m"))
+    assert(rendered.contains("Short message"))
   }
 
 }

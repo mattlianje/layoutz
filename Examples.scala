@@ -23,8 +23,8 @@ object Examples {
       layout(
         section("Counter")(
           layout(
-            Text(s"Current count: $count"),
-            Text("Press + / - to adjust")
+            s"Current count: $count",
+            "Press + / - to adjust"
           )
         )
       )
@@ -115,24 +115,24 @@ object Examples {
             "Enter task description...",
             active = true
           ),
-          Text("Press Enter to add, Esc to cancel")
+          "Press Enter to add, Esc to cancel"
         )
       } else {
         layout(
-          Text("Press 'n' to add new task"),
-          Text("Press 1-9 to toggle completion")
+          "Press 'n' to add new task",
+          "Press 1-9 to toggle completion"
         )
       }
 
       val stats = {
         val total = state.items.length
         val completed = state.completed.size
-        Text(s"Progress: $completed/$total completed")
+        s"Progress: $completed/$total completed"
       }
 
       layout(
         section("Todo List")(
-          layout(todoItems: _*)
+          Layout(todoItems)
         ),
         section("Add New Task")(inputSection),
         section("Stats")(stats)
@@ -141,79 +141,151 @@ object Examples {
 
   }
 
-  // Loading demo app types
-  case class LoadingState(
+  // Combined navigation and loading demo types
+  case class NavLoadState(
       selectedTask: Int,
       isLoading: Boolean,
       progress: Double,
       spinnerFrame: Int,
       completed: Set[Int],
       elapsedTime: Long,
-      startTime: Long
+      startTime: Long,
+      message: String,
+      addingTask: Boolean,
+      newTaskName: String,
+      newTaskDuration: String,
+      customTasks: List[(String, Int)]
   )
 
-  sealed trait LoadingMessage
-  case class SelectTask(taskId: Int) extends LoadingMessage
-  case object StartLoading extends LoadingMessage
-  case object ProgressTick extends LoadingMessage
-  case object SpinnerTick extends LoadingMessage
-  case object CompleteTask extends LoadingMessage
-  case object ResetApp extends LoadingMessage
+  sealed trait NavLoadMessage
+  case object MoveUp extends NavLoadMessage
+  case object MoveDown extends NavLoadMessage
+  case object StartTask extends NavLoadMessage
+  case object ProgressTick extends NavLoadMessage
+  case object SpinnerTick extends NavLoadMessage
+  case object ResetApp extends NavLoadMessage
+  case object ToggleAddTask extends NavLoadMessage
+  case class HandleChar(c: Char) extends NavLoadMessage
+  case object DeleteTaskChar extends NavLoadMessage
+  case object ConfirmNewTask extends NavLoadMessage
+  case object CancelNewTask extends NavLoadMessage
 
-  /** Interactive loading demo with progress bars and spinners */
-  object LoadingApp extends LayoutzApp[LoadingState, LoadingMessage] {
+  /** Combined navigation and loading demo with progress tracking */
+  object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
 
     private val tasks = List(
-      "Download large file (5 seconds)",
-      "Process database (3 seconds)",
-      "Generate report (7 seconds)",
-      "Backup data (4 seconds)",
-      "Sync with server (6 seconds)"
+      "Download large file",
+      "Process database",
+      "Generate report",
+      "Backup data",
+      "Sync with server",
+      "Clean temp files"
     )
+
+    private def getTaskEmoji(
+        taskIndex: Int,
+        isCompleted: Boolean,
+        isRunning: Boolean
+    ): String = {
+      if (isCompleted) return "✅"
+      if (isRunning) return "⚡"
+
+      taskIndex match {
+        case 0 => "📁" // Download
+        case 1 => "🗄️" // Database
+        case 2 => "📊" // Report
+        case 3 => "💾" // Backup
+        case 4 => "🌐" // Sync
+        case 5 => "🧹" // Clean
+        case _ => "📋" // Custom tasks
+      }
+    }
 
     private val taskDurations = Map(
       0 -> 5000,
       1 -> 3000,
       2 -> 7000,
       3 -> 4000,
-      4 -> 6000
+      4 -> 6000,
+      5 -> 2000
     )
 
-    def init = LoadingState(
+    def init = NavLoadState(
       selectedTask = 0,
       isLoading = false,
       progress = 0.0,
       spinnerFrame = 0,
       completed = Set.empty,
       elapsedTime = 0,
-      startTime = 0
+      startTime = 0,
+      message = "Navigate with arrows, Enter to start task",
+      addingTask = false,
+      newTaskName = "",
+      newTaskDuration = "",
+      customTasks = List.empty
     )
 
-    def update(msg: LoadingMessage, state: LoadingState): LoadingState =
-      msg match {
-        case SelectTask(taskId)
-            if !state.isLoading && taskId >= 0 && taskId < tasks.length =>
-          state.copy(selectedTask = taskId)
+    private def allTasks(state: NavLoadState): List[String] =
+      tasks ++ state.customTasks.map(_._1)
 
-        case StartLoading if !state.isLoading =>
+    private def allTaskDurations(state: NavLoadState): Map[Int, Int] = {
+      val customDurations = state.customTasks.zipWithIndex.map {
+        case ((_, duration), index) =>
+          (tasks.length + index) -> duration
+      }.toMap
+      taskDurations ++ customDurations
+    }
+
+    def update(msg: NavLoadMessage, state: NavLoadState): NavLoadState =
+      msg match {
+        // Arrow key navigation (when not in text input mode)
+        case MoveUp if !state.isLoading && !state.addingTask =>
+          val currentTasks = allTasks(state)
+          val newSelected =
+            if (state.selectedTask > 0) state.selectedTask - 1
+            else currentTasks.length - 1
+          state.copy(
+            selectedTask = newSelected,
+            message = s"Selected: ${currentTasks(newSelected)}"
+          )
+
+        case MoveDown if !state.isLoading && !state.addingTask =>
+          val currentTasks = allTasks(state)
+          val newSelected =
+            if (state.selectedTask < currentTasks.length - 1)
+              state.selectedTask + 1
+            else 0
+          state.copy(
+            selectedTask = newSelected,
+            message = s"Selected: ${currentTasks(newSelected)}"
+          )
+
+        case StartTask if !state.isLoading && !state.addingTask =>
+          val currentTasks = allTasks(state)
+          val taskName = currentTasks(state.selectedTask)
           state.copy(
             isLoading = true,
             progress = 0.0,
-            startTime = System.currentTimeMillis()
+            startTime = System.currentTimeMillis(),
+            message = s"Starting: $taskName"
           )
 
         case ProgressTick if state.isLoading =>
           val currentTime = System.currentTimeMillis()
           val elapsed = currentTime - state.startTime
-          val duration = taskDurations(state.selectedTask)
+          val durations = allTaskDurations(state)
+          val duration = durations(state.selectedTask)
           val newProgress = math.min(1.0, elapsed.toDouble / duration)
 
           if (newProgress >= 1.0) {
+            val currentTasks = allTasks(state)
+            val taskName = currentTasks(state.selectedTask)
             state.copy(
               isLoading = false,
               progress = 1.0,
               completed = state.completed + state.selectedTask,
-              elapsedTime = elapsed
+              elapsedTime = elapsed,
+              message = s"✅ Completed: $taskName"
             )
           } else {
             state.copy(progress = newProgress, elapsedTime = elapsed)
@@ -222,197 +294,358 @@ object Examples {
         case SpinnerTick =>
           state.copy(spinnerFrame = state.spinnerFrame + 1)
 
-        case CompleteTask =>
+        case ToggleAddTask if !state.isLoading =>
           state.copy(
-            isLoading = false,
-            progress = 1.0,
-            completed = state.completed + state.selectedTask
+            addingTask = !state.addingTask,
+            newTaskName = "",
+            newTaskDuration = "",
+            message =
+              if (!state.addingTask) "Adding new task..."
+              else "Cancelled adding task"
           )
 
-        case ResetApp =>
-          init.copy(completed = Set.empty)
+        // Handle all character input based on current state
+        case HandleChar(c) =>
+          if (state.addingTask) {
+            // When adding task, characters go to text input
+            if (c.isLetter || c == ' ' || c == '-' || c == '_') {
+              state.copy(newTaskName = state.newTaskName + c)
+            } else if (c.isDigit) {
+              state.copy(newTaskDuration = state.newTaskDuration + c)
+            } else {
+              state // ignore other characters
+            }
+          } else if (!state.isLoading) {
+            // When not adding task and not loading, characters are navigation/commands
+            c match {
+              case 'w' | 'W' =>
+                val currentTasks = allTasks(state)
+                val newSelected =
+                  if (state.selectedTask > 0) state.selectedTask - 1
+                  else currentTasks.length - 1
+                state.copy(
+                  selectedTask = newSelected,
+                  message = s"Selected: ${currentTasks(newSelected)}"
+                )
+
+              case 's' | 'S' =>
+                val currentTasks = allTasks(state)
+                val newSelected =
+                  if (state.selectedTask < currentTasks.length - 1)
+                    state.selectedTask + 1
+                  else 0
+                state.copy(
+                  selectedTask = newSelected,
+                  message = s"Selected: ${currentTasks(newSelected)}"
+                )
+
+              case 'r' | 'R' =>
+                init.copy(
+                  selectedTask = state.selectedTask,
+                  customTasks = state.customTasks,
+                  message = "Reset all completed tasks"
+                )
+
+              case 'n' | 'N' =>
+                state.copy(
+                  addingTask = true,
+                  newTaskName = "",
+                  newTaskDuration = "",
+                  message = "Adding new task..."
+                )
+
+              case ' ' =>
+                val currentTasks = allTasks(state)
+                val taskName = currentTasks(state.selectedTask)
+                state.copy(
+                  isLoading = true,
+                  progress = 0.0,
+                  startTime = System.currentTimeMillis(),
+                  message = s"Starting: $taskName"
+                )
+
+              case _ => state // ignore other characters
+            }
+          } else {
+            state // ignore input when loading
+          }
+
+        case DeleteTaskChar if state.addingTask =>
+          if (state.newTaskDuration.nonEmpty) {
+            state.copy(newTaskDuration = state.newTaskDuration.dropRight(1))
+          } else if (state.newTaskName.nonEmpty) {
+            state.copy(newTaskName = state.newTaskName.dropRight(1))
+          } else state
+
+        case ConfirmNewTask
+            if state.addingTask && state.newTaskName.trim.nonEmpty && state.newTaskDuration.trim.nonEmpty =>
+          val duration =
+            try { state.newTaskDuration.toInt * 1000 }
+            catch { case _: NumberFormatException => 3000 }
+          state.copy(
+            addingTask = false,
+            customTasks =
+              state.customTasks :+ (state.newTaskName.trim, duration),
+            newTaskName = "",
+            newTaskDuration = "",
+            message =
+              s"Added task: ${state.newTaskName.trim} (${duration / 1000}s)"
+          )
+
+        case CancelNewTask if state.addingTask =>
+          state.copy(
+            addingTask = false,
+            newTaskName = "",
+            newTaskDuration = "",
+            message = "Cancelled adding task"
+          )
 
         case _ => state
       }
 
-    def onKey(k: Key): Option[LoadingMessage] = k match {
-      case CharKey(c) if c.isDigit && c != '0' =>
-        val taskId = c.asDigit - 1
-        Some(SelectTask(taskId))
-      case CharKey(' ') | EnterKey     => Some(StartLoading)
-      case CharKey('r') | CharKey('R') => Some(ResetApp)
-      case ProgressTickKey             => Some(ProgressTick)
-      case SpinnerTickKey              => Some(SpinnerTick)
-      case _                           => None
+    def onKey(k: Key): Option[NavLoadMessage] = k match {
+      // System ticks (always work)
+      case ProgressTickKey => Some(ProgressTick)
+      case SpinnerTickKey  => Some(SpinnerTick)
+
+      // Special keys
+      case EscapeKey    => Some(CancelNewTask)
+      case TabKey       => Some(ConfirmNewTask)
+      case BackspaceKey => Some(DeleteTaskChar)
+      case ArrowUpKey   => Some(MoveUp)
+      case ArrowDownKey => Some(MoveDown)
+      case EnterKey     => Some(StartTask)
+
+      // All character input goes through HandleChar - state will decide what to do
+      case CharKey(c) => Some(HandleChar(c))
+
+      case _ => None
     }
 
-    def view(state: LoadingState): Element = {
-      val taskList = tasks.zipWithIndex.map { case (task, index) =>
+    def view(state: NavLoadState): Element = {
+      val currentTasks = allTasks(state)
+      val durations = allTaskDurations(state)
+
+      val taskList = currentTasks.zipWithIndex.map { case (task, index) =>
         val isSelected = index == state.selectedTask
         val isCompleted = state.completed.contains(index)
-        val marker = if (isSelected) ">" else " "
-        val status = if (isCompleted) "✅" else "  "
-        val number = index + 1
-        Text(s"$marker $number. $status $task")
+        val isCurrentlyLoading = state.isLoading && index == state.selectedTask
+
+        val marker = if (isSelected) "►" else " "
+        val emoji = getTaskEmoji(index, isCompleted, isCurrentlyLoading)
+
+        val style =
+          if (isSelected) s"$marker $emoji $task ◄"
+          else s"$marker $emoji $task"
+        Text(style)
       }
 
-      val progressSection = if (state.isLoading) {
+      val statusSection = if (state.addingTask) {
+        // Switch active field based on recent input - if duration has content, focus there
+        val nameActive = state.newTaskDuration.isEmpty
+        val durationActive = state.newTaskDuration.nonEmpty
+
+        box("Add New Task")(
+          textInput(
+            "Task Name",
+            state.newTaskName,
+            "Enter task name...",
+            active = nameActive
+          ),
+          textInput(
+            "Duration (seconds)",
+            state.newTaskDuration,
+            "e.g. 5",
+            active = durationActive
+          ),
+          br,
+          layout("Type letters for name, digits for duration"),
+          layout("Press Tab to add, Esc to cancel")
+        )
+      } else if (state.isLoading) {
         val currentSpinner = spinner(
-          label = "Processing...",
+          label = "Processing",
           frame = state.spinnerFrame,
           style = SpinnerStyle.Dots
         )
 
         val progressBar = inlineBar("Progress", state.progress)
         val timeElapsed = state.elapsedTime / 1000.0
-        val timeText = Text(f"Elapsed: ${timeElapsed}%.1f seconds")
+        val timeText = f"Elapsed: ${timeElapsed}%.1f seconds"
 
         layout(
           currentSpinner,
           progressBar,
-          timeText,
-          Text(""),
-          Text("Please wait...")
-        )
-      } else if (state.progress >= 1.0) {
-        val completionTime = state.elapsedTime / 1000.0
-        layout(
-          Text("✅ Task completed!"),
-          Text(f"Finished in ${completionTime}%.1f seconds"),
-          Text(""),
-          Text("Press SPACE to start another task")
+          timeText
         )
       } else {
-        layout(
-          Text("Press SPACE or ENTER to start the selected task"),
-          Text("Press 1-5 to select a different task"),
-          Text("Press 'r' to reset all completed tasks")
-        )
+        layout(state.message)
       }
 
-      val statsSection = {
+      val simpleStats = {
         val totalCompleted = state.completed.size
-        val totalTasks = tasks.length
-        Text(s"Completed: $totalCompleted/$totalTasks tasks")
+        val totalTasks = currentTasks.length
+        val completionPercentage =
+          if (totalTasks > 0) (totalCompleted * 100) / totalTasks else 0
+
+        layout(
+          s"Progress: $totalCompleted/$totalTasks tasks ($completionPercentage%)",
+          if (totalCompleted == totalTasks) "🎉 All tasks completed!" else ""
+        )
       }
 
       layout(
-        section("🚀 Loading Demo")(
-          layout(taskList: _*)
+        section("Task Navigator")(
+          Layout(taskList)
         ),
-        section("📊 Progress")(progressSection),
-        section("📈 Stats")(statsSection)
+        br,
+        section("Status")(statusSection),
+        br,
+        section("Progress")(simpleStats),
+        br,
+        section("🎮 Controls")(
+          ul(
+            "W/S or ↑↓ - Navigate tasks",
+            "SPACE/Enter - Start selected task",
+            "N - Add new task",
+            "R - Reset completed tasks",
+            "Ctrl+Q - Quit"
+          )
+        )
       )
     }
   }
 
-  // Navigation demo with arrow keys
-  case class NavigationState(
-      selectedItem: Int,
-      items: List[String],
-      message: String
-  )
+  // OLD LOADING DEMO - REPLACED BY NavLoadApp
+  // (Keep for backwards compatibility with tests that still reference it)
+  type LoadingState = NavLoadState
+  type LoadingMessage = NavLoadMessage
+  val LoadingApp = NavLoadApp
 
-  sealed trait NavigationMessage
-  case object MoveUp extends NavigationMessage
-  case object MoveDown extends NavigationMessage
-  case object MoveLeft extends NavigationMessage
-  case object MoveRight extends NavigationMessage
-  case object SelectItem extends NavigationMessage
-  case object ResetSelection extends NavigationMessage
+  // OLD NAVIGATION DEMO - REPLACED BY NavLoadApp
+  // (Keep for backwards compatibility)
+  type NavigationState = NavLoadState
+  type NavigationMessage = NavLoadMessage
+  val NavigationApp = NavLoadApp
 
-  /** Arrow key navigation demo */
-  object NavigationApp extends LayoutzApp[NavigationState, NavigationMessage] {
+  // Margin demo application
+  case class MarginDemoState(selectedExample: Int)
+  sealed trait MarginMessage
+  case class SelectExample(index: Int) extends MarginMessage
 
-    private val menuItems = List(
-      "🏠 Home",
-      "📄 Documents",
-      "⚙️ Settings",
-      "📊 Analytics",
-      "👤 Profile",
-      "🚪 Exit"
-    )
+  /** Demo showcasing margin functionality with different styles */
+  object MarginApp extends LayoutzApp[MarginDemoState, MarginMessage] {
 
-    def init = NavigationState(
-      selectedItem = 0,
-      items = menuItems,
-      message = "Use arrow keys to navigate!"
-    )
+    def init = MarginDemoState(selectedExample = 0)
 
-    def update(
-        msg: NavigationMessage,
-        state: NavigationState
-    ): NavigationState = msg match {
-      case MoveUp =>
-        val newSelected =
-          if (state.selectedItem > 0) state.selectedItem - 1
-          else state.items.length - 1
-        state.copy(selectedItem = newSelected, message = "Moved up")
-
-      case MoveDown =>
-        val newSelected =
-          if (state.selectedItem < state.items.length - 1)
-            state.selectedItem + 1
-          else 0
-        state.copy(selectedItem = newSelected, message = "Moved down")
-
-      case MoveLeft =>
-        state.copy(message = "← Left arrow pressed")
-
-      case MoveRight =>
-        state.copy(message = "→ Right arrow pressed")
-
-      case SelectItem =>
-        val selected = state.items(state.selectedItem)
-        state.copy(message = s"✅ Selected: $selected")
-
-      case ResetSelection =>
-        state.copy(selectedItem = 0, message = "Reset to top")
-    }
-
-    def onKey(k: Key): Option[NavigationMessage] = k match {
-      // WASD navigation (easier to handle)
-      case CharKey('w') | CharKey('W') => Some(MoveUp)
-      case CharKey('s') | CharKey('S') => Some(MoveDown)
-      case CharKey('a') | CharKey('A') => Some(MoveLeft)
-      case CharKey('d') | CharKey('D') => Some(MoveRight)
-
-      // Arrow keys (when escape sequence parsing works)
-      case ArrowUpKey    => Some(MoveUp)
-      case ArrowDownKey  => Some(MoveDown)
-      case ArrowLeftKey  => Some(MoveLeft)
-      case ArrowRightKey => Some(MoveRight)
-
-      // Other controls
-      case EnterKey                    => Some(SelectItem)
-      case CharKey('r') | CharKey('R') => Some(ResetSelection)
-      case _                           => None
-    }
-
-    def view(state: NavigationState): Element = {
-      val menuList = state.items.zipWithIndex.map { case (item, index) =>
-        val marker = if (index == state.selectedItem) "►" else " "
-        val style =
-          if (index == state.selectedItem) s"$marker $item ◄"
-          else s"$marker $item"
-        Text(style)
+    def update(msg: MarginMessage, state: MarginDemoState): MarginDemoState =
+      msg match {
+        case SelectExample(index) if index >= 0 && index < examples.length =>
+          state.copy(selectedExample = index)
+        case _ => state
       }
 
+    def onKey(k: Key): Option[MarginMessage] = k match {
+      case CharKey(c) if c.isDigit && c != '0' =>
+        val index = c.asDigit - 1
+        Some(SelectExample(index))
+      case _ => None
+    }
+
+    private val examples = List(
+      (
+        "Basic Margin",
+        () =>
+          layout(
+            "Content without margin",
+            br(2),
+            margin("    ")("Content with left margin"),
+            space(4),
+            "inline spacing",
+            br,
+            margin("        ")("Content with bigger margin")
+          )
+      ),
+      (
+        "Status Margins",
+        () =>
+          layout(
+            margin.error()("This is an error message"),
+            br,
+            margin.warn()("This is a warning message"),
+            br,
+            margin.success()("This is a success message"),
+            br,
+            "Regular text without margin"
+          )
+      ),
+      (
+        "Custom Margins",
+        () =>
+          layout(
+            margin.error()("Error with custom margin"),
+            br,
+            margin("  ")("Mixed with boxes:"),
+            box("Status")(
+              margin.success()("Everything is working"),
+              margin.warn()("Minor issues detected"),
+              margin.error()("Critical error found")
+            )
+          )
+      ),
+      (
+        "Complex Layout",
+        () =>
+          layout(
+            section("🎨 Margin Demo Dashboard")(
+              layout(
+                margin("  ")("Welcome to the margin showcase!"),
+                br(2),
+                row(
+                  statusCard("API", "LIVE"),
+                  space(2),
+                  margin("  ")(statusCard("DB", "SLOW")),
+                  space(2),
+                  margin("    ")(statusCard("Cache", "DOWN"))
+                ),
+                br(3),
+                margin("  ")(
+                  box("System Status")(
+                    ul(
+                      margin.success()("Production: All systems operational"),
+                      margin.warn()("Staging: Performance degraded"),
+                      margin.error()("Development: Service unavailable")
+                    )
+                  )
+                )
+              )
+            )
+          )
+      )
+    )
+
+    def view(state: MarginDemoState): Element = {
+      val selectedExample = examples(state.selectedExample)
+
       layout(
-        section("🎮 Navigation Demo")(
-          layout(menuList: _*)
+        section("🎨 Margin Examples")(
+          layout(
+            s"Currently showing: ${selectedExample._1}",
+            br,
+            selectedExample._2()
+          )
         ),
-        section("Status")(
-          Text(state.message)
+        section("📋 Available Examples")(
+          Layout(examples.zipWithIndex.map { case ((name, _), index) =>
+            val marker = if (index == state.selectedExample) "►" else " "
+            val number = index + 1
+            Text(s"$marker $number. $name")
+          })
         ),
-        section("Controls")(
-          ul(
-            "W/S keys - Navigate up/down",
-            "A/D keys - Move left/right",
-            "↑↓←→ Arrow keys - Also work (when supported)",
-            "Enter - Select current item",
-            "R - Reset to top",
-            "Ctrl+Q - Quit"
+        section("🎮 Controls")(
+          layout(
+            "Press 1-4 to switch between examples",
+            "Ctrl+Q to quit"
           )
         )
       )
@@ -424,24 +657,24 @@ object Examples {
 /** Simple launchers for each demo */
 object RunCounterDemo {
   def main(args: Array[String]): Unit = {
-    LayoutzRuntime.run(Examples.CounterApp)
+    Examples.CounterApp.run()
   }
 }
 
 object RunTodoDemo {
   def main(args: Array[String]): Unit = {
-    LayoutzRuntime.run(Examples.TodoApp)
+    Examples.TodoApp.run()
   }
 }
 
-object RunLoadingDemo {
+object RunNavLoadDemo {
   def main(args: Array[String]): Unit = {
-    LayoutzRuntime.run(Examples.LoadingApp)
+    Examples.NavLoadApp.run()
   }
 }
 
-object RunNavigationDemo {
+object RunMarginDemo {
   def main(args: Array[String]): Unit = {
-    LayoutzRuntime.run(Examples.NavigationApp)
+    Examples.MarginApp.run()
   }
 }
