@@ -712,10 +712,10 @@ def update(msg: Message, state: AppState): AppState = msg match {
 }
 ```
 
-### Simple Example
+### Counter Example
 
 <p align="center">
-  <img src="pix/counter-demo.png" width="600">
+  <img src="pix/counter-demo.gif" width="600">
 </p>
 
 ```scala
@@ -745,12 +745,12 @@ CounterApp.run()
 ```
 
 ### Complex Example
+A task manager with navigation, progress tracking, and stateful emojis.
 
 <p align="center">
-  <img src="pix/nav-demo-edit.png" width="600">
+  <img src="pix/nav-demo-edit.gif" width="600">
 </p>
 
-A task manager with navigation, progress tracking, and stateful emojis.
 ```scala
 case class TaskState(
     tasks: List[String],
