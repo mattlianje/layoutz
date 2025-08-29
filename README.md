@@ -731,18 +731,18 @@ CounterApp.run()
 A task manager with navigation, progress tracking, and stateful emojis.
 ```scala
 case class TaskState(
-  tasks: List[String], 
-  selected: Int, 
-  isLoading: Boolean, 
-  completed: Set[Int],
-  progress: Double,
-  startTime: Long,
-  spinnerFrame: Int
+    tasks: List[String],
+    selected: Int,
+    isLoading: Boolean,
+    completed: Set[Int],
+    progress: Double,
+    startTime: Long,
+    spinnerFrame: Int
 )
 
 sealed trait TaskMessage
 case object MoveUp extends TaskMessage
-case object MoveDown extends TaskMessage  
+case object MoveDown extends TaskMessage
 case object StartTask extends TaskMessage
 case object ProgressTick extends TaskMessage
 case object SpinnerTick extends TaskMessage
@@ -750,54 +750,69 @@ case object SpinnerTick extends TaskMessage
 object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
   def init = TaskState(
     tasks = List("Process data", "Generate reports", "Backup files"),
-    selected = 0, isLoading = false, completed = Set.empty,
-    progress = 0.0, startTime = 0, spinnerFrame = 0
+    selected = 0,
+    isLoading = false,
+    completed = Set.empty,
+    progress = 0.0,
+    startTime = 0,
+    spinnerFrame = 0
   )
-  
+
   def update(msg: TaskMessage, state: TaskState) = msg match {
     case MoveUp if !state.isLoading =>
-      val newSelected = if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
+      val newSelected =
+        if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
       state.copy(selected = newSelected)
-      
+
     case MoveDown if !state.isLoading =>
-      val newSelected = if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
+      val newSelected =
+        if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
       state.copy(selected = newSelected)
-      
-    case StartTask if !state.isLoading => 
-      state.copy(isLoading = true, progress = 0.0, startTime = System.currentTimeMillis())
-      
+
+    case StartTask if !state.isLoading =>
+      state.copy(
+        isLoading = true,
+        progress = 0.0,
+        startTime = System.currentTimeMillis()
+      )
+
     case ProgressTick if state.isLoading =>
       val elapsed = System.currentTimeMillis() - state.startTime
-      val newProgress = math.min(1.0, elapsed / 3000.0)  // 3 seconds
-      
+      val newProgress = math.min(1.0, elapsed / 3000.0)
+
       if (newProgress >= 1.0) {
-        state.copy(isLoading = false, completed = state.completed + state.selected, progress = 1.0)
+        state.copy(
+          isLoading = false,
+          completed = state.completed + state.selected,
+          progress = 1.0
+        )
       } else {
         state.copy(progress = newProgress)
       }
-      
+
     case SpinnerTick => state.copy(spinnerFrame = state.spinnerFrame + 1)
-    case _ => state
+    case _           => state
   }
-  
+
   def onKey(k: Key) = k match {
     case CharKey('w') | ArrowUpKey   => Some(MoveUp)
     case CharKey('s') | ArrowDownKey => Some(MoveDown)
     case CharKey(' ') | EnterKey     => Some(StartTask)
     case ProgressTickKey             => Some(ProgressTick)
     case SpinnerTickKey              => Some(SpinnerTick)
-    case _                          => None
+    case _                           => None
   }
-  
+
   def view(state: TaskState) = {
     val taskList = state.tasks.zipWithIndex.map { case (task, index) =>
-      val emoji = if (state.completed.contains(index)) "✅" 
-                 else if (state.isLoading && index == state.selected) "⚡" 
-                 else "📋"
+      val emoji =
+        if (state.completed.contains(index)) "✅"
+        else if (state.isLoading && index == state.selected) "⚡"
+        else "📋"
       val marker = if (index == state.selected) "►" else " "
       s"$marker $emoji $task"
     }
-    
+
     val status = if (state.isLoading) {
       layout(
         spinner("Processing", state.spinnerFrame),
@@ -807,7 +822,7 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
     } else {
       layout("Press SPACE to start, W/S to navigate")
     }
-    
+
     layout(
       section("Tasks")(Layout(taskList.map(Text))),
       br,
