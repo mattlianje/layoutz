@@ -715,7 +715,7 @@ def update(msg: Message, state: AppState): AppState = msg match {
 ### Simple Example
 
 <p align="center">
-  <img src="pix/counter-demo.png" width="600">
+  <img src="pix/counter-demo.gif" width="600">
 </p>
 
 ```scala
@@ -747,7 +747,7 @@ CounterApp.run()
 ### Complex Example
 
 <p align="center">
-  <img src="pix/nav-demo-edit.png" width="600">
+  <img src="pix/nav-demo-edit.gif" width="600">
 </p>
 
 A task manager with navigation, progress tracking, and stateful emojis.
