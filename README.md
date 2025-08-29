@@ -599,7 +599,7 @@ section("Users by Role")(
 Build **Elm-style terminal applications** with the `LayoutzApp` architecture.
 
 ### The Elm Architecture
-The Elm Architecture creates unidirectional data flow: User Input → Messages → State Updates → View Rendering. This makes applications predictable, testable, and thread-safe.
+The [Elm Architecture](https://guide.elm-lang.org/architecture/) creates unidirectional data flow: User Input -> Messages -> State Updates -> View Rendering.
 
 ### `LayoutzApp[State, Message]`
 You implement four methods:
@@ -632,26 +632,35 @@ graph TD
 ```
 
 ### Key Types
+**Layoutz** comes with a Key ADT built-in
+
+Basic char input, ex: `'a'`, `'1'`, space: `' '`
 ```scala
-// Character input
-case class CharKey(c: Char)              // 'a', '1', ' ', etc.
-
-// Special keys  
+case class CharKey(c: Char)
+```
+Special keys:
+```scala
 case object EnterKey, BackspaceKey, TabKey, EscapeKey
+```
 
-// Navigation
+Navigation keys:
+```scala
 case object ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey  
+```
 
-// Shortcuts
-case class SpecialKey(name: String)      // "Ctrl+S", "Ctrl+Q"
+Shortcuts (e.g `"Ctrl+S"`, `"Ctrl+Q"`)
+```scala
+case class SpecialKey(name: String)
+```
 
-// Auto-generated (for animations)
+Auto-generated at 100ms intervals so you can refresh your animations:
+```scala
 case object ProgressTickKey, SpinnerTickKey
 ```
 
 ### Input Patterns
+Basic commands:
 ```scala
-// Basic commands
 def onKey(k: Key): Option[Message] = k match {
   case CharKey('q')         => Some(Quit)
   case ArrowUpKey           => Some(MoveUp)
@@ -659,19 +668,23 @@ def onKey(k: Key): Option[Message] = k match {
   case SpecialKey("Ctrl+S") => Some(Save)
   case _                    => None
 }
+```
 
-// Text input
+Text input:
+```scala
 def onKey(k: Key): Option[Message] = k match {
   case CharKey(c) if c.isPrintable => Some(AddChar(c))
   case BackspaceKey                => Some(DeleteChar) 
   case EnterKey                    => Some(SubmitText)
-  case _                          => None
+  case _                           => None
 }
+```
 
-// State-dependent logic (recommended pattern)
+Handling state dependent logic:
+```scala
 def onKey(k: Key): Option[Message] = k match {
-  case CharKey(c) => Some(HandleChar(c))  // Send all characters
-  case EnterKey   => Some(HandleEnter)    // Send all enters
+  case CharKey(c) => Some(HandleChar(c))
+  case EnterKey   => Some(HandleEnter)
   case _          => None
 }
 
@@ -707,11 +720,11 @@ object CounterApp extends LayoutzApp[Int, String] {
   def view(count: Int) = section("Counter")(s"Count: $count")
 }
 
-CounterApp.run()  // Start the app
+CounterApp.run()
 ```
 
 ### Complex Example
-A task manager with navigation, progress tracking, and stateful emojis. This example shows case classes for state, sealed traits for messages, conditional updates, and visual state changes.
+A task manager with navigation, progress tracking, and stateful emojis.
 ```scala
 case class TaskState(
   tasks: List[String], 
@@ -804,24 +817,6 @@ TaskApp.run()
 
 The architecture guarantees that the same state always produces the same UI, making apps predictable and easy to test. The runtime handles all threading and automatically sends `ProgressTickKey`/`SpinnerTickKey` for animations.
 
-### Try the Examples
-The repository includes several demo applications:
-
-```bash
-# Simple counter app
-scala-cli run . --main-class layoutz.RunCounterDemo
-
-# Todo app with text input
-scala-cli run . --main-class layoutz.RunTodoDemo
-
-# Task navigator with progress bars, spinners, and stateful emojis
-scala-cli run . --main-class layoutz.RunNavLoadDemo
-
-# Margin styles showcase  
-scala-cli run . --main-class layoutz.RunMarginDemo
-```
-
-The `NavLoadDemo` is particularly feature-rich, demonstrating stateful emojis (📁 → ⚡ → ✅), dynamic text input with smart field switching, complex state management with custom task creation, and progress tracking with spinner animations.
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
