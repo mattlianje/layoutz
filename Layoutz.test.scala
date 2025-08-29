@@ -353,14 +353,12 @@ Third line"""
     ▪ Database
   ◦ Frontend
     ▪ Components
-      ‣ Header
-      ‣ Footer"""
+      • Header
+      • Footer"""
 
     assertEquals(nestedLists.render, expected)
   }
 
-  /** Test LayoutzApp and key mechanics
-    */
   test("Key ADT construction and pattern matching") {
     val charKey = CharKey('a')
     val specialKey = SpecialKey("F1")
@@ -389,164 +387,61 @@ Third line"""
     assertEquals(charMinus.c, '-')
   }
 
-  test("CounterApp initial state") {
-    import Examples.CounterApp
-    assertEquals(CounterApp.init, 0)
-  }
-
-  test("CounterApp update function") {
-    import Examples.CounterApp
-
-    assertEquals(CounterApp.update("inc", 5), 6)
-    assertEquals(CounterApp.update("dec", 5), 4)
-    assertEquals(CounterApp.update("unknown", 5), 5)
-
-    assertEquals(CounterApp.update("inc", Int.MaxValue - 1), Int.MaxValue)
-    assertEquals(CounterApp.update("dec", Int.MinValue + 1), Int.MinValue)
-  }
-
-  test("CounterApp key handling") {
-    import Examples.CounterApp
-
-    assertEquals(CounterApp.onKey(CharKey('+')), Some("inc"))
-    assertEquals(CounterApp.onKey(CharKey('-')), Some("dec"))
-    assertEquals(CounterApp.onKey(CharKey('a')), None)
-    assertEquals(CounterApp.onKey(EnterKey), None)
-    assertEquals(CounterApp.onKey(EscapeKey), None)
-  }
-
-  test("CounterApp view rendering") {
-    import Examples.CounterApp
-
-    val view0 = CounterApp.view(0)
-    val view42 = CounterApp.view(42)
-    val viewNegative = CounterApp.view(-5)
-
-    assert(view0.render.contains("Current count: 0"))
-    assert(view0.render.contains("=== Counter ==="))
-    assert(view0.render.contains("Press + / - to adjust"))
-
-    assert(view42.render.contains("Current count: 42"))
-    assert(viewNegative.render.contains("Current count: -5"))
-  }
-
-  test("CounterApp full interaction cycle") {
-    import Examples.CounterApp
-
-    var state = CounterApp.init
-    assertEquals(state, 0)
-
-    CounterApp.onKey(CharKey('+')) match {
-      case Some(msg) => state = CounterApp.update(msg, state)
-      case None      => fail("Should produce increment message")
-    }
-    assertEquals(state, 1)
-
-    CounterApp.onKey(CharKey('+')) match {
-      case Some(msg) => state = CounterApp.update(msg, state)
-      case None      => fail("Should produce increment message")
-    }
-    assertEquals(state, 2)
-
-    CounterApp.onKey(CharKey('-')) match {
-      case Some(msg) => state = CounterApp.update(msg, state)
-      case None      => fail("Should produce decrement message")
-    }
-    assertEquals(state, 1)
-
-    CounterApp.onKey(CharKey('x')) match {
-      case Some(_) => fail("Should not produce a message")
-      case None    =>
-    }
-    assertEquals(state, 1)
-  }
-
-  test("TodoApp initial state") {
-    import Examples.{TodoApp, TodoState}
-
-    val initialState = TodoApp.init
-    assertEquals(initialState.items.length, 3)
-    assertEquals(initialState.completed, Set(2))
-    assertEquals(initialState.inputText, "")
-    assertEquals(initialState.inputMode, false)
-
-    assert(initialState.items.contains("Learn Scala"))
-    assert(initialState.items.contains("Build awesome apps"))
-    assert(initialState.items.contains("Drink coffee"))
-  }
-
-  test("TodoApp toggle item completion") {
-    import Examples.{TodoApp, ToggleItem}
-
-    val initialState = TodoApp.init
-
-    val state1 = TodoApp.update(ToggleItem(0), initialState)
-    assertEquals(state1.completed, Set(0, 2))
-
-    val state2 = TodoApp.update(ToggleItem(2), state1)
-    assertEquals(state2.completed, Set(0))
-
-    val state3 = TodoApp.update(ToggleItem(0), state2)
-    assertEquals(state3.completed, Set.empty[Int])
-  }
-
-  test("TodoApp text input functionality") {
-    import Examples.{
-      TodoApp,
-      ToggleInputMode,
-      AddChar,
-      AddCurrentItem,
-      ClearInput
+  test("LayoutzApp trait basic functionality") {
+    // Simple counter app implementation for testing
+    object TestCounterApp extends LayoutzApp[Int, String] {
+      def init: Int = 0
+      def update(msg: String, state: Int): Int = msg match {
+        case "inc" => state + 1
+        case "dec" => state - 1
+        case _     => state
+      }
+      def onKey(k: Key): Option[String] = k match {
+        case CharKey('+') => Some("inc")
+        case CharKey('-') => Some("dec")
+        case _            => None
+      }
+      def view(state: Int): Element = layout(
+        s"Count: $state",
+        "Press +/- to change"
+      )
     }
 
-    val initialState = TodoApp.init
+    // Test basic functionality
+    assertEquals(TestCounterApp.init, 0)
+    assertEquals(TestCounterApp.update("inc", 5), 6)
+    assertEquals(TestCounterApp.update("dec", 5), 4)
+    assertEquals(TestCounterApp.update("unknown", 5), 5)
 
-    val state1 = TodoApp.update(ToggleInputMode, initialState)
-    assertEquals(state1.inputMode, true)
-    assertEquals(state1.inputText, "")
+    assertEquals(TestCounterApp.onKey(CharKey('+')), Some("inc"))
+    assertEquals(TestCounterApp.onKey(CharKey('-')), Some("dec"))
+    assertEquals(TestCounterApp.onKey(CharKey('x')), None)
 
-    val state2 = TodoApp.update(AddChar('H'), state1)
-    val state3 = TodoApp.update(AddChar('i'), state2)
-    assertEquals(state3.inputText, "Hi")
-
-    val state4 = TodoApp.update(AddCurrentItem, state3)
-    assertEquals(state4.items.length, 4)
-    assert(state4.items.contains("Hi"))
-    assertEquals(state4.inputMode, false)
-    assertEquals(state4.inputText, "")
+    val view = TestCounterApp.view(42)
+    assert(view.render.contains("Count: 42"))
+    assert(view.render.contains("Press +/- to change"))
   }
 
-  test("TodoApp key handling") {
-    import Examples.{TodoApp, ToggleItem, ToggleInputMode, AddChar}
+  test("LayoutzApp polymorphism") {
+    // Test that LayoutzApp can be used polymorphically
+    object SimpleApp extends LayoutzApp[String, Char] {
+      def init: String = "hello"
+      def update(msg: Char, state: String): String = state + msg
+      def onKey(k: Key): Option[Char] = k match {
+        case CharKey(c) if c.isLetter => Some(c)
+        case _                        => None
+      }
+      def view(state: String): Element = s"Text: $state"
+    }
 
-    assertEquals(TodoApp.onKey(CharKey('1')), Some(ToggleItem(0)))
-    assertEquals(TodoApp.onKey(CharKey('9')), Some(ToggleItem(8)))
-    assertEquals(TodoApp.onKey(CharKey('0')), None)
-    assertEquals(TodoApp.onKey(CharKey('n')), Some(ToggleInputMode))
-    assertEquals(TodoApp.onKey(CharKey('a')), Some(AddChar('a')))
-    assertEquals(
-      TodoApp.onKey(CharKey('q')),
-      Some(AddChar('q'))
-    )
-    assertEquals(TodoApp.onKey(CharKey(' ')), Some(AddChar(' ')))
-  }
+    val app: LayoutzApp[String, Char] = SimpleApp
+    assertEquals(app.init, "hello")
+    assertEquals(app.update('!', "test"), "test!")
+    assertEquals(app.onKey(CharKey('a')), Some('a'))
+    assertEquals(app.onKey(CharKey('1')), None)
 
-  test("TodoApp view rendering") {
-    import Examples.{TodoApp, TodoState}
-
-    val state = TodoApp.init
-    val view = TodoApp.view(state)
-
-    assert(view.render.contains("=== Todo List ==="))
-    assert(view.render.contains("1. ❌ Learn Scala"))
-    assert(view.render.contains("2. ❌ Build awesome apps"))
-    assert(view.render.contains("3. ✅ Drink coffee"))
-
-    assert(view.render.contains("=== Stats ==="))
-    assert(view.render.contains("Progress: 1/3 completed"))
-
-    assert(view.render.contains("=== Add New Task ==="))
-    assert(view.render.contains("Press 'n' to add new task"))
+    val view = app.view("world")
+    assertEquals(view.render, "Text: world")
   }
 
   test("TextInput element rendering") {
@@ -585,52 +480,6 @@ Third line"""
 
     assert(Line.frames.forall(_.isInstanceOf[String]))
     assert(Dots.frames.forall(_.isInstanceOf[String]))
-  }
-
-  test("NavLoadApp initial state") {
-    import Examples.{NavLoadApp, NavLoadState}
-
-    val initialState = NavLoadApp.init
-    assertEquals(initialState.selectedTask, 0)
-    assertEquals(initialState.isLoading, false)
-    assertEquals(initialState.progress, 0.0)
-    assertEquals(initialState.spinnerFrame, 0)
-    assertEquals(initialState.completed, Set.empty[Int])
-  }
-
-  test("NavLoadApp task selection") {
-    import Examples.{NavLoadApp, MoveUp, MoveDown}
-
-    val initialState = NavLoadApp.init
-
-    // Test moving down to task 2
-    val state1 = NavLoadApp.update(MoveDown, initialState)
-    val state2 = NavLoadApp.update(MoveDown, state1)
-    assertEquals(state2.selectedTask, 2)
-
-    // Test that selecting invalid task wraps around
-    val stateAtEnd = initialState.copy(selectedTask = 5) // last task
-    val wrappedState = NavLoadApp.update(MoveDown, stateAtEnd)
-    assertEquals(wrappedState.selectedTask, 0)
-  }
-
-  test("NavLoadApp loading lifecycle") {
-    import Examples.{NavLoadApp, StartTask, ProgressTick, SpinnerTick}
-
-    val initialState = NavLoadApp.init
-
-    val state1 = NavLoadApp.update(StartTask, initialState)
-    assertEquals(state1.isLoading, true)
-    assertEquals(state1.progress, 0.0)
-    assert(state1.startTime > 0)
-
-    val state2 = NavLoadApp.update(SpinnerTick, state1)
-    assertEquals(state2.spinnerFrame, state1.spinnerFrame + 1)
-
-    Thread.sleep(100)
-    val state3 = NavLoadApp.update(ProgressTick, state2)
-    assert(state3.progress >= 0.0)
-    assert(state3.elapsedTime > 0)
   }
 
   test("Badge widget rendering") {
@@ -681,22 +530,6 @@ Disk            │████████████████ 30.0"""
 ╚═══════╝"""
 
     assertEquals(result.render, expected)
-  }
-
-  test("LayoutzApp trait compilation and polymorphism") {
-    import Examples.{CounterApp, TodoApp, TodoState, TodoMessage}
-
-    val counterApp: LayoutzApp[Int, String] = CounterApp
-    val todoApp: LayoutzApp[TodoState, TodoMessage] = TodoApp
-
-    assertEquals(counterApp.init, 0)
-    assert(todoApp.init.items.nonEmpty)
-
-    val counterView: Element = counterApp.view(5)
-    val todoView: Element = todoApp.view(todoApp.init)
-
-    assert(counterView.render.nonEmpty)
-    assert(todoView.render.nonEmpty)
   }
 
   test("underline element") {

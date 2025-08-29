@@ -1469,15 +1469,15 @@ package object layoutz {
     */
   implicit def stringToText(s: String): Text = Text(s)
 
-  /** Automatic conversion from Seq[String] to Seq[Element]. Allows using
-    * string sequences directly with varargs expansion.
+  /** Automatic conversion from Seq[String] to Seq[Element]. Allows using string
+    * sequences directly with varargs expansion.
     *
     * @param strings
     *   the sequence of strings to convert
     * @return
     *   a sequence of Text elements
     */
-  implicit def stringSeqToElementSeq(strings: Seq[String]): Seq[Element] = 
+  implicit def stringSeqToElementSeq(strings: Seq[String]): Seq[Element] =
     strings.map(Text(_))
 
   /** APP FRAMEWORK
