@@ -713,6 +713,11 @@ def update(msg: Message, state: AppState): AppState = msg match {
 ```
 
 ### Simple Example
+
+<p align="center">
+  <img src="pix/counter-demo.png" width="600">
+</p>
+
 ```scala
 object CounterApp extends LayoutzApp[Int, String] {
   def init = 0
@@ -740,6 +745,11 @@ CounterApp.run()
 ```
 
 ### Complex Example
+
+<p align="center">
+  <img src="pix/nav-demo-edit.png" width="600">
+</p>
+
 A task manager with navigation, progress tracking, and stateful emojis.
 ```scala
 case class TaskState(
