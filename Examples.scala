@@ -570,11 +570,11 @@ object Examples {
         "Status Margins",
         () =>
           layout(
-            margin.error()("This is an error message"),
+            margin.error("This is an error message"),
             br,
-            margin.warn()("This is a warning message"),
+            margin.warn("This is a warning message"),
             br,
-            margin.success()("This is a success message"),
+            margin.success("This is a success message"),
             br,
             "Regular text without margin"
           )
@@ -583,13 +583,13 @@ object Examples {
         "Custom Margins",
         () =>
           layout(
-            margin.error()("Error with custom margin"),
+            margin.error("Error with custom margin"),
             br,
             margin("  ")("Mixed with boxes:"),
             box("Status")(
-              margin.success()("Everything is working"),
-              margin.warn()("Minor issues detected"),
-              margin.error()("Critical error found")
+              margin.success("Everything is working"),
+              margin.warn("Minor issues detected"),
+              margin.error("Critical error found")
             )
           )
       ),
@@ -612,9 +612,9 @@ object Examples {
                 margin("  ")(
                   box("System Status")(
                     ul(
-                      margin.success()("Production: All systems operational"),
-                      margin.warn()("Staging: Performance degraded"),
-                      margin.error()("Development: Service unavailable")
+                      margin.success("Production: All systems operational"),
+                      margin.warn("Staging: Performance degraded"),
+                      margin.error("Development: Service unavailable")
                     )
                   )
                 )

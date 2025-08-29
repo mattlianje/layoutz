@@ -1119,7 +1119,7 @@ Longer line 2
   }
 
   test("status margins - error") {
-    val errorMargin = margin.error()("Connection failed")
+    val errorMargin = margin.error("Connection failed")
     val rendered = errorMargin.render
 
     // Red
@@ -1131,7 +1131,7 @@ Longer line 2
   }
 
   test("status margins - warn") {
-    val warnMargin = margin.warn()("Performance issue")
+    val warnMargin = margin.warn("Performance issue")
     val rendered = warnMargin.render
 
     assert(rendered.contains("\u001b[33m"))
@@ -1141,7 +1141,7 @@ Longer line 2
   }
 
   test("status margins - success") {
-    val successMargin = margin.success()("All systems operational")
+    val successMargin = margin.success("All systems operational")
     val rendered = successMargin.render
 
     assert(rendered.contains("\u001b[32m"))
@@ -1151,7 +1151,7 @@ Longer line 2
   }
 
   test("status margins - info") {
-    val infoMargin = margin.info()("System information")
+    val infoMargin = margin.info("System information")
     val rendered = infoMargin.render
 
     assert(rendered.contains("\u001b[36m"))
@@ -1161,7 +1161,7 @@ Longer line 2
   }
 
   test("margin with complex nested elements") {
-    val complexMargin = margin.error()(
+    val complexMargin = margin.error(
       row(
         statusCard("API", "DOWN"),
         statusCard("DB", "SLOW")
@@ -1185,7 +1185,7 @@ Longer line 2
       "Memory usage: 45%"
     )
 
-    val marginedBox = margin.info()(boxedContent)
+    val marginedBox = margin.info(boxedContent)
     val rendered = marginedBox.render
 
     assert(rendered.contains("┌"))
@@ -1200,10 +1200,10 @@ Longer line 2
   }
 
   test("user example - nested margins work correctly") {
-    val userExample = margin.info()(
+    val userExample = margin.info(
       row("yo", "man", "what"),
       layout(
-        margin.error()(
+        margin.error(
           row(
             statusCard(Border.Double)("API", "LIVE"),
             statusCard("DB", "99.9%"),
@@ -1244,7 +1244,7 @@ Longer line 2
   }
 
   test("margin ANSI codes don't affect element width calculations") {
-    val coloredMargin = margin.error()("Short message")
+    val coloredMargin = margin.error("Short message")
     val plainMargin = margin("[error]")("Short message")
 
     val coloredElement = coloredMargin

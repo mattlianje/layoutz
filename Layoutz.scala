@@ -1443,13 +1443,13 @@ package object layoutz {
 
   /** Predefined status margins with color coding */
   object margins {
-    def error()(elements: Element*): Margin =
+    def error(elements: Element*): Margin =
       Margin("[\u001b[31merror\u001b[0m]", elements)
-    def warn()(elements: Element*): Margin =
+    def warn(elements: Element*): Margin =
       Margin("[\u001b[33mwarn\u001b[0m]", elements)
-    def success()(elements: Element*): Margin =
+    def success(elements: Element*): Margin =
       Margin("[\u001b[32msuccess\u001b[0m]", elements)
-    def info()(elements: Element*): Margin =
+    def info(elements: Element*): Margin =
       Margin("[\u001b[36minfo\u001b[0m]", elements)
   }
 

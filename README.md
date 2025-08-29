@@ -441,20 +441,23 @@ Left          Right
 ```
 
 ### Margin: `margin`
-Add left margin with custom or status prefixes
+Add and compose margin messages for nice "compiler-message style" layout elements:
+
+<p align="center">
+  <img src="pix/margin-demo.png" width="400">
+</p>
+
 ```scala
-margin("    ")("Indented content")
-margin.error()("Error message")
-margin.warn()("Warning message") 
-margin.success()("Success message")
-margin.info()("Info message")
-```
-```
-    Indented content
-❌  Error message
-⚠️   Warning message
-✅  Success message
-ℹ️   Info message
+layout(
+  margin.error("Type mismatch at line 15",
+  br,
+  row("val result: Int =", underline("^")("getUserName()")),
+  "Expected Int, found String"),
+  br,
+  margin.warn("Unused variable detected",
+  br,
+  margin("[custom ~>]")(row("val ", underline("~")("temp"), " = calculateTotal(items)")))
+).render
 ```
 
 ## Text Formatting & Layout
