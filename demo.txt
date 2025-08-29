@@ -6,7 +6,9 @@ val tableElement = table(
   rows = Seq(
     Seq("Alice", "Engineer", "Online"),
     Seq("Bob", "Designer", "Offline"),
-    Seq("Eve", "QA", "Away")
+    Seq("Eve", "QA", "Away"),
+    /* Nest and compose elements */
+    Seq(ul("Gegard", ul("Mousasi", ul("was a BAD man"))), "Fighter", "Nasty")
   )
 )
 
