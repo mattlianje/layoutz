@@ -444,7 +444,7 @@ Left          Right
 Add and compose margin messages for nice "compiler-message style" layout elements:
 
 <p align="center">
-  <img src="pix/margin-demo.png" width="400">
+  <img src="pix/margin-demo.png" width="600">
 </p>
 
 ```scala
