@@ -457,7 +457,7 @@ layout(
   margin.warn("Unused variable detected",
   br,
   margin("[custom ~>]")(row("val ", underline("~")("temp"), " = calculateTotal(items)")))
-).render
+)
 ```
 
 ## Text Formatting & Layout
