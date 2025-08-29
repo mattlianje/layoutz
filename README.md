@@ -443,11 +443,16 @@ Left          Right
 ### Margin: `margin`
 Add left margin with custom or status prefixes
 ```scala
-margin("    ")("Indented content")
-margin.error()("Error message")
-margin.warn()("Warning message") 
-margin.success()("Success message")
-margin.info()("Info message")
+layout(
+  margin.error("Type mismatch at line 15",
+  br,
+  row("val result: Int =", underline("^")("getUserName()")),
+  "Expected Int, found String"),
+  br,
+  margin.warn("Unused variable detected",
+  br,
+  margin("[custom ~>]")(row("val ", underline("~")("temp"), " = calculateTotal(items)")))
+).render
 ```
 ```
     Indented content
