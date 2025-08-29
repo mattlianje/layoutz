@@ -712,7 +712,7 @@ def update(msg: Message, state: AppState): AppState = msg match {
 }
 ```
 
-### Simple Example
+### Counter Example
 
 <p align="center">
   <img src="pix/counter-demo.gif" width="600">
