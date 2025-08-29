@@ -717,7 +717,11 @@ object CounterApp extends LayoutzApp[Int, String] {
     case _            => None
   }
   
-  def view(count: Int) = section("Counter")(s"Count: $count")
+  def view(count: Int) = layout(
+        section("Counter")(s"Count: $count"),
+        br,
+        ul("Press `+` or `-`")
+       )
 }
 
 CounterApp.run()
