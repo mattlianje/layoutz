@@ -597,8 +597,6 @@ section("Users by Role")(
 
 ## Interactive Apps
 Build **Elm-style terminal applications** with the `LayoutzApp` architecture.
-
-### The Elm Architecture
 The [Elm Architecture](https://guide.elm-lang.org/architecture/) creates unidirectional data flow: User Input -> Messages -> State Updates -> View Rendering.
 
 ### `LayoutzApp[State, Message]`
