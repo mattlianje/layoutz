@@ -745,12 +745,12 @@ CounterApp.run()
 ```
 
 ### Complex Example
+A task manager with navigation, progress tracking, and stateful emojis.
 
 <p align="center">
   <img src="pix/nav-demo-edit.gif" width="600">
 </p>
 
-A task manager with navigation, progress tracking, and stateful emojis.
 ```scala
 case class TaskState(
     tasks: List[String],
