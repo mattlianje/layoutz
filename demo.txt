@@ -1,7 +1,7 @@
 import layoutz._
 
 /* Define layouts */
-val tableElement = table(
+val tableElement = table(Border.Round)(
   headers = Seq("Name", "Role", "Status"),
   rows = Seq(
     Seq("Alice", "Engineer", "Online"),
@@ -14,10 +14,11 @@ val tableElement = table(
 
 /* Combine them */
 val demo = layout(
+  center(row("layoutz", underline("ˆ")("DEMO"))),
   row(
-    statusCard("API", "UP"),
+    statusCard(Border.Thick)("API", "UP"),
     statusCard("Users", "1.2K"),
-    statusCard("CPU", "23%"),
+    statusCard(Border.Double)("CPU", "23%"),
     tableElement,
     section("Pugilists")(
       kv("Kazushi" -> "Sakuraba", "Jet" -> "Li", "Rory" -> "MacDonald")
