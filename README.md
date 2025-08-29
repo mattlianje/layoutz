@@ -780,8 +780,8 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
     case CharKey('w') | ArrowUpKey   => Some(MoveUp)
     case CharKey('s') | ArrowDownKey => Some(MoveDown)
     case CharKey(' ') | EnterKey     => Some(StartTask)
-    case ProgressTickKey             => Some(ProgressTick)  // Auto-generated
-    case SpinnerTickKey              => Some(SpinnerTick)   // Auto-generated
+    case ProgressTickKey             => Some(ProgressTick)
+    case SpinnerTickKey              => Some(SpinnerTick)
     case _                          => None
   }
   
