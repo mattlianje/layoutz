@@ -443,10 +443,6 @@ Left          Right
 ### Margin: `margin`
 Add and compose margin messages for nice "compiler-message style" layout elements:
 
-<p align="center">
-  <img src="pix/margin-demo.png" width="600">
-</p>
-
 ```scala
 layout(
   margin.error(
@@ -470,6 +466,10 @@ layout(
   )
 )
 ```
+
+<p align="center">
+  <img src="pix/margin-demo.png" width="600">
+</p>
 
 ## Text Formatting & Layout
 
