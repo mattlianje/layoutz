@@ -37,15 +37,15 @@ import layoutz._
 ## Quickstart
 ```scala
 val demo = layout(
-  center(underline("Test Dashboard", "^")),
+  center(underline("ˆ")("Test Dashboard")),
   br,
   row(
-    statusCard("API", "LIVE", Border.Double),
+    statusCard(Border.Double)("API", "LIVE"),
     statusCard("DB", "99.9%"),
-    statusCard("Cache", "READY", Border.Thick)
+    statusCard(Border.Thick)("Cache", "READY")
   ),
   br,
-  box("Services", Border.Round)(
+  box(Border.Round)("Services")(
     ul("Production",
       ul("→")("auth-service"),
       "Staging",
