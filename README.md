@@ -35,7 +35,10 @@ import layoutz._
 ```
 
 ## Quickstart
+Use **Layoutz** to simply render strings:
 ```scala
+import layoutz._
+
 val demo = layout(
   center(underline("ˆ")("Test Dashboard")),
   br,
@@ -75,7 +78,10 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-Build TUI's w/ `LayoutzApp`:
+Or build TUI's with `LayoutzApp`:
+<p align="center">
+  <img src="pix/counter-demo.gif" width="600">
+</p>
 ```scala
 import layoutz._
 
@@ -103,9 +109,6 @@ object CounterApp extends LayoutzApp[Int, String] {
 
 CounterApp.run() /* call .run to start your app */
 ```
-<p align="center">
-  <img src="pix/counter-demo.gif" width="600">
-</p>
 
 ## Motivation
 - We have `s"..."`, and full-blown TUI libraries - but there is a gap in-between.
