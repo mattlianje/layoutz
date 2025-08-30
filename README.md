@@ -245,11 +245,13 @@ ol("First step", "Second step", "Third step")
 
 Hierarchical nested numbering
 ```scala
-ol("Setup",
+ol(
+  "Setup",
   ol("Install tools", "Configure IDE"),
-  "Development", 
+  "Development",
   ol("Write code", ol("Unit tests", "Integration tests")),
-  "Deploy")
+  "Deploy"
+)
 ```
 ```
 1. Setup
@@ -264,9 +266,11 @@ ol("Setup",
 
 Mix with other elements
 ```scala
-ol("Initialize project",
+ol(
+  "Initialize project",
   ul("Create repo", "Setup CI/CD"),
-  inlineBar("Progress", 0.6))
+  inlineBar("Progress", 0.6)
+)
 ```
 ```
 1. Initialize project
@@ -292,10 +296,12 @@ ul("→")("Item 1", "Item 2")
 
 Nested lists with auto-styling
 ```scala
-ul("Backend",
+ul(
+  "Backend",
   ul("API", "Database"),
-  "Frontend", 
-  ul("Components", ul("Header", ul("Footer"))))
+  "Frontend",
+  ul("Components", ul("Header", ul("Footer")))
+)
 ```
 ```
 • Backend
@@ -304,24 +310,7 @@ ul("Backend",
 • Frontend
   ◦ Components
     ▪ Header
-      ‣ Footer
-```
-
-Mix with other elements
-```scala
-ul("System Status",
-  "CPU: 45%",
-  inlineBar("Memory", 0.78),
-  statusCard("Health", "OK"))
-```
-```
-• System Status
-• CPU: 45%
-• Memory [███████████████▌─────] 78%
-• ┌─────────┐
-  │ Health  │
-  │ OK      │
-  └─────────┘
+      • Footer
 ```
 
 ### Underline: `underline`
