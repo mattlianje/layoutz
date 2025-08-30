@@ -82,6 +82,7 @@ Or build TUI's with `LayoutzApp`:
 <p align="center">
   <img src="pix/counter-demo.gif" width="600">
 </p>
+
 ```scala
 import layoutz._
 
