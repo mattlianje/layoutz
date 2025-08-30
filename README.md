@@ -476,7 +476,7 @@ Left          Right
 ```
 
 ### Margin: `margin`
-Add and compose margin messages for nice "compiler-message style" layout elements:
+Use `margin` for nice & colourful "compiler-style" margin strings:
 
 ```scala
 layout(
@@ -501,6 +501,7 @@ layout(
   )
 )
 ```
+by default you have `.error`, `.warn`, `.success` and `.info` or just `margin` to use you own custom margins.
 
 <p align="center">
   <img src="pix/margin-demo.png" width="600">
