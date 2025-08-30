@@ -540,7 +540,8 @@ Elements like `box`, `table`, and `banner` support different `Border` options:
 
 **Single** (default):
 ```scala
-box("Title", Border.Single)("")
+box(Border.Single)("Title")("")
+/* same as: box("Title")("") */
 ```
 ```
 ┌─Title─┐
@@ -550,7 +551,7 @@ box("Title", Border.Single)("")
 
 **Double**:
 ```scala
-banner("Welcome", Border.Double)
+banner(Border.Double)("Welcome")
 ```
 ```
 ╔═════════╗
@@ -560,7 +561,7 @@ banner("Welcome", Border.Double)
 
 **Thick**:
 ```scala
-table(headers, rows, Border.Thick)
+table(Border.Thick)(headers, rows)
 ```
 ```
 ┏━━━━━━━┳━━━━━━━━┓
@@ -572,7 +573,7 @@ table(headers, rows, Border.Thick)
 
 **Round**:
 ```scala
-box("Info", Border.Round)("")
+box(Border.Round)("Info")("")
 ```
 ```
 ╭─Info─╮
@@ -582,16 +583,18 @@ box("Info", Border.Round)("")
 
 **Custom**:
 ```scala
-box("Alert", Border.Custom(
-  corner = "+", 
-  horizontal = "=", 
-  vertical = "|"
-))("")
+box(
+  Border.Custom(
+    corner = "+",
+    horizontal = "=",
+    vertical = "|"
+  )
+)("Hello hello")("World!")
 ```
 ```
-+=Alert=+
-|       |
-+=======+
++==Hello hello==+
+| World!        |
++===============+
 ```
 
 ## Working with collections
@@ -636,7 +639,6 @@ You implement four methods:
 
 The `.run()` method handles the event loop, terminal management, and threading automatically.
 
-<!--
 ### Message Loop
 ```mermaid
 graph TD
@@ -657,7 +659,6 @@ graph TD
     style G fill:#e8f5e8
     style H fill:#fff3e0
 ```
--->
 
 ### Key Types
 **Layoutz** comes with a Key ADT built-in
