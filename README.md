@@ -35,7 +35,10 @@ import layoutz._
 ```
 
 ## Quickstart
+Use **Layoutz** to simply render strings:
 ```scala
+import layoutz._
+
 val demo = layout(
   center(underline("ˆ")("Test Dashboard")),
   br,
@@ -74,6 +77,38 @@ val demo = layout(
 │                                   │
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
+```
+Or build TUI's with `LayoutzApp`:
+<p align="center">
+  <img src="pix/counter-demo.gif" width="600">
+</p>
+
+```scala
+import layoutz._
+
+object CounterApp extends LayoutzApp[Int, String] {
+  def init = 0
+
+  def update(msg: String, count: Int) = msg match {
+    case "inc" => count + 1
+    case "dec" => count - 1
+    case _     => count
+  }
+
+  def onKey(k: Key) = k match {
+    case CharKey('+') => Some("inc")
+    case CharKey('-') => Some("dec")
+    case _            => None
+  }
+
+  def view(count: Int) = layout(
+    section("Counter")(s"Count: $count"),
+    br,
+    ul("Press `+` or `-`")
+  )
+}
+
+CounterApp.run() /* call .run to start your app */
 ```
 
 ## Motivation
@@ -441,7 +476,7 @@ Left          Right
 ```
 
 ### Margin: `margin`
-Add and compose margin messages for nice "compiler-message style" layout elements:
+Use `margin` for nice & colourful "compiler-style" margin strings:
 
 ```scala
 layout(
@@ -466,6 +501,7 @@ layout(
   )
 )
 ```
+by default you have `.error`, `.warn`, `.success` and `.info` or just `margin` to use you own custom margins.
 
 <p align="center">
   <img src="pix/margin-demo.png" width="600">
@@ -712,38 +748,6 @@ def update(msg: Message, state: AppState): AppState = msg match {
 }
 ```
 
-### Counter Example
-
-<p align="center">
-  <img src="pix/counter-demo.gif" width="600">
-</p>
-
-```scala
-object CounterApp extends LayoutzApp[Int, String] {
-  def init = 0
-
-  def update(msg: String, count: Int) = msg match {
-    case "inc" => count + 1
-    case "dec" => count - 1
-    case _     => count
-  }
-
-  def onKey(k: Key) = k match {
-    case CharKey('+') => Some("inc")
-    case CharKey('-') => Some("dec")
-    case _            => None
-  }
-
-  def view(count: Int) = layout(
-    section("Counter")(s"Count: $count"),
-    br,
-    ul("Press `+` or `-`")
-  )
-}
-
-CounterApp.run()
-```
-
 ### Complex Example
 A task manager with navigation, progress tracking, and stateful emojis.
 
@@ -752,6 +756,8 @@ A task manager with navigation, progress tracking, and stateful emojis.
 </p>
 
 ```scala
+import layoutz._
+
 case class TaskState(
     tasks: List[String],
     selected: Int,

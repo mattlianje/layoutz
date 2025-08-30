@@ -24,16 +24,18 @@ val demo = layout(
       kv("Kazushi" -> "Sakuraba", "Jet" -> "Li", "Rory" -> "MacDonald")
     )
   ),
-  row(
-    box("Deploy Status")(
-      layout(
-        inlineBar("Build", 1.0),
-        inlineBar("Test", 0.8),
-        inlineBar("Deploy", 0.3)
+  margin("[Scala!]")(
+    row(
+      box("Deploy Status")(
+        layout(
+          inlineBar("Build", 1.0),
+          inlineBar("Test", 0.8),
+          inlineBar("Deploy", 0.3)
+        )
+      ),
+      tree("📁 Project")(
+        branch("src", leaf("main.scala"), leaf("api.scala"))
       )
-    ),
-    tree("📁 Project")(
-      branch("src", leaf("main.scala"), leaf("api.scala"))
     )
   )
 )
