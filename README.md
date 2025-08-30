@@ -647,6 +647,7 @@ You implement four methods:
 
 The `.run()` method handles the event loop, terminal management, and threading automatically.
 
+<!--
 ### Message Loop
 ```mermaid
 graph TD
@@ -667,6 +668,7 @@ graph TD
     style G fill:#e8f5e8
     style H fill:#fff3e0
 ```
+-->
 
 ### Key Types
 **Layoutz** comes with a Key ADT built-in
