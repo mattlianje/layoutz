@@ -719,6 +719,8 @@ def update(msg: Message, state: AppState): AppState = msg match {
 </p>
 
 ```scala
+import layoutz._
+
 object CounterApp extends LayoutzApp[Int, String] {
   def init = 0
 
@@ -752,6 +754,8 @@ A task manager with navigation, progress tracking, and stateful emojis.
 </p>
 
 ```scala
+import layoutz._
+
 case class TaskState(
     tasks: List[String],
     selected: Int,
