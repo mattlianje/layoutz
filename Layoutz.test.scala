@@ -482,20 +482,6 @@ Third line"""
     assert(Dots.frames.forall(_.isInstanceOf[String]))
   }
 
-  test("Badge widget rendering") {
-    val result = layout(
-      badge("New"),
-      badge("Success", BadgeStyle.Success),
-      badge("Error", BadgeStyle.Error)
-    )
-
-    val expected = """[New]
-[OK] Success
-[ERR] Error"""
-
-    assertEquals(result.render, expected)
-  }
-
   test("Columns layout") {
     val result = columns(
       "A\nB",

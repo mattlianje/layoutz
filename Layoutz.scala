@@ -723,32 +723,6 @@ package object layoutz {
     }
   }
 
-  /** Badge/tag for status indicators */
-  final case class Badge(
-      content: Element,
-      style: BadgeStyle = BadgeStyle.Default
-  ) extends Element {
-    def render: String = {
-      val text = content.render
-      style match {
-        case BadgeStyle.Default => s"[$text]"
-        case BadgeStyle.Success => s"[OK] $text"
-        case BadgeStyle.Error   => s"[ERR] $text"
-        case BadgeStyle.Warning => s"[WARN] $text"
-        case BadgeStyle.Info    => s"[INFO] $text"
-      }
-    }
-  }
-
-  sealed trait BadgeStyle
-  object BadgeStyle {
-    case object Default extends BadgeStyle
-    case object Success extends BadgeStyle
-    case object Error extends BadgeStyle
-    case object Warning extends BadgeStyle
-    case object Info extends BadgeStyle
-  }
-
   /** Simple column layout */
   final case class Columns(elements: Seq[Element], spacing: Int = 2)
       extends Element {
@@ -1361,10 +1335,6 @@ package object layoutz {
       frame: Int = 0,
       style: SpinnerStyle = SpinnerStyle.Dots
   ): Spinner = Spinner(label, frame, style)
-
-  /** Status badge with optional styling */
-  def badge(content: Element, style: BadgeStyle = BadgeStyle.Default): Badge =
-    Badge(content, style)
 
   /** Arrange elements in columns with spacing */
   def columns(elements: Element*): Columns = Columns(elements)

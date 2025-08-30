@@ -444,17 +444,6 @@ Mobile         │████████████████████�
 API            │███████████████████████████ 15.0
 ```
 
-### Badge: `badge`
-```scala
-badge("New")
-badge("v2.0", BadgeStyle.Success)
-badge("Error", BadgeStyle.Error)
-```
-```
-[New]
-[v2.0]
-[Error]
-```
 
 ### Text Input: `textInput`
 ```scala
