@@ -451,8 +451,8 @@ textInput("Username", "alice", "Enter your username", active = true)
 textInput("Password", "", "Enter password", active = false)
 ```
 ```
-Username: alice_
-Password: [Enter password]
+> Username: alice_
+  Password: Enter password
 ```
 
 ### Space: `space`
