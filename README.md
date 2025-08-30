@@ -78,7 +78,7 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-Or extend the `LayoutzApp` trait to build TUI's:
+Extend the `LayoutzApp` trait to build TUI's:
 <p align="center">
   <img src="pix/counter-demo.gif" width="600">
 </p>
