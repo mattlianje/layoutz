@@ -75,6 +75,37 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
+Build TUI's w/ `LayoutzApp`:
+```scala
+import layoutz._
+
+object CounterApp extends LayoutzApp[Int, String] {
+  def init = 0
+
+  def update(msg: String, count: Int) = msg match {
+    case "inc" => count + 1
+    case "dec" => count - 1
+    case _     => count
+  }
+
+  def onKey(k: Key) = k match {
+    case CharKey('+') => Some("inc")
+    case CharKey('-') => Some("dec")
+    case _            => None
+  }
+
+  def view(count: Int) = layout(
+    section("Counter")(s"Count: $count"),
+    br,
+    ul("Press `+` or `-`")
+  )
+}
+
+CounterApp.run() /* call .run to start your app */
+```
+<p align="center">
+  <img src="pix/counter-demo.gif" width="600">
+</p>
 
 ## Motivation
 - We have `s"..."`, and full-blown TUI libraries - but there is a gap in-between.
@@ -710,40 +741,6 @@ def update(msg: Message, state: AppState): AppState = msg match {
     if (state.inputMode) submitText(state) 
     else selectCurrent(state)
 }
-```
-
-### Counter Example
-
-<p align="center">
-  <img src="pix/counter-demo.gif" width="600">
-</p>
-
-```scala
-import layoutz._
-
-object CounterApp extends LayoutzApp[Int, String] {
-  def init = 0
-
-  def update(msg: String, count: Int) = msg match {
-    case "inc" => count + 1
-    case "dec" => count - 1
-    case _     => count
-  }
-
-  def onKey(k: Key) = k match {
-    case CharKey('+') => Some("inc")
-    case CharKey('-') => Some("dec")
-    case _            => None
-  }
-
-  def view(count: Int) = layout(
-    section("Counter")(s"Count: $count"),
-    br,
-    ul("Press `+` or `-`")
-  )
-}
-
-CounterApp.run()
 ```
 
 ### Complex Example
