@@ -8,10 +8,10 @@
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
 ## Features
-- Zero dependencies, use **Layoutz.scala** like a header-file
+- Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines
-- Lists, trees, tables, charts, progress bars, spinners, and more
+- Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
 - Use `LayoutzApp` trait for Elm-style interactive terminal applications
 
