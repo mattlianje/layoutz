@@ -8,10 +8,10 @@
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 
 ## Features
-- Zero dependencies, use **Layoutz.scala** like a header-file
+- Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines
-- Lists, trees, tables, charts, progress bars, spinners, and more
+- Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
 - Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style interactive terminal applications
 
@@ -49,36 +49,34 @@ val demo = layout(
   ),
   br,
   box(Border.Round)("Services")(
-    ul("Production",
-      ul("→")("auth-service"),
-      "Staging",
-      ul("test-api",
-        ul("more nest"))),
+    ul("Production", "Staging", ul("test-api", ul("more nest"))),
     br,
     inlineBar("Health", 0.94)
   )
 ).render
 ```
 ```
-           Test Dashboard
-           ^^^^^^^^^^^^^^
+            Test Dashboard
+            ˆˆˆˆˆˆˆˆˆˆˆˆˆˆ
+
 
 ╔════════╗ ┌─────────┐ ┏━━━━━━━━━┓
 ║ API    ║ │ DB      │ ┃ Cache   ┃
 ║ LIVE   ║ │ 99.9%   │ ┃ READY   ┃
 ╚════════╝ └─────────┘ ┗━━━━━━━━━┛
 
+
 ╭─────────────Services──────────────╮
 │ • Production                      │
-│   → auth-service                  │
 │ • Staging                         │
 │   ◦ test-api                      │
 │     ▪ more nest                   │
 │                                   │
+│                                   │
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-Or build TUI's with `LayoutzApp`:
+Extend the `LayoutzApp` trait to snap together TUI's:
 <p align="center">
   <img src="pix/counter-demo.gif" width="600">
 </p>
@@ -540,7 +538,8 @@ Elements like `box`, `table`, and `banner` support different `Border` options:
 
 **Single** (default):
 ```scala
-box("Title", Border.Single)("")
+box(Border.Single)("Title")("")
+/* same as: box("Title")("") */
 ```
 ```
 ┌─Title─┐
@@ -550,7 +549,7 @@ box("Title", Border.Single)("")
 
 **Double**:
 ```scala
-banner("Welcome", Border.Double)
+banner(Border.Double)("Welcome")
 ```
 ```
 ╔═════════╗
@@ -560,7 +559,7 @@ banner("Welcome", Border.Double)
 
 **Thick**:
 ```scala
-table(headers, rows, Border.Thick)
+table(Border.Thick)(headers, rows)
 ```
 ```
 ┏━━━━━━━┳━━━━━━━━┓
@@ -572,7 +571,7 @@ table(headers, rows, Border.Thick)
 
 **Round**:
 ```scala
-box("Info", Border.Round)("")
+box(Border.Round)("Info")("")
 ```
 ```
 ╭─Info─╮
@@ -582,16 +581,18 @@ box("Info", Border.Round)("")
 
 **Custom**:
 ```scala
-box("Alert", Border.Custom(
-  corner = "+", 
-  horizontal = "=", 
-  vertical = "|"
-))("")
+box(
+  Border.Custom(
+    corner = "+",
+    horizontal = "=",
+    vertical = "|"
+  )
+)("Hello hello")("World!")
 ```
 ```
-+=Alert=+
-|       |
-+=======+
++==Hello hello==+
+| World!        |
++===============+
 ```
 
 ## Working with collections
@@ -636,7 +637,6 @@ You implement four methods:
 
 The `.run()` method handles the event loop, terminal management, and threading automatically.
 
-<!--
 ### Message Loop
 ```mermaid
 graph TD
@@ -657,7 +657,6 @@ graph TD
     style G fill:#e8f5e8
     style H fill:#fff3e0
 ```
--->
 
 ### Key Types
 **Layoutz** comes with a Key ADT built-in
