@@ -78,7 +78,7 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-2. Or extend the `LayoutzApp` trait to snap together TUI's:
+2. Extend the `LayoutzApp` trait which has a runtime and basic keyboard handling building blocks to snap together TUI's:
 
 ```scala
 import layoutz._
