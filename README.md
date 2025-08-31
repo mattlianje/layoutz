@@ -13,7 +13,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Rich text formatting: alignment, wrapping, justification, underlines
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
-- Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style interactive terminal applications
+- Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
 
 <p align="center">
   <img src="pix/layoutzapp-demo.gif" width="700">
