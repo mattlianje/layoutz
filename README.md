@@ -49,36 +49,34 @@ val demo = layout(
   ),
   br,
   box(Border.Round)("Services")(
-    ul("Production",
-      ul("→")("auth-service"),
-      "Staging",
-      ul("test-api",
-        ul("more nest"))),
+    ul("Production", "Staging", ul("test-api", ul("more nest"))),
     br,
     inlineBar("Health", 0.94)
   )
 ).render
 ```
 ```
-           Test Dashboard
-           ^^^^^^^^^^^^^^
+            Test Dashboard
+            ˆˆˆˆˆˆˆˆˆˆˆˆˆˆ
+
 
 ╔════════╗ ┌─────────┐ ┏━━━━━━━━━┓
 ║ API    ║ │ DB      │ ┃ Cache   ┃
 ║ LIVE   ║ │ 99.9%   │ ┃ READY   ┃
 ╚════════╝ └─────────┘ ┗━━━━━━━━━┛
 
+
 ╭─────────────Services──────────────╮
 │ • Production                      │
-│   → auth-service                  │
 │ • Staging                         │
 │   ◦ test-api                      │
 │     ▪ more nest                   │
 │                                   │
+│                                   │
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-Extend the `LayoutzApp` trait to build TUI's:
+Extend the `LayoutzApp` trait to snap together TUI's:
 <p align="center">
   <img src="pix/counter-demo.gif" width="600">
 </p>
