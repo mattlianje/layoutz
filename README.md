@@ -78,10 +78,7 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-2. Extend the `LayoutzApp` trait to snap together TUI's:
-<p align="center">
-  <img src="pix/counter-demo.gif" width="600">
-</p>
+2. Or extend the `LayoutzApp` trait to snap together TUI's:
 
 ```scala
 import layoutz._
@@ -110,9 +107,12 @@ object CounterApp extends LayoutzApp[Int, String] {
 
 CounterApp.run() /* call .run to start your app */
 ```
+<p align="center">
+  <img src="pix/counter-demo.gif" width="600">
+</p>
 
 ## Motivation
-- We have `s"..."`, and full-blown TUI libraries - but there is a gap in-between.
+- We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
 - Utlimately, **layoutz** is just a tiny, declarative DSL to combat this
