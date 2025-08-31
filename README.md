@@ -35,7 +35,9 @@ import layoutz._
 ```
 
 ## Quickstart
-Use **Layoutz** to simply render strings:
+There are two usage paths:
+
+1. Use **Layoutz** to simply render strings (in your logs, apps, etc):
 ```scala
 import layoutz._
 
@@ -76,7 +78,7 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-Extend the `LayoutzApp` trait to snap together TUI's:
+2. Extend the `LayoutzApp` trait to snap together TUI's:
 <p align="center">
   <img src="pix/counter-demo.gif" width="600">
 </p>
