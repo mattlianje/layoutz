@@ -35,7 +35,7 @@ import layoutz._
 ```
 
 ## Quickstart
-There are two usage paths:
+There are two usage paths with this little package:
 
 1. Use **Layoutz** to simply render strings (in your logs, apps, etc):
 ```scala
