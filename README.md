@@ -13,7 +13,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Rich text formatting: alignment, wrapping, justification, underlines
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
-- Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style interactive terminal applications
+- Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
 
 <p align="center">
   <img src="pix/layoutzapp-demo.gif" width="700">
@@ -35,7 +35,9 @@ import layoutz._
 ```
 
 ## Quickstart
-Use **Layoutz** to simply render strings:
+There are two usage paths with this little package:
+
+1. Use **Layoutz** to simply render strings (in your logs, apps, etc):
 ```scala
 import layoutz._
 
@@ -76,10 +78,7 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-Extend the `LayoutzApp` trait to snap together TUI's:
-<p align="center">
-  <img src="pix/counter-demo.gif" width="600">
-</p>
+2. Extend the `LayoutzApp` trait which has a runtime and basic keyboard handling building blocks to snap together TUI's:
 
 ```scala
 import layoutz._
@@ -108,9 +107,12 @@ object CounterApp extends LayoutzApp[Int, String] {
 
 CounterApp.run() /* call .run to start your app */
 ```
+<p align="center">
+  <img src="pix/counter-demo.gif" width="600">
+</p>
 
 ## Motivation
-- We have `s"..."`, and full-blown TUI libraries - but there is a gap in-between.
+- We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
 - Utlimately, **layoutz** is just a tiny, declarative DSL to combat this
