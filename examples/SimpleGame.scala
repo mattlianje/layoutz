@@ -19,27 +19,27 @@ case class GameState(
 )
 
 sealed trait GameMessage
-case object MoveUp extends GameMessage
-case object MoveDown extends GameMessage  
-case object MoveLeft extends GameMessage
-case object MoveRight extends GameMessage
+case object GameMoveUp extends GameMessage
+case object GameMoveDown extends GameMessage
+case object GameMoveLeft extends GameMessage
+case object GameMoveRight extends GameMessage
 case object RestartGame extends GameMessage
 case object GameTick extends GameMessage
 
 /** Simple game - collect gems, avoid enemies */
 object SimpleGame extends LayoutzApp[GameState, GameMessage] {
-  
+
   private val GAME_WIDTH = 15
   private val GAME_HEIGHT = 10
   private val random = new Random()
-  
+
   private def generateItems(level: Int): Set[(Int, Int)] = {
     val itemCount = 3 + level
     (1 to itemCount).map { _ =>
       (random.nextInt(GAME_WIDTH), random.nextInt(GAME_HEIGHT))
     }.toSet
   }
-  
+
   private def generateEnemies(level: Int): List[Enemy] = {
     val enemyCount = 1 + level
     (1 to enemyCount).map { _ =>
@@ -67,39 +67,39 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
 
   def update(msg: GameMessage, state: GameState): GameState = {
     if (state.gameOver && msg != RestartGame) return state
-    
+
     msg match {
-      case MoveUp =>
+      case GameMoveUp =>
         val newY = math.max(0, state.playerY - 1)
         processPlayerMove(state.copy(playerY = newY))
-        
-      case MoveDown =>
+
+      case GameMoveDown =>
         val newY = math.min(state.gameHeight - 1, state.playerY + 1)
         processPlayerMove(state.copy(playerY = newY))
-        
-      case MoveLeft =>
+
+      case GameMoveLeft =>
         val newX = math.max(0, state.playerX - 1)
         processPlayerMove(state.copy(playerX = newX))
-        
-      case MoveRight =>
+
+      case GameMoveRight =>
         val newX = math.min(state.gameWidth - 1, state.playerX + 1)
         processPlayerMove(state.copy(playerX = newX))
-        
+
       case RestartGame =>
         init
-        
+
       case GameTick =>
         updateGameTick(state)
     }
   }
-  
+
   private def processPlayerMove(state: GameState): GameState = {
     val playerPos = (state.playerX, state.playerY)
-    
+
     if (state.items.contains(playerPos)) {
       val newItems = state.items - playerPos
       val newScore = state.score + 10
-      
+
       if (newItems.isEmpty) {
         val newLevel = state.level + 1
         state.copy(
@@ -120,20 +120,21 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
       state
     }
   }
-  
+
   private def updateGameTick(state: GameState): GameState = {
     val newTick = state.tickCount + 1
-    
+
     // Move enemies every 4th tick (slower movement)
     val newEnemies = if (newTick % 4 == 0) {
       state.enemies.map(moveEnemy(_, state))
     } else {
       state.enemies
     }
-    
+
     // Check if player hit by enemy
-    val hitByEnemy = newEnemies.exists(e => e.x == state.playerX && e.y == state.playerY)
-    
+    val hitByEnemy =
+      newEnemies.exists(e => e.x == state.playerX && e.y == state.playerY)
+
     if (hitByEnemy) {
       val newLives = state.lives - 1
       if (newLives <= 0) {
@@ -156,58 +157,63 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
       state.copy(
         tickCount = newTick,
         enemies = newEnemies,
-        message = s"Score: ${state.score} | Lives: ${state.lives} | Level: ${state.level}"
+        message =
+          s"Score: ${state.score} | Lives: ${state.lives} | Level: ${state.level}"
       )
     }
   }
-  
+
   private def moveEnemy(enemy: Enemy, state: GameState): Enemy = {
     /* Simple chasing */
-    val dx = if (state.playerX > enemy.x) 1 else if (state.playerX < enemy.x) -1 else 0
-    val dy = if (state.playerY > enemy.y) 1 else if (state.playerY < enemy.y) -1 else 0
-    
+    val dx =
+      if (state.playerX > enemy.x) 1 else if (state.playerX < enemy.x) -1 else 0
+    val dy =
+      if (state.playerY > enemy.y) 1 else if (state.playerY < enemy.y) -1 else 0
+
     val newX = math.max(0, math.min(state.gameWidth - 1, enemy.x + dx))
     val newY = math.max(0, math.min(state.gameHeight - 1, enemy.y + dy))
-    
+
     enemy.copy(x = newX, y = newY)
   }
 
   def onKey(k: Key): Option[GameMessage] = k match {
     case Tick => Some(GameTick)
-    
-    case CharKey('w') | CharKey('W') | ArrowUpKey => Some(MoveUp)
-    case CharKey('s') | CharKey('S') | ArrowDownKey => Some(MoveDown)
-    case CharKey('a') | CharKey('A') | ArrowLeftKey => Some(MoveLeft)
-    case CharKey('d') | CharKey('D') | ArrowRightKey => Some(MoveRight)
-    
+
+    case CharKey('w') | CharKey('W') | ArrowUpKey    => Some(GameMoveUp)
+    case CharKey('s') | CharKey('S') | ArrowDownKey  => Some(GameMoveDown)
+    case CharKey('a') | CharKey('A') | ArrowLeftKey  => Some(GameMoveLeft)
+    case CharKey('d') | CharKey('D') | ArrowRightKey => Some(GameMoveRight)
+
     case CharKey('r') | CharKey('R') => Some(RestartGame)
-    
+
     case _ => None
   }
 
   def view(state: GameState): Element = {
     val gameBoard = (0 until state.gameHeight).map { y =>
-      val row = (0 until state.gameWidth).map { x =>
-        if (x == state.playerX && y == state.playerY) {
-          "🧙"
-        } else if (state.enemies.exists(e => e.x == x && e.y == y)) {
-          "👹"
-        } else if (state.items.contains((x, y))) {
-          "💎"
-        } else {
-          "⬜"
+      val row = (0 until state.gameWidth)
+        .map { x =>
+          if (x == state.playerX && y == state.playerY) {
+            "🧙"
+          } else if (state.enemies.exists(e => e.x == x && e.y == y)) {
+            "👹"
+          } else if (state.items.contains((x, y))) {
+            "💎"
+          } else {
+            "⬜"
+          }
         }
-      }.mkString(" ")
+        .mkString(" ")
       Text(row)
     }
-    
+
     val stats = layout(
       s"Score: ${state.score}",
       s"Lives: ${"💖" * state.lives}",
       s"Level: ${state.level}",
       s"Gems left: ${state.items.size}"
     )
-    
+
     val gameOverSection = if (state.gameOver) {
       section("💀 Game Over")(
         layout(
@@ -236,8 +242,7 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
         ul(
           "🧙 You | 👹 Enemy | 💎 Gems",
           "WASD or Arrow Keys - Move",
-          "R - Restart game",
-          "Collect all gems to advance! Don't get caught!"
+          "R - Restart game"
         )
       )
     )
