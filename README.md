@@ -37,7 +37,7 @@ import layoutz._
 ## Quickstart
 There are two usage paths with this little package:
 
-1. Use **Layoutz** to simply render strings (in your logs, apps, etc):
+**Static rendering** - Beautiful + compositional strings for logs, reports, dashboards
 ```scala
 import layoutz._
 
@@ -78,7 +78,8 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-2. Extend the `LayoutzApp` trait which has a runtime and basic keyboard handling building blocks to snap together TUI's:
+
+**Interactive apps** - Build Elm -style TUI apps w/ keyboard handling
 
 ```scala
 import layoutz._
