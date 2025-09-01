@@ -369,7 +369,6 @@ Third line"""
   }
 
   test("LayoutzApp trait basic functionality") {
-    // Simple counter app implementation for testing
     object TestCounterApp extends LayoutzApp[Int, String] {
       def init: Int = 0
       def update(msg: String, state: Int): Int = msg match {
@@ -1162,9 +1161,9 @@ Longer line 2
     val parser = DefaultKeyParser
     val mockTerminal = new MockTerminal()
 
-    // Test the exact keys the counter app uses
-    assertEquals(parser.parseKey(43, mockTerminal), CharKey('+')) // Plus key
-    assertEquals(parser.parseKey(45, mockTerminal), CharKey('-')) // Minus key
+    // Keys coutner app uses
+    assertEquals(parser.parseKey(43, mockTerminal), CharKey('+'))
+    assertEquals(parser.parseKey(45, mockTerminal), CharKey('-'))
 
     // Verify they match what the counter app expects
     val plusResult = parser.parseKey(43, mockTerminal)
@@ -1181,7 +1180,6 @@ Longer line 2
   }
 
   test("counter app simulation") {
-    // Simulate exactly what the counter app does
     case class CounterState(count: Int)
     sealed trait CounterMsg
     case object Inc extends CounterMsg

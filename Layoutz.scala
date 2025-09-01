@@ -479,7 +479,6 @@ package object layoutz {
       style: Border = Border.Single
   ) extends Element {
     def render: String = {
-      // Render all elements to get their line structures
       val headerLines = headers.map(_.render.split('\n'))
       val rowLines = rows.map(_.map(_.render.split('\n')))
       val allRowLines = headerLines +: rowLines
@@ -487,7 +486,6 @@ package object layoutz {
       val columnWidths = calculateColumnWidths(allRowLines)
       val borders = TableBorders(columnWidths, style)
 
-      // Build header row(s)
       val headerRowHeight = headerLines.map(_.length).max
       val headerRows = buildMultilineTableRows(
         headerLines,
@@ -496,7 +494,6 @@ package object layoutz {
         style
       )
 
-      // Build data rows
       val dataRows = rowLines.flatMap { row =>
         val rowHeight = row.map(_.length).max
         buildMultilineTableRows(row, columnWidths, rowHeight, style)
@@ -734,7 +731,7 @@ package object layoutz {
     }
   }
 
-  /** Simple horizontal bar chart */
+  /** Horizontal bar chart */
   final case class Chart(
       data: Seq[(Element, Double)],
       maxWidth: Int = Dimensions.DefaultChartWidth
@@ -747,7 +744,8 @@ package object layoutz {
 
       data
         .map { case (labelElement, value) =>
-          // Flatten multiline labels to single line for chart display
+          // Flattens multiline labels to single line for chart display
+          // TODO: Space this better
           val label = flattenToSingleLine(labelElement)
           val barLength = (value * scale).toInt
           val bar = "█" * barLength
@@ -1029,7 +1027,6 @@ package object layoutz {
       /* Calculaute layout max width for auto-centering */
       val layoutWidth = calculateLayoutWidth(elements)
 
-      /* Resolve auto-centred eneements and render */
       val resolvedElements = elements.map {
         case AutoCentered(element) => Centered(element, layoutWidth)
         case other                 => other
@@ -1422,7 +1419,7 @@ package object layoutz {
   implicit def stringSeqToElementSeq(strings: Seq[String]): Seq[Element] =
     strings.map(Text(_))
 
-  /** APP FRAMEWORK
+  /** APP RUNTIME
     */
   sealed trait Key
   final case class CharKey(c: Char) extends Key
@@ -1499,7 +1496,6 @@ package object layoutz {
     def writeLine(text: String): Unit = terminal.writer().println(text)
     def flush(): Unit = terminal.writer().flush()
     def readInput(): Int = {
-      // Blocking read - this is what the original runtime did
       reader.read()
     }
     def readInputNonBlocking(): Option[Int] = {
@@ -1511,7 +1507,7 @@ package object layoutz {
     }
     def close(): Unit = scala.util.Try(terminal.close())
 
-    // Expose the JLine reader directly for multi-byte sequences
+    // TODO: Stop exposing JLine reader directly for multi-byte sequences
     def getReader(): org.jline.utils.NonBlockingReader = reader
   }
 
@@ -1545,10 +1541,9 @@ package object layoutz {
       case 27 => // ESC - check for arrow keys
         terminal match {
           case jline: JLineTerminal =>
-            // Use the JLine reader directly for reliable sequence parsing
+            // TODO: don't use jline directly
             parseEscapeSequence(jline.getReader())
           case _ =>
-            // Fallback for other terminal types
             parseEscapeSequenceGeneric(terminal)
         }
       case 9                        => TabKey
@@ -1562,7 +1557,8 @@ package object layoutz {
         reader: org.jline.utils.NonBlockingReader
     ): Key = {
       try {
-        Thread.sleep(5) // Brief pause for sequence to arrive
+        // TODO: Better way to pause waiting for complete sequence to arrive
+        Thread.sleep(5)
         val next1 = reader.read()
         if (next1 == 91) { // '[' character
           val next2 = reader.read()
