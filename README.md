@@ -376,18 +376,7 @@ spinner("Processing", frame = 0, SpinnerStyle.Line)
 ```
 Styles: `Dots` (default), `Line`, `Clock`, `Bounce`
 
-### Diff block: `diffBlock`
-```scala
-diffBlock(
-  added = Seq("new feature"),
-  removed = Seq("old code")
-)
-```
-```
-Changes:
-- old code
-+ new feature
-```
+
 
 ### Tree: `tree`/`branch`/`leaf`
 ```scala
@@ -650,7 +639,7 @@ graph TD
     H --> I["Display Updated UI"]
     I --> A
     
-    J["Auto Ticks<br/>ProgressTickKey<br/>SpinnerTickKey"] --> D
+    J["Auto Ticks<br/>Tick"] --> D
     
     style A fill:#e1f5fe
     style F fill:#f3e5f5
@@ -682,7 +671,7 @@ case class SpecialKey(name: String)
 
 Auto-generated at 100ms intervals so you can refresh your animations:
 ```scala
-case object ProgressTickKey, SpinnerTickKey
+case object Tick
 ```
 
 ### Input Patterns
@@ -751,8 +740,7 @@ sealed trait TaskMessage
 case object MoveUp extends TaskMessage
 case object MoveDown extends TaskMessage
 case object StartTask extends TaskMessage
-case object ProgressTick extends TaskMessage
-case object SpinnerTick extends TaskMessage
+case object UpdateTick extends TaskMessage
 
 object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
   def init = TaskState(
@@ -783,11 +771,11 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
         startTime = System.currentTimeMillis()
       )
 
-    case ProgressTick if state.isLoading =>
+    case UpdateTick if state.isLoading =>
       val elapsed = System.currentTimeMillis() - state.startTime
       val newProgress = math.min(1.0, elapsed / 3000.0)
 
-      if (newProgress >= 1.0) {
+      val newState = if (newProgress >= 1.0) {
         state.copy(
           isLoading = false,
           completed = state.completed + state.selected,
@@ -796,8 +784,11 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
       } else {
         state.copy(progress = newProgress)
       }
+      
+      // Also update spinner frame
+      newState.copy(spinnerFrame = newState.spinnerFrame + 1)
 
-    case SpinnerTick => state.copy(spinnerFrame = state.spinnerFrame + 1)
+    case UpdateTick => state.copy(spinnerFrame = state.spinnerFrame + 1)
     case _           => state
   }
 
@@ -805,8 +796,7 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
     case CharKey('w') | ArrowUpKey   => Some(MoveUp)
     case CharKey('s') | ArrowDownKey => Some(MoveDown)
     case CharKey(' ') | EnterKey     => Some(StartTask)
-    case ProgressTickKey             => Some(ProgressTick)
-    case SpinnerTickKey              => Some(SpinnerTick)
+    case Tick                        => Some(UpdateTick)
     case _                           => None
   }
 

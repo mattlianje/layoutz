@@ -86,25 +86,6 @@ status: active"""
     assertEquals(result.render, expected)
   }
 
-  test("diff block with additions and removals") {
-    val diffElement = diffBlock(
-      added = Seq("created_at", "email"),
-      removed = Seq("legacy_id")
-    )
-
-    val expected = """Changes:
-- legacy_id
-+ created_at
-+ email"""
-
-    assertEquals(diffElement.render, expected)
-  }
-
-  test("diff block with no changes") {
-    val diffElement = diffBlock()
-    assertEquals(diffElement.render, "No changes")
-  }
-
   test("box container") {
     val boxElement = box("Pipeline Summary") {
       kv("Steps" -> "5", "Failures" -> "1", "Time" -> "6m 32s")
@@ -1075,6 +1056,288 @@ Longer line 2
     val rendered = coloredMargin.render
     assert(rendered.contains("\u001b[31m"))
     assert(rendered.contains("Short message"))
+  }
+
+  // RUNTIME TESTS
+
+  /** Mock terminal for testing */
+  class MockTerminal extends Terminal {
+    val outputs = collection.mutable.ArrayBuffer[String]()
+    var inputQueue = collection.mutable.ArrayBuffer[Int]()
+    var rawMode = false
+    var cursorHidden = false
+
+    def enterRawMode(): Unit = rawMode = true
+    def exitRawMode(): Unit = rawMode = false
+    def clearScreen(): Unit = outputs += "[CLEAR]"
+    def hideCursor(): Unit = cursorHidden = true
+    def showCursor(): Unit = cursorHidden = false
+    def write(text: String): Unit = outputs += text
+    def writeLine(text: String): Unit = outputs += text + "\n"
+    def flush(): Unit = outputs += "[FLUSH]"
+
+    def readInput(): Int = {
+      if (inputQueue.nonEmpty) inputQueue.remove(0)
+      else throw new RuntimeException("No input available")
+    }
+
+    def readInputNonBlocking(): Option[Int] = {
+      if (inputQueue.nonEmpty) Some(inputQueue.remove(0))
+      else None
+    }
+
+    def close(): Unit = outputs += "[CLOSED]"
+
+    // Test helpers
+    def queueInput(chars: String): Unit = {
+      inputQueue ++= chars.map(_.toInt)
+    }
+
+    def queueInput(code: Int): Unit = {
+      inputQueue += code
+    }
+
+    def getOutput: String = outputs.mkString("")
+    def clearOutput(): Unit = outputs.clear()
+  }
+
+  test("runtime configuration") {
+    val defaultConfig = RuntimeConfig()
+    assertEquals(defaultConfig.tickIntervalMs, 100L)
+    assertEquals(defaultConfig.renderIntervalMs, 50L)
+    assertEquals(defaultConfig.quitKey, 17)
+    assertEquals(defaultConfig.showQuitMessage, true)
+
+    val customConfig = RuntimeConfig(
+      tickIntervalMs = 200,
+      renderIntervalMs = 30,
+      quitKey = 27,
+      showQuitMessage = false
+    )
+    assertEquals(customConfig.tickIntervalMs, 200L)
+    assertEquals(customConfig.quitKey, 27)
+    assertEquals(customConfig.showQuitMessage, false)
+  }
+
+  test("key parsing") {
+    val parser = DefaultKeyParser
+    val mockTerminal = new MockTerminal()
+
+    // Test regular characters - these should definitely work
+    assertEquals(parser.parseKey(65, mockTerminal), CharKey('A'))
+    assertEquals(parser.parseKey(97, mockTerminal), CharKey('a'))
+    assertEquals(
+      parser.parseKey(43, mockTerminal),
+      CharKey('+')
+    ) // Plus sign - ASCII 43
+    assertEquals(
+      parser.parseKey(45, mockTerminal),
+      CharKey('-')
+    ) // Minus sign - ASCII 45
+
+    // Test special keys
+    assertEquals(parser.parseKey(10, mockTerminal), EnterKey)
+    assertEquals(parser.parseKey(13, mockTerminal), EnterKey)
+    assertEquals(parser.parseKey(9, mockTerminal), TabKey)
+    assertEquals(parser.parseKey(127, mockTerminal), BackspaceKey)
+
+    // Test control characters
+    assertEquals(parser.parseKey(1, mockTerminal), SpecialKey("Ctrl+A"))
+
+    // Test arrow keys with mock terminal (fallback path)
+    mockTerminal.queueInput("[A") // ESC sequence for up arrow
+    assertEquals(parser.parseKey(27, mockTerminal), ArrowUpKey)
+
+    mockTerminal.queueInput("[B") // ESC sequence for down arrow
+    assertEquals(parser.parseKey(27, mockTerminal), ArrowDownKey)
+
+    mockTerminal.queueInput("[C") // ESC sequence for right arrow
+    assertEquals(parser.parseKey(27, mockTerminal), ArrowRightKey)
+
+    mockTerminal.queueInput("[D") // ESC sequence for left arrow
+    assertEquals(parser.parseKey(27, mockTerminal), ArrowLeftKey)
+  }
+
+  test("counter app keys work") {
+    val parser = DefaultKeyParser
+    val mockTerminal = new MockTerminal()
+
+    // Test the exact keys the counter app uses
+    assertEquals(parser.parseKey(43, mockTerminal), CharKey('+')) // Plus key
+    assertEquals(parser.parseKey(45, mockTerminal), CharKey('-')) // Minus key
+
+    // Verify they match what the counter app expects
+    val plusResult = parser.parseKey(43, mockTerminal)
+    val minusResult = parser.parseKey(45, mockTerminal)
+
+    assert(
+      plusResult == CharKey('+'),
+      s"Expected CharKey('+'), got $plusResult"
+    )
+    assert(
+      minusResult == CharKey('-'),
+      s"Expected CharKey('-'), got $minusResult"
+    )
+  }
+
+  test("counter app simulation") {
+    // Simulate exactly what the counter app does
+    case class CounterState(count: Int)
+    sealed trait CounterMsg
+    case object Inc extends CounterMsg
+    case object Dec extends CounterMsg
+
+    def onKey(k: Key): Option[CounterMsg] = k match {
+      case CharKey('+') => Some(Inc)
+      case CharKey('-') => Some(Dec)
+      case _            => None
+    }
+
+    val parser = DefaultKeyParser
+    val mockTerminal = new MockTerminal()
+
+    // Test that pressing + gives increment message
+    val plusKey = parser.parseKey(43, mockTerminal) // ASCII 43 = '+'
+    val plusMsg = onKey(plusKey)
+    assertEquals(plusMsg, Some(Inc))
+
+    // Test that pressing - gives decrement message
+    val minusKey = parser.parseKey(45, mockTerminal) // ASCII 45 = '-'
+    val minusMsg = onKey(minusKey)
+    assertEquals(minusMsg, Some(Dec))
+  }
+
+  test("mock terminal functionality") {
+    val terminal = new MockTerminal()
+
+    terminal.clearScreen()
+    terminal.write("hello")
+    terminal.writeLine("world")
+    terminal.flush()
+
+    val output = terminal.getOutput
+    assert(output.contains("[CLEAR]"))
+    assert(output.contains("hello"))
+    assert(output.contains("world"))
+    assert(output.contains("[FLUSH]"))
+
+    terminal.queueInput("abc")
+    assertEquals(terminal.readInput(), 'a'.toInt)
+    assertEquals(terminal.readInputNonBlocking(), Some('b'.toInt))
+    assertEquals(terminal.readInput(), 'c'.toInt)
+    assertEquals(terminal.readInputNonBlocking(), None)
+  }
+
+  test("layoutz app basic functionality") {
+    case class TestState(value: Int = 0, message: String = "initial")
+    sealed trait TestMessage
+    case object Increment extends TestMessage
+    case object Decrement extends TestMessage
+    case class SetMessage(msg: String) extends TestMessage
+
+    class TestApp extends LayoutzApp[TestState, TestMessage] {
+      def init: TestState = TestState()
+
+      def update(msg: TestMessage, state: TestState): TestState = msg match {
+        case Increment     => state.copy(value = state.value + 1)
+        case Decrement     => state.copy(value = state.value - 1)
+        case SetMessage(m) => state.copy(message = m)
+      }
+
+      def onKey(key: Key): Option[TestMessage] = key match {
+        case CharKey('+') => Some(Increment)
+        case CharKey('-') => Some(Decrement)
+        case CharKey('h') => Some(SetMessage("hello"))
+        case _            => None
+      }
+
+      def view(state: TestState): Element = layout(
+        s"Value: ${state.value}",
+        s"Message: ${state.message}"
+      )
+    }
+
+    val app = new TestApp()
+
+    // Test initialization
+    val initialState = app.init
+    assertEquals(initialState.value, 0)
+    assertEquals(initialState.message, "initial")
+
+    // Test update
+    val incrementedState = app.update(Increment, initialState)
+    assertEquals(incrementedState.value, 1)
+
+    val decrementedState = app.update(Decrement, incrementedState)
+    assertEquals(decrementedState.value, 0)
+
+    // Test key handling
+    assertEquals(app.onKey(CharKey('+')), Some(Increment))
+    assertEquals(app.onKey(CharKey('-')), Some(Decrement))
+    assertEquals(app.onKey(CharKey('x')), None)
+
+    // Test view rendering
+    val view = app.view(initialState)
+    val rendered = view.render
+    assert(rendered.contains("Value: 0"))
+    assert(rendered.contains("Message: initial"))
+  }
+
+  test("jline terminal creation") {
+    JLineTerminal.create() match {
+      case Right(_)    =>
+      case Left(error) => assert(error.isInstanceOf[TerminalError])
+    }
+  }
+
+  test("runtime integration") {
+    case class CounterState(count: Int = 0)
+    sealed trait CounterMsg
+    case object Increment extends CounterMsg
+    case object Decrement extends CounterMsg
+
+    object TestCounter extends LayoutzApp[CounterState, CounterMsg] {
+      def init: CounterState = CounterState()
+      def update(msg: CounterMsg, state: CounterState): CounterState =
+        msg match {
+          case Increment => state.copy(count = state.count + 1)
+          case Decrement => state.copy(count = state.count - 1)
+        }
+      def onKey(k: Key): Option[CounterMsg] = k match {
+        case CharKey('+') => Some(Increment)
+        case CharKey('-') => Some(Decrement)
+        case _            => None
+      }
+      def view(state: CounterState): Element = layout(s"Count: ${state.count}")
+    }
+
+    val mockTerminal = new MockTerminal()
+    mockTerminal.queueInput("++-")
+    mockTerminal.queueInput(17)
+
+    val parser = DefaultKeyParser
+    assertEquals(parser.parseKey(43, mockTerminal), CharKey('+'))
+    assertEquals(parser.parseKey(45, mockTerminal), CharKey('-'))
+
+    val app = TestCounter
+    assertEquals(app.onKey(CharKey('+')), Some(Increment))
+    assertEquals(app.onKey(CharKey('-')), Some(Decrement))
+
+    val initialState = app.init
+    val afterIncrement = app.update(Increment, initialState)
+    assertEquals(afterIncrement.count, 1)
+
+    val config = RuntimeConfig(tickIntervalMs = 50, renderIntervalMs = 10)
+
+    try {
+      val runtimeResult = LayoutzRuntime.run(app, config, mockTerminal)
+      runtimeResult match {
+        case Right(_)    => assert(true)
+        case Left(error) => assert(error.isInstanceOf[RuntimeError])
+      }
+    } catch {
+      case ex: Exception => fail(s"Runtime error: ${ex.getMessage}")
+    }
   }
 
 }
