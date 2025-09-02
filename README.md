@@ -16,8 +16,8 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
 
 <p align="center">
-  <img src="pix/layoutzapp-demo.gif" height="400">
-  <img src="pix/game-demo.gif" height="400">
+  <img src="pix/layoutzapp-demo.gif" height="400" style="display: inline-block; margin-right: 10px;">
+  <img src="pix/game-demo.gif" height="400" style="display: inline-block;">
   <br>
   <sub><a href="examples/NavLoadApp.scala">interactive demo</a> • <a href="examples/SimpleGame.scala">breakout game</a></sub>
 </p>
