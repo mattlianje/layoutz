@@ -43,7 +43,6 @@ import layoutz._
 
 val demo = layout(
   center(underline("ˆ")("Test Dashboard")),
-  br,
   row(
     statusCard(Border.Double)("API", "LIVE"),
     statusCard("DB", "99.9%"),
@@ -60,8 +59,6 @@ val demo = layout(
 ```
             Test Dashboard
             ˆˆˆˆˆˆˆˆˆˆˆˆˆˆ
-
-
 ╔════════╗ ┌─────────┐ ┏━━━━━━━━━┓
 ║ API    ║ │ DB      │ ┃ Cache   ┃
 ║ LIVE   ║ │ 99.9%   │ ┃ READY   ┃
