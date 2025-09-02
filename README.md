@@ -19,7 +19,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
   <img src="pix/layoutzapp-demo.gif" height="400">
   <img src="pix/game-demo.gif" height="400">
   <br>
-  <sub><a href="examples/NavLoadApp.scala">interactive demo</a> • <a href="examples/BreakoutGame.scala">breakout game</a></sub>
+  <sub><a href="examples/NavLoadApp.scala">interactive demo</a> • <a href="examples/SimpleGame.scala">breakout game</a></sub>
 </p>
 
 ## Installation
