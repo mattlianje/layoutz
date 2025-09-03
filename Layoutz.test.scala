@@ -196,13 +196,12 @@ Another line"""
   }
 
   test("tree structure") {
-    val treeElement = tree("Project Structure") {
-      branch(
-        "src",
-        branch("main", leaf("Main.scala"), leaf("Utils.scala")),
-        branch("test", leaf("MainSpec.scala"), leaf("UtilsSpec.scala"))
+    val treeElement = tree("Project Structure")(
+      tree("src")(
+        tree("main")(tree("Main.scala"), tree("Utils.scala")),
+        tree("test")(tree("MainSpec.scala"), tree("UtilsSpec.scala"))
       )
-    }
+    )
 
     val expected = """Project Structure
 └── src/
@@ -217,9 +216,9 @@ Another line"""
   }
 
   test("simple tree with just leaves") {
-    val simpleTree = tree("Files") {
-      branch("docs", leaf("README.md"), leaf("CHANGELOG.md"))
-    }
+    val simpleTree = tree("Files")(
+      tree("docs")(tree("README.md"), tree("CHANGELOG.md"))
+    )
 
     val expected = """Files
 └── docs/
@@ -227,6 +226,32 @@ Another line"""
     └── CHANGELOG.md"""
 
     assertEquals(simpleTree.render, expected)
+  }
+
+  test("consistent tree syntax") {
+    val projectTree = tree("Project")(
+      tree("src")(
+        tree("main")(tree("App.scala")),
+        tree("test")(tree("AppSpec.scala"))
+      )
+    )
+
+    val expected = """Project
+└── src/
+    ├── main/
+    │   └── App.scala
+    └── test/
+        └── AppSpec.scala"""
+
+    assertEquals(projectTree.render, expected)
+  }
+
+  test("tree leaf without parentheses") {
+    val leaf = tree("simple-file.txt")
+
+    val expected = "simple-file.txt"
+
+    assertEquals(leaf.render, expected)
   }
 
   test("empty elements") {

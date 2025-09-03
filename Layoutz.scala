@@ -55,22 +55,45 @@ package object layoutz {
   sealed trait Element {
     def render: String
     final def width: Int = {
-      val lines = render.split('\n')
-      if (lines.isEmpty) 0 else lines.map(stripAnsiCodes(_).length).max
+      val rendered = render
+      if (rendered.isEmpty) return 0
+
+      var maxWidth = 0
+      var start = 0
+      var i = 0
+      while (i <= rendered.length) {
+        if (i == rendered.length || rendered.charAt(i) == '\n') {
+          if (i > start) {
+            val lineWidth = stripAnsiCodes(rendered.substring(start, i)).length
+            if (lineWidth > maxWidth) maxWidth = lineWidth
+          }
+          start = i + 1
+        }
+        i += 1
+      }
+      maxWidth
     }
+
     final def height: Int = {
       val rendered = render
-      if (rendered.isEmpty) 0
-      else {
-        val lines = rendered.split("\n", -1)
-        math.max(1, lines.length)
+      if (rendered.isEmpty) return 1
+
+      var lines = 1
+      var i = 0
+      while (i < rendered.length) {
+        if (rendered.charAt(i) == '\n') lines += 1
+        i += 1
       }
+      lines
     }
   }
 
+  /** Pre-compiled regex for ANSI escape sequences (performance optimization) */
+  private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
+
   /** Strip ANSI escape sequences to get visual width */
   private def stripAnsiCodes(text: String): String = {
-    text.replaceAll("\u001b\\[[0-9;]*m", "")
+    AnsiEscapeRegex.replaceAllIn(text, "")
   }
 
   /** Flatten multiline elements to single line for components that need
@@ -745,14 +768,14 @@ package object layoutz {
       data
         .map { case (labelElement, value) =>
           // Flattens multiline labels to single line for chart display
-          // TODO: Space this better
           val label = flattenToSingleLine(labelElement)
           val barLength = (value * scale).toInt
           val bar = "█" * barLength
-          val visibleLabelLength = stripAnsiCodes(label).length
+          val strippedLabel = stripAnsiCodes(label)
+          val visibleLabelLength = strippedLabel.length
           val truncatedLabel =
             if (visibleLabelLength <= Dimensions.ChartLabelMaxWidth) label
-            else stripAnsiCodes(label).take(Dimensions.ChartLabelMaxWidth)
+            else strippedLabel.take(Dimensions.ChartLabelMaxWidth)
           val padding = " " * (Dimensions.ChartLabelSpacing - math.min(
             visibleLabelLength,
             Dimensions.ChartLabelMaxWidth
@@ -884,50 +907,6 @@ package object layoutz {
       (topBorder +: paddedContent :+ bottomBorder).mkString("\n")
     }
 
-    private case class BoxDimensions(totalWidth: Int, contentPadding: Int)
-
-    private object BoxDimensions {
-      def calculate(
-          title: String,
-          contentLines: Array[String]
-      ): BoxDimensions = {
-        val contentWidth =
-          if (contentLines.isEmpty) 0 else contentLines.map(_.length).max
-        val minContentWidth =
-          math.max(contentWidth, title.length + Dimensions.MinContentPadding)
-        val totalContentPadding = Dimensions.SidePadding * 2
-        val totalWidth = math.max(
-          title.length + totalContentPadding + Dimensions.BorderThickness,
-          minContentWidth + totalContentPadding
-        )
-        val contentPadding = totalWidth - totalContentPadding
-        BoxDimensions(totalWidth, contentPadding)
-      }
-    }
-
-    private case class BoxBorders(top: String, bottom: String)
-
-    private object BoxBorders {
-      def apply(title: String, dimensions: BoxDimensions): BoxBorders = {
-        val dashesNeeded =
-          dimensions.totalWidth - title.length - Dimensions.BorderThickness
-        val leftDashes = dashesNeeded / 2
-        val rightDashes = dashesNeeded - leftDashes
-
-        BoxBorders(
-          top =
-            s"${Glyphs.TopLeft}${Glyphs.Horizontal * leftDashes}$title${Glyphs.Horizontal * rightDashes}${Glyphs.TopRight}",
-          bottom =
-            Glyphs.BottomLeft + Glyphs.Horizontal * (dimensions.totalWidth - Dimensions.BorderThickness) + Glyphs.BottomRight
-        )
-      }
-    }
-
-    private def formatBoxContent(
-        line: String,
-        dimensions: BoxDimensions
-    ): String =
-      s"${Glyphs.Vertical} ${line.padTo(dimensions.contentPadding, Glyphs.Space.head)} ${Glyphs.Vertical}"
   }
 
   /** Section with title header */
@@ -980,21 +959,37 @@ package object layoutz {
 
   final case class TreeBranch(name: String, children: Seq[TreeNode])
       extends TreeNode {
-    def render: String = TreeRenderer.render(this, "", isLast = true)
+    def render: String = TreeRenderer.renderRoot(this)
+    def renderAsChild(prefix: String, isLast: Boolean): String =
+      TreeRenderer.render(this, prefix, isLast)
   }
 
   final case class TreeLeaf(name: String) extends TreeNode {
     def render: String = name
   }
 
-  final case class Tree(title: String, root: TreeNode) extends Element {
-    def render: String = s"$title\n${root.render}"
-  }
-
   private object TreeRenderer {
+    def renderRoot(node: TreeBranch): String = {
+      val rootLine = node.name
+      if (node.children.isEmpty) {
+        rootLine
+      } else {
+        val childLines = node.children.zipWithIndex.map { case (child, index) =>
+          val isLastChild = index == node.children.length - 1
+          render(child, "", isLastChild)
+        }
+        (rootLine +: childLines).mkString("\n")
+      }
+    }
+
     def render(node: TreeNode, prefix: String, isLast: Boolean): String = {
       node match {
         case TreeLeaf(name) =>
+          val connector =
+            if (isLast) Glyphs.TreeLastBranch else Glyphs.TreeBranch
+          s"$prefix$connector $name"
+
+        case TreeBuilder(name) =>
           val connector =
             if (isLast) Glyphs.TreeLastBranch else Glyphs.TreeBranch
           s"$prefix$connector $name"
@@ -1224,37 +1219,22 @@ package object layoutz {
     */
   def row(elements: Element*): Row = Row(elements)
 
-  /** Create a tree visualization with title.
-    *
-    * @param title
-    *   the title to display above the tree
-    * @param root
-    *   the root TreeNode of the tree structure
-    * @return
-    *   a Tree with title and hierarchical structure
-    */
-  def tree(title: String)(root: TreeNode): Tree = Tree(title, root)
+  /** Tree builder that can act as both leaf and branch creator */
+  case class TreeBuilder(name: String) extends TreeNode {
+    def apply(children: TreeNode*): TreeBranch = TreeBranch(name, children)
+    def render: String = name // Renders as just the name when used as a leaf
+  }
 
-  /** Create a tree branch node.
+  /** Create a tree node.
+    *   - tree("name") creates a leaf
+    *   - tree("name")(children...) creates a branch
     *
     * @param name
-    *   the name of this branch
-    * @param children
-    *   the child nodes under this branch
+    *   the name of this tree node
     * @return
-    *   a TreeBranch with child nodes
+    *   a TreeBuilder that acts as leaf or can create branches
     */
-  def branch(name: String, children: TreeNode*): TreeBranch =
-    TreeBranch(name, children)
-
-  /** Create a tree leaf node.
-    *
-    * @param name
-    *   the name of this leaf
-    * @return
-    *   a TreeLeaf with no children
-    */
-  def leaf(name: String): TreeLeaf = TreeLeaf(name)
+  def tree(name: String): TreeBuilder = TreeBuilder(name)
 
   /** SPACING & LAYOUT
     */

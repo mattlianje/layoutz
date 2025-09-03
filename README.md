@@ -378,12 +378,12 @@ Styles: `Dots` (default), `Line`, `Clock`, `Bounce`
 
 
 
-### Tree: `tree`/`branch`/`leaf`
+### Tree: `tree`
 ```scala
 tree("Project")(
-  branch("src",
-    branch("main", leaf("App.scala")),
-    branch("test", leaf("AppSpec.scala"))
+  tree("src")(
+    tree("main")(tree("App.scala")),
+    tree("test")(tree("AppSpec.scala"))
   )
 )
 ```
