@@ -88,7 +88,6 @@ package object layoutz {
     }
   }
 
-  /** Pre-compiled regex for ANSI escape sequences (performance optimization) */
   private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
 
   /** Strip ANSI escape sequences to get visual width */
