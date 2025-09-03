@@ -138,7 +138,7 @@ package object layoutz {
 
       if (maxWidth == 0) return content
 
-      // Create underline, truncating if underlineChar pattern is too long
+      // Underlines, but truncates if unerline pattern is too long
       val underlinePattern = underlineChar
       val underline = if (underlinePattern.length >= maxWidth) {
         underlinePattern.take(maxWidth)
