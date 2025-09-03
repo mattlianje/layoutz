@@ -41,7 +41,7 @@ object Demo {
             )
           ),
           tree("📁 Project")(
-            branch("src", leaf("main.scala"), leaf("api.scala"))
+            tree("src", tree("main.scala"), tree("api.scala"))
           )
         )
       )
