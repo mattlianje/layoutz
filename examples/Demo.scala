@@ -19,7 +19,7 @@ object ReadmeDemo {
 
   /* Combine them */
   val demo = layout(
-    center(row("layoutz", underline("ˆ")("DEMO"))),
+    center(row("Layoutz", underline("ˆ")("DEMO"))),
     row(
       statusCard(Border.Thick)("API", "UP"),
       statusCard("Users", "1.2K"),
