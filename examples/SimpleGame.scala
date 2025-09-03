@@ -124,7 +124,6 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
   private def updateGameTick(state: GameState): GameState = {
     val newTick = state.tickCount + 1
 
-    // Move enemies every 4th tick (slower movement)
     val newEnemies = if (newTick % 4 == 0) {
       state.enemies.map(moveEnemy(_, state))
     } else {
