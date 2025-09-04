@@ -39,7 +39,13 @@ import layoutz._
 ## Quickstart
 There are two usage paths with this little package:
 
-**Static rendering** - Beautiful + compositional strings for logs, reports, dashboards
+<table>
+<tr>
+<td width="50%" valign="top">
+  
+**📊 Static rendering**
+
+Beautiful + compositional strings for logs, reports, dashboards
 ```scala
 import layoutz._
 
@@ -77,8 +83,11 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
+</td>
+<td width="50%" valign="top">
 
-**Interactive apps** - Build Elm -style TUI apps w/ keyboard handling
+**⚡ Interactive apps**
+Build Elm -style TUI apps w/ keyboard handling
 
 ```scala
 import layoutz._
@@ -108,8 +117,11 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run() /* call .run to start your app */
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="600">
+  <img src="pix/counter-demo.gif" width="400">
 </p>
+</td>
+</tr>
+</table>
 
 ## Motivation
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
