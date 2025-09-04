@@ -501,8 +501,13 @@ package object layoutz {
       style: Border = Border.Single
   ) extends Element {
     def render: String = {
+      val expectedColumnCount = headers.length
+
+      // Normalize rows to have consistent column count
+      val normalizedRows = rows.map(normalizeRowLength(_, expectedColumnCount))
+
       val headerLines = headers.map(_.render.split('\n'))
-      val rowLines = rows.map(_.map(_.render.split('\n')))
+      val rowLines = normalizedRows.map(_.map(_.render.split('\n')))
       val allRowLines = headerLines +: rowLines
 
       val columnWidths = calculateColumnWidths(allRowLines)
@@ -524,6 +529,25 @@ package object layoutz {
       (Seq(borders.top) ++ headerRows ++ Seq(
         borders.separator
       ) ++ dataRows :+ borders.bottom).mkString("\n")
+    }
+
+    /** Normalize row length to match expected column count. Truncates if too
+      * long, pads with empty strings if too short.
+      */
+    private def normalizeRowLength(
+        row: Seq[Element],
+        expectedColumnCount: Int
+    ): Seq[Element] = {
+      if (row.length == expectedColumnCount) {
+        row
+      } else if (row.length > expectedColumnCount) {
+        // Truncate if too long
+        row.take(expectedColumnCount)
+      } else {
+        // Pad with empty strings if too short
+        val paddingNeeded = expectedColumnCount - row.length
+        row ++ Seq.fill(paddingNeeded)(Text(""))
+      }
     }
 
     private def calculateColumnWidths(

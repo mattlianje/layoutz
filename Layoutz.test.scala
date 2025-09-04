@@ -48,6 +48,34 @@ status: active"""
     assertEquals(tableElement.render, expected)
   }
 
+  test("table row normalization") {
+    val mixedTable = table(
+      headers = Seq("Name", "Age", "City"),
+      rows = Seq(
+        Seq("Alice", "30", "New York"),
+        Seq("Bob", "25"),
+        Seq("Charlie", "35", "London", "Extra"),
+        Seq("Diana"),
+        Seq()
+      )
+    )
+
+    val rendered = mixedTable.render
+    val lines = rendered.split('\n')
+    val dataRows = lines
+      .drop(2)
+      .dropRight(1)
+      .filter(line => line.contains("│") && !line.contains("─"))
+
+    dataRows.foreach { row =>
+      assertEquals(row.count(_ == '│'), 4)
+    }
+
+    assert(rendered.contains("Alice") && rendered.contains("Bob"))
+    assert(rendered.contains("Charlie") && rendered.contains("Diana"))
+    assert(!rendered.contains("Extra"))
+  }
+
   test("bullet points") {
     val bulletElement =
       ul("Connected to database", "Loaded 28 models", "Cache warmed")
