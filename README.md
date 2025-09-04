@@ -82,7 +82,7 @@ val demo = layout(
 
 **⚡ (2/2) Interactive apps**
 
-Build Elm -style TUI's
+Build Elm-style TUI's
 
 ```scala
 import layoutz._
