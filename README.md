@@ -38,11 +38,6 @@ import layoutz._
 
 ## Quickstart
 There are two usage paths with this little package:
-
-<table>
-<tr>
-<td width="50%" valign="top" style="overflow-x: auto;">
-
   
 **📊 Static rendering**
 
@@ -51,20 +46,15 @@ Beautiful + compositional strings
 import layoutz._
 
 val demo = layout(
-  center(
-    underline("ˆ")("Test Dashboard")
-  ),
+  center(underline("ˆ")("Test Dashboard")),
   row(
-    statusCard(Border.Double)
-        ("API", "LIVE"),
+    statusCard(Border.Double)("API", "LIVE"),
     statusCard("DB", "99.9%"),
-    statusCard(Border.Thick)
-        ("Cache", "READY")
+    statusCard(Border.Thick)("Cache", "READY")
   ),
   br,
   box(Border.Round)("Services")(
-    ul("Production", "Staging",
-      ul("test-api", ul("more nest"))),
+    ul("Production", "Staging", ul("test-api", ul("more nest"))),
     br,
     inlineBar("Health", 0.94)
   )
@@ -89,8 +79,6 @@ val demo = layout(
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
-</td>
-<td width="50%" valign="top">
 
 **⚡ Interactive apps**
 
@@ -124,11 +112,8 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run() /* call .run to start your app */
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="400">
+  <img src="pix/counter-demo.gif" width="500">
 </p>
-</td>
-</tr>
-</table>
 
 ## Motivation
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
