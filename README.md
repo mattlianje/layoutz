@@ -46,7 +46,7 @@ There are two usage paths with this little package:
   
 **📊 Static rendering**
 
-Beautiful + compositional strings for logs, reports, dashboards
+Beautiful + compositional strings
 ```scala
 import layoutz._
 
@@ -90,7 +90,7 @@ val demo = layout(
 
 **⚡ Interactive apps**
 
-Build Elm -style TUI apps w/ keyboard handling
+Build Elm -style TUI's
 
 ```scala
 import layoutz._
