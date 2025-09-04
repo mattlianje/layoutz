@@ -41,7 +41,8 @@ There are two usage paths with this little package:
 
 <table>
 <tr>
-<td width="50%" valign="top">
+<td width="50%" valign="top" style="overflow-x: auto;">
+
   
 **📊 Static rendering**
 
