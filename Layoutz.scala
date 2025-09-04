@@ -88,7 +88,6 @@ package object layoutz {
     }
   }
 
-  /** Pre-compiled regex for ANSI escape sequences (performance optimization) */
   private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
 
   /** Strip ANSI escape sequences to get visual width */
@@ -138,7 +137,7 @@ package object layoutz {
 
       if (maxWidth == 0) return content
 
-      // Create underline, truncating if underlineChar pattern is too long
+      // Underlines, but truncates if unerline pattern is too long
       val underlinePattern = underlineChar
       val underline = if (underlinePattern.length >= maxWidth) {
         underlinePattern.take(maxWidth)

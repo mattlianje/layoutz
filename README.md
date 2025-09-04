@@ -18,7 +18,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
 <br>
-<sub><a href="examples/NavLoadApp.scala">interactive demo</a> • <a href="examples/SimpleGame.scala">breakout game</a></sub>
+<sub><a href="examples/NavLoadApp.scala">interactive task list</a> • <a href="examples/SimpleGame.scala">simple game</a></sub>
 </p>
 
 ## Installation
@@ -38,8 +38,10 @@ import layoutz._
 
 ## Quickstart
 There are two usage paths with this little package:
+  
+**📊 (1/2) Static rendering**
 
-**Static rendering** - Beautiful + compositional strings for logs, reports, dashboards
+Beautiful + compositional strings
 ```scala
 import layoutz._
 
@@ -78,7 +80,9 @@ val demo = layout(
 ╰───────────────────────────────────╯
 ```
 
-**Interactive apps** - Build Elm -style TUI apps w/ keyboard handling
+**⚡ (2/2) Interactive apps**
+
+Build Elm-style TUI's
 
 ```scala
 import layoutz._
@@ -108,7 +112,7 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run() /* call .run to start your app */
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="600">
+  <img src="pix/counter-demo.gif" width="500">
 </p>
 
 ## Motivation
