@@ -39,7 +39,7 @@ import layoutz._
 ## Quickstart
 There are two usage paths with this little package:
   
-**📊 Static rendering**
+**📊 (1/2) Static rendering**
 
 Beautiful + compositional strings
 ```scala
@@ -80,7 +80,7 @@ val demo = layout(
 ╰───────────────────────────────────╯
 ```
 
-**⚡ Interactive apps**
+**⚡ (2/2) Interactive apps**
 
 Build Elm -style TUI's
 
