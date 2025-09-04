@@ -51,11 +51,15 @@ Beautiful + compositional strings
 import layoutz._
 
 val demo = layout(
-  center(underline("ˆ")("Test Dashboard")),
+  center(
+    underline("ˆ")("Test Dashboard")
+  ),
   row(
-    statusCard(Border.Double)("API", "LIVE"),
+    statusCard(Border.Double)
+        ("API", "LIVE"),
     statusCard("DB", "99.9%"),
-    statusCard(Border.Thick)("Cache", "READY")
+    statusCard(Border.Thick)
+        ("Cache", "READY")
   ),
   br,
   box(Border.Round)("Services")(
