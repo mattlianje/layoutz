@@ -89,6 +89,7 @@ val demo = layout(
 <td width="50%" valign="top">
 
 **⚡ Interactive apps**
+
 Build Elm -style TUI apps w/ keyboard handling
 
 ```scala
