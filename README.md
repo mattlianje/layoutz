@@ -59,7 +59,8 @@ val demo = layout(
   ),
   br,
   box(Border.Round)("Services")(
-    ul("Production", "Staging", ul("test-api", ul("more nest"))),
+    ul("Production", "Staging",
+      ul("test-api", ul("more nest"))),
     br,
     inlineBar("Health", 0.94)
   )
