@@ -1390,5 +1390,4 @@ Longer line 2
       case ex: Exception => fail(s"Runtime error: ${ex.getMessage}")
     }
   }
-
 }
