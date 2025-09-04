@@ -195,7 +195,7 @@ package object layoutz {
               itemNumber += 1 /* Only increment for actual items */
               val content = other.render
               val lines = content.split('\n')
-              val indent = "  " * level /* 2 spaces per level */
+              val indent = "  " * level /* 2 spaces per level (TODO Maybe - custom indentors) */
 
               if (lines.length == 1) {
                 s"$indent$number. ${lines.head}"
@@ -215,7 +215,6 @@ package object layoutz {
   final case class UnorderedList(items: Seq[Element], bullet: String = "•")
       extends Element {
 
-    /* Bullet styles for different nesting levels */
     private val bulletStyles = Array("•", "◦", "▪")
 
     def render: String = renderAtLevel(0)
@@ -655,12 +654,10 @@ package object layoutz {
       val labelRendered = label.render
       val contentRendered = content.render
 
-      // Handle multiline content properly
       val labelLines = labelRendered.split('\n')
       val contentLines = contentRendered.split('\n')
       val allLines = labelLines ++ contentLines
 
-      // Find maximum visible width across all lines
       val maxTextLength =
         if (allLines.isEmpty) 0
         else allLines.map(line => stripAnsiCodes(line).length).max
@@ -674,7 +671,6 @@ package object layoutz {
       val bottomBorder =
         bottomLeft + horizontal * (contentWidth + 2) + bottomRight
 
-      // Create lines for label and content, padding each line individually
       val labelCardLines = labelLines.map { line =>
         val visibleLength = stripAnsiCodes(line).length
         val padding = contentWidth - visibleLength
