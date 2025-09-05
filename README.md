@@ -11,7 +11,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
-- Lists, trees, tables with auto-normalization, charts, progress bars, spinners...
+- Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
 - Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
 
@@ -891,4 +891,5 @@ TaskApp.run()
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
+- Go's [bubbletea](https://github.com/charmbracelet/bubbletea)
 - Countless templating libraries via osmosis ...
