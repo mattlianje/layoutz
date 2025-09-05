@@ -13,22 +13,20 @@ process_scala_version() {
   local TARGET_PATH="xyz/matthieucourt/${FULL_ARTIFACT_NAME}/${VERSION}"
   local TEMP_DIR="$BUNDLE_DIR/temp-${FULL_ARTIFACT_NAME}-${VERSION}"
   local BUNDLE_FILE="$BUNDLE_DIR/bundle-${FULL_ARTIFACT_NAME}-${VERSION}.zip"
-
+  
   echo "Processing Scala ${SCALA_VERSION}..."
-
-  # Check if bundle already exists
-  if [ -f "$BUNDLE_FILE" ]; then
-    echo "  Bundle already exists at $BUNDLE_FILE"
-    return 0
-  fi
-
+  
+  # Remove existing bundle and temp directory if they exist
+  [ -f "$BUNDLE_FILE" ] && rm "$BUNDLE_FILE"
+  [ -d "$TEMP_DIR" ] && rm -rf "$TEMP_DIR"
+  
   # Check if source directory exists
   if [ ! -d "$SOURCE_DIR" ]; then
     echo "  Warning: Source directory not found: $SOURCE_DIR"
     echo "  Skipping Scala ${SCALA_VERSION}"
     return 1
   fi
-
+  
   # Prepare directories
   mkdir -p "$TEMP_DIR/$TARGET_PATH"
   
@@ -66,6 +64,7 @@ process_scala_version() {
   cd "$TEMP_DIR"
   zip -q -r "$BUNDLE_FILE" xyz
   
+  # Clean up temp directory
   rm -rf "$TEMP_DIR"
   
   echo "  Bundle created: $BUNDLE_FILE"
@@ -78,6 +77,9 @@ main() {
   echo "Version: $VERSION"
   echo "Scala versions: ${SCALA_VERSIONS[*]}"
   echo ""
+  
+  # Ensure bundle directory exists
+  mkdir -p "$BUNDLE_DIR"
   
   local success_count=0
   local total_count=${#SCALA_VERSIONS[@]}
