@@ -891,4 +891,5 @@ TaskApp.run()
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
+- Go's [bubbletea](https://github.com/charmbracelet/bubbletea)
 - Countless templating libraries via osmosis ...
