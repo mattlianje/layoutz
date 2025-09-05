@@ -10,8 +10,8 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 ## Features
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
-- Rich text formatting: alignment, wrapping, justification, underlines
-- Lists, trees, tables, charts, progress bars, spinners...
+- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
+- Lists, trees, tables with auto-normalization, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
 - Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
 
@@ -201,12 +201,12 @@ Tasks           Status
 
 ### Horizontal rule: `hr`
 ```scala
-hr
-hr("~", 10)
+hr()
+hr(10, "~")
 ```
 ```
 ──────────────────────────────────────────────────
-~~~~~~~~~
+~~~~~~~~~~
 ```
 
 ### Key-value pairs: `kv`
@@ -219,19 +219,25 @@ role : admin
 ```
 
 ### Table: `table`
+Tables automatically normalize row lengths - truncating long rows and padding short ones:
 ```scala
 table(
-  headers = Seq("Name", "Status"),
-  rows = Seq(Seq("Alice", "Online"), Seq("Bob", "Away"))
+  headers = Seq("Name", "Age", "City"),
+  rows = Seq(
+    Seq("Alice", "30", "New York"),
+    Seq("Bob", "25"),                           // Short row - auto-padded
+    Seq("Charlie", "35", "London", "Extra")    // Long row - auto-truncated
+  )
 )
 ```
 ```
-┌───────┬────────┐
-│ Name  │ Status │
-├───────┼────────┤
-│ Alice │ Online │
-│ Bob   │ Away   │
-└───────┴────────┘
+┌─────────┬─────┬─────────┐
+│ Name    │ Age │ City    │
+├─────────┼─────┼─────────┤
+│ Alice   │ 30  │ New York│
+│ Bob     │ 25  │         │
+│ Charlie │ 35  │ London  │
+└─────────┴─────┴─────────┘
 ```
 
 
@@ -444,6 +450,51 @@ layout("Left", space(10), "Right")
 ```
 ```
 Left          Right
+```
+
+### Padding: `pad`
+Add uniform padding around any element
+```scala
+pad(2)("content")
+pad(1)(box(kv("cpu" -> "45%")))
+```
+```
+      
+  content  
+      
+```
+
+### Truncation: `truncate`
+Truncate long text with ellipsis
+```scala
+truncate(15)("This is a very long text that will be cut off")
+truncate(20, "…")("Custom ellipsis example text here")
+```
+```
+This is a ve...
+Custom ellipsis ex…
+```
+
+### Empty Element: `empty`
+Useful for conditional rendering
+```scala
+layout(
+  "Always shown",
+  if (hasError) margin.error("Something failed!") else empty,
+  "Also always shown"
+)
+```
+
+### Vertical Rule: `vr`
+Vertical separators to complement horizontal rules
+```scala
+vr(3)           // 3-line vertical separator
+vr(5, "┃")      // Custom character
+```
+```
+│
+│
+│
 ```
 
 ### Margin: `margin`

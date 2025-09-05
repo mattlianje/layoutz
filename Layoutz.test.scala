@@ -128,6 +128,72 @@ status: active"""
     assertEquals(boxElement.render, expected)
   }
 
+  test("box direct syntax") {
+    val boxElement = box(kv("total" -> "42"))
+
+    val expected = """┌───────────┐
+│ total: 42 │
+└───────────┘"""
+
+    assertEquals(boxElement.render, expected)
+  }
+
+  test("box with string content") {
+    val boxElement: Box = box("heyya")
+
+    val expected = """┌───────┐
+│ heyya │
+└───────┘"""
+
+    assertEquals(boxElement.render, expected)
+  }
+
+  test("box border styles") {
+    val singleBox = box(Border.Single)()("Single border")
+    val doubleBox = box(Border.Double)()("Double border")
+    val thickBox = box(Border.Thick)()("Thick border")
+    val roundBox = box(Border.Round)()("Round border")
+    val customBox = box(Border.Custom("*", "=", "|"))()("Custom border")
+  }
+
+  test("padding element") {
+    val padded = pad(2)("content")
+    val rendered = padded.render
+    val lines = rendered.split('\n')
+
+    // Should have 2 empty lines before, content line, 2 empty lines after
+    assertEquals(lines.length, 5)
+    assertEquals(lines(2), "  content  ")
+  }
+
+  test("truncate element") {
+    val long = "This is a very long text that should be truncated"
+    val truncated = truncate(20)(long)
+
+    val result = truncated.render
+    assertEquals(result.length, 20)
+    assert(result.endsWith("..."))
+  }
+
+  test("empty element") {
+    assertEquals(empty.render, "")
+    assertEquals(empty.width, 0)
+    assertEquals(empty.height, 1)
+
+    // Useful for conditional rendering
+    val conditional: Element = if (false) "Hidden" else empty
+    assertEquals(conditional.render, "")
+  }
+
+  test("vertical separator") {
+    val vSep = vr(3)
+    val expected = "│\n│\n│"
+    assertEquals(vSep.render, expected)
+
+    val customVSep = vr(2, "┃")
+    assertEquals(customVSep.render, "┃\n┃")
+  }
+
   test("complex dashboard layout") {
     val dashboard = layout(
       section("System Status")(
@@ -155,8 +221,8 @@ status: active"""
 
     test("horizontal rules") {
       val rule1 = hr()
-      val rule2 = hr("=")(20)
-      val rule3 = hr("*")()
+      val rule2 = hr(20, "=")
+      val rule3 = hr(char = "*")
 
       assertEquals(rule1.render, "─" * 50)
       assertEquals(rule2.render, "=" * 20)
@@ -327,8 +393,8 @@ Third line"""
   }
   test("horizontal rules") {
     val rule1 = hr()
-    val rule2 = hr("=")(20)
-    val rule3 = hr("*")()
+    val rule2 = hr(20, "=")
+    val rule3 = hr(char = "*")
 
     assertEquals(rule1.render, "─" * 50)
     assertEquals(rule2.render, "=" * 20)
@@ -757,7 +823,7 @@ Longer line 2
   test("text wrapping in complex layouts") {
     val article = layout(
       center("ARTICLE TITLE", 40),
-      hr("=")(40),
+      hr(40, "="),
       section("Introduction")(
         wrap(
           "This is a long introduction paragraph that needs to be wrapped to fit within a reasonable column width for easy reading.",
@@ -873,7 +939,7 @@ Longer line 2
   test("justification in complex layouts") {
     val document = layout(
       center("JUSTIFIED DOCUMENT", 40),
-      hr("═")(40),
+      hr(40, "═"),
       section("Paragraph 1")(
         justify(
           "This paragraph demonstrates text justification where each line fits snugly within the specified width by distributing spaces between words evenly.",

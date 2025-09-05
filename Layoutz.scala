@@ -1,7 +1,7 @@
 /*
  * +==========================================================================+
  * |                                layoutz                                   |
- * |                  Friendly, expressive print-layout DSL                   |
+ * |                  Friendly, expressive print-layout & TUI DSL             |
  * |                            Version 0.0.2                                 |
  * |                 Compatible with Scala 2.12, 2.13, and 3                  |
  * |                                                                          |
@@ -13,42 +13,44 @@ package object layoutz {
   import scala.language.implicitConversions
 
   private object Dimensions {
-    val MinContentPadding = 2
-    val BorderThickness = 2
-    val SidePadding = 2
-    val ProgressBarWidth = 20
-    val TreeIndentation = 4
-    val TreeConnectorSpacing = 3
-    val DefaultRuleWidth = 50
+    val MIN_CONTENT_PADDING = 2
+    val BORDER_THICKNESS = 2
+    val SIDE_PADDING = 2
+    val PROGRESS_BAR_WIDTH = 20
+    val TREE_INDENTATION = 4
+    val TREE_CONNECTOR_SPACING = 3
+    val DEFAULT_RULE_WIDTH = 50
 
     /* Chart constants */
-    val DefaultChartWidth = 40
-    val ChartLabelMaxWidth = 15
-    val ChartLabelSpacing = 15
+    val DEFAULT_CHART_WIDTH = 40
+    val CHART_LABEL_MAX_WIDTH = 15
+    val CHART_LABEL_SPACING = 15
 
     /* Box constants */
-    val BoxInnerPadding = 4 /* Total padding inside boxes (2 on each side) */
-    val BoxBorderWidth = 2 /* Width taken by left+right borders */
+    val BOX_INNER_PADDING = 4 /* Total padding inside boxes (2 on each side) */
+    val BOX_BORDER_WIDTH = 2 /* Width taken by left+right borders */
 
     /* Terminal/Input constants */
-    val PrintableAsciiStart = 32
-    val PrintableAsciiEnd = 126
-    val CtrlCharOffset = 64
+    val PRINTABLE_ASCII_START = 32
+    val PRINTABLE_ASCII_END = 126
+    val CTRL_CHAR_OFFSET = 64
   }
 
   private object Glyphs {
     /* Box drawing */
-    val TopLeft = "┌"; val TopRight = "┐"; val BottomLeft = "└";
-    val BottomRight = "┘"
-    val Horizontal = "─"; val Vertical = "│"; val Cross = "┼"
-    val TeeDown = "┬"; val TeeUp = "┴"; val TeeRight = "├"; val TeeLeft = "┤"
+    val TOP_LEFT = "┌"; val TOP_RIGHT = "┐"; val BOTTOM_LEFT = "└";
+    val BOTTOM_RIGHT = "┘"
+    val HORIZONTAL = "─"; val VERTICAL = "│"; val CROSS = "┼"
+    val TEE_DOWN = "┬"; val TEE_UP = "┴"; val TEE_RIGHT = "├";
+    val TEE_LEFT = "┤"
 
     /* Content */
-    val Bullet = "•"; val Space = " "; val BarFilled = "█"; val BarEmpty = "─"
+    val BULLET = "•"; val SPACE = " "; val BAR_FILLED = "█"; val BAR_EMPTY = "─"
 
     /* Tree */
-    val TreeBranch = "├──"; val TreeLastBranch = "└──"; val TreeVertical = "│"
-    val TreeIndent = " " * Dimensions.TreeIndentation
+    val TREE_BRANCH = "├──"; val TREE_LAST_BRANCH = "└──";
+    val TREE_VERTICAL = "│"
+    val TREE_INDENT = " " * Dimensions.TREE_INDENTATION
   }
 
   /** Core layout element */
@@ -195,7 +197,8 @@ package object layoutz {
               itemNumber += 1 /* Only increment for actual items */
               val content = other.render
               val lines = content.split('\n')
-              val indent = "  " * level /* 2 spaces per level (TODO Maybe - custom indentors) */
+              val indent =
+                "  " * level /* 2 spaces per level (TODO Maybe - custom indentors) */
 
               if (lines.length == 1) {
                 s"$indent$number. ${lines.head}"
@@ -469,7 +472,7 @@ package object layoutz {
       ruleWidth: Option[Int] = None
   ) extends Element {
     def render: String = {
-      val actualWidth = ruleWidth.getOrElse(Dimensions.DefaultRuleWidth)
+      val actualWidth = ruleWidth.getOrElse(Dimensions.DEFAULT_RULE_WIDTH)
       char * actualWidth
     }
   }
@@ -633,11 +636,12 @@ package object layoutz {
   final case class InlineBar(label: Element, progress: Double) extends Element {
     def render: String = {
       val clampedProgress = math.max(0.0, math.min(1.0, progress))
-      val filledSegments = (clampedProgress * Dimensions.ProgressBarWidth).toInt
-      val emptySegments = Dimensions.ProgressBarWidth - filledSegments
+      val filledSegments =
+        (clampedProgress * Dimensions.PROGRESS_BAR_WIDTH).toInt
+      val emptySegments = Dimensions.PROGRESS_BAR_WIDTH - filledSegments
 
       val bar =
-        Glyphs.BarFilled * filledSegments + Glyphs.BarEmpty * emptySegments
+        Glyphs.BAR_FILLED * filledSegments + Glyphs.BAR_EMPTY * emptySegments
       val percentage = (clampedProgress * 100).toInt
 
       s"${flattenToSingleLine(label)} [$bar] $percentage%"
@@ -661,7 +665,7 @@ package object layoutz {
       val maxTextLength =
         if (allLines.isEmpty) 0
         else allLines.map(line => stripAnsiCodes(line).length).max
-      val contentWidth = maxTextLength + Dimensions.MinContentPadding
+      val contentWidth = maxTextLength + Dimensions.MIN_CONTENT_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
         style.chars
@@ -776,7 +780,7 @@ package object layoutz {
   /** Horizontal bar chart */
   final case class Chart(
       data: Seq[(Element, Double)],
-      maxWidth: Int = Dimensions.DefaultChartWidth
+      maxWidth: Int = Dimensions.DEFAULT_CHART_WIDTH
   ) extends Element {
     def render: String = {
       if (data.isEmpty) return "No data"
@@ -793,11 +797,11 @@ package object layoutz {
           val strippedLabel = stripAnsiCodes(label)
           val visibleLabelLength = strippedLabel.length
           val truncatedLabel =
-            if (visibleLabelLength <= Dimensions.ChartLabelMaxWidth) label
-            else strippedLabel.take(Dimensions.ChartLabelMaxWidth)
-          val padding = " " * (Dimensions.ChartLabelSpacing - math.min(
+            if (visibleLabelLength <= Dimensions.CHART_LABEL_MAX_WIDTH) label
+            else strippedLabel.take(Dimensions.CHART_LABEL_MAX_WIDTH)
+          val padding = " " * (Dimensions.CHART_LABEL_SPACING - math.min(
             visibleLabelLength,
-            Dimensions.ChartLabelMaxWidth
+            Dimensions.CHART_LABEL_MAX_WIDTH
           ))
           s"$truncatedLabel$padding │$bar $value"
         }
@@ -814,15 +818,15 @@ package object layoutz {
       val maxWidth =
         if (lines.isEmpty) 0
         else lines.map(line => stripAnsiCodes(line).length).max
-      val totalWidth = maxWidth + Dimensions.BoxInnerPadding
+      val totalWidth = maxWidth + Dimensions.BOX_INNER_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
         style.chars
 
       val top =
-        topLeft + horizontal * (totalWidth - Dimensions.BoxBorderWidth) + topRight
+        topLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + topRight
       val bottom =
-        bottomLeft + horizontal * (totalWidth - Dimensions.BoxBorderWidth) + bottomRight
+        bottomLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + bottomRight
 
       val contentLines = lines.map { line =>
         val visibleLength = stripAnsiCodes(line).length
@@ -899,24 +903,25 @@ package object layoutz {
         if (contentLines.isEmpty) 0
         else contentLines.map(line => stripAnsiCodes(line).length).max
       val titleWidth =
-        if (title.nonEmpty) title.length + Dimensions.MinContentPadding else 0
+        if (title.nonEmpty) title.length + Dimensions.MIN_CONTENT_PADDING else 0
       val innerWidth = math.max(contentWidth, titleWidth)
-      val totalWidth = innerWidth + Dimensions.BoxInnerPadding
+      val totalWidth = innerWidth + Dimensions.BOX_INNER_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
         style.chars
 
       val topBorder = if (title.nonEmpty) {
-        val titlePadding = totalWidth - title.length - Dimensions.BoxBorderWidth
+        val titlePadding =
+          totalWidth - title.length - Dimensions.BOX_BORDER_WIDTH
         val leftPad = titlePadding / 2
         val rightPad = titlePadding - leftPad
         s"$topLeft${horizontal * leftPad}$title${horizontal * rightPad}$topRight"
       } else {
-        s"$topLeft${horizontal * (totalWidth - Dimensions.BoxBorderWidth)}$topRight"
+        s"$topLeft${horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$topRight"
       }
 
       val bottomBorder =
-        s"$bottomLeft${horizontal * (totalWidth - Dimensions.BoxBorderWidth)}$bottomRight"
+        s"$bottomLeft${horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$bottomRight"
 
       val paddedContent = contentLines.map { line =>
         val padding = innerWidth - stripAnsiCodes(line).length
@@ -954,7 +959,7 @@ package object layoutz {
 
       (0 until maxHeight)
         .map { rowIndex =>
-          paddedElements.map(_(rowIndex)).mkString(Glyphs.Space).stripTrailing()
+          paddedElements.map(_(rowIndex)).mkString(Glyphs.SPACE).stripTrailing()
         }
         .mkString("\n")
     }
@@ -966,7 +971,7 @@ package object layoutz {
     ): Seq[Array[String]] = {
       renderedElements.zip(elementWidths).map { case (lines, width) =>
         val paddedLines = lines ++ Array.fill(maxHeight - lines.length)("")
-        paddedLines.map(line => line.padTo(width, Glyphs.Space.head))
+        paddedLines.map(line => line.padTo(width, Glyphs.SPACE.head))
       }
     }
   }
@@ -1005,25 +1010,25 @@ package object layoutz {
       node match {
         case TreeLeaf(name) =>
           val connector =
-            if (isLast) Glyphs.TreeLastBranch else Glyphs.TreeBranch
+            if (isLast) Glyphs.TREE_LAST_BRANCH else Glyphs.TREE_BRANCH
           s"$prefix$connector $name"
 
         case TreeBuilder(name) =>
           val connector =
-            if (isLast) Glyphs.TreeLastBranch else Glyphs.TreeBranch
+            if (isLast) Glyphs.TREE_LAST_BRANCH else Glyphs.TREE_BRANCH
           s"$prefix$connector $name"
 
         case TreeBranch(name, children) =>
           val connector =
-            if (isLast) Glyphs.TreeLastBranch else Glyphs.TreeBranch
+            if (isLast) Glyphs.TREE_LAST_BRANCH else Glyphs.TREE_BRANCH
           val nodeLine = s"$prefix$connector $name/"
 
           if (children.isEmpty) {
             nodeLine
           } else {
             val childPrefix = prefix + (
-              if (isLast) Glyphs.TreeIndent
-              else s"${Glyphs.TreeVertical}   "
+              if (isLast) Glyphs.TREE_INDENT
+              else s"${Glyphs.TREE_VERTICAL}   "
             )
             val childLines = children.zipWithIndex.map { case (child, index) =>
               val isLastChild = index == children.length - 1
@@ -1054,12 +1059,12 @@ package object layoutz {
         case AutoCentered(element) => element.width
         case other                 => other.width
       }
-      if (widths.nonEmpty) widths.max else Dimensions.DefaultRuleWidth
+      if (widths.nonEmpty) widths.max else Dimensions.DEFAULT_RULE_WIDTH
     }
   }
 
-  /** DSL CONSTRUCTORS
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * DSL CONSTRUCTORS */
 
   /** Create a vertical layout of elements.
     *
@@ -1208,14 +1213,14 @@ package object layoutz {
   ): Box =
     Box(title, elements, style)
 
-  /** Create a simple box without title.
+  /** Create a simple box with elements.
     *
     * @param elements
     *   the elements to contain within the box
     * @return
     *   a Box with single-line borders and no title
     */
-  def box()(elements: Element*): Box = Box("", elements, Border.Single)
+  def box(elements: Element*): Box = Box("", elements, Border.Single)
 
   /** Create a titled box with single border style.
     *
@@ -1255,8 +1260,8 @@ package object layoutz {
     */
   def tree(name: String): TreeBuilder = TreeBuilder(name)
 
-  /** SPACING & LAYOUT
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * SPACING & LAYOUT */
 
   /** Single line break */
   def br: LineBreak.type = LineBreak
@@ -1277,17 +1282,88 @@ package object layoutz {
     else Text(" " * n)
   }
 
+  /** Add padding around an element */
+  final case class Padded(element: Element, padding: Int) extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+      val paddedLines =
+        lines.map(line => (" " * padding) + line + (" " * padding))
+      val emptyLine = " " * (paddedLines.headOption.map(_.length).getOrElse(0))
+
+      (Seq.fill(padding)(emptyLine) ++ paddedLines ++ Seq.fill(padding)(
+        emptyLine
+      )).mkString("\n")
+    }
+  }
+
+  /** Add padding around an element */
+  def pad(padding: Int)(element: Element): Padded = Padded(element, padding)
+
+  /** Truncate text with ellipsis if it exceeds max width */
+  final case class Truncated(
+      element: Element,
+      maxWidth: Int,
+      ellipsis: String = "..."
+  ) extends Element {
+    def render: String = {
+      val content = element.render
+      val lines = content.split('\n')
+
+      lines
+        .map { line =>
+          val visibleLength = stripAnsiCodes(line).length
+          if (visibleLength <= maxWidth) line
+          else {
+            val truncateAt = maxWidth - ellipsis.length
+            if (truncateAt <= 0) ellipsis.take(maxWidth)
+            else {
+              // Handle ANSI codes properly when truncating
+              val stripped = stripAnsiCodes(line)
+              stripped.take(truncateAt) + ellipsis
+            }
+          }
+        }
+        .mkString("\n")
+    }
+  }
+
+  /** Truncate element if too wide */
+  def truncate(maxWidth: Int, ellipsis: String = "...")(
+      element: Element
+  ): Truncated =
+    Truncated(element, maxWidth, ellipsis)
+
+  /** Empty element - renders nothing (useful for conditional layouts) */
+  case object Empty extends Element {
+    def render: String = ""
+  }
+
+  /** Vertical separator line */
+  final case class VerticalRule(char: String = "│", lineCount: Int)
+      extends Element {
+    def render: String = (char + "\n") * math.max(1, lineCount - 1) + char
+  }
+
+  /** Create vertical separator */
+  def vr(lineCount: Int, char: String = "│"): VerticalRule =
+    VerticalRule(char, lineCount)
+
+  /** Empty element for conditional rendering */
+  def empty: Empty.type = Empty
+
   /** Horizontal rule with custom character and width */
-  def hr(char: String = "─")(
-      width: Int = Dimensions.DefaultRuleWidth
+  def hr(
+      width: Int = Dimensions.DEFAULT_RULE_WIDTH,
+      char: String = "─"
   ): HorizontalRule =
     HorizontalRule(char, Some(width))
 
   /** Default horizontal rule */
   def hr(): HorizontalRule = HorizontalRule()
 
-  /** INTERACTIVE ELEMENTS
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * INTERACTIVE ELEMENTS */
 
   /** Interactive text input field */
   def textInput(
@@ -1320,8 +1396,8 @@ package object layoutz {
   /** Banner with double border style */
   def banner(content: Element): Banner = Banner(content, Border.Double)
 
-  /** TEXT FORMATTING
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * TEXT FORMATTING */
 
   /** Add underline to an element with custom character */
   def underline(char: String = "─")(element: Element): Underline =
@@ -1340,8 +1416,8 @@ package object layoutz {
   def ul(bullet: String)(items: Element*): UnorderedList =
     UnorderedList(items, bullet)
 
-  /** ALIGNMENT & FLOW
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * ALIGNMENT & FLOW */
 
   /** Center-align element within specified width */
   def center(element: Element, width: Int): Centered = Centered(element, width)
@@ -1372,8 +1448,8 @@ package object layoutz {
       justifyLastLine = true
     )
 
-  /** MARGINS & PREFIXES
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * MARGINS & PREFIXES */
 
   /** Add a prefix margin to elements */
   def margin(prefix: String)(elements: Element*): Margin =
@@ -1394,8 +1470,8 @@ package object layoutz {
   /** Alias for margins object */
   val margin = margins
 
-  /** IMPLICIT CONVERSIONS
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * IMPLICIT CONVERSIONS */
 
   /** Automatic conversion from String to Text element. Allows using strings
     * directly wherever Elements are expected.
@@ -1418,8 +1494,8 @@ package object layoutz {
   implicit def stringSeqToElementSeq(strings: Seq[String]): Seq[Element] =
     strings.map(Text(_))
 
-  /** APP RUNTIME
-    */
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * APP RUNTIME */
   sealed trait Key
   final case class CharKey(c: Char) extends Key
   final case class SpecialKey(name: String) extends Key
