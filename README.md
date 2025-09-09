@@ -135,19 +135,13 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 ## Fluent API
 For some `Element`s you can use dot-completion instead of nesting
 
+These will render the same string
 ```scala
-// Fluent: easier to read and chain
 "Hello".underline().pad(2).center(20).render
-
-// Nested: still available 
 center(pad(underline()("Hello")), 20).render
 ```
 
 **Fluent methods on all elements:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
-
-**Fluent methods on bordered elements:** `.border()` - works on `box`, `table`, `banner`, `statusCard`
-
-Most functions support both fluent and nested syntax - use whichever feels more natural!
 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
