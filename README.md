@@ -140,7 +140,7 @@ For some `Element`s you can use dot-completion instead of nesting
 "Hello".underline().pad(2).center(20).render
 
 // Nested: still available 
-center(pad(underline("Hello")), 20).render
+center(pad(underline()("Hello")), 20).render
 ```
 
 **Fluent methods on all elements:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
@@ -348,7 +348,7 @@ Add underlines to any element
 "Custom".underline("=")
 
 // Nested syntax
-underline("Important Title")
+underline()("Important Title")
 underline("=")("Custom")
 ```
 ```

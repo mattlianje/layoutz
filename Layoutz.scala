@@ -1432,9 +1432,6 @@ package object layoutz {
   def underline(char: String = "─")(element: Element): Underline =
     Underline(element, char)
 
-  /** Add default underline to an element */
-  def underline(element: Element): Underline = Underline(element, "─")
-
   /** Ordered (numbered) list */
   def ol(items: Element*): OrderedList = OrderedList(items)
 
