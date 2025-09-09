@@ -129,7 +129,7 @@ status: active"""
   }
 
   test("box direct syntax") {
-    val boxElement = box(kv("total" -> "42"))
+    val boxElement = box()(kv("total" -> "42"))
 
     val expected = """┌───────────┐
 │ total: 42 │
@@ -139,7 +139,7 @@ status: active"""
   }
 
   test("box with string content") {
-    val boxElement: Box = box("heyya")
+    val boxElement: Box = box()("heyya")
 
     val expected = """┌───────┐
 │ heyya │
@@ -149,11 +149,11 @@ status: active"""
   }
 
   test("box border styles") {
-    val singleBox = box(Border.Single)()("Single border")
-    val doubleBox = box(Border.Double)()("Double border")
-    val thickBox = box(Border.Thick)()("Thick border")
-    val roundBox = box(Border.Round)()("Round border")
-    val customBox = box(Border.Custom("*", "=", "|"))()("Custom border")
+    val singleBox = box()("Single border") // default is Border.Single
+    val doubleBox = box()("Double border").border(Border.Double)
+    val thickBox = box()("Thick border").border(Border.Thick)
+    val roundBox = box()("Round border").border(Border.Round)
+    val customBox = box()("Custom border").border(Border.Custom("*", "=", "|"))
   }
 
   test("padding element") {
@@ -220,13 +220,18 @@ status: active"""
     )
 
     test("horizontal rules") {
-      val rule1 = hr()
-      val rule2 = hr(20, "=")
-      val rule3 = hr(char = "*")
+      // Fluent API
+      val rule1 = hr
+      val rule2 = hr.width(20).char("=")
+      val rule3 = hr.char("*")
 
-      assertEquals(rule1.render, "─" * 50)
+      assertEquals(rule1.render, "─" * 50) // DEFAULT_RULE_WIDTH
       assertEquals(rule2.render, "=" * 20)
       assertEquals(rule3.render, "*" * 50)
+
+      // Test method chaining in different orders
+      assertEquals(hr.char("█").width(5).render, "█████")
+      assertEquals(hr.width(3).char("•").render, "•••")
     }
 
     test("nested bullets") {
@@ -391,14 +396,12 @@ Third line"""
     assertEquals(br(0).render, "")
     assertEquals(br(1).render, "\n")
   }
-  test("horizontal rules") {
-    val rule1 = hr()
-    val rule2 = hr(20, "=")
-    val rule3 = hr(char = "*")
-
-    assertEquals(rule1.render, "─" * 50)
-    assertEquals(rule2.render, "=" * 20)
-    assertEquals(rule3.render, "*" * 50)
+  test("hr fluent API") {
+    assertEquals(hr.render, "─" * 50)
+    assertEquals(hr.width(15).render, "─" * 15)
+    assertEquals(hr.char("═").render, "═" * 50)
+    assertEquals(hr.width(8).char("━").render, "━━━━━━━━")
+    assertEquals(hr.char("*").width(5).render, "*****")
   }
 
   test("space element") {
@@ -607,7 +610,7 @@ Disk            │████████████████ 30.0"""
   }
 
   test("Banner widget") {
-    val result = banner(BannerStyle.Double)("Hello\nWorld")
+    val result = banner("Hello\nWorld").border(BannerStyle.Double)
 
     val expected = """╔═══════╗
 ║ Hello ║
@@ -823,7 +826,7 @@ Longer line 2
   test("text wrapping in complex layouts") {
     val article = layout(
       center("ARTICLE TITLE", 40),
-      hr(40, "="),
+      hr.width(40).char("="),
       section("Introduction")(
         wrap(
           "This is a long introduction paragraph that needs to be wrapped to fit within a reasonable column width for easy reading.",
@@ -939,7 +942,7 @@ Longer line 2
   test("justification in complex layouts") {
     val document = layout(
       center("JUSTIFIED DOCUMENT", 40),
-      hr(40, "═"),
+      hr.width(40).char("═"),
       section("Paragraph 1")(
         justify(
           "This paragraph demonstrates text justification where each line fits snugly within the specified width by distributing spaces between words evenly.",
@@ -1123,9 +1126,9 @@ Longer line 2
       layout(
         margin.error(
           row(
-            statusCard(Border.Double)("API", "LIVE"),
+            statusCard("API", "LIVE").border(Border.Double),
             statusCard("DB", "99.9%"),
-            statusCard(Border.Thick)("Cache", "READY")
+            statusCard("Cache", "READY").border(Border.Thick)
           )
         )
       )
@@ -1456,4 +1459,31 @@ Longer line 2
       case ex: Exception => fail(s"Runtime error: ${ex.getMessage}")
     }
   }
+
+  test("fluent transformations") {
+    assertEquals("Hello".center(10).render.length, 10)
+    assert("Hello".pad(1).render.contains(" Hello "))
+    assert("Long text here".wrap(8).render.split('\n').length > 1)
+    assertEquals("Hello World".truncate(8).render, "Hello...")
+    assert("Hello".underline().render.contains("─"))
+    assert("Hello".underline("=").render.contains("="))
+    assert("Hello".center(10).pad(1).render.contains("Hello"))
+  }
+
+  test("transformations on complex elements") {
+    assert(statusCard("API", "UP").center(30).render.contains("API"))
+    assert(
+      table(Seq("Name"), Seq(Seq("Alice"))).pad(1).render.contains("Alice")
+    )
+  }
+
+  test("margin transformations") {
+    assertEquals("Done".margin("[LOG]").render, "[LOG] Done")
+    assert("Error".marginError().render.contains("error"))
+    assert("Warning".marginWarn().render.contains("warn"))
+    assert("OK".marginSuccess().render.contains("success"))
+    assert("Info".marginInfo().render.contains("info"))
+    assert("Test".marginInfo().center(20).render.contains("info"))
+  }
+
 }

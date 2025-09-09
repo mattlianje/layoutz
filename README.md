@@ -48,16 +48,16 @@ import layoutz._
 val demo = layout(
   center(underline("ˆ")("Test Dashboard")),
   row(
-    statusCard(Border.Double)("API", "LIVE"),
+    statusCard("API", "LIVE").border(Border.Double),
     statusCard("DB", "99.9%"),
-    statusCard(Border.Thick)("Cache", "READY")
+    statusCard("Cache", "READY").border(Border.Thick)
   ),
   br,
-  box(Border.Round)("Services")(
+  box("Services")(
     ul("Production", "Staging", ul("test-api", ul("more nest"))),
     br,
     inlineBar("Health", 0.94)
-  )
+  ).border(Border.Round)
 ).render
 ```
 ```
@@ -131,6 +131,22 @@ layout(elem1, elem2, elem3)  /* Joins with "\n" */
 Call `.render` on an element to get a String
 
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
+
+## Fluent API
+**Dot notation instead of nesting:**
+
+```scala
+// Instead of: center(pad(underline("Hello")), 20)
+"Hello".underline().pad(2).center(20).render
+
+statusCard("API", "UP").border(Border.Round).center(25).render
+```
+
+**All elements:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
+
+**Bordered elements:** `.border()` - works on `box`, `table`, `banner`, `statusCard`
+
+**Other:** `hr.width().char()`
 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
@@ -410,7 +426,7 @@ Project
 
 ### Banner: `banner`
 ```scala
-banner("System Dashboard", Border.Double)
+banner("System Dashboard").border(Border.Double)
 ```
 ```
 ╔═══════════════════╗
@@ -580,12 +596,12 @@ maybe    the    last
 ```
 
 ### Border Styles
-Elements like `box`, `table`, and `banner` support different `Border` options:
+Elements like `box`, `table`, and `banner` support different `Border` options using the fluent `.border()` method:
 
 **Single** (default):
 ```scala
-box(Border.Single)("Title")("")
-/* same as: box("Title")("") */
+box("Title")("").border(Border.Single)
+/* default style is Border.Single, so same as: box("Title")("") */
 ```
 ```
 ┌─Title─┐
@@ -595,7 +611,7 @@ box(Border.Single)("Title")("")
 
 **Double**:
 ```scala
-banner(Border.Double)("Welcome")
+banner("Welcome").border(Border.Double)
 ```
 ```
 ╔═════════╗
@@ -605,7 +621,7 @@ banner(Border.Double)("Welcome")
 
 **Thick**:
 ```scala
-table(Border.Thick)(headers, rows)
+table(headers, rows).border(Border.Thick)
 ```
 ```
 ┏━━━━━━━┳━━━━━━━━┓
@@ -617,7 +633,7 @@ table(Border.Thick)(headers, rows)
 
 **Round**:
 ```scala
-box(Border.Round)("Info")("")
+box("Info")("").border(Border.Round)
 ```
 ```
 ╭─Info─╮
@@ -627,13 +643,13 @@ box(Border.Round)("Info")("")
 
 **Custom**:
 ```scala
-box(
+box("Hello hello")("World!").border(
   Border.Custom(
     corner = "+",
     horizontal = "=",
     vertical = "|"
   )
-)("Hello hello")("World!")
+)
 ```
 ```
 +==Hello hello==+

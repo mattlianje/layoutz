@@ -88,6 +88,63 @@ package object layoutz {
       }
       lines
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+     * FLUENT TRANSFORMATIONS - Available on all elements */
+
+    /** Center this element within specified width */
+    final def center(width: Int): Centered = Centered(this, width)
+
+    /** Auto-center this element within layout context */
+    final def center(): AutoCentered = AutoCentered(this)
+
+    /** Left-align this element within specified width */
+    final def leftAlign(width: Int): LeftAligned = LeftAligned(this, width)
+
+    /** Right-align this element within specified width */
+    final def rightAlign(width: Int): RightAligned = RightAligned(this, width)
+
+    /** Add padding around this element */
+    final def pad(padding: Int): Padded = Padded(this, padding)
+
+    /** Wrap this element's text at word boundaries within specified width */
+    final def wrap(width: Int): Wrapped = Wrapped(this, width)
+
+    /** Truncate this element to specified width with optional ellipsis */
+    final def truncate(maxWidth: Int, ellipsis: String = "..."): Truncated =
+      Truncated(this, maxWidth, ellipsis)
+
+    /** Add underline to this element with default character */
+    final def underline(): Underline = Underline(this, "─")
+
+    /** Add underline to this element with custom character */
+    final def underline(char: String): Underline = Underline(this, char)
+
+    /** Justify this element's text to exact width by distributing spaces */
+    final def justify(width: Int): Justified = Justified(this, width)
+
+    /** Justify all lines of this element including the last line */
+    final def justifyAll(width: Int): Justified =
+      Justified(this, width, justifyLastLine = true)
+
+    /** Add a prefix margin to this element */
+    final def margin(prefix: String): Margin = Margin(prefix, Seq(this))
+
+    /** Add error margin (red) to this element */
+    final def marginError(): Margin =
+      Margin("[\u001b[31merror\u001b[0m]", Seq(this))
+
+    /** Add warning margin (yellow) to this element */
+    final def marginWarn(): Margin =
+      Margin("[\u001b[33mwarn\u001b[0m]", Seq(this))
+
+    /** Add success margin (green) to this element */
+    final def marginSuccess(): Margin =
+      Margin("[\u001b[32msuccess\u001b[0m]", Seq(this))
+
+    /** Add info margin (cyan) to this element */
+    final def marginInfo(): Margin =
+      Margin("[\u001b[36minfo\u001b[0m]", Seq(this))
   }
 
   private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
@@ -477,6 +534,23 @@ package object layoutz {
     }
   }
 
+  /** Fluent horizontal rule builder */
+  final case class HorizontalRuleBuilder(
+      char: String = "─",
+      ruleWidth: Option[Int] = None
+  ) extends Element {
+
+    def char(newChar: String): HorizontalRuleBuilder = copy(char = newChar)
+
+    def width(newWidth: Int): HorizontalRuleBuilder =
+      copy(ruleWidth = Some(newWidth))
+
+    def render: String = {
+      val actualWidth = ruleWidth.getOrElse(Dimensions.DEFAULT_RULE_WIDTH)
+      char * actualWidth
+    }
+  }
+
   /** Structured key-value pairs */
   final case class KeyValue(pairs: Seq[(String, String)]) extends Element {
     def render: String = {
@@ -502,6 +576,8 @@ package object layoutz {
       rows: Seq[Seq[Element]],
       style: Border = Border.Single
   ) extends Element {
+
+    def border(newStyle: Border): Table = copy(style = newStyle)
     def render: String = {
       val expectedColumnCount = headers.length
 
@@ -654,6 +730,8 @@ package object layoutz {
       content: Element,
       style: Border = Border.Single
   ) extends Element {
+
+    def border(newStyle: Border): StatusCard = copy(style = newStyle)
     def render: String = {
       val labelRendered = label.render
       val contentRendered = content.render
@@ -812,6 +890,8 @@ package object layoutz {
   /** Banner - decorative text in a box */
   final case class Banner(content: Element, style: Border = Border.Double)
       extends Element {
+
+    def border(newStyle: Border): Banner = copy(style = newStyle)
     def render: String = {
       val rendered = content.render
       val lines = if (rendered.isEmpty) Array("") else rendered.split('\n')
@@ -894,6 +974,8 @@ package object layoutz {
       elements: Seq[Element],
       style: Border = Border.Single
   ) extends Element {
+
+    def border(newStyle: Border): Box = copy(style = newStyle)
     def render: String = {
       /* Combine all elements into a single layout */
       val content =
@@ -1128,30 +1210,14 @@ package object layoutz {
     */
   def kv(pairs: (String, String)*): KeyValue = KeyValue(pairs)
 
-  /** Create a table with custom border style (curried for composability).
-    *
-    * @param style
-    *   the border style to use
-    * @param headers
-    *   sequence of header elements
-    * @param rows
-    *   sequence of rows, each containing a sequence of cell elements
-    * @return
-    *   a Table with specified styling
-    */
-  def table(
-      style: Border = Border.Single
-  )(headers: Seq[Element], rows: Seq[Seq[Element]]): Table =
-    Table(headers, rows, style)
-
-  /** Create a table with single border style.
+  /** Create a table.
     *
     * @param headers
     *   sequence of header elements
     * @param rows
     *   sequence of rows, each containing a sequence of cell elements
     * @return
-    *   a Table with single-line borders
+    *   a Table with default single-line borders (use .border() to change)
     */
   def table(headers: Seq[Element], rows: Seq[Seq[Element]]): Table =
     Table(headers, rows, Border.Single)
@@ -1168,70 +1234,28 @@ package object layoutz {
   def inlineBar(label: Element, progress: Double): InlineBar =
     InlineBar(label, progress)
 
-  /** Create a status card with custom border style (curried for composability).
-    *
-    * @param style
-    *   the border style to use
-    * @param label
-    *   the card label element
-    * @param content
-    *   the card content element
-    * @return
-    *   a StatusCard with specified styling
-    */
-  def statusCard(
-      style: Border = Border.Single
-  )(label: Element, content: Element): StatusCard =
-    StatusCard(label, content, style)
-
-  /** Create a status card with single border style.
+  /** Create a status card.
     *
     * @param label
     *   the card label element
     * @param content
     *   the card content element
     * @return
-    *   a StatusCard with single-line borders
+    *   a StatusCard with default single-line borders (use .border() to change)
     */
   def statusCard(label: Element, content: Element): StatusCard =
-    StatusCard(label, content)
+    StatusCard(label, content, Border.Single)
 
-  /** Create a bordered box with optional title and custom style (curried for
-    * composability).
+  /** Create a bordered box with optional title.
     *
-    * @param style
-    *   the border style to use
     * @param title
     *   optional title to display in the top border
     * @param elements
     *   the elements to contain within the box
     * @return
-    *   a Box with specified styling and content
+    *   a Box with default single-line borders (use .border() to change)
     */
-  def box(style: Border = Border.Single)(title: String = "")(
-      elements: Element*
-  ): Box =
-    Box(title, elements, style)
-
-  /** Create a simple box with elements.
-    *
-    * @param elements
-    *   the elements to contain within the box
-    * @return
-    *   a Box with single-line borders and no title
-    */
-  def box(elements: Element*): Box = Box("", elements, Border.Single)
-
-  /** Create a titled box with single border style.
-    *
-    * @param title
-    *   the title to display in the top border
-    * @param elements
-    *   the elements to contain within the box
-    * @return
-    *   a Box with single-line borders and title
-    */
-  def box(title: String)(elements: Element*): Box =
+  def box(title: String = "")(elements: Element*): Box =
     Box(title, elements, Border.Single)
 
   /** Arrange elements horizontally.
@@ -1352,15 +1376,13 @@ package object layoutz {
   /** Empty element for conditional rendering */
   def empty: Empty.type = Empty
 
-  /** Horizontal rule with custom character and width */
-  def hr(
-      width: Int = Dimensions.DEFAULT_RULE_WIDTH,
-      char: String = "─"
-  ): HorizontalRule =
-    HorizontalRule(char, Some(width))
-
-  /** Default horizontal rule */
-  def hr(): HorizontalRule = HorizontalRule()
+  /** Create a fluent horizontal rule builder. Use .width() and .char() to
+    * customize.
+    *
+    * @example
+    *   {{{hr.width(40).char("═")}}}
+    */
+  def hr: HorizontalRuleBuilder = HorizontalRuleBuilder()
 
   /* ═══════════════════════════════════════════════════════════════════════════
    * INTERACTIVE ELEMENTS */
@@ -1386,15 +1408,22 @@ package object layoutz {
   /** Horizontal bar chart */
   def chart(data: (Element, Double)*): Chart = Chart(data)
 
-  /** Decorative banner with custom border style (curried for composability) */
-  def banner(style: Border = Border.Double)(content: Element): Banner =
-    Banner(content, style)
-
-  /** Empty banner with double border */
-  def banner(): Banner = Banner(Text(""), Border.Double)
-
-  /** Banner with double border style */
+  /** Create a decorative banner.
+    *
+    * @param content
+    *   the content element to display in the banner
+    * @return
+    *   a Banner with default double-line borders (use .border() to change)
+    */
   def banner(content: Element): Banner = Banner(content, Border.Double)
+
+  /** Create an empty banner.
+    *
+    * @return
+    *   an empty Banner with default double-line borders (use .border() to
+    *   change)
+    */
+  def banner(): Banner = Banner(Text(""), Border.Double)
 
   /* ═══════════════════════════════════════════════════════════════════════════
    * TEXT FORMATTING */
@@ -1522,7 +1551,6 @@ package object layoutz {
       quitMessage: String = "Press Ctrl+Q to quit"
   )
 
-  /** Terminal abstraction to decouple from specific implementations */
   trait Terminal {
     def enterRawMode(): Unit
     def exitRawMode(): Unit
@@ -1537,7 +1565,6 @@ package object layoutz {
     def close(): Unit
   }
 
-  /** Error handling for runtime operations */
   sealed trait RuntimeError
   case class TerminalError(message: String, cause: Option[Throwable] = None)
       extends RuntimeError
@@ -1695,7 +1722,6 @@ package object layoutz {
       LayoutzRuntime.run(this, config, terminal)
   }
 
-  /** Improved runtime with proper separation of concerns */
   object LayoutzRuntime {
     import scala.util.Try
 
