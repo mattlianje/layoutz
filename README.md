@@ -24,11 +24,11 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 ## Installation
 **layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
 ```scala
-"xyz.matthieucourt" %% "layoutz" % "0.2.0"
+"xyz.matthieucourt" %% "layoutz" % "0.3.0"
 ```
 Or try in REPL:
 ```bash
-scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.2.0
+scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.3.0
 ```
 
 All you need:
