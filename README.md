@@ -46,7 +46,7 @@ Beautiful + compositional strings
 import layoutz._
 
 val demo = layout(
-  center(underline("ˆ")("Test Dashboard")),
+  underline("ˆ")("Test Dashboard").center(),
   row(
     statusCard("API", "LIVE").border(Border.Double),
     statusCard("DB", "99.9%"),
@@ -136,17 +136,18 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 **Dot notation instead of nesting:**
 
 ```scala
-// Instead of: center(pad(underline("Hello")), 20)
+// Fluent: easier to read and chain
 "Hello".underline().pad(2).center(20).render
 
-statusCard("API", "UP").border(Border.Round).center(25).render
+// Nested: still available 
+center(pad(underline("Hello")), 20).render
 ```
 
-**All elements:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
+**Fluent methods on all elements:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
 
-**Bordered elements:** `.border()` - works on `box`, `table`, `banner`, `statusCard`
+**Fluent methods on bordered elements:** `.border()` - works on `box`, `table`, `banner`, `statusCard`
 
-**Other:** `hr.width().char()`
+Most functions support both fluent and nested syntax - use whichever feels more natural!
 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
@@ -217,8 +218,8 @@ Tasks           Status
 
 ### Horizontal rule: `hr`
 ```scala
-hr()
-hr(10, "~")
+hr
+hr.width(10).char("~")
 ```
 ```
 ──────────────────────────────────────────────────
@@ -342,8 +343,13 @@ ul(
 ### Underline: `underline`
 Add underlines to any element
 ```scala
+// Fluent syntax
+"Important Title".underline()
+"Custom".underline("=")
+
+// Nested syntax
 underline("Important Title")
-underline("Custom", "=")
+underline("=")("Custom")
 ```
 ```
 Important Title
@@ -471,6 +477,11 @@ Left          Right
 ### Padding: `pad`
 Add uniform padding around any element
 ```scala
+// Fluent syntax
+"content".pad(2)
+box(kv("cpu" -> "45%")).pad(1)
+
+// Nested syntax
 pad(2)("content")
 pad(1)(box(kv("cpu" -> "45%")))
 ```
@@ -483,6 +494,11 @@ pad(1)(box(kv("cpu" -> "45%")))
 ### Truncation: `truncate`
 Truncate long text with ellipsis
 ```scala
+// Fluent syntax
+"This is a very long text that will be cut off".truncate(15)
+"Custom ellipsis example text here".truncate(20, "…")
+
+// Nested syntax
 truncate(15)("This is a very long text that will be cut off")
 truncate(20, "…")("Custom ellipsis example text here")
 ```
@@ -496,7 +512,7 @@ Useful for conditional rendering
 ```scala
 layout(
   "Always shown",
-  if (hasError) margin.error("Something failed!") else empty,
+  if (hasError) "Something failed!".marginError() else empty,
   "Also always shown"
 )
 ```
@@ -518,28 +534,26 @@ Use `margin` for nice & colourful "compiler-style" margin strings:
 
 ```scala
 layout(
-  margin.error(
+  layout(
     "Ooops",
     br,
     row("val result: Int = ", underline("^")("getUserName()")),
     "Expected Int, found String"
-  ),
+  ).marginError(),
   br,
-  margin.warn(
+  layout(
     "Unused variable detected",
     row("val", underline("~")("temp"), "= calculateTotal(items)")
-  ),
+  ).marginWarn(),
   "Clean code, cleaner layouts with layoutz",
-  margin.info(
+  layout(
     "Pro tip",
     br,
-    margin("[layoutz ~>]")(
-      row("val", underline("~")("beauty"), "= renderCode(perfectly)")
-    )
-  )
+    row("val", underline("~")("beauty"), "= renderCode(perfectly)").margin("[layoutz ~>]")
+  ).marginInfo()
 )
 ```
-by default you have `.error`, `.warn`, `.success` and `.info` or just `margin` to use you own custom margins.
+Available in both fluent (`.marginError()`, `.marginWarn()`, `.marginSuccess()`, `.marginInfo()`, `.margin()`) and nested syntax (`margin.error()`, `margin.warn()`, `margin.success()`, `margin.info()`, `margin("prefix")()`).
 
 <p align="center">
   <img src="pix/margin-demo.png" width="600">
@@ -550,6 +564,12 @@ by default you have `.error`, `.warn`, `.success` and `.info` or just `margin` t
 ### Alignment: `center`/`leftAlign`/`rightAlign`
 Align text within a specified width
 ```scala
+// Fluent syntax
+"TITLE".center(20)
+"Left side".leftAlign(20)
+"Right side".rightAlign(20)
+
+// Nested syntax
 center("TITLE", 20)
 leftAlign("Left side", 20)
 rightAlign("Right side", 20)
@@ -562,7 +582,7 @@ Left side
 
 Works with multiline text:
 ```scala
-center("Line 1\nLine 2", 15)
+"Line 1\nLine 2".center(15)  // or: center("Line 1\nLine 2", 15)
 ```
 ```
    Line 1   
@@ -572,6 +592,10 @@ center("Line 1\nLine 2", 15)
 ### Text Wrapping: `wrap`
 Wrap long text at word boundaries
 ```scala
+// Fluent syntax
+"This is a very long line that should be wrapped at word boundaries".wrap(20)
+
+// Nested syntax
 wrap("This is a very long line that should be wrapped at word boundaries", 20)
 ```
 ```
@@ -584,6 +608,11 @@ boundaries
 ### Text Justification: `justify`/`justifyAll`
 Distribute spaces to fit exact width
 ```scala
+// Fluent syntax
+"All the lines\nmaybe the last".justify(20).render
+"All the lines\nmaybe the last".justifyAll(20).render
+
+// Nested syntax
 justify("All the lines\nmaybe the last", 20).render
 justifyAll("All the lines\nmaybe the last", 20).render
 ```
