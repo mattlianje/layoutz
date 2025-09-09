@@ -133,7 +133,7 @@ Call `.render` on an element to get a String
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Fluent API
-**Dot notation instead of nesting:**
+For some `Element`s you can use dot-completion instead of nesting
 
 ```scala
 // Fluent: easier to read and chain
