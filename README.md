@@ -133,7 +133,7 @@ Call `.render` on an element to get a String
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Fluent API
-**Dot notation instead of nesting:**
+For some `Element`s you can use dot-completion instead of nesting
 
 ```scala
 // Instead of: center(pad(underline("Hello")), 20)
@@ -141,6 +141,8 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 
 statusCard("API", "UP").border(Border.Round).center(25).render
 ```
+
+This lets you have any `Element` and type `.` and see the fluent "verbs" that can be performed on it, like `truncate`, `underline` etc.
 
 **All elements:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
 
