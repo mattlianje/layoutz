@@ -135,21 +135,32 @@ The power comes from **uniform composition**, since everything is an `Element`, 
 ## Fluent API
 For some `Element`s you can use dot-completion instead of nesting
 
-These will render the same string
+Nested
 ```scala
-"Hello".underline().pad(2).center(20).render
-center(pad(underline()("Hello")), 20).render
+margin(">>")(underline()("Hello\nWorld!"))
 ```
 
-**Fluent methods on all elements:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
+Fluent
+```scala
+"Hello\nWorld!".underline.margin(">>")
+```
+
+These both render
+```
+>> Hello
+>> World!
+>> ──────
+```
+
+**Fluent methods available:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
 
 ## Elements
 All components implementing the Element interface you can use in your layouts...
 
-### Text: `Text` *(optional)*
-**layoutz** implicitly converts Strings to `Text` elements - the `Text()` wrapper is technically redundant:
+### Text: `Text`
+**layoutz** implicitly converts Strings to `Text` elements:
 ```scala
-"Simple text" // <- automatically converted to Text element
+"Simple text"       // <- automatically converted to Text element
 Text("Simple text") // <- you don't need to do this
 ```
 
