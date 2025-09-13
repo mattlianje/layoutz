@@ -13,6 +13,8 @@
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest",
     "test:watch": "vitest --watch",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -34,6 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
