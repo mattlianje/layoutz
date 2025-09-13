@@ -2,29 +2,23 @@ import layoutz._
 
 object ReadmeDemo {
   /* Define layouts */
-  val tableElement = table(Border.Round)(
-    headers = Seq("Name", "Role", "Status"),
-    rows = Seq(
+  val t = table(
+    Seq("Name", "Role", "Status"),
+    Seq(
       Seq("Alice", "Engineer", "Online"),
-      Seq("Bob", "Designer", "Offline"),
       Seq("Eve", "QA", "Away"),
-      /* Nest and compose elements */
-      Seq(
-        ul("Gegard", ul("Mousasi", ul("was a BAD man"))),
-        "Fighter",
-        "Nasty"
-      )
+      Seq(ul("Gegard", ul("Mousasi", ul("was a BAD man"))), "Fighter", "Nasty")
     )
-  )
+  ).border(Border.Round)
 
-  /* Combine them */
-  val demo = layout(
+  /* Nest, compose, combine them */
+  val d = layout(
     center(row("Layoutz", underline("ˆ")("DEMO"))),
     row(
-      statusCard(Border.Thick)("API", "UP"),
       statusCard("Users", "1.2K"),
-      statusCard(Border.Double)("CPU", "23%"),
-      tableElement,
+      statusCard("API", "UP").border(Border.Double),
+      statusCard("CPU", "23%").border(Border.Thick),
+      t,
       section("Pugilists")(
         kv("Kazushi" -> "Sakuraba", "Jet" -> "Li", "Rory" -> "MacDonald")
       )
@@ -46,5 +40,5 @@ object ReadmeDemo {
   )
 
   /* Get pretty strings w/ .render */
-  println(demo.render)
+  println(d.render)
 }

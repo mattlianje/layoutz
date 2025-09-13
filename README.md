@@ -10,7 +10,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 ## Features
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
-- Rich text formatting: alignment, wrapping, justification, underlines
+- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
 - Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
@@ -24,11 +24,11 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 ## Installation
 **layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
 ```scala
-"xyz.matthieucourt" %% "layoutz" % "0.1.0"
+"xyz.matthieucourt" %% "layoutz" % "0.3.0"
 ```
 Or try in REPL:
 ```bash
-scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.1.0
+scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.3.0
 ```
 
 All you need:
@@ -39,25 +39,25 @@ import layoutz._
 ## Quickstart
 There are two usage paths with this little package:
   
-**📊 (1/2) Static rendering**
+**(1/2) Static rendering**
 
 Beautiful + compositional strings
 ```scala
 import layoutz._
 
 val demo = layout(
-  center(underline("ˆ")("Test Dashboard")),
+  underline("ˆ")("Test Dashboard").center(),
   row(
-    statusCard(Border.Double)("API", "LIVE"),
+    statusCard("API", "LIVE").border(Border.Double),
     statusCard("DB", "99.9%"),
-    statusCard(Border.Thick)("Cache", "READY")
+    statusCard("Cache", "READY").border(Border.Thick)
   ),
   br,
-  box(Border.Round)("Services")(
+  box("Services")(
     ul("Production", "Staging", ul("test-api", ul("more nest"))),
     br,
     inlineBar("Health", 0.94)
-  )
+  ).border(Border.Round)
 ).render
 ```
 ```
@@ -80,7 +80,7 @@ val demo = layout(
 ╰───────────────────────────────────╯
 ```
 
-**⚡ (2/2) Interactive apps**
+**(2/2) Interactive apps**
 
 Build Elm-style TUI's
 
@@ -132,13 +132,35 @@ Call `.render` on an element to get a String
 
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
+## Fluent API
+For some `Element`s you can use dot-completion instead of nesting
+
+Nested
+```scala
+margin(">>")(underline()("Hello\nWorld!"))
+```
+
+Fluent
+```scala
+"Hello\nWorld!".underline.margin(">>")
+```
+
+These both render
+```
+>> Hello
+>> World!
+>> ──────
+```
+
+**Fluent methods available:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
+
 ## Elements
 All components implementing the Element interface you can use in your layouts...
 
-### Text: `Text` *(optional)*
-**layoutz** implicitly converts Strings to `Text` elements - the `Text()` wrapper is technically redundant:
+### Text: `Text`
+**layoutz** implicitly converts Strings to `Text` elements:
 ```scala
-"Simple text" // <- automatically converted to Text element
+"Simple text"       // <- automatically converted to Text element
 Text("Simple text") // <- you don't need to do this
 ```
 
@@ -202,11 +224,11 @@ Tasks           Status
 ### Horizontal rule: `hr`
 ```scala
 hr
-hr("~", 10)
+hr.width(10).char("~")
 ```
 ```
 ──────────────────────────────────────────────────
-~~~~~~~~~
+~~~~~~~~~~
 ```
 
 ### Key-value pairs: `kv`
@@ -219,19 +241,25 @@ role : admin
 ```
 
 ### Table: `table`
+Tables automatically normalize row lengths - truncating long rows and padding short ones:
 ```scala
 table(
-  headers = Seq("Name", "Status"),
-  rows = Seq(Seq("Alice", "Online"), Seq("Bob", "Away"))
+  headers = Seq("Name", "Age", "City"),
+  rows = Seq(
+    Seq("Alice", "30", "New York"),
+    Seq("Bob", "25"),                           // Short row - auto-padded
+    Seq("Charlie", "35", "London", "Extra")    // Long row - auto-truncated
+  )
 )
 ```
 ```
-┌───────┬────────┐
-│ Name  │ Status │
-├───────┼────────┤
-│ Alice │ Online │
-│ Bob   │ Away   │
-└───────┴────────┘
+┌─────────┬─────┬─────────┐
+│ Name    │ Age │ City    │
+├─────────┼─────┼─────────┤
+│ Alice   │ 30  │ New York│
+│ Bob     │ 25  │         │
+│ Charlie │ 35  │ London  │
+└─────────┴─────┴─────────┘
 ```
 
 
@@ -320,8 +348,13 @@ ul(
 ### Underline: `underline`
 Add underlines to any element
 ```scala
-underline("Important Title")
-underline("Custom", "=")
+// Fluent syntax
+"Important Title".underline()
+"Custom".underline("=")
+
+// Nested syntax
+underline()("Important Title")
+underline("=")("Custom")
 ```
 ```
 Important Title
@@ -404,7 +437,7 @@ Project
 
 ### Banner: `banner`
 ```scala
-banner("System Dashboard", Border.Double)
+banner("System Dashboard").border(Border.Double)
 ```
 ```
 ╔═══════════════════╗
@@ -446,33 +479,86 @@ layout("Left", space(10), "Right")
 Left          Right
 ```
 
+### Padding: `pad`
+Add uniform padding around any element
+```scala
+// Fluent syntax
+"content".pad(2)
+box(kv("cpu" -> "45%")).pad(1)
+
+// Nested syntax
+pad(2)("content")
+pad(1)(box(kv("cpu" -> "45%")))
+```
+```
+      
+  content  
+      
+```
+
+### Truncation: `truncate`
+Truncate long text with ellipsis
+```scala
+// Fluent syntax
+"This is a very long text that will be cut off".truncate(15)
+"Custom ellipsis example text here".truncate(20, "…")
+
+// Nested syntax
+truncate(15)("This is a very long text that will be cut off")
+truncate(20, "…")("Custom ellipsis example text here")
+```
+```
+This is a ve...
+Custom ellipsis ex…
+```
+
+### Empty Element: `empty`
+Useful for conditional rendering
+```scala
+layout(
+  "Always shown",
+  if (hasError) "Something failed!".marginError() else empty,
+  "Also always shown"
+)
+```
+
+### Vertical Rule: `vr`
+Vertical separators to complement horizontal rules
+```scala
+vr(3)           // 3-line vertical separator
+vr(5, "┃")      // Custom character
+```
+```
+│
+│
+│
+```
+
 ### Margin: `margin`
 Use `margin` for nice & colourful "compiler-style" margin strings:
 
 ```scala
 layout(
-  margin.error(
+  layout(
     "Ooops",
     br,
     row("val result: Int = ", underline("^")("getUserName()")),
     "Expected Int, found String"
-  ),
+  ).marginError(),
   br,
-  margin.warn(
+  layout(
     "Unused variable detected",
     row("val", underline("~")("temp"), "= calculateTotal(items)")
-  ),
+  ).marginWarn(),
   "Clean code, cleaner layouts with layoutz",
-  margin.info(
+  layout(
     "Pro tip",
     br,
-    margin("[layoutz ~>]")(
-      row("val", underline("~")("beauty"), "= renderCode(perfectly)")
-    )
-  )
+    row("val", underline("~")("beauty"), "= renderCode(perfectly)").margin("[layoutz ~>]")
+  ).marginInfo()
 )
 ```
-by default you have `.error`, `.warn`, `.success` and `.info` or just `margin` to use you own custom margins.
+Available in both fluent (`.marginError()`, `.marginWarn()`, `.marginSuccess()`, `.marginInfo()`, `.margin()`) and nested syntax (`margin.error()`, `margin.warn()`, `margin.success()`, `margin.info()`, `margin("prefix")()`).
 
 <p align="center">
   <img src="pix/margin-demo.png" width="600">
@@ -483,6 +569,12 @@ by default you have `.error`, `.warn`, `.success` and `.info` or just `margin` t
 ### Alignment: `center`/`leftAlign`/`rightAlign`
 Align text within a specified width
 ```scala
+// Fluent syntax
+"TITLE".center(20)
+"Left side".leftAlign(20)
+"Right side".rightAlign(20)
+
+// Nested syntax
 center("TITLE", 20)
 leftAlign("Left side", 20)
 rightAlign("Right side", 20)
@@ -495,7 +587,7 @@ Left side
 
 Works with multiline text:
 ```scala
-center("Line 1\nLine 2", 15)
+"Line 1\nLine 2".center(15)  // or: center("Line 1\nLine 2", 15)
 ```
 ```
    Line 1   
@@ -505,6 +597,10 @@ center("Line 1\nLine 2", 15)
 ### Text Wrapping: `wrap`
 Wrap long text at word boundaries
 ```scala
+// Fluent syntax
+"This is a very long line that should be wrapped at word boundaries".wrap(20)
+
+// Nested syntax
 wrap("This is a very long line that should be wrapped at word boundaries", 20)
 ```
 ```
@@ -517,6 +613,11 @@ boundaries
 ### Text Justification: `justify`/`justifyAll`
 Distribute spaces to fit exact width
 ```scala
+// Fluent syntax
+"All the lines\nmaybe the last".justify(20).render
+"All the lines\nmaybe the last".justifyAll(20).render
+
+// Nested syntax
 justify("All the lines\nmaybe the last", 20).render
 justifyAll("All the lines\nmaybe the last", 20).render
 ```
@@ -529,12 +630,12 @@ maybe    the    last
 ```
 
 ### Border Styles
-Elements like `box`, `table`, and `banner` support different `Border` options:
+Elements like `box`, `table`, and `banner` support different `Border` options using the fluent `.border()` method:
 
 **Single** (default):
 ```scala
-box(Border.Single)("Title")("")
-/* same as: box("Title")("") */
+box("Title")("").border(Border.Single)
+/* default style is Border.Single, so same as: box("Title")("") */
 ```
 ```
 ┌─Title─┐
@@ -544,7 +645,7 @@ box(Border.Single)("Title")("")
 
 **Double**:
 ```scala
-banner(Border.Double)("Welcome")
+banner("Welcome").border(Border.Double)
 ```
 ```
 ╔═════════╗
@@ -554,7 +655,7 @@ banner(Border.Double)("Welcome")
 
 **Thick**:
 ```scala
-table(Border.Thick)(headers, rows)
+table(headers, rows).border(Border.Thick)
 ```
 ```
 ┏━━━━━━━┳━━━━━━━━┓
@@ -566,7 +667,7 @@ table(Border.Thick)(headers, rows)
 
 **Round**:
 ```scala
-box(Border.Round)("Info")("")
+box("Info")("").border(Border.Round)
 ```
 ```
 ╭─Info─╮
@@ -576,13 +677,13 @@ box(Border.Round)("Info")("")
 
 **Custom**:
 ```scala
-box(
+box("Hello hello")("World!").border(
   Border.Custom(
     corner = "+",
     horizontal = "=",
     vertical = "|"
   )
-)("Hello hello")("World!")
+)
 ```
 ```
 +==Hello hello==+
@@ -840,4 +941,5 @@ TaskApp.run()
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
+- Go's [bubbletea](https://github.com/charmbracelet/bubbletea)
 - Countless templating libraries via osmosis ...
