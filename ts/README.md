@@ -31,11 +31,15 @@ yarn add layoutz
 
 All you need:
 ```typescript
+import * as L from 'layoutz';
+// or destructured imports:
 import { layout, ul, box, inlineBar } from 'layoutz';
 ```
 
 Or with CommonJS:
 ```javascript
+const L = require('layoutz');
+// or destructured:
 const { layout, ul, box, inlineBar } = require('layoutz');
 ```
 
@@ -44,21 +48,21 @@ const { layout, ul, box, inlineBar } = require('layoutz');
 Beautiful, compositional text layouts:
 
 ```typescript
-import { layout, section, statusCard, box, ul, inlineBar, underline, row, Border } from 'layoutz';
+import * as L from 'layoutz';
 
-const demo = layout(
-  underline("ˆ")("Test Dashboard").center(),
-  row(
-    statusCard("API", "LIVE").border(Border.Double),
-    statusCard("DB", "99.9%"),
-    statusCard("Cache", "READY").border(Border.Thick)
+const demo = L.layout(
+  L.underline("ˆ")("Test Dashboard").center(),
+  L.row(
+    L.statusCard("API", "LIVE").border(L.Border.Double),
+    L.statusCard("DB", "99.9%"),
+    L.statusCard("Cache", "READY").border(L.Border.Thick)
   ),
   "",
-  box("Services")(
-    ul("Production", "Staging", ul("test-api", ul("more nest"))),
+  L.box("Services")(
+    L.ul("Production", "Staging", L.ul("test-api", L.ul("more nest"))),
     "",
-    inlineBar("Health", 0.94)
-  ).border(Border.Round)
+    L.inlineBar("Health", 0.94)
+  ).border(L.Border.Round)
 );
 
 console.log(demo.render());
@@ -646,6 +650,22 @@ Works in browsers too! Import via CDN or bundle with your favorite bundler:
   
   console.log(demo.render());
 </script>
+```
+
+## Interactive REPL Usage
+
+**Node.js REPL:**
+```bash
+node
+> const L = require('layoutz');
+> console.log(L.layout("Hello", L.statusCard("API", "UP")).render())
+```
+
+**TypeScript REPL:**
+```bash
+npx ts-node
+> import * as L from 'layoutz';
+> console.log(L.layout("Demo", L.box("World")(L.ul("Item 1", "Item 2"))).render())
 ```
 
 ## Inspiration
