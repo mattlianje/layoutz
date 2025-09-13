@@ -6,16 +6,14 @@
 
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards for your Node.js console applications.
+Build declarative and composable sections, trees, tables, dashboards for JavaScript applications.
 
 ## Features
-- **Zero dependencies** - Pure TypeScript implementation
+- Zero dependencies - pure ts file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
-- Lists, trees, tables, charts, progress bars, banners...
-- Type-safe, immutable rendering
-- Works in both **Node.js** and **browsers**
-- **ES modules** and **CommonJS** compatible
+- Lists, trees, tables, charts, banners...
+
 
 ## Installation
 
