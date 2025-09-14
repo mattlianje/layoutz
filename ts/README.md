@@ -22,23 +22,9 @@ Install via npm:
 npm install layoutz
 ```
 
-Or with yarn:
-```bash
-yarn add layoutz
-```
-
 All you need:
 ```typescript
 import * as L from 'layoutz';
-// or destructured imports:
-import { layout, ul, box, inlineBar } from 'layoutz';
-```
-
-Or with CommonJS:
-```javascript
-const L = require('layoutz');
-// or destructured:
-const { layout, ul, box, inlineBar } = require('layoutz');
 ```
 
 ## Quickstart
@@ -566,74 +552,9 @@ box("Hello hello")("World!").border(
 +===============+
 ```
 
-## Working with arrays and objects
-
-The full power of JavaScript functional programming is at your fingertips:
-
-```typescript
-interface User {
-  name: string;
-  role: string;
-}
-
-const users: User[] = [
-  { name: "Alice", role: "Admin" },
-  { name: "Bob", role: "User" },
-  { name: "Tom", role: "User" }
-];
-
-const usersByRole = users.reduce((acc, user) => {
-  if (!acc[user.role]) acc[user.role] = [];
-  acc[user.role].push(user);
-  return acc;
-}, {} as Record<string, User[]>);
-
-const report = section("Users by Role")(
-  layout(
-    ...Object.entries(usersByRole).map(([role, roleUsers]) =>
-      box(role)(
-        ul(...roleUsers.map(u => u.name))
-      )
-    )
-  )
-);
-```
-```
-=== Users by Role ===
-┌──Admin──┐
-│ • Alice │
-└─────────┘
-
-┌──User──┐
-│ • Bob  │
-│ • Tom  │
-└────────┘
-```
-
-## TypeScript Support
-
-Full TypeScript definitions are included:
-
-```typescript
-import { Element, Layout, Box, Table } from 'layoutz';
-
-// All elements implement the Element interface
-const element: Element = layout("Hello", "World");
-
-// Type-safe border options
-const boxElement: Box = box("Title")("Content").border(Border.Double);
-
-// Strongly typed table data
-const tableData: string[][] = [
-  ["Alice", "Engineer"], 
-  ["Bob", "Designer"]
-];
-const tableElement: Table = table()(["Name", "Role"], tableData);
-```
-
 ## Browser Usage
 
-Works in browsers too! Import via CDN or bundle with your favorite bundler:
+Import via CDN or bundle with your favorite bundler:
 
 ```html
 <!-- Via CDN -->
@@ -648,22 +569,6 @@ Works in browsers too! Import via CDN or bundle with your favorite bundler:
   
   console.log(demo.render());
 </script>
-```
-
-## Interactive REPL Usage
-
-**Node.js REPL:**
-```bash
-node
-> const L = require('layoutz');
-> console.log(L.layout("Hello", L.statusCard("API", "UP")).render())
-```
-
-**TypeScript REPL:**
-```bash
-npx ts-node
-> import * as L from 'layoutz';
-> console.log(L.layout("Demo", L.box("World")(L.ul("Item 1", "Item 2"))).render())
 ```
 
 ## Inspiration
