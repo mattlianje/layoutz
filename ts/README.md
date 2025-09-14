@@ -6,7 +6,7 @@
 
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards for JavaScript applications.
+Build declarative and composable sections, trees, tables, dashboards for your JavaScript applications.
 
 ## Features
 - Zero dependencies - pure ts file
