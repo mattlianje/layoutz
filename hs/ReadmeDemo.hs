@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-
 import Layoutz
 
 -- Define layouts (matching the Scala demo structure)

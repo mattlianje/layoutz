@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="pix/layoutz-hs.png" width="700">
+</p>
+
 # <img src="../pix/layoutz.png" width="60"> layoutz-hs
 
 **Simple, beautiful CLI output for Haskell 🪶**
