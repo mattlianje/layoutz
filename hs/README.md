@@ -6,22 +6,21 @@ Build declarative and composable sections, trees, tables, dashboards for your Ha
 
 ## Features
 - Zero dependencies beyond `base`
-- Smart auto-centering that adapts to content width
 - Rich text formatting: alignment, underlines, padding, margins
 - Lists, trees, tables, charts, banners...
-- Clean functional API with universal composition
+- Clean API with universal composition
 
 ## Installation
 
 Add to your `package.yaml` or `.cabal` file:
 ```yaml
 dependencies:
-  - layoutz-hs
+  - layoutz
 ```
 
 Or install directly:
 ```bash
-cabal install layoutz-hs
+cabal install layoutz
 ```
 
 All you need:
@@ -52,7 +51,7 @@ demo = layout
     ]
   ]
 
-main = putStrLn $ render demo
+putStrLn $ render demo
 ```
 
 ```
@@ -354,9 +353,9 @@ Elements like `box`, `table`, and `statusCard` support different border styles:
 box "Title" [text "content"]
 ```
 ```
-┌─Title─┐
-│ content│
-└───────┘
+┌──Title──┐
+│ content │
+└─────────┘
 ```
 
 **DoubleBorder**:
@@ -364,10 +363,10 @@ box "Title" [text "content"]
 statusCard' DoubleBorder "API" "UP"
 ```
 ```
-╔═════╗
-║ API ║
-║ UP  ║
-╚═════╝
+╔═══════╗
+║ API   ║
+║ UP    ║
+╚═══════╝
 ```
 
 **ThickBorder**:
@@ -375,11 +374,11 @@ statusCard' DoubleBorder "API" "UP"
 table' ThickBorder ["Name"] [[text "Alice"]]
 ```
 ```
-┏━━━━━━┓
-┃ Name ┃
-┣━━━━━━┫
-┃ Alice┃
-┗━━━━━━┛
+┏━━━━━━━┓
+┃ Name  ┃
+┣━━━━━━━┫
+┃ Alice ┃
+┗━━━━━━━┛
 ```
 
 **RoundBorder**:
@@ -387,20 +386,10 @@ table' ThickBorder ["Name"] [[text "Alice"]]
 box' RoundBorder "Info" [text "content"]
 ```
 ```
-╭─Info─╮
-│content│
-╰──────╯
+╭──Info───╮
+│ content │
+╰─────────╯
 ```
-
-## Testing
-
-Run the comprehensive test suite:
-```bash
-cabal test           # Run all tests
-cabal test --test-show-details=direct  # Verbose output
-```
-
-The library includes 30+ unit tests covering all functionality.
 
 ## REPL Usage
 
@@ -411,11 +400,11 @@ cabal repl
 
 ```haskell
 λ> import Layoutz
-λ> center $ box "Hello" [text "World!"]
-        ┌─Hello─┐
-        │ World!│
-        └───────┘
-λ> table ["A", "B"] [[text "1", text "2"]]
+λ> putStrLn $ render $ center $ box "Hello" [text "World!"]
+┌──Hello──┐
+│ World!  │
+└─────────┘
+λ> putStrLn $ render $ table ["A", "B"] [[text "1", text "2"]]
 ┌───┬───┐
 │ A │ B │
 ├───┼───┤
@@ -425,4 +414,3 @@ cabal repl
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)
-- TypeScript [layoutz](../ts/)
