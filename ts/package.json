@@ -1,6 +1,6 @@
 {
   "name": "layoutz",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Friendly, expressive print-layout DSL for JavaScript/TypeScript",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -32,7 +32,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mattlianje/layoutz"
+    "url": "https://github.com/mattlianje/layoutz/ts"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

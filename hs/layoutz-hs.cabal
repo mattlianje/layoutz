@@ -1,0 +1,35 @@
+cabal-version: 3.0
+name:          layoutz-hs  
+version:       0.1.0.0
+synopsis:      Simple Haskell layoutz library
+description:   A friendly, expressive print-layout DSL for Haskell
+license:       Apache-2.0
+author:        Matthieu Court
+maintainer:    matthieu.court@protonmail.com
+category:      Text
+build-type:    Simple
+
+library
+  exposed-modules:     Layoutz
+  build-depends:       base >= 4.7 && < 5
+  hs-source-dirs:      .
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+test-suite layoutz-tests
+  type:                exitcode-stdio-1.0
+  main-is:             Test.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz-hs
+                     , tasty >= 1.4
+                     , tasty-hunit >= 0.10
+  hs-source-dirs:      .  
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable example-layoutz
+  main-is:             Example.hs
+  build-depends:       base >= 4.7 && < 5, layoutz-hs
+  hs-source-dirs:      .  
+  default-language:    Haskell2010
+  ghc-options:         -Wall
