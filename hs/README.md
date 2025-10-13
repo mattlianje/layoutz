@@ -59,15 +59,15 @@ putStrLn $ render demo
 ```
 
 ```
-                                         Layoutz DEMO
-                                                 ˆˆˆˆ
+                                Layoutz DEMO
+                                         ˆˆˆˆ
 
-┌─────────┐ ╔═══════╗ ┏━━━━━━━┓ ╭─────────────────────┬──────────┬────────╮ === Pugilists ===
-│ Users   │ ║ API   ║ ┃ CPU   ┃ │ Name                │ Role     │ Status │ Kazushi: Sakuraba
-│ 1.2K    │ ║ UP    ║ ┃ 23%   ┃ ├─────────────────────┼──────────┼────────┤ Jet:     Li
-└─────────┘ ╚═══════╝ ┗━━━━━━━┛ │ Alice               │ Engineer │ Online │
-                                │ Eve                 │ QA       │ Away   │
-                                ╰─────────────────────┴──────────┴────────╯
+┌─────────┐ ╔═══════╗ ┏━━━━━━━┓ ╭───────┬──────────┬────────╮ === Pugilists ===
+│ Users   │ ║ API   ║ ┃ CPU   ┃ │ Name  │ Role     │ Status │ Kazushi: Sakuraba
+│ 1.2K    │ ║ UP    ║ ┃ 23%   ┃ ├───────┼──────────┼────────┤ Jet:     Li
+└─────────┘ ╚═══════╝ ┗━━━━━━━┛ │ Alice │ Engineer │ Online │
+                                │ Eve   │ QA       │ Away   │
+                                ╰───────┴──────────┴────────╯
 ```
 
 ## Core concepts
