@@ -95,6 +95,9 @@ instance Element L where
   height (UL items) = height (UnorderedList items)
   height (AutoCenter element) = height element
 
+instance Show L where
+  show = render
+
 -- Border styles
 data Border = NormalBorder | DoubleBorder | ThickBorder | RoundBorder
   deriving (Show, Eq)
@@ -248,7 +251,7 @@ data Padded = Padded String Int  -- content, padding
 instance Element Padded where
   renderElement (Padded content padding) = 
     let contentLines = lines content
-        maxWidth = if null contentLines then 0 else maximum (map length contentLines)
+        maxWidth = if null contentLines then 0 else maximum (0 : map length contentLines)
         horizontalPad = replicate padding ' '
         verticalPad = replicate (maxWidth + padding * 2) ' '
         paddedLines = map (\line -> horizontalPad ++ line ++ replicate (maxWidth - length line) ' ' ++ horizontalPad) contentLines
@@ -260,8 +263,8 @@ data Chart = Chart [(String, Double)]  -- (label, value) pairs
 instance Element Chart where
   renderElement (Chart dataPoints) = 
     if null dataPoints then "No data"
-    else let maxValue = maximum (map snd dataPoints)
-             maxLabelWidth = minimum [15, maximum (map (length . fst) dataPoints)]
+    else let maxValue = maximum (0 : map snd dataPoints)
+             maxLabelWidth = minimum [15, maximum (0 : map (length . fst) dataPoints)]
              chartWidth = 40
          in intercalate "\n" $ map (renderBar maxValue maxLabelWidth chartWidth) dataPoints
     where
@@ -332,16 +335,19 @@ instance Element Table where
       
       calculateColumnWidths hdrs rws = 
         let headerWidths = map length hdrs
-            rowWidths = map (map (maximum . map length . lines . render)) rws
+            rowWidths = map (map (safeMaxWidth . lines . render)) rws
             allWidths = headerWidths : rowWidths
-        in map maximum (transpose allWidths)
+        in map (maximum . (0:)) (transpose allWidths)
+        where
+          safeMaxWidth [] = 0
+          safeMaxWidth linesList = maximum (0 : map length linesList)
       
       padToWidth width str = str ++ replicate (max 0 (width - length str)) ' '
       
       renderTableRow widths vChars row = 
         let cellContents = map render row
             cellLines = map lines cellContents
-            maxCellHeight = maximum (map length cellLines)
+            maxCellHeight = if null cellLines then 1 else maximum (1 : map length cellLines)
             paddedCells = zipWith (padCellToSize maxCellHeight) widths cellLines
             tableRows = [[paddedCells !! j !! i | j <- [0..length paddedCells - 1]] | i <- [0..maxCellHeight - 1]]
         in map (\rowCells -> vChars ++ " " ++ intercalate (" " ++ vChars ++ " ") rowCells ++ " " ++ vChars) tableRows

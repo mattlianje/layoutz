@@ -411,11 +411,11 @@ cabal repl
 
 ```haskell
 λ> import Layoutz
-λ> putStrLn $ render $ center $ box "Hello" [text "World!"]
+λ> center $ box "Hello" [text "World!"]
         ┌─Hello─┐
         │ World!│
         └───────┘
-λ> putStrLn $ render $ table ["A", "B"] [[text "1", text "2"]]
+λ> table ["A", "B"] [[text "1", text "2"]]
 ┌───┬───┐
 │ A │ B │
 ├───┼───┤
