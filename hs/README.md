@@ -6,10 +6,9 @@ Build declarative and composable sections, trees, tables, dashboards for your Ha
 
 ## Features
 - Zero dependencies beyond `base`
-- Smart auto-centering that adapts to content width
 - Rich text formatting: alignment, underlines, padding, margins
 - Lists, trees, tables, charts, banners...
-- Clean functional API with universal composition
+- Clean API with universal composition
 
 ## Installation
 
