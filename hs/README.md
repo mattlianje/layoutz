@@ -12,7 +12,6 @@ Build declarative and composable sections, trees, tables, dashboards for your Ha
 - Zero dependencies beyond `base`
 - Rich text formatting: alignment, underlines, padding, margins
 - Lists, trees, tables, charts, banners...
-- Clean API with universal composition
 
 ## Installation
 
@@ -37,7 +36,6 @@ import Layoutz
 Beautiful, compositional text layouts:
 
 ```haskell
-{-# LANGUAGE OverloadedStrings #-}
 import Layoutz
 
 demo = layout
@@ -80,21 +78,6 @@ layout [elem1, elem2, elem3]  -- Joins with "\n"
 Call `render` on any element to get a string
 
 The power comes from **uniform composition** - since everything has the `Element` typeclass, everything can be combined.
-
-## API Style
-
-Haskell `layoutz` uses clean functional composition:
-
-```haskell
--- Compose elements naturally
-demo = layout 
-  [ center $ underline $ text "Title"
-  , box "Container" [ul [text "Item 1", text "Item 2"]]
-  , marginInfo [inlineBar "Progress" 0.75]
-  ]
-
--- Everything returns the universal L type for easy composition
-```
 
 ## Elements
 
