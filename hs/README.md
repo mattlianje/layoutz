@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pix/layoutz-hs.png" width="700">
+  <img src="pix/layoutz-demo.png" width="700">
 </p>
 
 # <img src="../pix/layoutz.png" width="60"> layoutz-hs
