@@ -58,7 +58,7 @@ putStrLn $ render demo
 
 ```
                                 Layoutz DEMO
-                                         ˆˆˆˆ
+                                        ˆˆˆˆ
 
 ┌─────────┐ ╔═══════╗ ┏━━━━━━━┓ ╭───────┬──────────┬────────╮ === Pugilists ===
 │ Users   │ ║ API   ║ ┃ CPU   ┃ │ Name  │ Role     │ Status │ Kazushi: Sakuraba
