@@ -4,10 +4,6 @@
 
 # <img src="../pix/layoutz.png" width="60"> layoutz
 
-[![Hackage](https://img.shields.io/hackage/v/layoutz.svg)](https://hackage.haskell.org/package/layoutz)
-[![Haskell](https://img.shields.io/badge/language-Haskell-orange.svg)](https://haskell.org)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-
 **Simple, beautiful CLI output for Haskell 🪶**
 
 Build declarative and composable sections, trees, tables, dashboards for your Haskell applications.
