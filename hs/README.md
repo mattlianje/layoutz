@@ -2,28 +2,38 @@
   <img src="pix/layoutz-demo.png" width="700">
 </p>
 
-# <img src="../pix/layoutz.png" width="60"> layoutz-hs
+# <img src="../pix/layoutz.png" width="60"> layoutz
+
+[![Hackage](https://img.shields.io/hackage/v/layoutz.svg)](https://hackage.haskell.org/package/layoutz)
+[![Haskell](https://img.shields.io/badge/language-Haskell-orange.svg)](https://haskell.org)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 **Simple, beautiful CLI output for Haskell 🪶**
 
 Build declarative and composable sections, trees, tables, dashboards for your Haskell applications.
 
 ## Features
-- Zero dependencies beyond `base`
+- Zero dependencies, use `Layoutz.hs` like a header file
 - Rich text formatting: alignment, underlines, padding, margins
 - Lists, trees, tables, charts, banners...
 
 ## Installation
 
-Add to your `package.yaml` or `.cabal` file:
+**From [Hackage](https://hackage.haskell.org/package/layoutz):**
+
+```bash
+cabal install layoutz
+```
+
+**In your project's `.cabal` file:**
+```haskell
+build-depends: layoutz
+```
+
+**Or in `package.yaml` (Stack):**
 ```yaml
 dependencies:
   - layoutz
-```
-
-Or install directly:
-```bash
-cabal install layoutz
 ```
 
 All you need:
@@ -378,7 +388,7 @@ box' RoundBorder "Info" [text "content"]
 ╰─────────╯
 ```
 
-## REPL Usage
+## REPL
 
 Drop into GHCi to experiment:
 ```bash
