@@ -15,21 +15,9 @@ Build declarative and composable sections, trees, tables, dashboards for your Ha
 
 ## Installation
 
-**From [Hackage](https://hackage.haskell.org/package/layoutz):**
-
-```bash
-cabal install layoutz
-```
-
-**In your project's `.cabal` file:**
+**Add Layoutz on [Hackage](https://hackage.haskell.org/package/layoutz) to your project's `.cabal` file:**
 ```haskell
 build-depends: layoutz
-```
-
-**Or in `package.yaml` (Stack):**
-```yaml
-dependencies:
-  - layoutz
 ```
 
 All you need:
