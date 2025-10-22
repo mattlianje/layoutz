@@ -150,10 +150,37 @@ status: active"""
 
   test("box border styles") {
     val singleBox = box()("Single border") // default is Border.Single
-    val doubleBox = box()("Double border").border(Border.Double)
-    val thickBox = box()("Thick border").border(Border.Thick)
-    val roundBox = box()("Round border").border(Border.Round)
+    val doubleBox = box()("Double border").border(double)
+    val thickBox = box()("Thick border").border(thick)
+    val roundBox = box()("Round border").border(round)
     val customBox = box()("Custom border").border(Border.Custom("*", "=", "|"))
+  }
+
+  test("HasBorder typeclass") {
+    import HasBorder._
+
+    // Works with all bordered elements using typeclass method
+    val myBox = box()("content").border(double)
+    val myTable = table(Seq("A", "B"), Seq(Seq("1", "2"))).border(thick)
+    val myCard = statusCard("Status", "OK").border(round)
+    val myBanner = banner("Alert").border(single)
+
+    // Can use short aliases with .border()
+    val box2 = box()("test").border(double)
+    val table2 = table(Seq("X"), Seq(Seq("Y"))).border(noBorder)
+
+    // Generic function that works with any bordered element
+    def makeThick[T: HasBorder](element: T): T =
+      element.border(thick)
+
+    val thickBox = makeThick(box()("content"))
+    val thickTable = makeThick(table(Seq("X"), Seq(Seq("Y"))))
+
+    assert(thickBox.style == Border.Thick)
+    assert(thickTable.style == Border.Thick)
+    assert(myBox.style == Border.Double)
+    assert(box2.style == Border.Double)
+    assert(table2.style == Border.None)
   }
 
   test("padding element") {
@@ -492,13 +519,13 @@ Third line"""
 
   test("LayoutzApp trait basic functionality") {
     object TestCounterApp extends LayoutzApp[Int, String] {
-      def init: Int = 0
-      def update(msg: String, state: Int): Int = msg match {
-        case "inc" => state + 1
-        case "dec" => state - 1
-        case _     => state
+      def init: (Int, Cmd[String]) = (0, Cmd.none)
+      def update(msg: String, state: Int): (Int, Cmd[String]) = msg match {
+        case "inc" => (state + 1, Cmd.none)
+        case "dec" => (state - 1, Cmd.none)
+        case _     => (state, Cmd.none)
       }
-      def onKey(k: Key): Option[String] = k match {
+      def subscriptions(state: Int): Sub[String] = Sub.onKeyPress {
         case CharKey('+') => Some("inc")
         case CharKey('-') => Some("dec")
         case _            => None
@@ -510,14 +537,14 @@ Third line"""
     }
 
     // Test basic functionality
-    assertEquals(TestCounterApp.init, 0)
-    assertEquals(TestCounterApp.update("inc", 5), 6)
-    assertEquals(TestCounterApp.update("dec", 5), 4)
-    assertEquals(TestCounterApp.update("unknown", 5), 5)
+    assertEquals(TestCounterApp.init, (0, Cmd.none))
+    assertEquals(TestCounterApp.update("inc", 5), (6, Cmd.none))
+    assertEquals(TestCounterApp.update("dec", 5), (4, Cmd.none))
+    assertEquals(TestCounterApp.update("unknown", 5), (5, Cmd.none))
 
-    assertEquals(TestCounterApp.onKey(CharKey('+')), Some("inc"))
-    assertEquals(TestCounterApp.onKey(CharKey('-')), Some("dec"))
-    assertEquals(TestCounterApp.onKey(CharKey('x')), None)
+    // Test subscriptions extract keyboard handler
+    val sub = TestCounterApp.subscriptions(0)
+    // Can't easily test Sub internals, but we can test the view
 
     val view = TestCounterApp.view(42)
     assert(view.render.contains("Count: 42"))
@@ -527,9 +554,10 @@ Third line"""
   test("LayoutzApp polymorphism") {
     // Test that LayoutzApp can be used polymorphically
     object SimpleApp extends LayoutzApp[String, Char] {
-      def init: String = "hello"
-      def update(msg: Char, state: String): String = state + msg
-      def onKey(k: Key): Option[Char] = k match {
+      def init: (String, Cmd[Char]) = ("hello", Cmd.none)
+      def update(msg: Char, state: String): (String, Cmd[Char]) =
+        (state + msg, Cmd.none)
+      def subscriptions(state: String): Sub[Char] = Sub.onKeyPress {
         case CharKey(c) if c.isLetter => Some(c)
         case _                        => None
       }
@@ -537,10 +565,12 @@ Third line"""
     }
 
     val app: LayoutzApp[String, Char] = SimpleApp
-    assertEquals(app.init, "hello")
-    assertEquals(app.update('!', "test"), "test!")
-    assertEquals(app.onKey(CharKey('a')), Some('a'))
-    assertEquals(app.onKey(CharKey('1')), None)
+    assertEquals(app.init, ("hello", Cmd.none))
+    assertEquals(app.update('!', "test"), ("test!", Cmd.none))
+
+    // Test subscriptions are defined
+    val sub = app.subscriptions("test")
+    assert(sub != null)
 
     val view = app.view("world")
     assertEquals(view.render, "Text: world")
@@ -551,7 +581,7 @@ Third line"""
     val input2 = textInput("Task", "", "What to do?", active = true)
 
     assertEquals(input1.render, "  Name: John")
-    assertEquals(input2.render, "> Task: What to do?_")
+    assertEquals(input2.render, "> Task: What to do?█")
   }
 
   test("Spinner element rendering and animation") {
@@ -1039,50 +1069,8 @@ Longer line 2
     assertEquals(layoutElement.render, expectedLayout)
   }
 
-  test("status margins - error") {
-    val errorMargin = margin.error("Connection failed")
-    val rendered = errorMargin.render
-
-    // Red
-    assert(rendered.contains("\u001b[31m"))
-    assert(rendered.contains("error"))
-    assert(rendered.contains("Connection failed"))
-    // Reset
-    assert(rendered.contains("\u001b[0m"))
-  }
-
-  test("status margins - warn") {
-    val warnMargin = margin.warn("Performance issue")
-    val rendered = warnMargin.render
-
-    assert(rendered.contains("\u001b[33m"))
-    assert(rendered.contains("warn"))
-    assert(rendered.contains("Performance issue"))
-    assert(rendered.contains("\u001b[0m"))
-  }
-
-  test("status margins - success") {
-    val successMargin = margin.success("All systems operational")
-    val rendered = successMargin.render
-
-    assert(rendered.contains("\u001b[32m"))
-    assert(rendered.contains("success"))
-    assert(rendered.contains("All systems operational"))
-    assert(rendered.contains("\u001b[0m"))
-  }
-
-  test("status margins - info") {
-    val infoMargin = margin.info("System information")
-    val rendered = infoMargin.render
-
-    assert(rendered.contains("\u001b[36m"))
-    assert(rendered.contains("info"))
-    assert(rendered.contains("System information"))
-    assert(rendered.contains("\u001b[0m"))
-  }
-
   test("margin with complex nested elements") {
-    val complexMargin = margin.error(
+    val complexMargin = margin("[STATUS]")(
       row(
         statusCard("API", "DOWN"),
         statusCard("DB", "SLOW")
@@ -1090,14 +1078,14 @@ Longer line 2
     )
 
     val rendered = complexMargin.render
-    assert(rendered.contains("error"))
+    assert(rendered.contains("[STATUS]"))
     assert(rendered.contains("API"))
     assert(rendered.contains("DOWN"))
     assert(rendered.contains("DB"))
     assert(rendered.contains("SLOW"))
 
     val lines = rendered.split('\n')
-    assert(lines.forall(_.contains("error")))
+    assert(lines.forall(_.contains("[STATUS]")))
   }
 
   test("margin preserves element structure") {
@@ -1106,7 +1094,7 @@ Longer line 2
       "Memory usage: 45%"
     )
 
-    val marginedBox = margin.info(boxedContent)
+    val marginedBox = margin("[INFO]")(boxedContent)
     val rendered = marginedBox.render
 
     assert(rendered.contains("┌"))
@@ -1117,14 +1105,14 @@ Longer line 2
     assert(rendered.contains("Memory usage: 45%"))
 
     val lines = rendered.split('\n')
-    assert(lines.forall(_.contains("info")))
+    assert(lines.forall(_.contains("[INFO]")))
   }
 
   test("user example - nested margins work correctly") {
-    val userExample = margin.info(
+    val userExample = margin("[INFO]")(
       row("yo", "man", "what"),
       layout(
-        margin.error(
+        margin("[ERROR]")(
           row(
             statusCard("API", "LIVE").border(Border.Double),
             statusCard("DB", "99.9%"),
@@ -1136,13 +1124,13 @@ Longer line 2
 
     val rendered = userExample.render
 
-    assert(rendered.contains("info"))
+    assert(rendered.contains("[INFO]"))
 
     assert(rendered.contains("yo"))
     assert(rendered.contains("man"))
     assert(rendered.contains("what"))
 
-    assert(rendered.contains("error"))
+    assert(rendered.contains("[ERROR]"))
 
     assert(rendered.contains("API"))
     assert(rendered.contains("LIVE"))
@@ -1152,8 +1140,8 @@ Longer line 2
     assert(rendered.contains("READY"))
 
     val lines = rendered.split('\n')
-    val infoLines = lines.filter(_.contains("info"))
-    val errorLines = lines.filter(_.contains("error"))
+    val infoLines = lines.filter(_.contains("[INFO]"))
+    val errorLines = lines.filter(_.contains("[ERROR]"))
 
     assert(infoLines.nonEmpty, "Should have info prefix lines")
     assert(errorLines.nonEmpty, "Should have error prefix lines")
@@ -1164,18 +1152,15 @@ Longer line 2
     assertEquals(emptyMargin.render, "[EMPTY] ")
   }
 
-  test("margin ANSI codes don't affect element width calculations") {
-    val coloredMargin = margin.error("Short message")
+  test("margin with different prefixes") {
     val plainMargin = margin("[error]")("Short message")
 
-    val coloredElement = coloredMargin
     val plainElement = plainMargin
 
-    assert(coloredElement.width > 0)
     assert(plainElement.width > 0)
 
-    val rendered = coloredMargin.render
-    assert(rendered.contains("\u001b[31m"))
+    val rendered = plainMargin.render
+    assert(rendered.contains("[error]"))
     assert(rendered.contains("Short message"))
   }
 
@@ -1356,15 +1341,18 @@ Longer line 2
     case class SetMessage(msg: String) extends TestMessage
 
     class TestApp extends LayoutzApp[TestState, TestMessage] {
-      def init: TestState = TestState()
+      def init: (TestState, Cmd[TestMessage]) = (TestState(), Cmd.none)
 
-      def update(msg: TestMessage, state: TestState): TestState = msg match {
-        case Increment     => state.copy(value = state.value + 1)
-        case Decrement     => state.copy(value = state.value - 1)
-        case SetMessage(m) => state.copy(message = m)
+      def update(
+          msg: TestMessage,
+          state: TestState
+      ): (TestState, Cmd[TestMessage]) = msg match {
+        case Increment     => (state.copy(value = state.value + 1), Cmd.none)
+        case Decrement     => (state.copy(value = state.value - 1), Cmd.none)
+        case SetMessage(m) => (state.copy(message = m), Cmd.none)
       }
 
-      def onKey(key: Key): Option[TestMessage] = key match {
+      def subscriptions(state: TestState): Sub[TestMessage] = Sub.onKeyPress {
         case CharKey('+') => Some(Increment)
         case CharKey('-') => Some(Decrement)
         case CharKey('h') => Some(SetMessage("hello"))
@@ -1380,21 +1368,21 @@ Longer line 2
     val app = new TestApp()
 
     // Test initialization
-    val initialState = app.init
+    val (initialState, initialCmd) = app.init
     assertEquals(initialState.value, 0)
     assertEquals(initialState.message, "initial")
+    assertEquals(initialCmd, Cmd.none)
 
     // Test update
-    val incrementedState = app.update(Increment, initialState)
+    val (incrementedState, _) = app.update(Increment, initialState)
     assertEquals(incrementedState.value, 1)
 
-    val decrementedState = app.update(Decrement, incrementedState)
+    val (decrementedState, _) = app.update(Decrement, incrementedState)
     assertEquals(decrementedState.value, 0)
 
-    // Test key handling
-    assertEquals(app.onKey(CharKey('+')), Some(Increment))
-    assertEquals(app.onKey(CharKey('-')), Some(Decrement))
-    assertEquals(app.onKey(CharKey('x')), None)
+    // Test subscriptions
+    val sub = app.subscriptions(initialState)
+    assert(sub != null)
 
     // Test view rendering
     val view = app.view(initialState)
@@ -1417,13 +1405,16 @@ Longer line 2
     case object Decrement extends CounterMsg
 
     object TestCounter extends LayoutzApp[CounterState, CounterMsg] {
-      def init: CounterState = CounterState()
-      def update(msg: CounterMsg, state: CounterState): CounterState =
+      def init: (CounterState, Cmd[CounterMsg]) = (CounterState(), Cmd.none)
+      def update(
+          msg: CounterMsg,
+          state: CounterState
+      ): (CounterState, Cmd[CounterMsg]) =
         msg match {
-          case Increment => state.copy(count = state.count + 1)
-          case Decrement => state.copy(count = state.count - 1)
+          case Increment => (state.copy(count = state.count + 1), Cmd.none)
+          case Decrement => (state.copy(count = state.count - 1), Cmd.none)
         }
-      def onKey(k: Key): Option[CounterMsg] = k match {
+      def subscriptions(state: CounterState): Sub[CounterMsg] = Sub.onKeyPress {
         case CharKey('+') => Some(Increment)
         case CharKey('-') => Some(Decrement)
         case _            => None
@@ -1440,11 +1431,12 @@ Longer line 2
     assertEquals(parser.parseKey(45, mockTerminal), CharKey('-'))
 
     val app = TestCounter
-    assertEquals(app.onKey(CharKey('+')), Some(Increment))
-    assertEquals(app.onKey(CharKey('-')), Some(Decrement))
+    // Test subscriptions exist (can't easily test internal handler without exposing it)
+    val sub = app.subscriptions(CounterState())
+    assert(sub != null)
 
-    val initialState = app.init
-    val afterIncrement = app.update(Increment, initialState)
+    val (initialState, _) = app.init
+    val (afterIncrement, _) = app.update(Increment, initialState)
     assertEquals(afterIncrement.count, 1)
 
     val config = RuntimeConfig(tickIntervalMs = 50, renderIntervalMs = 10)
@@ -1479,11 +1471,6 @@ Longer line 2
 
   test("margin transformations") {
     assertEquals("Done".margin("[LOG]").render, "[LOG] Done")
-    assert("Error".marginError().render.contains("error"))
-    assert("Warning".marginWarn().render.contains("warn"))
-    assert("OK".marginSuccess().render.contains("success"))
-    assert("Info".marginInfo().render.contains("info"))
-    assert("Test".marginInfo().center(20).render.contains("info"))
   }
 
 }

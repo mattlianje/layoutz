@@ -89,20 +89,25 @@ Build Elm-style TUI's
 import layoutz._
 
 object CounterApp extends LayoutzApp[Int, String] {
-  def init = 0
+  // init: ( Model, Cmd Msg )
+  def init = (0, Cmd.none)
 
+  // update: Msg -> Model -> ( Model, Cmd Msg )
   def update(msg: String, count: Int) = msg match {
-    case "inc" => count + 1
-    case "dec" => count - 1
-    case _     => count
+    case "inc" => (count + 1, Cmd.none)
+    case "dec" => (count - 1, Cmd.none)
+    case _     => (count, Cmd.none)
   }
 
-  def onKey(k: Key) = k match {
-    case CharKey('+') => Some("inc")
-    case CharKey('-') => Some("dec")
-    case _            => None
-  }
+  // subscriptions: Model -> Sub Msg
+  def subscriptions(count: Int) = 
+    Sub.onKeyPress {
+      case CharKey('+') => Some("inc")
+      case CharKey('-') => Some("dec")
+      case _            => None
+    }
 
+  // view: Model -> Element
   def view(count: Int) = layout(
     section("Counter")(s"Count: $count"),
     br,
@@ -471,6 +476,41 @@ textInput("Password", "", "Enter password", active = false)
   Password: Enter password
 ```
 
+### Single Choice: `SingleChoice`
+Pick one option from a list (like cue4s singleChoice):
+```scala
+SingleChoice(
+  label = "How was your day?",
+  options = Seq("great", "okay", "meh"),
+  selected = 0,  // currently selected index
+  active = true
+)
+```
+```
+> How was your day?
+  ► ● great
+    ○ okay
+    ○ meh
+```
+
+### Multi Choice: `MultiChoice`
+Pick multiple options from a list (like cue4s multiChoice):
+```scala
+MultiChoice(
+  label = "Favorite colors?",
+  options = Seq("Red", "Blue", "Green"),
+  selected = Set(0, 2),  // indices of selected items
+  cursor = 1,  // current cursor position
+  active = true
+)
+```
+```
+> Favorite colors? (space to toggle, enter to confirm)
+    ☑ Red
+  ► ☐ Blue
+    ☑ Green
+```
+
 ### Space: `space`
 Add horizontal spacing
 ```scala
@@ -631,11 +671,11 @@ maybe    the    last
 ```
 
 ### Border Styles
-Elements like `box`, `table`, and `banner` support different `Border` options using the fluent `.border()` method:
+Elements like `box`, `table`, `statusCard`, and `banner` support different `Border` options using the typeclass-based `.border()` method:
 
 **Single** (default):
 ```scala
-box("Title")("").border(Border.Single)
+box("Title")("").border(single)
 /* default style is Border.Single, so same as: box("Title")("") */
 ```
 ```
@@ -646,7 +686,7 @@ box("Title")("").border(Border.Single)
 
 **Double**:
 ```scala
-banner("Welcome").border(Border.Double)
+banner("Welcome").border(double)
 ```
 ```
 ╔═════════╗
@@ -656,7 +696,7 @@ banner("Welcome").border(Border.Double)
 
 **Thick**:
 ```scala
-table(headers, rows).border(Border.Thick)
+table(headers, rows).border(thick)
 ```
 ```
 ┏━━━━━━━┳━━━━━━━━┓
@@ -668,7 +708,7 @@ table(headers, rows).border(Border.Thick)
 
 **Round**:
 ```scala
-box("Info")("").border(Border.Round)
+box("Info")("").border(round)
 ```
 ```
 ╭─Info─╮
@@ -691,6 +731,40 @@ box("Hello hello")("World!").border(
 | World!        |
 +===============+
 ```
+
+#### Border.None
+You can also disable borders entirely:
+```scala
+box("No borders")("Just content").border(noBorder)
+```
+
+#### HasBorder Typeclass
+All border styling is done via the `HasBorder` typeclass, which allows you to write generic code that works with any bordered element:
+
+```scala
+// .border() method works with any bordered element using short aliases
+val myBox = box()("content").border(double)
+val myTable = table(Seq("A", "B"), Seq(Seq("1", "2"))).border(thick)
+val myCard = statusCard("Status", "OK").border(round)
+val myBanner = banner("Alert").border(single)
+val noBorderBox = box()("clean").border(noBorder)
+
+// Generic function - works with Box, Table, StatusCard, Banner
+def makeThick[T: HasBorder](element: T): T = 
+  element.border(thick)
+
+val thickBox = makeThick(box()("content"))
+val thickTable = makeThick(table(Seq("X"), Seq(Seq("Y"))))
+```
+
+**Short aliases available:**
+- `single` = `Border.Single`
+- `double` = `Border.Double`
+- `thick` = `Border.Thick`
+- `round` = `Border.Round`
+- `noBorder` = `Border.None`
+
+This is useful for building reusable styling functions and composing UI transformations in a type-safe way.
 
 ## Working with collections
 The full power of Scala functional collections is at your fingertips to render your strings with **layoutz**
@@ -727,27 +801,27 @@ The [Elm Architecture](https://guide.elm-lang.org/architecture/) creates unidire
 
 ### `LayoutzApp[State, Message]`
 You implement four methods:
-- `init: State` - Initial state when app starts
-- `view(state: State): Element` - Render current state to UI elements  
-- `onKey(key: Key): Option[Message]` - Convert keyboard input to optional messages
-- `update(message: Message, state: State): State` - Apply message to state, return new state
+- `init: (State, Cmd[Message])` - Initial state and startup commands when app starts
+- `update(message: Message, state: State): (State, Cmd[Message])` - Apply message to state, return new state and commands
+- `subscriptions(state: State): Sub[Message]` - Declare which events to listen to based on state
+- `view(state: State): Element` - Render current state to UI elements
 
 The `.run()` method handles the event loop, terminal management, and threading automatically.
 
 ### Message Loop
 ```mermaid
 graph TD
-    A["User Presses Key"] --> B["onKey: Key to Message"]
+    A["User Presses Key"] --> B["subscriptions: Key to Message"]
     B --> C{Message?}
     C -->|Some| D["update: Message + State"]
     C -->|None| E["Ignore Input"]
-    D --> F["New State"]
+    D --> F["New State + Cmd"]
     F --> G["view: State to Element"]
     G --> H["Render to Terminal"]
     H --> I["Display Updated UI"]
     I --> A
     
-    J["Auto Ticks<br/>Tick"] --> D
+    J["Time Ticks<br/>(Sub.onTick)"] --> D
     
     style A fill:#e1f5fe
     style F fill:#f3e5f5
@@ -777,46 +851,99 @@ Shortcuts (e.g `"Ctrl+S"`, `"Ctrl+Q"`)
 case class SpecialKey(name: String)
 ```
 
-Auto-generated at 100ms intervals so you can refresh your animations:
+### Subscriptions (ongoing event sources)
+**Batteries included:**
+- `Sub.none` - No subscriptions
+- `Sub.onKeyPress(handler)` - Keyboard input
+- `Sub.time.every(intervalMs, msg)` - Periodic time updates
+- `Sub.file.watch(path, onChange)` - File system changes
+- `Sub.http.poll(url, intervalMs, onResponse, headers)` - HTTP polling
+- `Sub.batch(...)` - Multiple subscriptions
+
 ```scala
-case object Tick
+// Example: Animation + keyboard + file watching
+def subscriptions(state: State) = Sub.batch(
+  Sub.time.every(100, Tick),
+  Sub.file.watch("config.json", cfg => ConfigChanged(cfg)),
+  Sub.onKeyPress { case CharKey('q') => Some(Quit); case _ => None }
+)
+```
+
+### Commands (one-shot side effects)
+**Batteries included:**
+- `Cmd.none` - No command
+- `Cmd.batch(...)` - Run multiple commands
+- `Cmd.file.read(path, onResult)` - Read file → `Either[String, String]`
+- `Cmd.file.write(path, content, onResult)` - Write file → `Either[String, Unit]`
+- `Cmd.file.ls(path, onResult)` - List directory → `Either[String, List[String]]`
+- `Cmd.file.cwd(onResult)` - Get current directory → `Either[String, String]`
+- `Cmd.http.get(url, onResult, headers)` - HTTP GET
+- `Cmd.http.post(url, body, onResult, headers)` - HTTP POST
+- `Cmd.http.bearerAuth(token)` - Helper for Bearer auth headers
+- `Cmd.http.basicAuth(user, pass)` - Helper for Basic auth headers
+- `Cmd.perform(task, onResult)` - Custom async operation
+
+```scala
+// Example: File system operations, HTTP requests, custom tasks
+def update(msg: Msg, state: State) = msg match {
+  case LoadData =>
+    (state.copy(loading = true),
+     Cmd.batch(
+       Cmd.file.read("config.json", FileLoaded),
+       Cmd.file.ls("./data", DirListed),
+       Cmd.file.cwd(WorkingDirLoaded),
+       Cmd.http.get("https://api.example.com/data", ApiLoaded, 
+                    Cmd.http.bearerAuth(state.token))
+     ))
+  
+  case RunCustomTask =>
+    (state,
+     Cmd.perform(
+       () => try { Right(myOperation()) } 
+             catch { case ex: Exception => Left(ex.getMessage) },
+       TaskComplete
+     ))
+}
 ```
 
 ### Input Patterns
 Basic commands:
 ```scala
-def onKey(k: Key): Option[Message] = k match {
-  case CharKey('q')         => Some(Quit)
-  case ArrowUpKey           => Some(MoveUp)
-  case EnterKey             => Some(Confirm)
-  case SpecialKey("Ctrl+S") => Some(Save)
-  case _                    => None
-}
+def subscriptions(state: State): Sub[Message] = 
+  Sub.onKeyPress {
+    case CharKey('q')         => Some(Quit)
+    case ArrowUpKey           => Some(MoveUp)
+    case EnterKey             => Some(Confirm)
+    case SpecialKey("Ctrl+S") => Some(Save)
+    case _                    => None
+  }
 ```
 
 Text input:
 ```scala
-def onKey(k: Key): Option[Message] = k match {
-  case CharKey(c) if c.isPrintable => Some(AddChar(c))
-  case BackspaceKey                => Some(DeleteChar) 
-  case EnterKey                    => Some(SubmitText)
-  case _                           => None
-}
+def subscriptions(state: State): Sub[Message] = 
+  Sub.onKeyPress {
+    case CharKey(c) if c.isPrintable => Some(AddChar(c))
+    case BackspaceKey                => Some(DeleteChar) 
+    case EnterKey                    => Some(SubmitText)
+    case _                           => None
+  }
 ```
 
 Handling state dependent logic:
 ```scala
-def onKey(k: Key): Option[Message] = k match {
-  case CharKey(c) => Some(HandleChar(c))
-  case EnterKey   => Some(HandleEnter)
-  case _          => None
-}
+def subscriptions(state: AppState): Sub[Message] = 
+  Sub.onKeyPress {
+    case CharKey(c) => Some(HandleChar(c))
+    case EnterKey   => Some(HandleEnter)
+    case _          => None
+  }
 
-def update(msg: Message, state: AppState): AppState = msg match {
+def update(msg: Message, state: AppState): (AppState, Cmd[Message]) = msg match {
   case HandleChar(c) =>
-    if (state.inputMode) state.copy(text = state.text + c)
-    else if (c == 'q') state.copy(shouldExit = true)
-    else state
+    if (state.inputMode) (state.copy(text = state.text + c), Cmd.none)
+    else if (c == 'q') (state.copy(shouldExit = true), Cmd.none)
+    else (state, Cmd.none)
     
   case HandleEnter =>
     if (state.inputMode) submitText(state) 
@@ -851,7 +978,7 @@ case object StartTask extends TaskMessage
 case object UpdateTick extends TaskMessage
 
 object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
-  def init = TaskState(
+  def init = (TaskState(
     tasks = List("Process data", "Generate reports", "Backup files"),
     selected = 0,
     isLoading = false,
@@ -859,25 +986,25 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
     progress = 0.0,
     startTime = 0,
     spinnerFrame = 0
-  )
+  ), Cmd.none)
 
   def update(msg: TaskMessage, state: TaskState) = msg match {
     case MoveUp if !state.isLoading =>
       val newSelected =
         if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
-      state.copy(selected = newSelected)
+      (state.copy(selected = newSelected), Cmd.none)
 
     case MoveDown if !state.isLoading =>
       val newSelected =
         if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
-      state.copy(selected = newSelected)
+      (state.copy(selected = newSelected), Cmd.none)
 
     case StartTask if !state.isLoading =>
-      state.copy(
+      (state.copy(
         isLoading = true,
         progress = 0.0,
         startTime = System.currentTimeMillis()
-      )
+      ), Cmd.none)
 
     case UpdateTick if state.isLoading =>
       val elapsed = System.currentTimeMillis() - state.startTime
@@ -894,19 +1021,21 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
       }
       
       // Also update spinner frame
-      newState.copy(spinnerFrame = newState.spinnerFrame + 1)
+      (newState.copy(spinnerFrame = newState.spinnerFrame + 1), Cmd.none)
 
-    case UpdateTick => state.copy(spinnerFrame = state.spinnerFrame + 1)
-    case _           => state
+    case UpdateTick => (state.copy(spinnerFrame = state.spinnerFrame + 1), Cmd.none)
+    case _           => (state, Cmd.none)
   }
 
-  def onKey(k: Key) = k match {
-    case CharKey('w') | ArrowUpKey   => Some(MoveUp)
-    case CharKey('s') | ArrowDownKey => Some(MoveDown)
-    case CharKey(' ') | EnterKey     => Some(StartTask)
-    case Tick                        => Some(UpdateTick)
-    case _                           => None
-  }
+  def subscriptions(state: TaskState) = Sub.batch(
+    Sub.time.every(100, UpdateTick),
+    Sub.onKeyPress {
+      case CharKey('w') | ArrowUpKey   => Some(MoveUp)
+      case CharKey('s') | ArrowDownKey => Some(MoveDown)
+      case CharKey(' ') | EnterKey     => Some(StartTask)
+      case _                           => None
+    }
+  )
 
   def view(state: TaskState) = {
     val taskList = state.tasks.zipWithIndex.map { case (task, index) =>
@@ -938,6 +1067,74 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 
 TaskApp.run()
 ```
+
+### Form Input Example (cue4s-style)
+Build interactive forms with choice widgets:
+
+```scala
+import layoutz._
+
+case class FormState(
+    name: String = "",
+    mood: Int = 0,
+    letters: Set[Int] = Set.empty,
+    cursor: Int = 0,
+    field: Int = 0
+)
+
+sealed trait Msg
+case class TypeChar(c: Char) extends Msg
+case object NextField extends Msg
+case object MoveUp extends Msg
+case object MoveDown extends Msg
+case object Toggle extends Msg
+
+object FormApp extends LayoutzApp[FormState, Msg] {
+  val moods = Seq("great", "okay", "meh")
+  val options = ('A' to 'F').map(_.toString).toSeq
+  
+  def init = (FormState(), Cmd.none)
+  
+  def update(msg: Msg, state: FormState) = msg match {
+    case TypeChar(c) if state.field == 0 => 
+      (state.copy(name = state.name + c), Cmd.none)
+    case MoveUp if state.field == 1 =>
+      (state.copy(mood = (state.mood - 1 + moods.length) % moods.length), Cmd.none)
+    case MoveDown if state.field == 1 =>
+      (state.copy(mood = (state.mood + 1) % moods.length), Cmd.none)
+    case MoveUp if state.field == 2 =>
+      (state.copy(cursor = (state.cursor - 1 + options.length) % options.length), Cmd.none)
+    case MoveDown if state.field == 2 =>
+      (state.copy(cursor = (state.cursor + 1) % options.length), Cmd.none)
+    case Toggle if state.field == 2 =>
+      val newLetters = if (state.letters.contains(state.cursor))
+        state.letters - state.cursor else state.letters + state.cursor
+      (state.copy(letters = newLetters), Cmd.none)
+    case NextField =>
+      (state.copy(field = (state.field + 1) % 3), Cmd.none)
+    case _ => (state, Cmd.none)
+  }
+  
+  def subscriptions(state: FormState) = Sub.onKeyPress {
+    case CharKey(c) if c.isLetter => Some(TypeChar(c))
+    case ArrowUpKey => Some(MoveUp)
+    case ArrowDownKey => Some(MoveDown)
+    case CharKey(' ') => Some(Toggle)
+    case TabKey => Some(NextField)
+    case _ => None
+  }
+  
+  def view(state: FormState) = layout(
+    textInput("Name", state.name, "Type here", state.field == 0),
+    br,
+    SingleChoice("How was your day?", moods, state.mood, state.field == 1),
+    br,
+    MultiChoice("Favorite letters?", options, state.letters, state.cursor, state.field == 2)
+  )
+}
+```
+
+See [FormExample.scala](examples/FormExample.scala) for a complete working example.
 
 
 ## Inspiration
