@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="pix/layoutz-demo.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/hs/pix/layoutz-demo.png" width="700">
 </p>
 
-# <img src="../pix/layoutz.png" width="60"> layoutz
+# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 
 **Simple, beautiful CLI output for Haskell 🪶**
 
