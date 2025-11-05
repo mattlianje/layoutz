@@ -16,9 +16,15 @@ maintainer:    matthieu.court@protonmail.com
 copyright:     2025 Matthieu Court
 category:      Text
 build-type:    Simple
+
 extra-source-files:
     README.md
     pix/*.png
+
+source-repository head
+  type: git
+  location: https://github.com/mattlianje/layoutz
+  subdir: hs
 
 library
   exposed-modules:     Layoutz

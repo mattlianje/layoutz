@@ -1,12 +1,8 @@
 <p align="center">
-  <img src="pix/layoutz-demo.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/hs/pix/layoutz-demo.png" width="700">
 </p>
 
-# <img src="../pix/layoutz.png" width="60"> layoutz
-
-[![Hackage](https://img.shields.io/hackage/v/layoutz.svg)](https://hackage.haskell.org/package/layoutz)
-[![Haskell](https://img.shields.io/badge/language-Haskell-orange.svg)](https://haskell.org)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 
 **Simple, beautiful CLI output for Haskell 🪶**
 
@@ -19,21 +15,9 @@ Build declarative and composable sections, trees, tables, dashboards for your Ha
 
 ## Installation
 
-**From [Hackage](https://hackage.haskell.org/package/layoutz):**
-
-```bash
-cabal install layoutz
-```
-
-**In your project's `.cabal` file:**
+**Add Layoutz on [Hackage](https://hackage.haskell.org/package/layoutz) to your project's `.cabal` file:**
 ```haskell
 build-depends: layoutz
-```
-
-**Or in `package.yaml` (Stack):**
-```yaml
-dependencies:
-  - layoutz
 ```
 
 All you need:
