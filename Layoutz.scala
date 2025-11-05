@@ -1680,6 +1680,10 @@ package object layoutz {
     /* No command to execute */
     def none[Msg]: Cmd[Msg] = CmdNone
 
+    /* Implicit conversion: allows returning just state instead of (state, Cmd.none) */
+    implicit def stateWithNoCmd[State, Msg](state: State): (State, Cmd[Msg]) =
+      (state, none[Msg])
+
     /* Execute a batch of commands */
     def batch[Msg](cmds: Cmd[Msg]*): Cmd[Msg] = CmdBatch(cmds.toList)
 

@@ -89,12 +89,12 @@ Build Elm-style TUI's
 import layoutz._
 
 object CounterApp extends LayoutzApp[Int, String] {
-  def init = (0, Cmd.none)
+  def init = 0
 
   def update(msg: String, count: Int) = msg match {
-    case "inc" => (count + 1, Cmd.none)
-    case "dec" => (count - 1, Cmd.none)
-    case _     => (count, Cmd.none)
+    case "inc" => count + 1
+    case "dec" => count - 1
+    case _     => count
   }
 
   def subscriptions(count: Int) = 
@@ -800,14 +800,15 @@ SpecialKey(name: String)   // Ctrl+Q, Ctrl+S, etc.
 
 ### Subscriptions
 Listen to ongoing events or create timers:
-```scala
-Sub.none
-Sub.onKeyPress(handler)                              // Keyboard input
-Sub.time.every(intervalMs, msg)                      // Timers, animations, periodic ticks
-Sub.file.watch(path, onChange)                       // File changes
-Sub.http.poll(url, intervalMs, onResponse, headers)  // HTTP polling
-Sub.batch(sub1, sub2, ...)                           // Multiple subs
-```
+
+| Subscription | Description |
+|--------------|-------------|
+| `Sub.none` | No subscriptions |
+| `Sub.onKeyPress(handler)` | Keyboard input |
+| `Sub.time.every(intervalMs, msg)` | Timers, animations, periodic ticks |
+| `Sub.file.watch(path, onChange)` | File changes |
+| `Sub.http.poll(url, intervalMs, onResponse, headers)` | HTTP polling |
+| `Sub.batch(sub1, sub2, ...)` | Multiple subscriptions |
 
 Example:
 ```scala
@@ -827,17 +828,26 @@ def subscriptions(state: State) = Sub.batch(
 
 ### Commands
 Execute one-shot side effects:
+
+| Command | Result Type | Description |
+|---------|-------------|-------------|
+| `Cmd.none` | - | No command to execute (default) |
+| `Cmd.batch(cmd1, cmd2, ...)` | - | Execute multiple commands |
+| `Cmd.file.read(path, onResult)` | `Either[String, String]` | Read file contents |
+| `Cmd.file.write(path, content, onResult)` | `Either[String, Unit]` | Write to file |
+| `Cmd.file.ls(path, onResult)` | `Either[String, List[String]]` | List directory contents |
+| `Cmd.file.cwd(onResult)` | `Either[String, String]` | Get current working directory |
+| `Cmd.http.get(url, onResult, headers)` | `Either[String, String]` | HTTP GET request |
+| `Cmd.http.post(url, body, onResult, headers)` | `Either[String, String]` | HTTP POST request |
+| `Cmd.http.bearerAuth(token)` | `Map[String, String]` | Create Bearer auth header |
+| `Cmd.perform(task, onResult)` | `Either[String, String]` | Custom async command |
+
+**Note:** With the implicit conversion, you can return just the state instead of `(state, Cmd.none)`:
 ```scala
-Cmd.none
-Cmd.batch(cmd1, cmd2, ...)
-Cmd.file.read(path, onResult)                   //  -> Either[String, String]
-Cmd.file.write(path, content, onResult)         //  -> Either[String, Unit]
-Cmd.file.ls(path, onResult)                     //  -> Either[String, List[String]]
-Cmd.file.cwd(onResult)                          //  -> Either[String, String]
-Cmd.http.get(url, onResult, headers)            //  -> Either[String, String]
-Cmd.http.post(url, body, onResult, headers)     //  -> Either[String, String]
-Cmd.http.bearerAuth(token)                      //  -> Map[String, String]
-Cmd.perform(task, onResult)                     //  -> Either[String, String]
+def update(msg: Msg, state: State) = msg match {
+  case Increment => state.copy(count = state.count + 1)  // Automatically becomes (state, Cmd.none)
+  case LoadData => (state.copy(loading = true), Cmd.file.read("data.txt", DataLoaded))
+}
 ```
 
 ### Application with custom side effects
@@ -851,7 +861,7 @@ case object RunTask extends Msg
 case class TaskDone(result: Either[String, String]) extends Msg
 
 object SideEffectApp extends LayoutzApp[State, Msg] {
-  def init = (State(), Cmd.none)
+  def init = State()
   
   def update(msg: Msg, state: State) = msg match {
     case RunTask =>
@@ -867,8 +877,8 @@ object SideEffectApp extends LayoutzApp[State, Msg] {
          TaskDone
        ))
     
-    case TaskDone(Right(msg)) => (state.copy(result = msg), Cmd.none)
-    case TaskDone(Left(err)) => (state.copy(error = err), Cmd.none)
+    case TaskDone(Right(msg)) => state.copy(result = msg)
+    case TaskDone(Left(err)) => state.copy(error = err)
   }
   
   def subscriptions(state: State) = Sub.onKeyPress {
@@ -941,9 +951,9 @@ def subscriptions(state: AppState): Sub[Msg] =
 
 def update(msg: Msg, state: AppState): (AppState, Cmd[Msg]) = msg match {
   case HandleChar(c) =>
-    if (state.inputMode) (state.copy(text = state.text + c), Cmd.none)
-    else if (c == 'q') (state.copy(shouldExit = true), Cmd.none)
-    else (state, Cmd.none)
+    if (state.inputMode) state.copy(text = state.text + c)
+    else if (c == 'q') state.copy(shouldExit = true)
+    else state
     
   case HandleEnter =>
     if (state.inputMode) submitText(state) 
