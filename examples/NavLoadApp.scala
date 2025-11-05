@@ -67,19 +67,23 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
     5 -> 2000
   )
 
-  def init = NavLoadState(
-    selectedTask = 0,
-    isLoading = false,
-    progress = 0.0,
-    spinnerFrame = 0,
-    completed = Set.empty,
-    elapsedTime = 0,
-    startTime = 0,
-    message = "Navigate with arrows, Enter to start task",
-    addingTask = false,
-    newTaskName = "",
-    newTaskDuration = "",
-    customTasks = List.empty
+  // init: ( Model, Cmd Msg )
+  def init = (
+    NavLoadState(
+      selectedTask = 0,
+      isLoading = false,
+      progress = 0.0,
+      spinnerFrame = 0,
+      completed = Set.empty,
+      elapsedTime = 0,
+      startTime = 0,
+      message = "Navigate with arrows, Enter to start task",
+      addingTask = false,
+      newTaskName = "",
+      newTaskDuration = "",
+      customTasks = List.empty
+    ),
+    Cmd.none
   )
 
   private def allTasks(state: NavLoadState): List[String] =
@@ -93,7 +97,11 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
     taskDurations ++ customDurations
   }
 
-  def update(msg: NavLoadMessage, state: NavLoadState): NavLoadState =
+  // update: Msg -> Model -> ( Model, Cmd Msg )
+  def update(
+      msg: NavLoadMessage,
+      state: NavLoadState
+  ): (NavLoadState, Cmd[NavLoadMessage]) =
     msg match {
       // Arrow key navigation (when not in text input mode)
       case MoveUp if !state.isLoading && !state.addingTask =>
@@ -101,9 +109,12 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
         val newSelected =
           if (state.selectedTask > 0) state.selectedTask - 1
           else currentTasks.length - 1
-        state.copy(
-          selectedTask = newSelected,
-          message = s"Selected: ${currentTasks(newSelected)}"
+        (
+          state.copy(
+            selectedTask = newSelected,
+            message = s"Selected: ${currentTasks(newSelected)}"
+          ),
+          Cmd.none
         )
 
       case MoveDown if !state.isLoading && !state.addingTask =>
@@ -112,19 +123,25 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
           if (state.selectedTask < currentTasks.length - 1)
             state.selectedTask + 1
           else 0
-        state.copy(
-          selectedTask = newSelected,
-          message = s"Selected: ${currentTasks(newSelected)}"
+        (
+          state.copy(
+            selectedTask = newSelected,
+            message = s"Selected: ${currentTasks(newSelected)}"
+          ),
+          Cmd.none
         )
 
       case StartTask if !state.isLoading && !state.addingTask =>
         val currentTasks = allTasks(state)
         val taskName = currentTasks(state.selectedTask)
-        state.copy(
-          isLoading = true,
-          progress = 0.0,
-          startTime = System.currentTimeMillis(),
-          message = s"Starting: $taskName"
+        (
+          state.copy(
+            isLoading = true,
+            progress = 0.0,
+            startTime = System.currentTimeMillis(),
+            message = s"Starting: $taskName"
+          ),
+          Cmd.none
         )
 
       case UpdateTick if state.isLoading =>
@@ -149,19 +166,22 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
         }
 
         // Also update spinner frame
-        newState.copy(spinnerFrame = newState.spinnerFrame + 1)
+        (newState.copy(spinnerFrame = newState.spinnerFrame + 1), Cmd.none)
 
       case UpdateTick =>
-        state.copy(spinnerFrame = state.spinnerFrame + 1)
+        (state.copy(spinnerFrame = state.spinnerFrame + 1), Cmd.none)
 
       case ToggleAddTask if !state.isLoading =>
-        state.copy(
-          addingTask = !state.addingTask,
-          newTaskName = "",
-          newTaskDuration = "",
-          message =
-            if (!state.addingTask) "Adding new task..."
-            else "Cancelled adding task"
+        (
+          state.copy(
+            addingTask = !state.addingTask,
+            newTaskName = "",
+            newTaskDuration = "",
+            message =
+              if (!state.addingTask) "Adding new task..."
+              else "Cancelled adding task"
+          ),
+          Cmd.none
         )
 
       // Handle all character input based on current state
@@ -169,11 +189,11 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
         if (state.addingTask) {
           // When adding task, characters go to text input
           if (c.isLetter || c == ' ' || c == '-' || c == '_') {
-            state.copy(newTaskName = state.newTaskName + c)
+            (state.copy(newTaskName = state.newTaskName + c), Cmd.none)
           } else if (c.isDigit) {
-            state.copy(newTaskDuration = state.newTaskDuration + c)
+            (state.copy(newTaskDuration = state.newTaskDuration + c), Cmd.none)
           } else {
-            state // ignore other characters
+            (state, Cmd.none) // ignore other characters
           }
         } else if (!state.isLoading) {
           // When not adding task and not loading, characters are navigation/commands
@@ -183,9 +203,12 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
               val newSelected =
                 if (state.selectedTask > 0) state.selectedTask - 1
                 else currentTasks.length - 1
-              state.copy(
-                selectedTask = newSelected,
-                message = s"Selected: ${currentTasks(newSelected)}"
+              (
+                state.copy(
+                  selectedTask = newSelected,
+                  message = s"Selected: ${currentTasks(newSelected)}"
+                ),
+                Cmd.none
               )
 
             case 's' | 'S' =>
@@ -194,91 +217,114 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
                 if (state.selectedTask < currentTasks.length - 1)
                   state.selectedTask + 1
                 else 0
-              state.copy(
-                selectedTask = newSelected,
-                message = s"Selected: ${currentTasks(newSelected)}"
+              (
+                state.copy(
+                  selectedTask = newSelected,
+                  message = s"Selected: ${currentTasks(newSelected)}"
+                ),
+                Cmd.none
               )
 
             case 'r' | 'R' =>
-              init.copy(
-                selectedTask = state.selectedTask,
-                customTasks = state.customTasks,
-                message = "Reset all completed tasks"
+              (
+                init._1.copy(
+                  selectedTask = state.selectedTask,
+                  customTasks = state.customTasks,
+                  message = "Reset all completed tasks"
+                ),
+                Cmd.none
               )
 
             case 'n' | 'N' =>
-              state.copy(
-                addingTask = true,
-                newTaskName = "",
-                newTaskDuration = "",
-                message = "Adding new task..."
+              (
+                state.copy(
+                  addingTask = true,
+                  newTaskName = "",
+                  newTaskDuration = "",
+                  message = "Adding new task..."
+                ),
+                Cmd.none
               )
 
             case ' ' =>
               val currentTasks = allTasks(state)
               val taskName = currentTasks(state.selectedTask)
-              state.copy(
-                isLoading = true,
-                progress = 0.0,
-                startTime = System.currentTimeMillis(),
-                message = s"Starting: $taskName"
+              (
+                state.copy(
+                  isLoading = true,
+                  progress = 0.0,
+                  startTime = System.currentTimeMillis(),
+                  message = s"Starting: $taskName"
+                ),
+                Cmd.none
               )
 
-            case _ => state // ignore other characters
+            case _ => (state, Cmd.none) // ignore other characters
           }
         } else {
-          state // ignore input when loading
+          (state, Cmd.none) // ignore input when loading
         }
 
       case DeleteTaskChar if state.addingTask =>
         if (state.newTaskDuration.nonEmpty) {
-          state.copy(newTaskDuration = state.newTaskDuration.dropRight(1))
+          (
+            state.copy(newTaskDuration = state.newTaskDuration.dropRight(1)),
+            Cmd.none
+          )
         } else if (state.newTaskName.nonEmpty) {
-          state.copy(newTaskName = state.newTaskName.dropRight(1))
-        } else state
+          (state.copy(newTaskName = state.newTaskName.dropRight(1)), Cmd.none)
+        } else (state, Cmd.none)
 
       case ConfirmNewTask
           if state.addingTask && state.newTaskName.trim.nonEmpty && state.newTaskDuration.trim.nonEmpty =>
         val duration =
           try { state.newTaskDuration.toInt * 1000 }
           catch { case _: NumberFormatException => 3000 }
-        state.copy(
-          addingTask = false,
-          customTasks = state.customTasks :+ (state.newTaskName.trim, duration),
-          newTaskName = "",
-          newTaskDuration = "",
-          message =
-            s"Added task: ${state.newTaskName.trim} (${duration / 1000}s)"
+        (
+          state.copy(
+            addingTask = false,
+            customTasks =
+              state.customTasks :+ (state.newTaskName.trim, duration),
+            newTaskName = "",
+            newTaskDuration = "",
+            message =
+              s"Added task: ${state.newTaskName.trim} (${duration / 1000}s)"
+          ),
+          Cmd.none
         )
 
       case CancelNewTask if state.addingTask =>
-        state.copy(
-          addingTask = false,
-          newTaskName = "",
-          newTaskDuration = "",
-          message = "Cancelled adding task"
+        (
+          state.copy(
+            addingTask = false,
+            newTaskName = "",
+            newTaskDuration = "",
+            message = "Cancelled adding task"
+          ),
+          Cmd.none
         )
 
-      case _ => state
+      case _ => (state, Cmd.none)
     }
 
-  def onKey(k: Key): Option[NavLoadMessage] = k match {
-    // System ticks (always work)
-    case Tick => Some(UpdateTick)
+  // subscriptions: Model -> Sub Msg
+  def subscriptions(state: NavLoadState): Sub[NavLoadMessage] =
+    Sub.batch(
+      // Subscribe to time updates (for progress updates and spinners)
+      Sub.time.every(100, UpdateTick),
 
-    // Special keys
-    case EscapeKey    => Some(CancelNewTask)
-    case TabKey       => Some(ConfirmNewTask)
-    case BackspaceKey => Some(DeleteTaskChar)
-    case ArrowUpKey   => Some(MoveUp)
-    case ArrowDownKey => Some(MoveDown)
-    case EnterKey     => Some(StartTask)
-
-    // All character input goes through HandleChar - state will decide what to do
-    case CharKey(c) => Some(HandleChar(c))
-
-    case _ => None
-  }
+      // Subscribe to keyboard input
+      Sub.onKeyPress {
+        case EscapeKey    => Some(CancelNewTask)
+        case TabKey       => Some(ConfirmNewTask)
+        case BackspaceKey => Some(DeleteTaskChar)
+        case ArrowUpKey   => Some(MoveUp)
+        case ArrowDownKey => Some(MoveDown)
+        case EnterKey     => Some(StartTask)
+        case CharKey(c)   => Some(HandleChar(c))
+        case _            => None
+      }
+    )
 
   def view(state: NavLoadState): Element = {
     val currentTasks = allTasks(state)

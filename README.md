@@ -14,7 +14,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
-- Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, HTTP
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -49,9 +49,9 @@ import layoutz._
 val demo = layout(
   underline("ˆ")("Test Dashboard").center(),
   row(
-    statusCard("API", "LIVE").border(Border.Double),
+    Border.Double(statusCard("API", "LIVE")),
     statusCard("DB", "99.9%"),
-    statusCard("Cache", "READY").border(Border.Thick)
+    Border.Thick(statusCard("Cache", "READY"))
   ),
   br,
   box("Services")(
@@ -89,19 +89,20 @@ Build Elm-style TUI's
 import layoutz._
 
 object CounterApp extends LayoutzApp[Int, String] {
-  def init = 0
+  def init = (0, Cmd.none)
 
   def update(msg: String, count: Int) = msg match {
-    case "inc" => count + 1
-    case "dec" => count - 1
-    case _     => count
+    case "inc" => (count + 1, Cmd.none)
+    case "dec" => (count - 1, Cmd.none)
+    case _     => (count, Cmd.none)
   }
 
-  def onKey(k: Key) = k match {
-    case CharKey('+') => Some("inc")
-    case CharKey('-') => Some("dec")
-    case _            => None
-  }
+  def subscriptions(count: Int) = 
+    Sub.onKeyPress {
+      case CharKey('+') => Some("inc")
+      case CharKey('-') => Some("dec")
+      case _            => None
+    }
 
   def view(count: Int) = layout(
     section("Counter")(s"Count: $count"),
@@ -120,7 +121,7 @@ CounterApp.run() /* call .run to start your app */
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
-- Utlimately, **layoutz** is just a tiny, declarative DSL to combat this
+- Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
 
 ## Core concepts
 - Every piece of content is an `Element`
@@ -134,29 +135,27 @@ Call `.render` on an element to get a String
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Fluent API
-For some `Element`s you can use dot-completion instead of nesting
+For some `Element`s you can use dot-completion instead of nesting:
 
-Nested
 ```scala
+// Nested
 margin(">>")(underline()("Hello\nWorld!"))
-```
 
-Fluent
-```scala
+// Fluent
 "Hello\nWorld!".underline.margin(">>")
 ```
 
-These both render
+Both render:
 ```
 >> Hello
 >> World!
 >> ──────
 ```
 
-**Fluent methods available:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
+**Available:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`
 
 ## Elements
-All components implementing the Element interface you can use in your layouts...
+All the building blocks you can use in your layouts:
 
 ### Text: `Text`
 **layoutz** implicitly converts Strings to `Text` elements:
@@ -248,8 +247,8 @@ table(
   headers = Seq("Name", "Age", "City"),
   rows = Seq(
     Seq("Alice", "30", "New York"),
-    Seq("Bob", "25"),                           // Short row - auto-padded
-    Seq("Charlie", "35", "London", "Extra")    // Long row - auto-truncated
+    Seq("Bob", "25"),                          /* Short row - auto-padded */
+    Seq("Charlie", "35", "London", "Extra")    /* Long row - auto-truncated */
   )
 )
 ```
@@ -471,6 +470,41 @@ textInput("Password", "", "Enter password", active = false)
   Password: Enter password
 ```
 
+### Single Choice: `SingleChoice`
+Pick one option from a list (like cue4s singleChoice):
+```scala
+SingleChoice(
+  label = "How was your day?",
+  options = Seq("great", "okay", "meh"),
+  selected = 0,  // currently selected index
+  active = true
+)
+```
+```
+> How was your day?
+  ► ● great
+    ○ okay
+    ○ meh
+```
+
+### Multi Choice: `MultiChoice`
+Pick multiple options from a list (like cue4s multiChoice):
+```scala
+MultiChoice(
+  label = "Favorite colors?",
+  options = Seq("Red", "Blue", "Green"),
+  selected = Set(0, 2),  // indices of selected items
+  cursor = 1,  // current cursor position
+  active = true
+)
+```
+```
+> Favorite colors? (space to toggle, enter to confirm)
+    ☑ Red
+  ► ☐ Blue
+    ☑ Green
+```
+
 ### Space: `space`
 Add horizontal spacing
 ```scala
@@ -518,7 +552,7 @@ Useful for conditional rendering
 ```scala
 layout(
   "Always shown",
-  if (hasError) "Something failed!".marginError() else empty,
+  if (hasError) "Something failed!".margin("[error]") else empty,
   "Also always shown"
 )
 ```
@@ -536,34 +570,26 @@ vr(5, "┃")      // Custom character
 ```
 
 ### Margin: `margin`
-Use `margin` for nice & colourful "compiler-style" margin strings:
+Add prefix margins to elements for compiler-style error messages:
 
 ```scala
 layout(
-  layout(
-    "Ooops",
-    br,
-    row("val result: Int = ", underline("^")("getUserName()")),
-    "Expected Int, found String"
-  ).marginError(),
+  "Ooops",
   br,
-  layout(
-    "Unused variable detected",
-    row("val", underline("~")("temp"), "= calculateTotal(items)")
-  ).marginWarn(),
-  "Clean code, cleaner layouts with layoutz",
-  layout(
-    "Pro tip",
-    br,
-    row("val", underline("~")("beauty"), "= renderCode(perfectly)").margin("[layoutz ~>]")
-  ).marginInfo()
-)
+  row("val result: Int = ", underline("^")("getString()")),
+  "Expected Int, found String"
+).margin("[error]")
 ```
-Available in both fluent (`.marginError()`, `.marginWarn()`, `.marginSuccess()`, `.marginInfo()`, `.margin()`) and nested syntax (`margin.error()`, `margin.warn()`, `margin.success()`, `margin.info()`, `margin("prefix")()`).
+```
+[error] Ooops
+[error]
+[error]
+[error] val result: Int =  getString()
+[error]                    ^^^^^^^^^^^
+[error] Expected Int, found String
+```
 
-<p align="center">
-  <img src="pix/margin-demo.png" width="600">
-</p>
+Available in both fluent (`.margin()`) and nested syntax (`margin("prefix")()`).
 
 ## Text Formatting & Layout
 
@@ -631,7 +657,7 @@ maybe    the    last
 ```
 
 ### Border Styles
-Elements like `box`, `table`, and `banner` support different `Border` options using the fluent `.border()` method:
+Elements like `box`, `table`, `statusCard`, and `banner` support different `Border` options using the typeclass-based `.border()` method:
 
 **Single** (default):
 ```scala
@@ -692,6 +718,24 @@ box("Hello hello")("World!").border(
 +===============+
 ```
 
+#### Border.None
+You can also disable borders entirely:
+```scala
+box("No borders")("Just content").border(Border.None)
+```
+
+#### HasBorder Typeclass
+All border styling is done via the `HasBorder` typeclass, which allows you to write generic code that works with any bordered element:
+
+```scala
+// Two equivalent syntaxes
+val myBox = box()("content").border(Border.Double)      // Method syntax
+val myTable = Border.Thick(table(Seq("A", "B"), Seq(Seq("1", "2"))))  // Functional syntax
+
+// Generic function - works with Box, Table, StatusCard, Banner
+def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
+```
+
 ## Working with collections
 The full power of Scala functional collections is at your fingertips to render your strings with **layoutz**
 ```scala
@@ -727,96 +771,142 @@ The [Elm Architecture](https://guide.elm-lang.org/architecture/) creates unidire
 
 ### `LayoutzApp[State, Message]`
 You implement four methods:
-- `init: State` - Initial state when app starts
-- `view(state: State): Element` - Render current state to UI elements  
-- `onKey(key: Key): Option[Message]` - Convert keyboard input to optional messages
-- `update(message: Message, state: State): State` - Apply message to state, return new state
+- `init: (State, Cmd[Message])` - Initial state and startup commands when app starts
+- `update(message: Message, state: State): (State, Cmd[Message])` - Apply message to state, return new state and commands
+- `subscriptions(state: State): Sub[Message]` - Declare which events to listen to based on state
+- `view(state: State): Element` - Render current state to UI elements
 
 The `.run()` method handles the event loop, terminal management, and threading automatically.
 
-### Message Loop
-```mermaid
-graph TD
-    A["User Presses Key"] --> B["onKey: Key to Message"]
-    B --> C{Message?}
-    C -->|Some| D["update: Message + State"]
-    C -->|None| E["Ignore Input"]
-    D --> F["New State"]
-    F --> G["view: State to Element"]
-    G --> H["Render to Terminal"]
-    H --> I["Display Updated UI"]
-    I --> A
-    
-    J["Auto Ticks<br/>Tick"] --> D
-    
-    style A fill:#e1f5fe
-    style F fill:#f3e5f5
-    style G fill:#e8f5e8
-    style H fill:#fff3e0
-```
+The **layoutz** runtime spawns three daemon threads:
+- **Render thread** - Continuously renders your `view` to the terminal (~50ms intervals)
+- **Tick thread** - Handles time-based subscriptions and file/HTTP polling (~10ms intervals)
+- **Input thread** - Blocks on terminal input, converts keys to messages via `subscriptions`
+
+All state updates happen synchronously through `update`, keeping your app logic simple and predictable.
 
 ### Key Types
-**Layoutz** comes with a Key ADT built-in
-
-Basic char input, ex: `'a'`, `'1'`, space: `' '`
 ```scala
-case class CharKey(c: Char)
-```
-Special keys:
-```scala
-case object EnterKey, BackspaceKey, TabKey, EscapeKey
+CharKey(c: Char)           // 'a', '1', ' ', etc.
+EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
+ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
+SpecialKey(name: String)   // Ctrl+Q, Ctrl+S, etc.
 ```
 
-Navigation keys:
+### Subscriptions
+Listen to ongoing events or create timers:
 ```scala
-case object ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey  
+Sub.none
+Sub.onKeyPress(handler)                              // Keyboard input
+Sub.time.every(intervalMs, msg)                      // Timers, animations, periodic ticks
+Sub.file.watch(path, onChange)                       // File changes
+Sub.http.poll(url, intervalMs, onResponse, headers)  // HTTP polling
+Sub.batch(sub1, sub2, ...)                           // Multiple subs
 ```
 
-Shortcuts (e.g `"Ctrl+S"`, `"Ctrl+Q"`)
+Example:
 ```scala
-case class SpecialKey(name: String)
+def subscriptions(state: State) = Sub.batch(
+  Sub.time.every(100, Tick),
+  Sub.file.watch("config.json", cfg => ConfigChanged(cfg)),
+  Sub.onKeyPress { case CharKey('q') => Some(Quit); case _ => None }
+)
 ```
 
-Auto-generated at 100ms intervals so you can refresh your animations:
+### Commands
+Execute one-shot side effects:
 ```scala
-case object Tick
+Cmd.none
+Cmd.batch(cmd1, cmd2, ...)
+Cmd.file.read(path, onResult)                   //  -> Either[String, String]
+Cmd.file.write(path, content, onResult)         //  -> Either[String, Unit]
+Cmd.file.ls(path, onResult)                     //  -> Either[String, List[String]]
+Cmd.file.cwd(onResult)                          //  -> Either[String, String]
+Cmd.http.get(url, onResult, headers)            //  -> Either[String, String]
+Cmd.http.post(url, body, onResult, headers)     //  -> Either[String, String]
+Cmd.http.bearerAuth(token)                      //  -> Map[String, String]
+Cmd.perform(task, onResult)                     //  -> Either[String, String]
+```
+
+Example with custom side effect:
+```scala
+case class State(result: String = "idle", error: String = "")
+
+sealed trait Msg
+case object RunTask extends Msg
+case class TaskDone(result: Either[String, String]) extends Msg
+
+object SideEffectApp extends LayoutzApp[State, Msg] {
+  def init = (State(), Cmd.none)
+  
+  def update(msg: Msg, state: State) = msg match {
+    case RunTask =>
+      (state.copy(result = "running..."),
+       Cmd.perform(
+         () => try {
+           // Your custom logic here
+           Thread.sleep(1000)
+           Right("Task completed!")
+         } catch {
+           case ex: Exception => Left(ex.getMessage)
+         },
+         TaskDone
+       ))
+    
+    case TaskDone(Right(msg)) => (state.copy(result = msg), Cmd.none)
+    case TaskDone(Left(err)) => (state.copy(error = err), Cmd.none)
+  }
+  
+  def subscriptions(state: State) = Sub.onKeyPress {
+    case CharKey('r') => Some(RunTask)
+    case _ => None
+  }
+  
+  def view(state: State) = layout(
+    section("Custom Task")(state.result),
+    if (state.error.isEmpty) empty else layout(state.error).margin("[error]")
+  )
+}
 ```
 
 ### Input Patterns
 Basic commands:
 ```scala
-def onKey(k: Key): Option[Message] = k match {
-  case CharKey('q')         => Some(Quit)
-  case ArrowUpKey           => Some(MoveUp)
-  case EnterKey             => Some(Confirm)
-  case SpecialKey("Ctrl+S") => Some(Save)
-  case _                    => None
-}
+def subscriptions(state: State): Sub[Message] = 
+  Sub.onKeyPress {
+    case CharKey('q')         => Some(Quit)
+    case ArrowUpKey           => Some(MoveUp)
+    case EnterKey             => Some(Confirm)
+    case SpecialKey("Ctrl+S") => Some(Save)
+    case _                    => None
+  }
 ```
 
 Text input:
 ```scala
-def onKey(k: Key): Option[Message] = k match {
-  case CharKey(c) if c.isPrintable => Some(AddChar(c))
-  case BackspaceKey                => Some(DeleteChar) 
-  case EnterKey                    => Some(SubmitText)
-  case _                           => None
-}
+def subscriptions(state: State): Sub[Message] = 
+  Sub.onKeyPress {
+    case CharKey(c) if c.isPrintable => Some(AddChar(c))
+    case BackspaceKey                => Some(DeleteChar) 
+    case EnterKey                    => Some(SubmitText)
+    case _                           => None
+  }
 ```
 
 Handling state dependent logic:
 ```scala
-def onKey(k: Key): Option[Message] = k match {
-  case CharKey(c) => Some(HandleChar(c))
-  case EnterKey   => Some(HandleEnter)
-  case _          => None
-}
+def subscriptions(state: AppState): Sub[Message] = 
+  Sub.onKeyPress {
+    case CharKey(c) => Some(HandleChar(c))
+    case EnterKey   => Some(HandleEnter)
+    case _          => None
+  }
 
-def update(msg: Message, state: AppState): AppState = msg match {
+def update(msg: Message, state: AppState): (AppState, Cmd[Message]) = msg match {
   case HandleChar(c) =>
-    if (state.inputMode) state.copy(text = state.text + c)
-    else if (c == 'q') state.copy(shouldExit = true)
-    else state
+    if (state.inputMode) (state.copy(text = state.text + c), Cmd.none)
+    else if (c == 'q') (state.copy(shouldExit = true), Cmd.none)
+    else (state, Cmd.none)
     
   case HandleEnter =>
     if (state.inputMode) submitText(state) 
@@ -851,7 +941,7 @@ case object StartTask extends TaskMessage
 case object UpdateTick extends TaskMessage
 
 object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
-  def init = TaskState(
+  def init = (TaskState(
     tasks = List("Process data", "Generate reports", "Backup files"),
     selected = 0,
     isLoading = false,
@@ -859,25 +949,25 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
     progress = 0.0,
     startTime = 0,
     spinnerFrame = 0
-  )
+  ), Cmd.none)
 
   def update(msg: TaskMessage, state: TaskState) = msg match {
     case MoveUp if !state.isLoading =>
       val newSelected =
         if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
-      state.copy(selected = newSelected)
+      (state.copy(selected = newSelected), Cmd.none)
 
     case MoveDown if !state.isLoading =>
       val newSelected =
         if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
-      state.copy(selected = newSelected)
+      (state.copy(selected = newSelected), Cmd.none)
 
     case StartTask if !state.isLoading =>
-      state.copy(
+      (state.copy(
         isLoading = true,
         progress = 0.0,
         startTime = System.currentTimeMillis()
-      )
+      ), Cmd.none)
 
     case UpdateTick if state.isLoading =>
       val elapsed = System.currentTimeMillis() - state.startTime
@@ -894,19 +984,21 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
       }
       
       // Also update spinner frame
-      newState.copy(spinnerFrame = newState.spinnerFrame + 1)
+      (newState.copy(spinnerFrame = newState.spinnerFrame + 1), Cmd.none)
 
-    case UpdateTick => state.copy(spinnerFrame = state.spinnerFrame + 1)
-    case _           => state
+    case UpdateTick => (state.copy(spinnerFrame = state.spinnerFrame + 1), Cmd.none)
+    case _           => (state, Cmd.none)
   }
 
-  def onKey(k: Key) = k match {
-    case CharKey('w') | ArrowUpKey   => Some(MoveUp)
-    case CharKey('s') | ArrowDownKey => Some(MoveDown)
-    case CharKey(' ') | EnterKey     => Some(StartTask)
-    case Tick                        => Some(UpdateTick)
-    case _                           => None
-  }
+  def subscriptions(state: TaskState) = Sub.batch(
+    Sub.time.every(100, UpdateTick),
+    Sub.onKeyPress {
+      case CharKey('w') | ArrowUpKey   => Some(MoveUp)
+      case CharKey('s') | ArrowDownKey => Some(MoveDown)
+      case CharKey(' ') | EnterKey     => Some(StartTask)
+      case _                           => None
+    }
+  )
 
   def view(state: TaskState) = {
     val taskList = state.tasks.zipWithIndex.map { case (task, index) =>
@@ -938,6 +1030,78 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 
 TaskApp.run()
 ```
+
+### Form Input Example
+Build interactive forms with choice widgets:
+
+```scala
+import layoutz._
+
+case class FormState(
+    name: String = "",
+    mood: Int = 0,
+    letters: Set[Int] = Set.empty,
+    cursor: Int = 0,
+    field: Int = 0
+)
+
+sealed trait Msg
+case class TypeChar(c: Char) extends Msg
+case object Backspace extends Msg
+case object NextField extends Msg
+case object MoveUp extends Msg
+case object MoveDown extends Msg
+case object Toggle extends Msg
+
+object FormApp extends LayoutzApp[FormState, Msg] {
+  val moods = Seq("great", "okay", "meh")
+  val options = ('A' to 'F').map(_.toString).toSeq
+  
+  def init = (FormState(), Cmd.none)
+  
+  def update(msg: Msg, state: FormState) = msg match {
+    case TypeChar(c) if state.field == 0 => 
+      (state.copy(name = state.name + c), Cmd.none)
+    case Backspace if state.field == 0 && state.name.nonEmpty =>
+      (state.copy(name = state.name.dropRight(1)), Cmd.none)
+    case MoveUp if state.field == 1 =>
+      (state.copy(mood = (state.mood - 1 + moods.length) % moods.length), Cmd.none)
+    case MoveDown if state.field == 1 =>
+      (state.copy(mood = (state.mood + 1) % moods.length), Cmd.none)
+    case MoveUp if state.field == 2 =>
+      (state.copy(cursor = (state.cursor - 1 + options.length) % options.length), Cmd.none)
+    case MoveDown if state.field == 2 =>
+      (state.copy(cursor = (state.cursor + 1) % options.length), Cmd.none)
+    case Toggle if state.field == 2 =>
+      val newLetters = if (state.letters.contains(state.cursor))
+        state.letters - state.cursor else state.letters + state.cursor
+      (state.copy(letters = newLetters), Cmd.none)
+    case NextField =>
+      (state.copy(field = (state.field + 1) % 3), Cmd.none)
+    case _ => (state, Cmd.none)
+  }
+  
+  def subscriptions(state: FormState) = Sub.onKeyPress {
+    case CharKey(' ') if state.field == 2 => Some(Toggle)
+    case CharKey(c) if c.isLetterOrDigit || c == ' ' => Some(TypeChar(c))
+    case BackspaceKey => Some(Backspace)
+    case ArrowUpKey => Some(MoveUp)
+    case ArrowDownKey => Some(MoveDown)
+    case TabKey | EnterKey => Some(NextField)
+    case _ => None
+  }
+  
+  def view(state: FormState) = layout(
+    textInput("Name", state.name, "Type here", state.field == 0),
+    br,
+    SingleChoice("How was your day?", moods, state.mood, state.field == 1),
+    br,
+    MultiChoice("Favorite letters?", options, state.letters, state.cursor, state.field == 2)
+  )
+}
+```
+
+See [FormExample.scala](examples/FormExample.scala) for a complete working example.
 
 
 ## Inspiration

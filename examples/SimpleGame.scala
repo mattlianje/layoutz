@@ -50,46 +50,54 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
     }.toList
   }
 
-  def init = GameState(
-    playerX = GAME_WIDTH / 2,
-    playerY = GAME_HEIGHT / 2,
-    items = generateItems(1),
-    score = 0,
-    gameWidth = GAME_WIDTH,
-    gameHeight = GAME_HEIGHT,
-    message = "Collect all gems! Avoid the enemies!",
-    gameOver = false,
-    level = 1,
-    enemies = generateEnemies(1),
-    lives = 3,
-    tickCount = 0
+  // init: ( Model, Cmd Msg )
+  def init = (
+    GameState(
+      playerX = GAME_WIDTH / 2,
+      playerY = GAME_HEIGHT / 2,
+      items = generateItems(1),
+      score = 0,
+      gameWidth = GAME_WIDTH,
+      gameHeight = GAME_HEIGHT,
+      message = "Collect all gems! Avoid the enemies!",
+      gameOver = false,
+      level = 1,
+      enemies = generateEnemies(1),
+      lives = 3,
+      tickCount = 0
+    ),
+    Cmd.none
   )
 
-  def update(msg: GameMessage, state: GameState): GameState = {
-    if (state.gameOver && msg != RestartGame) return state
+  // update: Msg -> Model -> ( Model, Cmd Msg )
+  def update(
+      msg: GameMessage,
+      state: GameState
+  ): (GameState, Cmd[GameMessage]) = {
+    if (state.gameOver && msg != RestartGame) return (state, Cmd.none)
 
     msg match {
       case GameMoveUp =>
         val newY = math.max(0, state.playerY - 1)
-        processPlayerMove(state.copy(playerY = newY))
+        (processPlayerMove(state.copy(playerY = newY)), Cmd.none)
 
       case GameMoveDown =>
         val newY = math.min(state.gameHeight - 1, state.playerY + 1)
-        processPlayerMove(state.copy(playerY = newY))
+        (processPlayerMove(state.copy(playerY = newY)), Cmd.none)
 
       case GameMoveLeft =>
         val newX = math.max(0, state.playerX - 1)
-        processPlayerMove(state.copy(playerX = newX))
+        (processPlayerMove(state.copy(playerX = newX)), Cmd.none)
 
       case GameMoveRight =>
         val newX = math.min(state.gameWidth - 1, state.playerX + 1)
-        processPlayerMove(state.copy(playerX = newX))
+        (processPlayerMove(state.copy(playerX = newX)), Cmd.none)
 
       case RestartGame =>
         init
 
       case GameTick =>
-        updateGameTick(state)
+        (updateGameTick(state), Cmd.none)
     }
   }
 
@@ -175,18 +183,22 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
     enemy.copy(x = newX, y = newY)
   }
 
-  def onKey(k: Key): Option[GameMessage] = k match {
-    case Tick => Some(GameTick)
+  // subscriptions: Model -> Sub Msg
+  def subscriptions(state: GameState): Sub[GameMessage] =
+    Sub.batch(
+      // Subscribe to time updates (for enemy movement and game updates)
+      Sub.time.every(100, GameTick),
 
-    case CharKey('w') | CharKey('W') | ArrowUpKey    => Some(GameMoveUp)
-    case CharKey('s') | CharKey('S') | ArrowDownKey  => Some(GameMoveDown)
-    case CharKey('a') | CharKey('A') | ArrowLeftKey  => Some(GameMoveLeft)
-    case CharKey('d') | CharKey('D') | ArrowRightKey => Some(GameMoveRight)
-
-    case CharKey('r') | CharKey('R') => Some(RestartGame)
-
-    case _ => None
-  }
+      // Subscribe to keyboard input
+      Sub.onKeyPress {
+        case CharKey('w') | CharKey('W') | ArrowUpKey    => Some(GameMoveUp)
+        case CharKey('s') | CharKey('S') | ArrowDownKey  => Some(GameMoveDown)
+        case CharKey('a') | CharKey('A') | ArrowLeftKey  => Some(GameMoveLeft)
+        case CharKey('d') | CharKey('D') | ArrowRightKey => Some(GameMoveRight)
+        case CharKey('r') | CharKey('R')                 => Some(RestartGame)
+        case _                                           => None
+      }
+    )
 
   def view(state: GameState): Element = {
     val gameBoard = (0 until state.gameHeight).map { y =>

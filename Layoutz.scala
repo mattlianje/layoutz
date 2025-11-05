@@ -1,9 +1,9 @@
 /*
  * +==========================================================================+
- * |                                layoutz                                   |
- * |                  Friendly, expressive print-layout & TUI DSL             |
- * |                            Version 0.0.2                                 |
- * |                 Compatible with Scala 2.12, 2.13, and 3                  |
+ * |                               layoutz                                    |
+ * |               Friendly, expressive print-layout & TUI DSL                |
+ * |                           Version 0.0.2                                  |
+ * |              Compatible with Scala 2.12, 2.13, and 3                     |
  * |                                                                          |
  * | Copyright 2025 Matthieu Court (matthieu.court@protonmail.com)            |
  * | Apache License 2.0                                                       |
@@ -11,6 +11,11 @@
  */
 package object layoutz {
   import scala.language.implicitConversions
+  import scala.util.Try
+
+  type Width = Int
+  type Height = Int
+  type Padding = Int
 
   private object Dimensions {
     val MIN_CONTENT_PADDING = 2
@@ -56,7 +61,7 @@ package object layoutz {
   /** Core layout element */
   sealed trait Element {
     def render: String
-    final def width: Int = {
+    final def width: Width = {
       val rendered = render
       if (rendered.isEmpty) return 0
 
@@ -76,21 +81,11 @@ package object layoutz {
       maxWidth
     }
 
-    final def height: Int = {
+    final def height: Height = {
       val rendered = render
-      if (rendered.isEmpty) return 1
-
-      var lines = 1
-      var i = 0
-      while (i < rendered.length) {
-        if (rendered.charAt(i) == '\n') lines += 1
-        i += 1
-      }
-      lines
+      if (rendered.isEmpty) 1
+      else rendered.count(_ == '\n') + 1
     }
-
-    /* ═══════════════════════════════════════════════════════════════════════════
-     * FLUENT TRANSFORMATIONS - Available on all elements */
 
     /** Center this element within specified width */
     final def center(width: Int): Centered = Centered(this, width)
@@ -130,21 +125,6 @@ package object layoutz {
     /** Add a prefix margin to this element */
     final def margin(prefix: String): Margin = Margin(prefix, Seq(this))
 
-    /** Add error margin (red) to this element */
-    final def marginError(): Margin =
-      Margin("[\u001b[31merror\u001b[0m]", Seq(this))
-
-    /** Add warning margin (yellow) to this element */
-    final def marginWarn(): Margin =
-      Margin("[\u001b[33mwarn\u001b[0m]", Seq(this))
-
-    /** Add success margin (green) to this element */
-    final def marginSuccess(): Margin =
-      Margin("[\u001b[32msuccess\u001b[0m]", Seq(this))
-
-    /** Add info margin (cyan) to this element */
-    final def marginInfo(): Margin =
-      Margin("[\u001b[36minfo\u001b[0m]", Seq(this))
   }
 
   private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
@@ -577,7 +557,6 @@ package object layoutz {
       style: Border = Border.Single
   ) extends Element {
 
-    def border(newStyle: Border): Table = copy(style = newStyle)
     def render: String = {
       val expectedColumnCount = headers.length
 
@@ -653,6 +632,7 @@ package object layoutz {
 
         /* Table junction characters */
         val (teeDown, teeUp, teeLeft, teeRight, cross) = style match {
+          case Border.None   => (" ", " ", " ", " ", " ")
           case Border.Single => ("┬", "┴", "┤", "├", "┼")
           case Border.Double => ("╦", "╩", "╣", "╠", "╬")
           case Border.Thick  => ("┳", "┻", "┫", "┣", "╋")
@@ -731,7 +711,6 @@ package object layoutz {
       style: Border = Border.Single
   ) extends Element {
 
-    def border(newStyle: Border): StatusCard = copy(style = newStyle)
     def render: String = {
       val labelRendered = label.render
       val contentRendered = content.render
@@ -778,10 +757,72 @@ package object layoutz {
       active: Boolean = false
   ) extends Element {
     def render: String = {
-      val displayValue = if (value.nonEmpty) value else placeholder
-      val cursor = if (active) "_" else ""
+      val displayValue = Option(value).filter(_.nonEmpty).getOrElse(placeholder)
+      val cursor = if (active) "█" else ""
       val activeMarker = if (active) ">" else " "
       s"$activeMarker $label: $displayValue$cursor"
+    }
+  }
+
+  /** Single choice selector - pick one option from a list */
+  final case class SingleChoice(
+      label: String,
+      options: Seq[String],
+      selected: Int = 0,
+      active: Boolean = false
+  ) extends Element {
+    def render: String = {
+      val header = if (active) s"> $label" else s"  $label"
+      val optionLines = options.zipWithIndex.map { case (opt, idx) =>
+        val marker = if (idx == selected) "●" else "○"
+        val highlight =
+          if (active && idx == selected) s"  ► $marker $opt"
+          else s"    $marker $opt"
+        highlight
+      }
+      (header +: optionLines).mkString("\n")
+    }
+  }
+
+  /** Multi choice selector - pick multiple options from a list */
+  final case class MultiChoice(
+      label: String,
+      options: Seq[String],
+      selected: Set[Int] = Set.empty,
+      cursor: Int = 0,
+      active: Boolean = false
+  ) extends Element {
+    def render: String = {
+      val header =
+        if (active) s"> $label (space to toggle, enter to confirm)"
+        else s"  $label"
+      val optionLines = options.zipWithIndex.map { case (opt, idx) =>
+        val marker = if (selected.contains(idx)) "☑" else "☐"
+        val highlight =
+          if (active && idx == cursor) s"  ► $marker $opt"
+          else s"    $marker $opt"
+        highlight
+      }
+      (header +: optionLines).mkString("\n")
+    }
+  }
+
+  /** Form builder helper - combines multiple inputs with validation */
+  final case class Form(
+      title: String,
+      fields: Seq[Element],
+      activeField: Int = 0,
+      showErrors: Boolean = false,
+      errorMessage: Option[String] = None
+  ) extends Element {
+    def render: String = {
+      val titleLine = s"=== $title ==="
+      val fieldLines = fields.map(_.render)
+      val errorLines = if (showErrors && errorMessage.isDefined) {
+        Seq("", s"⚠ ${errorMessage.get}")
+      } else Seq.empty
+
+      (titleLine +: fieldLines ++: errorLines).mkString("\n")
     }
   }
 
@@ -793,7 +834,9 @@ package object layoutz {
   ) extends Element {
     def render: String = {
       val spinChar = style.frames(frame % style.frames.length)
-      if (label.nonEmpty) s"$spinChar $label" else spinChar
+      Option(label)
+        .filter(_.nonEmpty)
+        .fold(spinChar)(l => s"$spinChar $l")
     }
 
     def nextFrame: Spinner = copy(frame = frame + 1)
@@ -891,7 +934,6 @@ package object layoutz {
   final case class Banner(content: Element, style: Border = Border.Double)
       extends Element {
 
-    def border(newStyle: Border): Banner = copy(style = newStyle)
     def render: String = {
       val rendered = content.render
       val lines = if (rendered.isEmpty) Array("") else rendered.split('\n')
@@ -929,8 +971,15 @@ package object layoutz {
         String,
         String
     ) // TL, TR, BL, BR, H, V
+
+    /** Apply this border style to an element with HasBorder typeclass */
+    def apply[T](element: T)(implicit ev: HasBorder[T]): T =
+      ev.setBorder(element, this)
   }
   object Border {
+    case object None extends Border {
+      val chars = (" ", " ", " ", " ", " ", " ")
+    }
     case object Single extends Border {
       val chars = ("┌", "┐", "└", "┘", "─", "│")
     }
@@ -956,16 +1005,53 @@ package object layoutz {
   type BannerStyle = Border
   type BorderStyle = Border
   object BannerStyle {
+    val None = Border.None
     val Single = Border.Single
     val Double = Border.Double
     val Thick = Border.Thick
     val Round = Border.Round
   }
   object BorderStyle {
+    val None = Border.None
     val Single = Border.Single
     val Double = Border.Double
     val Thick = Border.Thick
     val Round = Border.Round
+  }
+
+  /** Typeclass for elements that have configurable borders */
+  trait HasBorder[T] {
+    def setBorder(element: T, newStyle: Border): T
+  }
+
+  object HasBorder {
+    def apply[T](implicit ev: HasBorder[T]): HasBorder[T] = ev
+
+    implicit val tableBorder: HasBorder[Table] = new HasBorder[Table] {
+      def setBorder(element: Table, newStyle: Border): Table =
+        element.copy(style = newStyle)
+    }
+
+    implicit val statusCardBorder: HasBorder[StatusCard] =
+      new HasBorder[StatusCard] {
+        def setBorder(element: StatusCard, newStyle: Border): StatusCard =
+          element.copy(style = newStyle)
+      }
+
+    implicit val boxBorder: HasBorder[Box] = new HasBorder[Box] {
+      def setBorder(element: Box, newStyle: Border): Box =
+        element.copy(style = newStyle)
+    }
+
+    implicit val bannerBorder: HasBorder[Banner] = new HasBorder[Banner] {
+      def setBorder(element: Banner, newStyle: Border): Banner =
+        element.copy(style = newStyle)
+    }
+  }
+
+  implicit class BorderOps[T](val element: T) extends AnyVal {
+    def border(style: Border)(implicit ev: HasBorder[T]): T =
+      ev.setBorder(element, style)
   }
 
   /** Box - bordered container with optional title */
@@ -975,7 +1061,6 @@ package object layoutz {
       style: Border = Border.Single
   ) extends Element {
 
-    def border(newStyle: Border): Box = copy(style = newStyle)
     def render: String = {
       /* Combine all elements into a single layout */
       val content =
@@ -1145,9 +1230,6 @@ package object layoutz {
     }
   }
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * DSL CONSTRUCTORS */
-
   /** Create a vertical layout of elements.
     *
     * @param elements
@@ -1284,9 +1366,6 @@ package object layoutz {
     */
   def tree(name: String): TreeBuilder = TreeBuilder(name)
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * SPACING & LAYOUT */
-
   /** Single line break */
   def br: LineBreak.type = LineBreak
 
@@ -1387,6 +1466,49 @@ package object layoutz {
   /* ═══════════════════════════════════════════════════════════════════════════
    * INTERACTIVE ELEMENTS */
 
+  object input {
+
+    /** Handle a key for a text field
+      *
+      * @param key
+      *   The key that was pressed
+      * @param fieldId
+      *   Which field this is (0, 1, 2, etc.)
+      * @param activeField
+      *   Which field is currently active
+      * @param currentValue
+      *   The current text in the field
+      * @return
+      *   Some(newValue) if the key was handled, None if not
+      *
+      * Example:
+      * {{{
+      * case CharKey(c) => input.handle(CharKey(c), 0, state.activeField, state.name) match {
+      *   case Some(newValue) => Some(UpdateName(newValue))
+      *   case None => None
+      * }
+      * }}}
+      */
+    def handle(
+        key: Key,
+        fieldId: Int,
+        activeField: Int,
+        currentValue: String
+    ): Option[String] = {
+      if (activeField != fieldId) return None
+
+      key match {
+        case CharKey(c)
+            if c.isLetterOrDigit || c.isWhitespace ||
+              "!@#$%^&*()_+-=[]{}|;':,.<>?/\\\"".contains(c) =>
+          Some(currentValue + c)
+        case BackspaceKey if currentValue.nonEmpty =>
+          Some(currentValue.dropRight(1))
+        case _ => None
+      }
+    }
+  }
+
   /** Interactive text input field */
   def textInput(
       label: String,
@@ -1394,6 +1516,29 @@ package object layoutz {
       placeholder: String = "",
       active: Boolean = false
   ): TextInput = TextInput(label, value, placeholder, active)
+
+  /** Single choice selector - pick one option from a list */
+  def singleChoice(
+      label: String,
+      options: Seq[String],
+      selected: Int = 0,
+      active: Boolean = false
+  ): SingleChoice = SingleChoice(label, options, selected, active)
+
+  /** Multi choice selector - pick multiple options from a list */
+  def multiChoice(
+      label: String,
+      options: Seq[String],
+      selected: Set[Int] = Set.empty,
+      cursor: Int = 0,
+      active: Boolean = false
+  ): MultiChoice = MultiChoice(label, options, selected, cursor, active)
+
+  /** Form builder - combines multiple input fields */
+  def form(
+      title: String,
+      fields: Element*
+  ): Form = Form(title, fields)
 
   /** Animated loading spinner */
   def spinner(
@@ -1481,21 +1626,6 @@ package object layoutz {
   def margin(prefix: String)(elements: Element*): Margin =
     Margin(prefix, elements)
 
-  /** Predefined status margins with color coding */
-  object margins {
-    def error(elements: Element*): Margin =
-      Margin("[\u001b[31merror\u001b[0m]", elements)
-    def warn(elements: Element*): Margin =
-      Margin("[\u001b[33mwarn\u001b[0m]", elements)
-    def success(elements: Element*): Margin =
-      Margin("[\u001b[32msuccess\u001b[0m]", elements)
-    def info(elements: Element*): Margin =
-      Margin("[\u001b[36minfo\u001b[0m]", elements)
-  }
-
-  /** Alias for margins object */
-  val margin = margins
-
   /* ═══════════════════════════════════════════════════════════════════════════
    * IMPLICIT CONVERSIONS */
 
@@ -1537,9 +1667,199 @@ package object layoutz {
   case object ArrowLeftKey extends Key
   case object ArrowRightKey extends Key
 
-  case object Tick extends Key
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * COMMANDS AND SUBSCRIPTIONS (ELM ARCHITECTURE) */
 
-  /** Configuration for the Layoutz runtime */
+  /** Commands represent side effects to execute. Commands don't execute
+    * immediately, but are returned from init/update to be run by the runtime.
+    */
+  sealed trait Cmd[+Msg]
+
+  object Cmd {
+
+    /* No command to execute */
+    def none[Msg]: Cmd[Msg] = CmdNone
+
+    /* Execute a batch of commands */
+    def batch[Msg](cmds: Cmd[Msg]*): Cmd[Msg] = CmdBatch(cmds.toList)
+
+    /* File I/O commands */
+    object file {
+
+      /** Read file contents - fires msg with content on success, error msg on
+        * failure
+        */
+      def read[Msg](
+          path: String,
+          onResult: Either[String, String] => Msg
+      ): Cmd[Msg] =
+        CmdFileRead(path, onResult)
+
+      /* Write file contents - fires msg on completion */
+      def write[Msg](
+          path: String,
+          content: String,
+          onResult: Either[String, Unit] => Msg
+      ): Cmd[Msg] =
+        CmdFileWrite(path, content, onResult)
+
+      /* List directory contents - fires msg with list of file/dir names */
+      def ls[Msg](
+          path: String,
+          onResult: Either[String, List[String]] => Msg
+      ): Cmd[Msg] =
+        CmdFileLs(path, onResult)
+
+      /** Get current working directory - fires msg with path */
+      def cwd[Msg](onResult: Either[String, String] => Msg): Cmd[Msg] =
+        CmdFileCwd(onResult)
+    }
+
+    /* HTTP commands */
+    object http {
+
+      /* HTTP GET request - fires msg with response on completion */
+      def get[Msg](
+          url: String,
+          onResult: Either[String, String] => Msg,
+          headers: Map[String, String] = Map.empty
+      ): Cmd[Msg] = CmdHttpGet(url, headers, onResult)
+
+      /* HTTP POST request - fires msg with response on completion */
+      def post[Msg](
+          url: String,
+          body: String,
+          onResult: Either[String, String] => Msg,
+          headers: Map[String, String] = Map.empty
+      ): Cmd[Msg] = CmdHttpPost(url, body, headers, onResult)
+
+      /* Helper: Create Authorization Bearer token header */
+      def bearerAuth(token: String): Map[String, String] =
+        Map("Authorization" -> s"Bearer $token")
+
+      /* Helper: Create Basic auth header */
+      def basicAuth(username: String, password: String): Map[String, String] = {
+        val credentials = java.util.Base64.getEncoder
+          .encodeToString(s"$username:$password".getBytes)
+        Map("Authorization" -> s"Basic $credentials")
+      }
+    }
+
+    /** Execute a custom async command - for user-defined effects */
+    def perform[Msg](
+        task: () => Either[String, String],
+        onResult: Either[String, String] => Msg
+    ): Cmd[Msg] =
+      CmdPerform(task, onResult)
+  }
+
+  private case object CmdNone extends Cmd[Nothing]
+  private case class CmdBatch[Msg](cmds: List[Cmd[Msg]]) extends Cmd[Msg]
+  private case class CmdFileRead[Msg](
+      path: String,
+      onResult: Either[String, String] => Msg
+  ) extends Cmd[Msg]
+  private case class CmdFileWrite[Msg](
+      path: String,
+      content: String,
+      onResult: Either[String, Unit] => Msg
+  ) extends Cmd[Msg]
+  private case class CmdFileLs[Msg](
+      path: String,
+      onResult: Either[String, List[String]] => Msg
+  ) extends Cmd[Msg]
+  private case class CmdFileCwd[Msg](onResult: Either[String, String] => Msg)
+      extends Cmd[Msg]
+  private case class CmdHttpGet[Msg](
+      url: String,
+      headers: Map[String, String],
+      onResult: Either[String, String] => Msg
+  ) extends Cmd[Msg]
+  private case class CmdHttpPost[Msg](
+      url: String,
+      body: String,
+      headers: Map[String, String],
+      onResult: Either[String, String] => Msg
+  ) extends Cmd[Msg]
+  private case class CmdPerform[Msg](
+      task: () => Either[String, String],
+      onResult: Either[String, String] => Msg
+  ) extends Cmd[Msg]
+
+  /** Subscriptions represent ongoing event sources. They declare what events
+    * your app is interested in based on the current state.
+    */
+  sealed trait Sub[+Msg]
+
+  object Sub {
+
+    /* No subscriptions */
+    def none[Msg]: Sub[Msg] = SubNone
+
+    /* Subscribe to keyboard input */
+    def onKeyPress[Msg](handler: Key => Option[Msg]): Sub[Msg] =
+      OnKeyPress(handler)
+
+    /* Time-based subscriptions */
+    object time {
+
+      /* Subscribe to time intervals - fires msg every intervalMs milliseconds */
+      def every[Msg](intervalMs: Long, msg: Msg): Sub[Msg] =
+        OnTimeEvery(intervalMs, () => msg)
+
+      /* Subscribe to time intervals with dynamic message generation */
+      def everyDynamic[Msg](
+          intervalMs: Long,
+          msgGenerator: () => Msg
+      ): Sub[Msg] =
+        OnTimeEvery(intervalMs, msgGenerator)
+    }
+
+    /* File system subscriptions */
+    object file {
+
+      /* Watch a file for changes - fires msg when file is modified */
+      def watch[Msg](
+          path: String,
+          onChange: Either[String, String] => Msg
+      ): Sub[Msg] =
+        OnFileWatch(path, onChange)
+    }
+
+    /* HTTP subscriptions */
+    object http {
+
+      /* Poll an HTTP endpoint - fires msg with response at specified interval */
+      def poll[Msg](
+          url: String,
+          intervalMs: Long,
+          onResponse: Either[String, String] => Msg,
+          headers: Map[String, String] = Map.empty
+      ): Sub[Msg] = OnHttpPoll(url, intervalMs, headers, onResponse)
+    }
+
+    /* Batch multiple subscriptions */
+    def batch[Msg](subs: Sub[Msg]*): Sub[Msg] = SubBatch(subs.toList)
+  }
+
+  private case object SubNone extends Sub[Nothing]
+  private case class OnKeyPress[Msg](handler: Key => Option[Msg])
+      extends Sub[Msg]
+  private case class OnTimeEvery[Msg](intervalMs: Long, msgGenerator: () => Msg)
+      extends Sub[Msg]
+  private case class OnFileWatch[Msg](
+      path: String,
+      onChange: Either[String, String] => Msg
+  ) extends Sub[Msg]
+  private case class OnHttpPoll[Msg](
+      url: String,
+      intervalMs: Long,
+      headers: Map[String, String],
+      onResponse: Either[String, String] => Msg
+  ) extends Sub[Msg]
+  private case class SubBatch[Msg](subs: List[Sub[Msg]]) extends Sub[Msg]
+
+  /* Configuration for the Layoutz runtime */
   case class RuntimeConfig(
       tickIntervalMs: Long = 100,
       renderIntervalMs: Long = 50,
@@ -1552,13 +1872,14 @@ package object layoutz {
     def enterRawMode(): Unit
     def exitRawMode(): Unit
     def clearScreen(): Unit
+    def clearScrollback(): Unit
     def hideCursor(): Unit
     def showCursor(): Unit
     def write(text: String): Unit
     def writeLine(text: String): Unit
     def flush(): Unit
-    def readInput(): Int // Blocking read
-    def readInputNonBlocking(): Option[Int] // Non-blocking read
+    def readInput(): Int
+    def readInputNonBlocking(): Option[Int]
     def close(): Unit
   }
 
@@ -1581,6 +1902,10 @@ package object layoutz {
     def exitRawMode(): Unit = () // JLine handles this automatically
     def clearScreen(): Unit = {
       terminal.writer().print("\u001b[2J\u001b[H")
+      terminal.writer().flush()
+    }
+    def clearScrollback(): Unit = {
+      terminal.writer().print("\u001b[3J\u001b[2J\u001b[H")
       terminal.writer().flush()
     }
     def hideCursor(): Unit = {
@@ -1628,12 +1953,12 @@ package object layoutz {
     }
   }
 
-  /** Key parser abstraction */
+  /* Key parser abstraction */
   trait KeyParser {
     def parseKey(input: Int, terminal: Terminal): Key
   }
 
-  /** Default key parser implementation */
+  /* Default key parser implementation */
   object DefaultKeyParser extends KeyParser {
     def parseKey(input: Int, terminal: Terminal): Key = input match {
       case 10 | 13 => EnterKey
@@ -1656,7 +1981,7 @@ package object layoutz {
         reader: org.jline.utils.NonBlockingReader
     ): Key = {
       try {
-        // TODO: Better way to pause waiting for complete sequence to arrive
+        /* TODO: Better way to pause waiting for complete sequence to arrive */
         Thread.sleep(5)
         val next1 = reader.read()
         if (next1 == 91) { // '[' character
@@ -1697,11 +2022,57 @@ package object layoutz {
     }
   }
 
-  /** Application lifecycle management */
+  /** Application lifecycle management following The Elm Architecture.
+    *
+    * The Elm Architecture consists of:
+    *   - init: ( Model, Cmd Msg ) - Initialize state and optional startup
+    *     commands
+    *   - update: Msg -> Model -> ( Model, Cmd Msg ) - Update state based on
+    *     messages
+    *   - subscriptions: Model -> Sub Msg - Declare what events to listen to
+    *   - view: Model -> Html Msg - Render the view based on current state
+    */
   trait LayoutzApp[State, Message] {
-    def init: State
-    def update(msg: Message, state: State): State
-    def onKey(k: Key): Option[Message]
+
+    /** Initialize the application.
+      *
+      * @return
+      *   a tuple of (initial state, initial command)
+      */
+    def init: (State, Cmd[Message])
+
+    /** Update the state based on a message.
+      *
+      * @param msg
+      *   the message to process
+      * @param state
+      *   the current state
+      * @return
+      *   a tuple of (new state, command to execute)
+      */
+    def update(msg: Message, state: State): (State, Cmd[Message])
+
+    /** Declare what subscriptions are active based on the current state.
+      *
+      * Subscriptions represent event sources like:
+      *   - Keyboard input via Sub.onKeyPress
+      *   - Time ticks via Sub.onTick
+      *   - Multiple subscriptions via Sub.batch
+      *
+      * @param state
+      *   the current state
+      * @return
+      *   the subscriptions to activate
+      */
+    def subscriptions(state: State): Sub[Message]
+
+    /** Render the view based on the current state.
+      *
+      * @param state
+      *   the current state
+      * @return
+      *   the element to render
+      */
     def view(state: State): Element
 
     /** Run this application with default configuration */
@@ -1763,7 +2134,7 @@ package object layoutz {
         terminal: Terminal
     ) {
 
-      @volatile private var currentState = app.init
+      @volatile private var currentState: State = _
       @volatile private var shouldContinue = true
       private val stateLock = new Object()
       private val keyParser = DefaultKeyParser
@@ -1796,18 +2167,157 @@ package object layoutz {
         terminal.enterRawMode()
         terminal.clearScreen()
         terminal.hideCursor()
+
+        // Initialize app state and process initial commands
+        val (initialState, initialCmd) = app.init
+        currentState = initialState
+        processCommand(initialCmd)
       }
 
       private def cleanup(): Unit = {
-        terminal.clearScreen()
+        terminal.clearScrollback()
         terminal.showCursor()
-        terminal.writeLine("Application terminated.")
         terminal.flush()
+      }
+
+      private def execFileRead(path: String): Either[String, String] = {
+        Try {
+          scala.io.Source.fromFile(path).mkString
+        }.toEither.left.map(ex => s"Failed to read file: ${ex.getMessage}")
+      }
+
+      private def execFileWrite(
+          path: String,
+          content: String
+      ): Either[String, Unit] = {
+        Try {
+          val writer = new java.io.PrintWriter(path)
+          try { writer.write(content) }
+          finally { writer.close() }
+        }.toEither.left.map(ex => s"Failed to write file: ${ex.getMessage}")
+      }
+
+      private def execFileLs(path: String): Either[String, List[String]] = {
+        val file = new java.io.File(path)
+        if (!file.exists())
+          Left(s"Path does not exist: $path")
+        else if (!file.isDirectory())
+          Left(s"Not a directory: $path")
+        else
+          Option(file.listFiles())
+            .toRight(s"Cannot read directory: $path")
+            .map(_.map(_.getName()).sorted.toList)
+      }
+
+      private def execFileCwd(): Either[String, String] = {
+        Try {
+          System.getProperty("user.dir")
+        }.toEither.left.map(ex =>
+          s"Failed to get working directory: ${ex.getMessage}"
+        )
+      }
+
+      private def execHttpGet(
+          url: String,
+          headers: Map[String, String]
+      ): Either[String, String] = {
+        Try {
+          val connection = new java.net.URL(url)
+            .openConnection()
+            .asInstanceOf[java.net.HttpURLConnection]
+          headers.foreach { case (key, value) =>
+            connection.setRequestProperty(key, value)
+          }
+          scala.io.Source.fromInputStream(connection.getInputStream).mkString
+        }.toEither.left.map(ex => s"HTTP request failed: ${ex.getMessage}")
+      }
+
+      private def execHttpPost(
+          url: String,
+          body: String,
+          headers: Map[String, String]
+      ): Either[String, String] = {
+        Try {
+          val connection = new java.net.URL(url)
+            .openConnection()
+            .asInstanceOf[java.net.HttpURLConnection]
+          connection.setRequestMethod("POST")
+          connection.setDoOutput(true)
+          headers.foreach { case (key, value) =>
+            connection.setRequestProperty(key, value)
+          }
+          val writer =
+            new java.io.OutputStreamWriter(connection.getOutputStream)
+          try { writer.write(body); writer.flush() }
+          finally { writer.close() }
+          scala.io.Source.fromInputStream(connection.getInputStream).mkString
+        }.toEither.left.map(ex => s"HTTP POST failed: ${ex.getMessage}")
+      }
+
+      private def execTask(
+          task: () => Either[String, String]
+      ): Either[String, String] = {
+        Try(task()).toEither.left.map(ex =>
+          s"Task failed: ${ex.getMessage}"
+        ) match {
+          case Right(result) => result
+          case Left(error)   => Left(error)
+        }
+      }
+
+      /* ═══════════════════════════════════════════════════════════════════════════
+       * COMMAND PROCESSOR */
+
+      private def processCommand(cmd: Cmd[Message]): Unit = {
+        import scala.concurrent.{Future, ExecutionContext}
+        implicit val ec: ExecutionContext = ExecutionContext.global
+
+        cmd match {
+          case CmdNone        => /* Nothing */
+          case CmdBatch(cmds) => cmds.foreach(processCommand)
+
+          case CmdFileRead(path, onResult) =>
+            Future(execFileRead(path)).foreach(result =>
+              updateState(onResult(result))
+            )
+
+          case CmdFileWrite(path, content, onResult) =>
+            Future(execFileWrite(path, content)).foreach(result =>
+              updateState(onResult(result))
+            )
+
+          case CmdFileLs(path, onResult) =>
+            Future(execFileLs(path)).foreach(result =>
+              updateState(onResult(result))
+            )
+
+          case CmdFileCwd(onResult) =>
+            Future(execFileCwd()).foreach(result =>
+              updateState(onResult(result))
+            )
+
+          case CmdHttpGet(url, headers, onResult) =>
+            Future(execHttpGet(url, headers)).foreach(result =>
+              updateState(onResult(result))
+            )
+
+          case CmdHttpPost(url, body, headers, onResult) =>
+            Future(execHttpPost(url, body, headers)).foreach(result =>
+              updateState(onResult(result))
+            )
+
+          case CmdPerform(task, onResult) =>
+            Future(execTask(task)).foreach(result =>
+              updateState(onResult(result))
+            )
+        }
       }
 
       private def updateState(message: Message): Unit = {
         stateLock.synchronized {
-          currentState = app.update(message, currentState)
+          val (newState, cmd) = app.update(message, currentState)
+          currentState = newState
+          processCommand(cmd)
         }
       }
 
@@ -1816,6 +2326,62 @@ package object layoutz {
           currentState
         }
       }
+
+      /** Extract all subscriptions from the subscription tree */
+      private def flattenSubscriptions(
+          sub: Sub[Message]
+      ): List[Sub[Message]] = {
+        sub match {
+          case SubNone        => Nil
+          case SubBatch(subs) => subs.flatMap(flattenSubscriptions)
+          case other          => List(other)
+        }
+      }
+
+      /** Get the current active key press handler, if any */
+      private def getKeyPressHandler(): Option[Key => Option[Message]] = {
+        val state = readState()
+        val subs = flattenSubscriptions(app.subscriptions(state))
+        subs.collectFirst { case OnKeyPress(handler) =>
+          handler
+        }
+      }
+
+      /** Get all active time subscriptions with their intervals */
+      private def getTimeSubscriptions(): List[(Long, () => Message)] = {
+        val state = readState()
+        val subs = flattenSubscriptions(app.subscriptions(state))
+        subs.collect { case OnTimeEvery(intervalMs, generator) =>
+          (intervalMs, generator)
+        }
+      }
+
+      /** Get all active file watch subscriptions */
+      private def getFileWatchSubscriptions()
+          : List[(String, Either[String, String] => Message)] = {
+        val state = readState()
+        val subs = flattenSubscriptions(app.subscriptions(state))
+        subs.collect { case OnFileWatch(path, onChange) =>
+          (path, onChange)
+        }
+      }
+
+      /** Get all active HTTP poll subscriptions */
+      private def getHttpPollSubscriptions(): List[
+        (String, Long, Map[String, String], Either[String, String] => Message)
+      ] = {
+        val state = readState()
+        val subs = flattenSubscriptions(app.subscriptions(state))
+        subs.collect { case OnHttpPoll(url, intervalMs, headers, onResponse) =>
+          (url, intervalMs, headers, onResponse)
+        }
+      }
+
+      /* Runtime to handles last seens with mutable blocks */
+      private val lastTickTimes = scala.collection.mutable.Map[Long, Long]()
+      private val lastModifiedTimes =
+        scala.collection.mutable.Map[String, Long]()
+      private val lastPollTimes = scala.collection.mutable.Map[String, Long]()
 
       private def runRenderLoop(): Unit = {
         var lastRenderedState: Option[String] = None
@@ -1842,8 +2408,77 @@ package object layoutz {
       private def runTickLoop(): Unit = {
         while (shouldContinue) {
           try {
-            app.onKey(Tick).foreach(updateState)
-            Thread.sleep(config.tickIntervalMs)
+            val currentTime = System.currentTimeMillis()
+            val timeSubs = getTimeSubscriptions()
+            timeSubs.foreach { case (intervalMs, generator) =>
+              val lastTime = lastTickTimes.getOrElse(intervalMs, 0L)
+              if (currentTime - lastTime >= intervalMs) {
+                lastTickTimes(intervalMs) = currentTime
+                val msg = generator()
+                updateState(msg)
+              }
+            }
+
+            /* Simple polling for now */
+            val fileWatchSubs = getFileWatchSubscriptions()
+            fileWatchSubs.foreach { case (path, onChange) =>
+              try {
+                val file = new java.io.File(path)
+                if (file.exists()) {
+                  val currentModified = file.lastModified()
+                  val lastModified = lastModifiedTimes.getOrElse(path, 0L)
+                  if (currentModified > lastModified) {
+                    lastModifiedTimes(path) = currentModified
+                    /* Not firing on first check */
+                    if (lastModified > 0) {
+                      val content = scala.io.Source.fromFile(path).mkString
+                      updateState(onChange(Right(content)))
+                    }
+                  }
+                } else {
+                  lastModifiedTimes(path) = 0L
+                }
+              } catch {
+                case ex: Exception =>
+                  updateState(
+                    onChange(Left(s"File watch error: ${ex.getMessage}"))
+                  )
+              }
+            }
+
+            val httpPollSubs = getHttpPollSubscriptions()
+            httpPollSubs.foreach {
+              case (url, intervalMs, headers, onResponse) =>
+                val lastPoll = lastPollTimes.getOrElse(url, 0L)
+                if (currentTime - lastPoll >= intervalMs) {
+                  lastPollTimes(url) = currentTime
+                  scala.concurrent.Future {
+                    try {
+                      val connection = new java.net.URL(url)
+                        .openConnection()
+                        .asInstanceOf[java.net.HttpURLConnection]
+                      headers.foreach { case (key, value) =>
+                        connection.setRequestProperty(key, value)
+                      }
+                      val response = scala.io.Source
+                        .fromInputStream(connection.getInputStream)
+                        .mkString
+                      updateState(onResponse(Right(response)))
+                    } catch {
+                      case ex: Exception =>
+                        updateState(
+                          onResponse(
+                            Left(s"HTTP poll failed: ${ex.getMessage}")
+                          )
+                        )
+                    }
+                  }(scala.concurrent.ExecutionContext.global)
+                }
+            }
+
+            Thread.sleep(
+              10
+            ) // TODO: Refactor, just short sleep to avoid busy wait
           } catch {
             case ex: Exception => handleTickError(ex)
           }
@@ -1858,7 +2493,10 @@ package object layoutz {
               shouldContinue = false
             } else {
               val key = keyParser.parseKey(input, terminal)
-              app.onKey(key).foreach(updateState)
+              /* Uses the current subscription's key handler */
+              getKeyPressHandler().foreach { handler =>
+                handler(key).foreach(updateState)
+              }
             }
           } catch {
             case ex: Exception =>
