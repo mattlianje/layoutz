@@ -5,7 +5,7 @@
 
 //> using publish.name "layoutz"
 //> using publish.organization "xyz.matthieucourt"
-//> using publish.version "0.3.0"
+//> using publish.version "0.4.0"
 //> using publish.url "https://github.com/mattlianje/layoutz"
 //> using publish.vcs "github:mattlianje/layoutz"
 //> using publish.license "Apache-2.0"

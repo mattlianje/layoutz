@@ -2,7 +2,7 @@
  * +==========================================================================+
  * |                               layoutz                                    |
  * |               Friendly, expressive print-layout & TUI DSL                |
- * |                           Version 0.0.2                                  |
+ * |                           Version 0.0.4                                  |
  * |              Compatible with Scala 2.12, 2.13, and 3                     |
  * |                                                                          |
  * | Copyright 2025 Matthieu Court (matthieu.court@protonmail.com)            |
@@ -234,8 +234,7 @@ package object layoutz {
               itemNumber += 1 /* Only increment for actual items */
               val content = other.render
               val lines = content.split('\n')
-              val indent =
-                "  " * level /* 2 spaces per level (TODO Maybe - custom indentors) */
+              val indent = "  " * level /* 2 spaces per level */
 
               if (lines.length == 1) {
                 s"$indent$number. ${lines.head}"
@@ -1210,7 +1209,7 @@ package object layoutz {
   /** Root layout container */
   final case class Layout(elements: Seq[Element]) extends Element {
     def render: String = {
-      /* Calculaute layout max width for auto-centering */
+      /* Calculate layout max width for auto-centering */
       val layoutWidth = calculateLayoutWidth(elements)
 
       val resolvedElements = elements.map {
@@ -1935,7 +1934,7 @@ package object layoutz {
     }
     def close(): Unit = scala.util.Try(terminal.close())
 
-    // TODO: Stop exposing JLine reader directly for multi-byte sequences
+    /* Internal: Direct access to JLine reader for escape sequence parsing */
     def getReader(): org.jline.utils.NonBlockingReader = reader
   }
 
@@ -1966,10 +1965,9 @@ package object layoutz {
   object DefaultKeyParser extends KeyParser {
     def parseKey(input: Int, terminal: Terminal): Key = input match {
       case 10 | 13 => EnterKey
-      case 27 => // ESC - check for arrow keys
+      case 27 => /* ESC - check for arrow keys */
         terminal match {
           case jline: JLineTerminal =>
-            // TODO: don't use jline directly
             parseEscapeSequence(jline.getReader())
           case _ =>
             parseEscapeSequenceGeneric(terminal)
@@ -1985,7 +1983,7 @@ package object layoutz {
         reader: org.jline.utils.NonBlockingReader
     ): Key = {
       try {
-        /* TODO: Better way to pause waiting for complete sequence to arrive */
+        /* Brief pause to ensure complete escape sequence arrives */
         Thread.sleep(5)
         val next1 = reader.read()
         if (next1 == 91) { // '[' character
@@ -2480,9 +2478,7 @@ package object layoutz {
                 }
             }
 
-            Thread.sleep(
-              10
-            ) // TODO: Refactor, just short sleep to avoid busy wait
+            Thread.sleep(10) /* Short sleep to avoid busy wait */
           } catch {
             case ex: Exception => handleTickError(ex)
           }
