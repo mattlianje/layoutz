@@ -1068,8 +1068,10 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 TaskApp.run()
 ```
 
-### Form Input Example
-Build interactive forms with choice widgets:
+### Form input example
+<details>
+
+<summary>Build interactive forms with choice widgets:</summary>
 
 ```scala
 import layoutz._
@@ -1137,6 +1139,7 @@ object FormApp extends LayoutzApp[FormState, Msg] {
   )
 }
 ```
+</details>
 
 See [FormExample.scala](examples/FormExample.scala) for a complete working example.
 
