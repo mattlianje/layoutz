@@ -13,6 +13,7 @@ module Layoutz
   ( -- * Core Types
     Element(..)
   , Border(..)
+  , HasBorder(..)
   , L
   , Tree(..)
     -- * Basic Elements
@@ -23,27 +24,51 @@ module Layoutz
   , center, center'
   , row
   , underline, underline'
+  , alignLeft, alignRight, alignCenter
     -- * Containers
-  , box, box'
-  , statusCard, statusCard'
+  , box
+  , statusCard
     -- * Widgets
   , ul
   , inlineBar
-  , table, table'
+  , table
   , section, section', section''
   , kv
   , tree, leaf, branch
     -- * Visual Elements
-  , margin, marginError, marginWarn, marginSuccess, marginInfo
+  , margin
   , hr, hr', hr''
+  , vr, vr', vr''
   , pad
   , chart
+    -- * Border utilities
+  , withBorder
     -- * Rendering
   , render
   ) where
 
 import Data.List (intercalate, transpose)
+import Data.String (IsString(..))
 import Text.Printf (printf)
+
+-- | Helper: pad a string to a target width on the right
+padRight :: Int -> String -> String
+padRight targetWidth str = str ++ replicate (max 0 (targetWidth - length str)) ' '
+
+-- | Helper: pad a string to a target width on the left
+padLeft :: Int -> String -> String
+padLeft targetWidth str = replicate (max 0 (targetWidth - length str)) ' ' ++ str
+
+-- | Helper: center a string within a target width
+centerString :: Int -> String -> String
+centerString targetWidth str
+  | len >= targetWidth = str
+  | otherwise = leftPad ++ str ++ rightPad
+  where
+    len = length str
+    totalPadding = targetWidth - len
+    leftPad = replicate (totalPadding `div` 2) ' '
+    rightPad = replicate (totalPadding - length leftPad) ' '
 
 -- Core Element typeclass
 class Element a where
@@ -76,37 +101,71 @@ render = renderElement
 --   * L a          - Wraps any Element (Text, Box, Table, etc.)
 --   * UL [L]       - Special case for unordered lists (allows nesting)  
 --   * AutoCenter L - Smart centering that adapts to layout context width
+--   * LBox, LStatusCard, LTable - Specialized constructors for bordered elements
 --
 -- Example usage:
 --   layout [text "title", box "content" [...], center (text "footer")]
 --   All different types unified as L, so they can be composed together.
-data L = forall a. Element a => L a | UL [L] | AutoCenter L
+data L = forall a. Element a => L a 
+       | UL [L] 
+       | AutoCenter L
+       | LBox String [L] Border
+       | LStatusCard String String Border
+       | LTable [String] [[L]] Border
 
 instance Element L where
   renderElement (L x) = render x
   renderElement (UL items) = render (UnorderedList items)
   renderElement (AutoCenter element) = render element  -- Will be handled by Layout
+  renderElement (LBox title elements border) = render (Box title elements border)
+  renderElement (LStatusCard label content border) = render (StatusCard label content border)
+  renderElement (LTable headers rows border) = render (Table headers rows border)
   
   width (L x) = width x
   width (UL items) = width (UnorderedList items)
   width (AutoCenter element) = width element
+  width (LBox title elements border) = width (Box title elements border)
+  width (LStatusCard label content border) = width (StatusCard label content border)
+  width (LTable headers rows border) = width (Table headers rows border)
   
   height (L x) = height x  
   height (UL items) = height (UnorderedList items)
   height (AutoCenter element) = height element
+  height (LBox title elements border) = height (Box title elements border)
+  height (LStatusCard label content border) = height (StatusCard label content border)
+  height (LTable headers rows border) = height (Table headers rows border)
 
 instance Show L where
   show = render
 
+-- | Enable string literals to be used directly as elements with OverloadedStrings
+-- 
+-- With OverloadedStrings enabled, you can write:
+--   layout ["Hello", "World"]  instead of  layout [text "Hello", text "World"]
+instance IsString L where
+  fromString = text
+
 -- Border styles
-data Border = NormalBorder | DoubleBorder | ThickBorder | RoundBorder
+data Border = NormalBorder | DoubleBorder | ThickBorder | RoundBorder | NoBorder
   deriving (Show, Eq)
+
+-- | Typeclass for elements that support customizable borders
+class HasBorder a where
+  -- | Set the border style for an element
+  setBorder :: Border -> a -> a
+
+instance HasBorder L where
+  setBorder border (LBox title elements _) = LBox title elements border
+  setBorder border (LStatusCard label content _) = LStatusCard label content border
+  setBorder border (LTable headers rows _) = LTable headers rows border
+  setBorder _ other = other  -- Non-bordered elements remain unchanged
 
 borderChars :: Border -> (String, String, String, String, String, String, String, String, String)
 borderChars NormalBorder = ("┌", "┐", "└", "┘", "─", "│", "├", "┤", "┼")
 borderChars DoubleBorder = ("╔", "╗", "╚", "╝", "═", "║", "╠", "╣", "╬") 
 borderChars ThickBorder  = ("┏", "┓", "┗", "┛", "━", "┃", "┣", "┫", "╋")
 borderChars RoundBorder  = ("╭", "╮", "╰", "╯", "─", "│", "├", "┤", "┼")
+borderChars NoBorder     = (" ", " ", " ", " ", " ", " ", " ", " ", " ")
 
 -- Elements
 newtype Text = Text String
@@ -139,17 +198,7 @@ instance Element Layout where
 data Centered = Centered String Int  -- content, target_width
 instance Element Centered where
   renderElement (Centered content targetWidth) = 
-    let contentLines = lines content
-    in intercalate "\n" $ map centerLine contentLines
-    where
-      centerLine line = 
-        let lineLength = length line
-        in if lineLength >= targetWidth
-           then line
-           else let totalPadding = targetWidth - lineLength
-                    leftPadding = totalPadding `div` 2
-                    rightPadding = totalPadding - leftPadding
-                in replicate leftPadding ' ' ++ line ++ replicate rightPadding ' '
+    intercalate "\n" $ map (centerString targetWidth) (lines content)
 
 -- | Underlined element with custom character
 data Underlined = Underlined String String  -- content, underline_char
@@ -159,141 +208,162 @@ instance Element Underlined where
         maxWidth = if null contentLines then 0 
                    else maximum (map length contentLines)
         underlinePattern = underlineChar
-        underline = if length underlinePattern >= maxWidth
+        underlinePart = if length underlinePattern >= maxWidth
                    then take maxWidth underlinePattern
                    else let repeats = maxWidth `div` length underlinePattern
                             remainder = maxWidth `mod` length underlinePattern
                         in concat (replicate repeats underlinePattern) ++ take remainder underlinePattern
-    in content ++ "\n" ++ underline
+    in content ++ "\n" ++ underlinePart
 
 data Row = Row [L]
 instance Element Row where  
-  renderElement (Row elements) = 
-    if null elements then ""
-    else let elementStrings = map render elements
-             elementLines = map lines elementStrings
-             maxHeight = maximum (map length elementLines)
-             elementWidths = map (maximum . map length) elementLines
-            -- Pad each element to maxHeight and proper width, then align at top
-             paddedElements = zipWith (padElementToSize maxHeight) elementWidths elementLines
-             -- Transpose to get rows, then join each row with spaces
-         in intercalate "\n" $ map (intercalate " ") (transpose paddedElements)
+  renderElement (Row elements) 
+    | null elements = ""
+    | otherwise = intercalate "\n" $ map (intercalate " ") (transpose paddedElements)
     where
-      padElementToSize maxH width linesList = 
-        let currentLines = linesList ++ replicate (maxH - length linesList) ""
-            paddedLines = map (\line -> line ++ replicate (max 0 (width - length line)) ' ') currentLines
-        in paddedLines
+      elementStrings = map render elements
+      elementLines = map lines elementStrings
+      maxHeight = maximum (map length elementLines)
+      elementWidths = map (maximum . map length) elementLines
+      paddedElements = zipWith padElement elementWidths elementLines
+      
+      padElement :: Int -> [String] -> [String]
+      padElement cellWidth linesList = 
+        let currentLines = linesList ++ replicate (maxHeight - length linesList) ""
+        in map (padRight cellWidth) currentLines
+
+-- | Text alignment options
+data Alignment = AlignLeft | AlignRight | AlignCenter
+  deriving (Show, Eq)
+
+-- | Aligned text with specified width and alignment
+data AlignedText = AlignedText String Int Alignment  -- content, width, alignment
+instance Element AlignedText where
+  renderElement (AlignedText content targetWidth alignment) = 
+    let alignFn = case alignment of
+          AlignLeft   -> padRight targetWidth
+          AlignRight  -> padLeft targetWidth
+          AlignCenter -> centerString targetWidth
+    in intercalate "\n" $ map alignFn (lines content)
 
 data Box = Box String [L] Border
+
+instance HasBorder Box where
+  setBorder border (Box title elements _) = Box title elements border
+
 instance Element Box where
   renderElement (Box title elements border) =
     let elementStrings = map render elements
         content = intercalate "\n" elementStrings
         contentLines = if null content then [""] else lines content  
-        contentWidth = if null contentLines then 0 else maximum (map length contentLines)
+        contentWidth = maximum (0 : map length contentLines)
         titleWidth = if null title then 0 else length title + 2
         innerWidth = max contentWidth titleWidth
         totalWidth = innerWidth + 4
         (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical, _, _, _) = borderChars border
+        hChar = head horizontal
         
-        topBorder = if null title
-          then topLeft ++ replicate (totalWidth - 2) (head horizontal) ++ topRight
-          else let titlePadding = totalWidth - length title - 2
-                   leftPad = titlePadding `div` 2  
-                   rightPad = titlePadding - leftPad
-               in topLeft ++ replicate leftPad (head horizontal) ++ title ++ replicate rightPad (head horizontal) ++ topRight
+        topBorder 
+          | null title = topLeft ++ replicate (totalWidth - 2) hChar ++ topRight
+          | otherwise  = let titlePadding = totalWidth - length title - 2
+                             leftPad = titlePadding `div` 2  
+                             rightPad = titlePadding - leftPad
+                         in topLeft ++ replicate leftPad hChar ++ title ++ replicate rightPad hChar ++ topRight
                
-        bottomBorder = bottomLeft ++ replicate (totalWidth - 2) (head horizontal) ++ bottomRight
-        
-        paddedContent = map (\line -> 
-          vertical ++ " " ++ line ++ replicate (innerWidth - length line) ' ' ++ " " ++ vertical) contentLines
+        bottomBorder = bottomLeft ++ replicate (totalWidth - 2) hChar ++ bottomRight
+        paddedContent = map (\line -> vertical ++ " " ++ padRight innerWidth line ++ " " ++ vertical) contentLines
           
     in intercalate "\n" (topBorder : paddedContent ++ [bottomBorder])
 
 data StatusCard = StatusCard String String Border
+
+instance HasBorder StatusCard where
+  setBorder border (StatusCard label content _) = StatusCard label content border
+
 instance Element StatusCard where
   renderElement (StatusCard label content border) =
     let labelLines = lines label
         contentLines = lines content
         allLines = labelLines ++ contentLines
-        maxWidth = if null allLines then 0 else maximum (map length allLines)
+        maxWidth = maximum (0 : map length allLines)
         contentWidth = maxWidth + 2
         (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical, _, _, _) = borderChars border
+        hChar = head horizontal
         
-        topBorder = topLeft ++ replicate (contentWidth + 2) (head horizontal) ++ topRight
-        bottomBorder = bottomLeft ++ replicate (contentWidth + 2) (head horizontal) ++ bottomRight
+        topBorder = topLeft ++ replicate (contentWidth + 2) hChar ++ topRight
+        bottomBorder = bottomLeft ++ replicate (contentWidth + 2) hChar ++ bottomRight
+        createCardLine line = vertical ++ " " ++ padRight contentWidth line ++ " " ++ vertical
         
-        createCardLines ls = map (\line ->
-          vertical ++ " " ++ line ++ replicate (contentWidth - length line) ' ' ++ " " ++ vertical) ls
-        labelCardLines = createCardLines labelLines  
-        contentCardLines = createCardLines contentLines
-        
-    in intercalate "\n" ([topBorder] ++ labelCardLines ++ contentCardLines ++ [bottomBorder])
+    in intercalate "\n" $ [topBorder] ++ map createCardLine allLines ++ [bottomBorder]
 
 -- | Margin element that adds prefix to each line
 data Margin = Margin String [L]  -- prefix, elements
 instance Element Margin where
   renderElement (Margin prefix elements) = 
-    let content = if length elements == 1 
-                  then render (head elements)
-                  else render (Layout elements)
-        contentLines = lines content
-    in intercalate "\n" $ map (\line -> prefix ++ " " ++ line) contentLines
+    let content = case elements of
+                    [single] -> render single
+                    _        -> render (Layout elements)
+    in intercalate "\n" $ map ((prefix ++ " ") ++) (lines content)
 
 -- | Horizontal rule with custom character and width  
 data HorizontalRule = HorizontalRule String Int  -- char, width
 instance Element HorizontalRule where
-  renderElement (HorizontalRule char width) = concat (replicate width char)
+  renderElement (HorizontalRule char ruleWidth) = concat (replicate ruleWidth char)
 
+-- | Vertical rule with custom character and height
+data VerticalRule = VerticalRule String Int  -- char, height
+instance Element VerticalRule where
+  renderElement (VerticalRule char ruleHeight) = intercalate "\n" (replicate ruleHeight char)
 
 -- | Padded element with padding around all sides
 data Padded = Padded String Int  -- content, padding
 instance Element Padded where
   renderElement (Padded content padding) = 
     let contentLines = lines content
-        maxWidth = if null contentLines then 0 else maximum (0 : map length contentLines)
+        maxWidth = maximum (0 : map length contentLines)
         horizontalPad = replicate padding ' '
-        verticalPad = replicate (maxWidth + padding * 2) ' '
-        paddedLines = map (\line -> horizontalPad ++ line ++ replicate (maxWidth - length line) ' ' ++ horizontalPad) contentLines
+        totalWidth = maxWidth + padding * 2
+        verticalPad = replicate totalWidth ' '
+        paddedLines = map (\line -> horizontalPad ++ padRight maxWidth line ++ horizontalPad) contentLines
         verticalLines = replicate padding verticalPad
     in intercalate "\n" (verticalLines ++ paddedLines ++ verticalLines)
 
 -- | Chart for data visualization
 data Chart = Chart [(String, Double)]  -- (label, value) pairs
 instance Element Chart where
-  renderElement (Chart dataPoints) = 
-    if null dataPoints then "No data"
-    else let maxValue = maximum (0 : map snd dataPoints)
-             maxLabelWidth = minimum [15, maximum (0 : map (length . fst) dataPoints)]
-             chartWidth = 40
-         in intercalate "\n" $ map (renderBar maxValue maxLabelWidth chartWidth) dataPoints
+  renderElement (Chart dataPoints) 
+    | null dataPoints = "No data"
+    | otherwise = intercalate "\n" $ map renderBar dataPoints
     where
-      renderBar maxVal labelWidth barWidth (label, value) = 
-        let truncatedLabel = if length label > labelWidth 
-                            then take (labelWidth - 3) label ++ "..."
-                            else label
-            paddedLabel = truncatedLabel ++ replicate (labelWidth - length truncatedLabel) ' '
-            percentage = value / maxVal
-            barLength = floor (percentage * fromIntegral barWidth)
-            bar = replicate barLength '█'
-            emptyBar = replicate (barWidth - barLength) '─'
-            valueStr = if value == fromInteger (round value) 
-                      then show (round value)
-                      else printf "%.1f" value
-        in paddedLabel ++ " │" ++ bar ++ emptyBar ++ "│ " ++ valueStr
+      maxValue = maximum (0 : map snd dataPoints)
+      maxLabelWidth = minimum [15, maximum (0 : map (length . fst) dataPoints)]
+      chartWidth = 40
+      
+      renderBar :: (String, Double) -> String
+      renderBar (label, value) = 
+        let truncatedLabel 
+              | length label > maxLabelWidth = take (maxLabelWidth - 3) label ++ "..."
+              | otherwise = label
+            paddedLabel = padRight maxLabelWidth truncatedLabel
+            percentage = value / maxValue
+            barLength = floor (percentage * fromIntegral chartWidth)
+            bar = replicate barLength '█' ++ replicate (chartWidth - barLength) '─'
+            valueStr 
+              | value == fromInteger (round value) = show (round value :: Integer)
+              | otherwise = printf "%.1f" value
+        in paddedLabel ++ " │" ++ bar ++ "│ " ++ valueStr
 
 -- | Table with headers and borders (fixed alignment)
 data Table = Table [String] [[L]] Border  -- headers, rows, border
+
+instance HasBorder Table where
+  setBorder border (Table headers rows _) = Table headers rows border
+
 instance Element Table where
   renderElement (Table headers rows border) = 
     let normalizedRows = map (normalizeRow (length headers)) rows
         columnWidths = calculateColumnWidths headers normalizedRows
         (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical, leftTee, rightTee, cross) = borderChars border
-        
-        -- Calculate actual table width based on content and separators
-        totalContentWidth = sum columnWidths
-        totalSeparatorWidth = (length columnWidths - 1) * 3  -- " | " between columns
-        totalWidth = totalContentWidth + totalSeparatorWidth + 4  -- 4 for outer borders and padding
         hChar = head horizontal
         
         -- Fixed border construction with proper connectors
@@ -302,6 +372,7 @@ instance Element Table where
           NormalBorder -> "┬"
           DoubleBorder -> "╦" 
           ThickBorder -> "┳"
+          NoBorder -> " "
         topParts = map (\w -> replicate w hChar) columnWidths
         topBorder = topLeft ++ [hChar] ++ intercalate ([hChar] ++ topConnector ++ [hChar]) topParts ++ [hChar] ++ topRight
         
@@ -315,11 +386,12 @@ instance Element Table where
           NormalBorder -> "┴"
           DoubleBorder -> "╩" 
           ThickBorder -> "┻"
+          NoBorder -> " "
         bottomParts = map (\w -> replicate w hChar) columnWidths  
         bottomBorder = bottomLeft ++ [hChar] ++ intercalate ([hChar] ++ bottomConnector ++ [hChar]) bottomParts ++ [hChar] ++ bottomRight
         
         -- Create header row
-        headerCells = zipWith padToWidth columnWidths headers
+        headerCells = zipWith padRight columnWidths headers
         headerRow = vertical ++ " " ++ intercalate (" " ++ vertical ++ " ") headerCells ++ " " ++ vertical
         
         -- Create data rows
@@ -327,34 +399,32 @@ instance Element Table where
         
     in intercalate "\n" ([topBorder, headerRow, separatorBorder] ++ dataRows ++ [bottomBorder])
     where
-      normalizeRow expectedLen row = 
-        let currentLen = length row
-        in if currentLen >= expectedLen 
-           then take expectedLen row
-           else row ++ replicate (expectedLen - currentLen) (text "")
+      normalizeRow :: Int -> [L] -> [L]
+      normalizeRow expectedLen rowData 
+        | currentLen >= expectedLen = take expectedLen rowData
+        | otherwise = rowData ++ replicate (expectedLen - currentLen) (text "")
+        where currentLen = length rowData
       
+      calculateColumnWidths :: [String] -> [[L]] -> [Int]
       calculateColumnWidths hdrs rws = 
         let headerWidths = map length hdrs
-            rowWidths = map (map (safeMaxWidth . lines . render)) rws
+            rowWidths = map (map (maximum . (0:) . map length . lines . render)) rws
             allWidths = headerWidths : rowWidths
         in map (maximum . (0:)) (transpose allWidths)
-        where
-          safeMaxWidth [] = 0
-          safeMaxWidth linesList = maximum (0 : map length linesList)
       
-      padToWidth width str = str ++ replicate (max 0 (width - length str)) ' '
-      
-      renderTableRow widths vChars row = 
-        let cellContents = map render row
+      renderTableRow :: [Int] -> String -> [L] -> [String]
+      renderTableRow widths vChars rowData = 
+        let cellContents = map render rowData
             cellLines = map lines cellContents
-            maxCellHeight = if null cellLines then 1 else maximum (1 : map length cellLines)
-            paddedCells = zipWith (padCellToSize maxCellHeight) widths cellLines
-            tableRows = [[paddedCells !! j !! i | j <- [0..length paddedCells - 1]] | i <- [0..maxCellHeight - 1]]
+            maxCellHeight = maximum (1 : map length cellLines)
+            paddedCells = zipWith (padCell maxCellHeight) widths cellLines
+            tableRows = transpose paddedCells
         in map (\rowCells -> vChars ++ " " ++ intercalate (" " ++ vChars ++ " ") rowCells ++ " " ++ vChars) tableRows
       
-      padCellToSize height width cellLines =
-        let paddedLines = cellLines ++ replicate (height - length cellLines) ""
-        in map (\line -> line ++ replicate (max 0 (width - length line)) ' ') paddedLines
+      padCell :: Int -> Int -> [String] -> [String]
+      padCell cellHeight cellWidth cellLines =
+        let paddedLines = cellLines ++ replicate (cellHeight - length cellLines) ""
+        in map (padRight cellWidth) paddedLines
 
 -- | Section with decorative header
 data Section = Section String [L] String Int  -- title, content, glyph, flanking_chars
@@ -381,8 +451,9 @@ instance Element KeyValue where
 
 -- | Tree structure for hierarchical data
 data Tree = Tree String [Tree]
+
 instance Element Tree where
-  renderElement tree = renderTree tree "" True []
+  renderElement treeData = renderTree treeData "" True []
     where
       renderTree (Tree name children) prefix isLast parentPrefixes =
         let nodeLine = if null parentPrefixes 
@@ -456,7 +527,7 @@ center element = AutoCenter (L element)
 
 -- | Center element within specified width
 center' :: Element a => Int -> a -> L
-center' width element = L (Centered (render element) width)
+center' targetWidth element = L (Centered (render element) targetWidth)
 
 underline :: Element a => a -> L
 underline element = L (Underlined (render element) "─")
@@ -472,11 +543,7 @@ inlineBar :: String -> Double -> L
 inlineBar label progress = L (InlineBar label progress)
 
 statusCard :: String -> String -> L
-statusCard label content = L (StatusCard label content NormalBorder)
-
--- | Status card with custom border
-statusCard' :: Border -> String -> String -> L
-statusCard' border label content = L (StatusCard label content border)
+statusCard label content = LStatusCard label content NormalBorder
 
 layout :: [L] -> L
 layout elements = L (Layout elements)
@@ -484,23 +551,28 @@ layout elements = L (Layout elements)
 row :: [L] -> L  
 row elements = L (Row elements)
 
-box :: String -> [L] -> L
-box title elements = L (Box title elements NormalBorder)
+-- | Align text to the left within specified width
+alignLeft :: Int -> String -> L
+alignLeft targetWidth content = L (AlignedText content targetWidth AlignLeft)
 
--- | Box with custom border  
-box' :: Border -> String -> [L] -> L
-box' border title elements = L (Box title elements border)
+-- | Align text to the right within specified width
+alignRight :: Int -> String -> L
+alignRight targetWidth content = L (AlignedText content targetWidth AlignRight)
+
+-- | Align text to the center within specified width
+alignCenter :: Int -> String -> L
+alignCenter targetWidth content = L (AlignedText content targetWidth AlignCenter)
+
+box :: String -> [L] -> L
+box title elements = LBox title elements NormalBorder
 
 -- | Create margin with custom prefix
+-- 
+-- Example usage:
+--   margin "[error]" [text "Something went wrong"]
+--   margin "[info]" [text "FYI: Check the logs"]
 margin :: String -> [L] -> L
 margin prefix elements = L (Margin prefix elements)
-
--- | Predefined status margins
-marginError, marginWarn, marginSuccess, marginInfo :: [L] -> L
-marginError elements = L (Margin "[error]" elements)
-marginWarn elements = L (Margin "[warn]" elements)  
-marginSuccess elements = L (Margin "[success]" elements)
-marginInfo elements = L (Margin "[info]" elements)
 
 -- | Horizontal rule with default character and width
 hr :: L
@@ -512,7 +584,19 @@ hr' char = L (HorizontalRule char 50)
 
 -- | Horizontal rule with custom character and width
 hr'' :: String -> Int -> L
-hr'' char width = L (HorizontalRule char width)
+hr'' char ruleWidth = L (HorizontalRule char ruleWidth)
+
+-- | Vertical rule with default character and height
+vr :: L
+vr = L (VerticalRule "│" 10)
+
+-- | Vertical rule with custom character
+vr' :: String -> L
+vr' char = L (VerticalRule char 10)
+
+-- | Vertical rule with custom character and height
+vr'' :: String -> Int -> L
+vr'' char ruleHeight = L (VerticalRule char ruleHeight)
 
 -- | Add padding around element
 pad :: Element a => Int -> a -> L  
@@ -524,11 +608,7 @@ chart dataPoints = L (Chart dataPoints)
 
 -- | Create table with headers and rows
 table :: [String] -> [[L]] -> L
-table headers rows = L (Table headers rows NormalBorder)
-
--- | Create table with custom border
-table' :: Border -> [String] -> [[L]] -> L
-table' border headers rows = L (Table headers rows border)
+table headers rows = LTable headers rows NormalBorder
 
 -- | Create section with title and content
 section :: String -> [L] -> L
@@ -545,6 +625,17 @@ section'' glyph title flanking content = L (Section title content glyph flanking
 -- | Create key-value pairs
 kv :: [(String, String)] -> L
 kv pairs = L (KeyValue pairs)
+
+-- | Apply a border style to elements that support borders
+-- 
+-- Elements that support borders: box, statusCard, table
+-- Other elements are returned unchanged
+--
+-- Example usage:
+--   withBorder ThickBorder $ statusCard "API" "UP"
+--   withBorder DoubleBorder $ table ["Name"] [[text "Alice"]]
+withBorder :: Border -> L -> L
+withBorder = setBorder
 
 -- | Create tree structure
 tree :: String -> [Tree] -> L

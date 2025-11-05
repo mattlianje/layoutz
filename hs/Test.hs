@@ -52,6 +52,15 @@ visualFeatureTests = testGroup "Visual Features"
   , testCase "horizontal rule custom width" $
       render (hr'' "-" 10) @?= "----------"
       
+  , testCase "vertical rule default" $
+      length (lines $ render vr) @?= 10
+      
+  , testCase "vertical rule custom char" $
+      head (lines $ render $ vr' "║") @?= "║"
+      
+  , testCase "vertical rule custom height" $
+      length (lines $ render $ vr'' "|" 5) @?= 5
+      
   , testCase "padding" $
       lines (render $ pad 2 $ text "Test") @?= ["        ", "        ", "  Test  ", "        ", "        "]
       
@@ -59,7 +68,7 @@ visualFeatureTests = testGroup "Visual Features"
       render (margin ">>>" [text "Line 1", text "Line 2"]) @?= ">>> Line 1\n>>> Line 2"
       
   , testCase "margin error" $
-      render (marginError [text "Error message"]) @?= "[error] Error message"
+      render (margin "[error]" [text "Error message"]) @?= "[error] Error message"
   ]
 
 -- Data visualization tests
@@ -88,13 +97,13 @@ containerTests = testGroup "Containers"
       length (lines $ render $ statusCard "API" "UP") @?= 4
       
   , testCase "status card double border" $
-      "╔═══════╗" `elem` lines (render $ statusCard' DoubleBorder "API" "UP") @?= True
+      "╔═══════╗" `elem` lines (render $ withBorder DoubleBorder $ statusCard "API" "UP") @?= True
       
   , testCase "box default border" $
       "┌──Title──┐" `elem` lines (render $ box "Title" [text "Content"]) @?= True
       
   , testCase "box double border" $
-      "╔══Title══╗" `elem` lines (render $ box' DoubleBorder "Title" [text "Content"]) @?= True
+      "╔══Title══╗" `elem` lines (render $ withBorder DoubleBorder $ box "Title" [text "Content"]) @?= True
   ]
 
 -- Layout tests
@@ -120,6 +129,15 @@ layoutTests = testGroup "Layout"
       
   , testCase "layout composition" $
       render (layout [text "Line 1", text "Line 2"]) @?= "Line 1\nLine 2"
+      
+  , testCase "align left" $
+      render (alignLeft 10 "Hi") @?= "Hi        "
+      
+  , testCase "align right" $
+      render (alignRight 10 "Hi") @?= "        Hi"
+      
+  , testCase "align center" $
+      render (alignCenter 10 "Hi") @?= "    Hi    "
   ]
 
 -- Dimension tests

@@ -2,20 +2,20 @@
 import Layoutz
 
 -- Define layouts (matching the Scala demo structure)
-t = table' RoundBorder ["Name", "Role", "Status"]
-    [ [text "Alice", text "Engineer", text "Online"]
-    , [text "Eve", text "QA", text "Away"] 
-    , [ul [text "Gegard", ul [text "Mousasi", ul [text "was a BAD man"]]], text "Fighter", text "Nasty"]
+t = withBorder RoundBorder $ table ["Name", "Role", "Status"]
+    [ ["Alice", "Engineer", "Online"]
+    , ["Eve", "QA", "Away"] 
+    , [ul ["Gegard", ul ["Mousasi", ul ["was a BAD man"]]], "Fighter", "Nasty"]
     ]
 
 -- Nest, compose, combine them
 d = layout
-    [ center $ row [text "Layoutz", underline' "ˆ" $ text "DEMO"]
+    [ center $ row ["Layoutz", underline' "ˆ" $ text "DEMO"]
     , br
     , row
         [ statusCard "Users" "1.2K"
-        , statusCard' DoubleBorder "API" "UP"
-        , statusCard' ThickBorder "CPU" "23%"
+        , withBorder DoubleBorder $ statusCard "API" "UP"
+        , withBorder ThickBorder $ statusCard "CPU" "23%"
         , t
         , section "Pugilists" 
             [kv [("Kazushi", "Sakuraba"), ("Jet", "Li"), ("Rory", "MacDonald")]]
