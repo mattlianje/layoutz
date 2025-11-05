@@ -840,7 +840,7 @@ Cmd.http.bearerAuth(token)                      //  -> Map[String, String]
 Cmd.perform(task, onResult)                     //  -> Either[String, String]
 ```
 
-Example with custom side effect:
+### Application with custom side effects
 ```scala
 import layoutz._
 
