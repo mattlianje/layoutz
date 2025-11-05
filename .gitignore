@@ -1,7 +1,7 @@
 .scala-build/
 .bsp/
-
 .metals/
+
 .vscode/
 .idea/
 
@@ -10,4 +10,8 @@
 *.swp
 *.tmp
 *~
-dist-newstyle
+
+layoutz-hs/dist-newstyle/
+
+layoutz-ts/node_modules/
+layoutz-ts/dist/

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Layoutz Browser Test</title>
+    <style>
+        body { 
+            font-family: 'Courier New', monospace; 
+            background: #1a1a1a; 
+            color: #00ff00; 
+            padding: 20px; 
+        }
+        pre { 
+            background: #000; 
+            padding: 15px; 
+            border-radius: 5px; 
+            overflow-x: auto;
+        }
+        .demo { margin-bottom: 30px; }
+        h2 { color: #00aaff; }
+    </style>
+</head>
+<body>
+    <h1>🎨 Layoutz Browser Demo</h1>
+    
+    <div class="demo">
+        <h2>Basic Layout:</h2>
+        <pre id="basic"></pre>
+    </div>
+    
+    <div class="demo">
+        <h2>Dashboard Demo:</h2>
+        <pre id="dashboard"></pre>
+    </div>
+    
+    <div class="demo">
+        <h2>Table Demo:</h2>
+        <pre id="table"></pre>
+    </div>
+
+    <script type="module">
+        // Try multiple CDN sources in case one is slow to sync
+        const cdnSources = [
+            'https://esm.sh/layoutz',
+            'https://unpkg.com/layoutz@latest/dist/index.esm.js',
+            'https://cdn.jsdelivr.net/npm/layoutz@latest/dist/index.esm.js'
+        ];
+        
+        async function loadLayoutz() {
+            for (const cdn of cdnSources) {
+                try {
+                    console.log(`Trying ${cdn}...`);
+                    const L = await import(cdn);
+                    console.log('✅ Loaded layoutz!', L);
+                    return L;
+                } catch (error) {
+                    console.log(`❌ Failed to load from ${cdn}:`, error.message);
+                }
+            }
+            throw new Error('Could not load layoutz from any CDN');
+        }
+
+        loadLayoutz().then(L => {
+            console.log('Available functions:', Object.keys(L));
+            
+            try {
+                // Test 1: Debug table function
+                console.log('L.table exists?', !!L.table);
+                console.log('L.Border exists?', !!L.Border);
+                console.log('L.BorderStyle exists?', !!L.BorderStyle);
+                
+                let t;
+                try {
+                    // CORRECT API: table(headers, rows, style?)
+                    console.log('Using correct table API...');
+                    t = L.table(
+                        ["Name", "Role", "Status"],
+                        [
+                            ["Alice", "Engineer", "Online"],
+                            ["Eve", "QA", "Away"],
+                            [L.ul("Gegard", L.ul("Mousasi", L.ul("was a BAD man"))), "Fighter", "Nasty"]
+                        ],
+                        L.BorderStyle.Round  // Optional border style
+                    );
+                    console.log('✅ Table created successfully!');
+                    
+                } catch (e) {
+                    console.error('❌ Table failed:', e);
+                    // Fallback to manual table
+                    t = L.layout(
+                        "┌──────────┬──────────┬──────────┐",
+                        "│ Name     │ Role     │ Status   │", 
+                        "├──────────┼──────────┼──────────┤",
+                        "│ Alice    │ Engineer │ Online   │",
+                        "│ Eve      │ QA       │ Away     │",
+                        "└──────────┴──────────┴──────────┘"
+                    );
+                }
+                document.getElementById('basic').textContent = t.render();
+                
+                // Test 2: Complex nested layout demo
+                let d;
+                try {
+                    d = L.layout(
+                        L.center ? L.center(L.row ? L.row("Layoutz", L.underline ? L.underline("ˆ")("DEMO") : "DEMO") : "Layoutz DEMO") : "Layoutz DEMO",
+                        L.row ? L.row(
+                            L.statusCard ? L.statusCard("Users", "1.2K") : "Users: 1.2K",
+                            L.statusCard ? L.statusCard("API", "UP") : "API: UP",
+                            L.statusCard ? L.statusCard("CPU", "23%") : "CPU: 23%"
+                        ) : L.layout("Users: 1.2K", "API: UP", "CPU: 23%"),
+                        "",
+                        L.section ? L.section("Pugilists")(
+                            L.kv ? L.kv(["Kazushi", "Sakuraba"], ["Jet", "Li"], ["Rory", "MacDonald"]) :
+                            L.ul("Kazushi Sakuraba", "Jet Li", "Rory MacDonald")
+                        ) : L.layout("Pugilists:", L.ul("Kazushi Sakuraba", "Jet Li", "Rory MacDonald"))
+                    );
+                } catch (e) {
+                    d = L.layout("Complex demo failed:", e.message, "Using fallback...");
+                }
+                document.getElementById('dashboard').textContent = d.render();
+                
+                // Test 3: Box and progress bars
+                let deployDemo;
+                try {
+                    deployDemo = L.box ? L.box("Deploy Status")(
+                        L.layout(
+                            L.inlineBar ? L.inlineBar("Build", 1.0) : "Build: ████████████ 100%",
+                            L.inlineBar ? L.inlineBar("Test", 0.8) : "Test:  █████████░░░ 80%", 
+                            L.inlineBar ? L.inlineBar("Deploy", 0.3) : "Deploy: ███░░░░░░░░ 30%"
+                        )
+                    ) : L.layout(
+                        "Deploy Status:",
+                        "Build: ████████████ 100%",
+                        "Test:  █████████░░░ 80%",
+                        "Deploy: ███░░░░░░░░ 30%"
+                    );
+                } catch (e) {
+                    deployDemo = L.layout("Deploy Status:", "Build: Complete", "Test: 80%", "Deploy: 30%");
+                }
+                document.getElementById('table').textContent = deployDemo.render();
+                
+            } catch (err) {
+                console.error('Error in tests:', err);
+                document.getElementById('basic').textContent = `Error: ${err.message}`;
+                document.getElementById('dashboard').textContent = `Stack: ${err.stack}`;
+                document.getElementById('table').textContent = `Available: ${Object.keys(L).join(', ')}`;
+            }
+
+        }).catch(error => {
+            document.body.innerHTML = `
+                <h1>❌ Failed to load layoutz</h1>
+                <p>Error: ${error.message}</p>
+                <p>This might mean:</p>
+                <ul>
+                    <li>Package is still syncing to CDNs (wait a few minutes)</li>
+                    <li>Build output doesn't match expected paths</li>
+                    <li>Network connectivity issue</li>
+                </ul>
+                <p>Try opening browser console for more details.</p>
+            `;
+        });
+    </script>
+</body>
+</html>
