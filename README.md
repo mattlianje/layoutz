@@ -14,7 +14,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
-- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, HTTP
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, common HTTP requests
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
