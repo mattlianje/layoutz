@@ -30,18 +30,19 @@ import Layoutz
 Beautiful, compositional text layouts:
 
 ```haskell
+{-# LANGUAGE OverloadedStrings #-}
 import Layoutz
 
 demo = layout
-  [ center $ row [text "Layoutz", underline' "ˆ" $ text "DEMO"]
+  [ center $ row ["Layoutz", underline' "ˆ" $ text "DEMO"]
   , br
   , row
     [ statusCard "Users" "1.2K"
-    , statusCard' DoubleBorder "API" "UP"
-    , statusCard' ThickBorder "CPU" "23%"
-    , table' RoundBorder ["Name", "Role", "Status"] 
-        [ [text "Alice", text "Engineer", text "Online"]
-        , [text "Eve", text "QA", text "Away"]
+    , withBorder DoubleBorder $ statusCard "API" "UP"
+    , withBorder ThickBorder $ statusCard "CPU" "23%"
+    , withBorder RoundBorder $ table ["Name", "Role", "Status"] 
+        [ ["Alice", "Engineer", "Online"]
+        , ["Eve", "QA", "Away"]
         ]
     , section "Pugilists" [kv [("Kazushi", "Sakuraba"), ("Jet", "Li")]]
     ]
@@ -73,11 +74,25 @@ Call `render` on any element to get a string
 
 The power comes from **uniform composition** - since everything has the `Element` typeclass, everything can be combined.
 
+### String Literals
+With `OverloadedStrings` enabled, you can use string literals directly:
+```haskell
+layout ["Hello", "World"]  -- Instead of layout [text "Hello", text "World"]
+```
+
+**Note:** When passing to functions that take polymorphic `Element a` parameters (like `underline'`, `center'`, `pad`), use `text` explicitly:
+```haskell
+underline' "=" $ text "Title"  -- Correct
+underline' "=" "Title"         -- Ambiguous type error
+```
+
 ## Elements
 
 ### Text
 ```haskell
 text "Simple text"
+-- Or with OverloadedStrings:
+"Simple text"
 ```
 ```
 Simple text
@@ -86,7 +101,7 @@ Simple text
 ### Line Break
 Add line breaks with `br`:
 ```haskell
-layout [text "Line 1", br, text "Line 2"]
+layout ["Line 1", br, "Line 2"]
 ```
 ```
 Line 1
@@ -113,7 +128,7 @@ items: 42
 
 ### Layout (vertical): `layout`
 ```haskell
-layout [text "First", text "Second", text "Third"]
+layout ["First", "Second", "Third"]
 ```
 ```
 First
@@ -122,11 +137,42 @@ Third
 ```
 
 ### Row (horizontal): `row`
+Arrange elements side-by-side horizontally:
 ```haskell
-row [text "Left", text "Middle", text "Right"]
+row ["Left", "Middle", "Right"]
 ```
 ```
 Left Middle Right
+```
+
+Multi-line elements are aligned at the top:
+```haskell
+row 
+  [ layout ["Left", "Column"]
+  , layout ["Middle", "Column"]
+  , layout ["Right", "Column"]
+  ]
+```
+```
+Left   Middle Right 
+Column Column Column
+```
+
+### Text alignment: `alignLeft`, `alignRight`, `alignCenter`, `justify`
+Align text within a specified width:
+```haskell
+layout
+  [ alignLeft 40 "Left aligned"
+  , alignCenter 40 "Centered"
+  , alignRight 40 "Right aligned"
+  , justify 40 "This text is justified evenly"
+  ]
+```
+```
+Left aligned                            
+               Centered                 
+                           Right aligned
+This  text  is  justified         evenly
 ```
 
 ### Horizontal rule: `hr`
@@ -139,6 +185,23 @@ hr'' "-" 10
 ──────────────────────────────────────────────────
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ----------
+```
+
+### Vertical rule: `vr`
+```haskell
+row [vr, vr' "║", vr'' "x" 5]
+```
+```
+│ ║ x
+│ ║ x
+│ ║ x
+│ ║ x
+│ ║ x
+│ ║
+│ ║
+│ ║
+│ ║
+│ ║
 ```
 
 ### Key-value pairs: `kv`
@@ -154,9 +217,9 @@ role: admin
 Tables automatically handle alignment and borders:
 ```haskell
 table ["Name", "Age", "City"] 
-  [ [text "Alice", text "30", text "New York"]
-  , [text "Bob", text "25", text ""]  -- Missing values handled
-  , [text "Charlie", text "35", text "London"]
+  [ ["Alice", "30", "New York"]
+  , ["Bob", "25", ""]
+  , ["Charlie", "35", "London"]
   ]
 ```
 ```
@@ -172,7 +235,7 @@ table ["Name", "Age", "City"]
 ### Unordered Lists: `ul`
 Clean unordered lists with automatic nesting:
 ```haskell
-ul [text "Feature A", text "Feature B", text "Feature C"]
+ul ["Feature A", "Feature B", "Feature C"]
 ```
 ```
 • Feature A
@@ -182,10 +245,10 @@ ul [text "Feature A", text "Feature B", text "Feature C"]
 
 Nested lists with auto-styling:
 ```haskell
-ul [ text "Backend"
-   , ul [text "API", text "Database"]
-   , text "Frontend"
-   , ul [text "Components", ul [text "Header", ul [text "Footer"]]]
+ul [ "Backend"
+   , ul ["API", "Database"]
+   , "Frontend"
+   , ul ["Components", ul ["Header", ul ["Footer"]]]
    ]
 ```
 ```
@@ -201,8 +264,8 @@ ul [ text "Backend"
 ### Underline: `underline`
 Add underlines to any element:
 ```haskell
-underline $ text "Important Title"
-underline' "=" $ text "Custom"
+underline "Important Title"
+underline' "=" $ text "Custom"  -- Use text for custom underline char
 ```
 ```
 Important Title
@@ -299,8 +362,8 @@ pad 2 $ text "content"
 ### Centering: `center`
 Smart auto-centering and manual width:
 ```haskell
-center $ text "Auto-centered"     -- Uses layout context
-center' 20 $ text "Manual width"  -- Fixed width
+center "Auto-centered"     -- Uses layout context
+center' 20 "Manual width"  -- Fixed width
 ```
 ```
         Auto-centered        
@@ -309,14 +372,14 @@ center' 20 $ text "Manual width"  -- Fixed width
 ```
 
 ### Margin: `margin`
-Use `margin` for colorful "compiler-style" prefixes:
+Use `margin` for "compiler-style" prefixes:
 
 ```haskell
 layout
-  [ marginError [text "Type error: expected Int, got String"]
-  , marginWarn [text "Unused variable 'temp'"] 
-  , marginSuccess [text "Build completed successfully"]
-  , marginInfo [text "Pro tip: Use layoutz for beautiful output"]
+  [ margin "[error]" ["Type error: expected Int, got String"]
+  , margin "[warn]" ["Unused variable 'temp'"] 
+  , margin "[success]" ["Build completed successfully"]
+  , margin "[info]" ["Pro tip: Use layoutz for beautiful output"]
   ]
 ```
 ```
@@ -331,7 +394,7 @@ Elements like `box`, `table`, and `statusCard` support different border styles:
 
 **NormalBorder** (default):
 ```haskell
-box "Title" [text "content"]
+box "Title" ["content"]
 ```
 ```
 ┌──Title──┐
@@ -341,7 +404,7 @@ box "Title" [text "content"]
 
 **DoubleBorder**:
 ```haskell
-statusCard' DoubleBorder "API" "UP"
+withBorder DoubleBorder $ statusCard "API" "UP"
 ```
 ```
 ╔═══════╗
@@ -352,7 +415,7 @@ statusCard' DoubleBorder "API" "UP"
 
 **ThickBorder**:
 ```haskell
-table' ThickBorder ["Name"] [[text "Alice"]]
+withBorder ThickBorder $ table ["Name"] [["Alice"]]
 ```
 ```
 ┏━━━━━━━┓
@@ -364,12 +427,22 @@ table' ThickBorder ["Name"] [[text "Alice"]]
 
 **RoundBorder**:
 ```haskell
-box' RoundBorder "Info" [text "content"]
+withBorder RoundBorder $ box "Info" ["content"]
 ```
 ```
 ╭──Info───╮
 │ content │
 ╰─────────╯
+```
+
+**NoBorder** (invisible borders):
+```haskell
+withBorder NoBorder $ box "Info" ["content"]
+```
+```
+  Info   
+ content 
+         
 ```
 
 ## REPL
@@ -380,12 +453,13 @@ cabal repl
 ```
 
 ```haskell
+λ> :set -XOverloadedStrings
 λ> import Layoutz
-λ> putStrLn $ render $ center $ box "Hello" [text "World!"]
+λ> putStrLn $ render $ center $ box "Hello" ["World!"]
 ┌──Hello──┐
 │ World!  │
 └─────────┘
-λ> putStrLn $ render $ table ["A", "B"] [[text "1", text "2"]]
+λ> putStrLn $ render $ table ["A", "B"] [["1", "2"]]
 ┌───┬───┐
 │ A │ B │
 ├───┼───┤

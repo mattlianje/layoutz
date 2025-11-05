@@ -1,0 +1,5 @@
+:set prompt "λ> "
+:set prompt-cont " | "
+:set -XOverloadedStrings
+:load Layoutz
+
