@@ -150,9 +150,9 @@ status: active"""
 
   test("box border styles") {
     val singleBox = box()("Single border") // default is Border.Single
-    val doubleBox = box()("Double border").border(double)
-    val thickBox = box()("Thick border").border(thick)
-    val roundBox = box()("Round border").border(round)
+    val doubleBox = box()("Double border").border(Border.Double)
+    val thickBox = box()("Thick border").border(Border.Thick)
+    val roundBox = box()("Round border").border(Border.Round)
     val customBox = box()("Custom border").border(Border.Custom("*", "=", "|"))
   }
 
@@ -160,18 +160,18 @@ status: active"""
     import HasBorder._
 
     // Works with all bordered elements using typeclass method
-    val myBox = box()("content").border(double)
-    val myTable = table(Seq("A", "B"), Seq(Seq("1", "2"))).border(thick)
-    val myCard = statusCard("Status", "OK").border(round)
-    val myBanner = banner("Alert").border(single)
+    val myBox = box()("content").border(Border.Double)
+    val myTable = table(Seq("A", "B"), Seq(Seq("1", "2"))).border(Border.Thick)
+    val myCard = statusCard("Status", "OK").border(Border.Round)
+    val myBanner = banner("Alert").border(Border.Single)
 
-    // Can use short aliases with .border()
-    val box2 = box()("test").border(double)
-    val table2 = table(Seq("X"), Seq(Seq("Y"))).border(noBorder)
+    // Method syntax
+    val box2 = box()("test").border(Border.Double)
+    val table2 = table(Seq("X"), Seq(Seq("Y"))).border(Border.None)
 
     // Generic function that works with any bordered element
     def makeThick[T: HasBorder](element: T): T =
-      element.border(thick)
+      element.border(Border.Thick)
 
     val thickBox = makeThick(box()("content"))
     val thickTable = makeThick(table(Seq("X"), Seq(Seq("Y"))))
@@ -1176,6 +1176,7 @@ Longer line 2
     def enterRawMode(): Unit = rawMode = true
     def exitRawMode(): Unit = rawMode = false
     def clearScreen(): Unit = outputs += "[CLEAR]"
+    def clearScrollback(): Unit = outputs += "[CLEAR_SCROLLBACK]"
     def hideCursor(): Unit = cursorHidden = true
     def showCursor(): Unit = cursorHidden = false
     def write(text: String): Unit = outputs += text

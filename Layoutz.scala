@@ -1,9 +1,9 @@
 /*
  * +==========================================================================+
- * |                                layoutz                                   |
- * |                  Friendly, expressive print-layout & TUI DSL             |
- * |                            Version 0.0.2                                 |
- * |                 Compatible with Scala 2.12, 2.13, and 3                  |
+ * |                               layoutz                                    |
+ * |               Friendly, expressive print-layout & TUI DSL                |
+ * |                           Version 0.0.2                                  |
+ * |              Compatible with Scala 2.12, 2.13, and 3                     |
  * |                                                                          |
  * | Copyright 2025 Matthieu Court (matthieu.court@protonmail.com)            |
  * | Apache License 2.0                                                       |
@@ -13,7 +13,6 @@ package object layoutz {
   import scala.language.implicitConversions
   import scala.util.Try
 
-  /* Domain type aliases - makes code more self-documenting */
   type Width = Int
   type Height = Int
   type Padding = Int
@@ -64,12 +63,22 @@ package object layoutz {
     def render: String
     final def width: Width = {
       val rendered = render
-      if (rendered.isEmpty) 0
-      else {
-        val widths =
-          rendered.split('\n').map(line => stripAnsiCodes(line).length)
-        if (widths.isEmpty) 0 else widths.max
+      if (rendered.isEmpty) return 0
+
+      var maxWidth = 0
+      var start = 0
+      var i = 0
+      while (i <= rendered.length) {
+        if (i == rendered.length || rendered.charAt(i) == '\n') {
+          if (i > start) {
+            val lineWidth = stripAnsiCodes(rendered.substring(start, i)).length
+            if (lineWidth > maxWidth) maxWidth = lineWidth
+          }
+          start = i + 1
+        }
+        i += 1
       }
+      maxWidth
     }
 
     final def height: Height = {
@@ -962,6 +971,10 @@ package object layoutz {
         String,
         String
     ) // TL, TR, BL, BR, H, V
+
+    /** Apply this border style to an element with HasBorder typeclass */
+    def apply[T](element: T)(implicit ev: HasBorder[T]): T =
+      ev.setBorder(element, this)
   }
   object Border {
     case object None extends Border {
@@ -987,13 +1000,6 @@ package object layoutz {
       val chars = (corner, corner, corner, corner, horizontal, vertical)
     }
   }
-
-  // Shorter aliases for borders - less verbose!
-  val single = Border.Single
-  val double = Border.Double
-  val thick = Border.Thick
-  val round = Border.Round
-  val noBorder = Border.None
 
   /* Keep BannerStyle and BorderStyle for backward compatibility */
   type BannerStyle = Border
@@ -1043,9 +1049,6 @@ package object layoutz {
     }
   }
 
-  /** Extension method syntax for elements with borders - automatically
-    * available
-    */
   implicit class BorderOps[T](val element: T) extends AnyVal {
     def border(style: Border)(implicit ev: HasBorder[T]): T =
       ev.setBorder(element, style)
@@ -1463,15 +1466,9 @@ package object layoutz {
   /* ═══════════════════════════════════════════════════════════════════════════
    * INTERACTIVE ELEMENTS */
 
-  /** Text input helpers - reduce boilerplate when handling text fields
-    *
-    * Simple API: pass the key, check if it's for your field, get back the
-    * updated value
-    */
   object input {
 
-    /** Handle a key for a text field - returns Some(newValue) if handled, None
-      * otherwise
+    /** Handle a key for a text field
       *
       * @param key
       *   The key that was pressed
@@ -1680,13 +1677,13 @@ package object layoutz {
 
   object Cmd {
 
-    /** No command to execute */
+    /* No command to execute */
     def none[Msg]: Cmd[Msg] = CmdNone
 
-    /** Execute a batch of commands */
+    /* Execute a batch of commands */
     def batch[Msg](cmds: Cmd[Msg]*): Cmd[Msg] = CmdBatch(cmds.toList)
 
-    /** File I/O commands */
+    /* File I/O commands */
     object file {
 
       /** Read file contents - fires msg with content on success, error msg on
@@ -1698,7 +1695,7 @@ package object layoutz {
       ): Cmd[Msg] =
         CmdFileRead(path, onResult)
 
-      /** Write file contents - fires msg on completion */
+      /* Write file contents - fires msg on completion */
       def write[Msg](
           path: String,
           content: String,
@@ -1706,7 +1703,7 @@ package object layoutz {
       ): Cmd[Msg] =
         CmdFileWrite(path, content, onResult)
 
-      /** List directory contents - fires msg with list of file/dir names */
+      /* List directory contents - fires msg with list of file/dir names */
       def ls[Msg](
           path: String,
           onResult: Either[String, List[String]] => Msg
@@ -1718,17 +1715,17 @@ package object layoutz {
         CmdFileCwd(onResult)
     }
 
-    /** HTTP commands */
+    /* HTTP commands */
     object http {
 
-      /** HTTP GET request - fires msg with response on completion */
+      /* HTTP GET request - fires msg with response on completion */
       def get[Msg](
           url: String,
           onResult: Either[String, String] => Msg,
           headers: Map[String, String] = Map.empty
       ): Cmd[Msg] = CmdHttpGet(url, headers, onResult)
 
-      /** HTTP POST request - fires msg with response on completion */
+      /* HTTP POST request - fires msg with response on completion */
       def post[Msg](
           url: String,
           body: String,
@@ -1736,11 +1733,11 @@ package object layoutz {
           headers: Map[String, String] = Map.empty
       ): Cmd[Msg] = CmdHttpPost(url, body, headers, onResult)
 
-      /** Helper: Create Authorization Bearer token header */
+      /* Helper: Create Authorization Bearer token header */
       def bearerAuth(token: String): Map[String, String] =
         Map("Authorization" -> s"Bearer $token")
 
-      /** Helper: Create Basic auth header */
+      /* Helper: Create Basic auth header */
       def basicAuth(username: String, password: String): Map[String, String] = {
         val credentials = java.util.Base64.getEncoder
           .encodeToString(s"$username:$password".getBytes)
@@ -1796,22 +1793,21 @@ package object layoutz {
 
   object Sub {
 
-    /** No subscriptions */
+    /* No subscriptions */
     def none[Msg]: Sub[Msg] = SubNone
 
-    /** Subscribe to keyboard input */
+    /* Subscribe to keyboard input */
     def onKeyPress[Msg](handler: Key => Option[Msg]): Sub[Msg] =
       OnKeyPress(handler)
 
-    /** Time-based subscriptions */
+    /* Time-based subscriptions */
     object time {
 
-      /** Subscribe to time intervals - fires msg every intervalMs milliseconds
-        */
+      /* Subscribe to time intervals - fires msg every intervalMs milliseconds */
       def every[Msg](intervalMs: Long, msg: Msg): Sub[Msg] =
         OnTimeEvery(intervalMs, () => msg)
 
-      /** Subscribe to time intervals with dynamic message generation */
+      /* Subscribe to time intervals with dynamic message generation */
       def everyDynamic[Msg](
           intervalMs: Long,
           msgGenerator: () => Msg
@@ -1819,10 +1815,10 @@ package object layoutz {
         OnTimeEvery(intervalMs, msgGenerator)
     }
 
-    /** File system subscriptions */
+    /* File system subscriptions */
     object file {
 
-      /** Watch a file for changes - fires msg when file is modified */
+      /* Watch a file for changes - fires msg when file is modified */
       def watch[Msg](
           path: String,
           onChange: Either[String, String] => Msg
@@ -1830,11 +1826,10 @@ package object layoutz {
         OnFileWatch(path, onChange)
     }
 
-    /** HTTP subscriptions */
+    /* HTTP subscriptions */
     object http {
 
-      /** Poll an HTTP endpoint - fires msg with response at specified interval
-        */
+      /* Poll an HTTP endpoint - fires msg with response at specified interval */
       def poll[Msg](
           url: String,
           intervalMs: Long,
@@ -1843,7 +1838,7 @@ package object layoutz {
       ): Sub[Msg] = OnHttpPoll(url, intervalMs, headers, onResponse)
     }
 
-    /** Batch multiple subscriptions */
+    /* Batch multiple subscriptions */
     def batch[Msg](subs: Sub[Msg]*): Sub[Msg] = SubBatch(subs.toList)
   }
 
@@ -1864,7 +1859,7 @@ package object layoutz {
   ) extends Sub[Msg]
   private case class SubBatch[Msg](subs: List[Sub[Msg]]) extends Sub[Msg]
 
-  /** Configuration for the Layoutz runtime */
+  /* Configuration for the Layoutz runtime */
   case class RuntimeConfig(
       tickIntervalMs: Long = 100,
       renderIntervalMs: Long = 50,
@@ -1877,13 +1872,14 @@ package object layoutz {
     def enterRawMode(): Unit
     def exitRawMode(): Unit
     def clearScreen(): Unit
+    def clearScrollback(): Unit
     def hideCursor(): Unit
     def showCursor(): Unit
     def write(text: String): Unit
     def writeLine(text: String): Unit
     def flush(): Unit
-    def readInput(): Int // Blocking read
-    def readInputNonBlocking(): Option[Int] // Non-blocking read
+    def readInput(): Int
+    def readInputNonBlocking(): Option[Int]
     def close(): Unit
   }
 
@@ -1906,6 +1902,10 @@ package object layoutz {
     def exitRawMode(): Unit = () // JLine handles this automatically
     def clearScreen(): Unit = {
       terminal.writer().print("\u001b[2J\u001b[H")
+      terminal.writer().flush()
+    }
+    def clearScrollback(): Unit = {
+      terminal.writer().print("\u001b[3J\u001b[2J\u001b[H")
       terminal.writer().flush()
     }
     def hideCursor(): Unit = {
@@ -1953,12 +1953,12 @@ package object layoutz {
     }
   }
 
-  /** Key parser abstraction */
+  /* Key parser abstraction */
   trait KeyParser {
     def parseKey(input: Int, terminal: Terminal): Key
   }
 
-  /** Default key parser implementation */
+  /* Default key parser implementation */
   object DefaultKeyParser extends KeyParser {
     def parseKey(input: Int, terminal: Terminal): Key = input match {
       case 10 | 13 => EnterKey
@@ -1981,7 +1981,7 @@ package object layoutz {
         reader: org.jline.utils.NonBlockingReader
     ): Key = {
       try {
-        // TODO: Better way to pause waiting for complete sequence to arrive
+        /* TODO: Better way to pause waiting for complete sequence to arrive */
         Thread.sleep(5)
         val next1 = reader.read()
         if (next1 == 91) { // '[' character
@@ -2175,14 +2175,10 @@ package object layoutz {
       }
 
       private def cleanup(): Unit = {
-        terminal.clearScreen()
+        terminal.clearScrollback()
         terminal.showCursor()
-        terminal.writeLine("Application terminated.")
         terminal.flush()
       }
-
-      /* ═══════════════════════════════════════════════════════════════════════
-       * COMMAND HANDLERS - Pure Scala style with Try/Either */
 
       private def execFileRead(path: String): Either[String, String] = {
         Try {
@@ -2269,7 +2265,7 @@ package object layoutz {
         }
       }
 
-      /* ═══════════════════════════════════════════════════════════════════════
+      /* ═══════════════════════════════════════════════════════════════════════════
        * COMMAND PROCESSOR */
 
       private def processCommand(cmd: Cmd[Message]): Unit = {
@@ -2277,7 +2273,7 @@ package object layoutz {
         implicit val ec: ExecutionContext = ExecutionContext.global
 
         cmd match {
-          case CmdNone        => // Do nothing
+          case CmdNone        => /* Nothing */
           case CmdBatch(cmds) => cmds.foreach(processCommand)
 
           case CmdFileRead(path, onResult) =>
@@ -2381,12 +2377,10 @@ package object layoutz {
         }
       }
 
-      // Track last tick time for each interval
+      /* Runtime to handles last seens with mutable blocks */
       private val lastTickTimes = scala.collection.mutable.Map[Long, Long]()
-      // Track last modified time for watched files
       private val lastModifiedTimes =
         scala.collection.mutable.Map[String, Long]()
-      // Track last poll time for HTTP subscriptions
       private val lastPollTimes = scala.collection.mutable.Map[String, Long]()
 
       private def runRenderLoop(): Unit = {
@@ -2415,8 +2409,6 @@ package object layoutz {
         while (shouldContinue) {
           try {
             val currentTime = System.currentTimeMillis()
-
-            // Process time-based subscriptions
             val timeSubs = getTimeSubscriptions()
             timeSubs.foreach { case (intervalMs, generator) =>
               val lastTime = lastTickTimes.getOrElse(intervalMs, 0L)
@@ -2427,7 +2419,7 @@ package object layoutz {
               }
             }
 
-            // Process file watch subscriptions (simple polling for now)
+            /* Simple polling for now */
             val fileWatchSubs = getFileWatchSubscriptions()
             fileWatchSubs.foreach { case (path, onChange) =>
               try {
@@ -2437,7 +2429,8 @@ package object layoutz {
                   val lastModified = lastModifiedTimes.getOrElse(path, 0L)
                   if (currentModified > lastModified) {
                     lastModifiedTimes(path) = currentModified
-                    if (lastModified > 0) { // Don't fire on first check
+                    /* Not firing on first check */
+                    if (lastModified > 0) {
                       val content = scala.io.Source.fromFile(path).mkString
                       updateState(onChange(Right(content)))
                     }
@@ -2453,14 +2446,12 @@ package object layoutz {
               }
             }
 
-            // Process HTTP poll subscriptions
             val httpPollSubs = getHttpPollSubscriptions()
             httpPollSubs.foreach {
               case (url, intervalMs, headers, onResponse) =>
                 val lastPoll = lastPollTimes.getOrElse(url, 0L)
                 if (currentTime - lastPoll >= intervalMs) {
                   lastPollTimes(url) = currentTime
-                  // Execute HTTP request asynchronously
                   scala.concurrent.Future {
                     try {
                       val connection = new java.net.URL(url)
@@ -2485,8 +2476,9 @@ package object layoutz {
                 }
             }
 
-            // Sleep for a short interval to avoid busy waiting
-            Thread.sleep(10)
+            Thread.sleep(
+              10
+            ) // TODO: Refactor, just short sleep to avoid busy wait
           } catch {
             case ex: Exception => handleTickError(ex)
           }
@@ -2501,7 +2493,7 @@ package object layoutz {
               shouldContinue = false
             } else {
               val key = keyParser.parseKey(input, terminal)
-              // Use the current subscription's key handler
+              /* Uses the current subscription's key handler */
               getKeyPressHandler().foreach { handler =>
                 handler(key).foreach(updateState)
               }

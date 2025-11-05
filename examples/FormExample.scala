@@ -1,7 +1,5 @@
 import layoutz._
 
-/** Example showing cue4s-style input widgets in Elm architecture */
-
 case class FormState(
     name: String = "",
     mood: Int = 0, // index into moods list
@@ -102,8 +100,7 @@ object FormExample extends LayoutzApp[FormState, FormMsg] {
             s"Name: ${state.name}",
             s"Mood: ${moods(state.mood)}",
             s"Letters: ${state.selectedLetters.toSeq.sorted.map(i => letters(i)).mkString(", ")}",
-            br,
-            "Press Ctrl+Q to quit"
+            br
           )
         )
       )

@@ -14,7 +14,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
-- Use [`LayoutzApp`](#layoutzappstate-message) trait for Elm-style TUI's
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, HTTP
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -49,9 +49,9 @@ import layoutz._
 val demo = layout(
   underline("ˆ")("Test Dashboard").center(),
   row(
-    statusCard("API", "LIVE").border(Border.Double),
+    Border.Double(statusCard("API", "LIVE")),
     statusCard("DB", "99.9%"),
-    statusCard("Cache", "READY").border(Border.Thick)
+    Border.Thick(statusCard("Cache", "READY"))
   ),
   br,
   box("Services")(
@@ -89,17 +89,14 @@ Build Elm-style TUI's
 import layoutz._
 
 object CounterApp extends LayoutzApp[Int, String] {
-  // init: ( Model, Cmd Msg )
   def init = (0, Cmd.none)
 
-  // update: Msg -> Model -> ( Model, Cmd Msg )
   def update(msg: String, count: Int) = msg match {
     case "inc" => (count + 1, Cmd.none)
     case "dec" => (count - 1, Cmd.none)
     case _     => (count, Cmd.none)
   }
 
-  // subscriptions: Model -> Sub Msg
   def subscriptions(count: Int) = 
     Sub.onKeyPress {
       case CharKey('+') => Some("inc")
@@ -107,7 +104,6 @@ object CounterApp extends LayoutzApp[Int, String] {
       case _            => None
     }
 
-  // view: Model -> Element
   def view(count: Int) = layout(
     section("Counter")(s"Count: $count"),
     br,
@@ -125,7 +121,7 @@ CounterApp.run() /* call .run to start your app */
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
-- Utlimately, **layoutz** is just a tiny, declarative DSL to combat this
+- Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
 
 ## Core concepts
 - Every piece of content is an `Element`
@@ -139,29 +135,27 @@ Call `.render` on an element to get a String
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Fluent API
-For some `Element`s you can use dot-completion instead of nesting
+For some `Element`s you can use dot-completion instead of nesting:
 
-Nested
 ```scala
+// Nested
 margin(">>")(underline()("Hello\nWorld!"))
-```
 
-Fluent
-```scala
+// Fluent
 "Hello\nWorld!".underline.margin(">>")
 ```
 
-These both render
+Both render:
 ```
 >> Hello
 >> World!
 >> ──────
 ```
 
-**Fluent methods available:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.marginError/Warn/Success/Info()`
+**Available:** `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`
 
 ## Elements
-All components implementing the Element interface you can use in your layouts...
+All the building blocks you can use in your layouts:
 
 ### Text: `Text`
 **layoutz** implicitly converts Strings to `Text` elements:
@@ -253,8 +247,8 @@ table(
   headers = Seq("Name", "Age", "City"),
   rows = Seq(
     Seq("Alice", "30", "New York"),
-    Seq("Bob", "25"),                           // Short row - auto-padded
-    Seq("Charlie", "35", "London", "Extra")    // Long row - auto-truncated
+    Seq("Bob", "25"),                          /* Short row - auto-padded */
+    Seq("Charlie", "35", "London", "Extra")    /* Long row - auto-truncated */
   )
 )
 ```
@@ -558,7 +552,7 @@ Useful for conditional rendering
 ```scala
 layout(
   "Always shown",
-  if (hasError) "Something failed!".marginError() else empty,
+  if (hasError) "Something failed!".margin("[error]") else empty,
   "Also always shown"
 )
 ```
@@ -576,34 +570,26 @@ vr(5, "┃")      // Custom character
 ```
 
 ### Margin: `margin`
-Use `margin` for nice & colourful "compiler-style" margin strings:
+Add prefix margins to elements for compiler-style error messages:
 
 ```scala
 layout(
-  layout(
-    "Ooops",
-    br,
-    row("val result: Int = ", underline("^")("getUserName()")),
-    "Expected Int, found String"
-  ).marginError(),
+  "Ooops",
   br,
-  layout(
-    "Unused variable detected",
-    row("val", underline("~")("temp"), "= calculateTotal(items)")
-  ).marginWarn(),
-  "Clean code, cleaner layouts with layoutz",
-  layout(
-    "Pro tip",
-    br,
-    row("val", underline("~")("beauty"), "= renderCode(perfectly)").margin("[layoutz ~>]")
-  ).marginInfo()
-)
+  row("val result: Int = ", underline("^")("getString()")),
+  "Expected Int, found String"
+).margin("[error]")
 ```
-Available in both fluent (`.marginError()`, `.marginWarn()`, `.marginSuccess()`, `.marginInfo()`, `.margin()`) and nested syntax (`margin.error()`, `margin.warn()`, `margin.success()`, `margin.info()`, `margin("prefix")()`).
+```
+[error] Ooops
+[error]
+[error]
+[error] val result: Int =  getString()
+[error]                    ^^^^^^^^^^^
+[error] Expected Int, found String
+```
 
-<p align="center">
-  <img src="pix/margin-demo.png" width="600">
-</p>
+Available in both fluent (`.margin()`) and nested syntax (`margin("prefix")()`).
 
 ## Text Formatting & Layout
 
@@ -675,7 +661,7 @@ Elements like `box`, `table`, `statusCard`, and `banner` support different `Bord
 
 **Single** (default):
 ```scala
-box("Title")("").border(single)
+box("Title")("").border(Border.Single)
 /* default style is Border.Single, so same as: box("Title")("") */
 ```
 ```
@@ -686,7 +672,7 @@ box("Title")("").border(single)
 
 **Double**:
 ```scala
-banner("Welcome").border(double)
+banner("Welcome").border(Border.Double)
 ```
 ```
 ╔═════════╗
@@ -696,7 +682,7 @@ banner("Welcome").border(double)
 
 **Thick**:
 ```scala
-table(headers, rows).border(thick)
+table(headers, rows).border(Border.Thick)
 ```
 ```
 ┏━━━━━━━┳━━━━━━━━┓
@@ -708,7 +694,7 @@ table(headers, rows).border(thick)
 
 **Round**:
 ```scala
-box("Info")("").border(round)
+box("Info")("").border(Border.Round)
 ```
 ```
 ╭─Info─╮
@@ -735,36 +721,20 @@ box("Hello hello")("World!").border(
 #### Border.None
 You can also disable borders entirely:
 ```scala
-box("No borders")("Just content").border(noBorder)
+box("No borders")("Just content").border(Border.None)
 ```
 
 #### HasBorder Typeclass
 All border styling is done via the `HasBorder` typeclass, which allows you to write generic code that works with any bordered element:
 
 ```scala
-// .border() method works with any bordered element using short aliases
-val myBox = box()("content").border(double)
-val myTable = table(Seq("A", "B"), Seq(Seq("1", "2"))).border(thick)
-val myCard = statusCard("Status", "OK").border(round)
-val myBanner = banner("Alert").border(single)
-val noBorderBox = box()("clean").border(noBorder)
+// Two equivalent syntaxes
+val myBox = box()("content").border(Border.Double)      // Method syntax
+val myTable = Border.Thick(table(Seq("A", "B"), Seq(Seq("1", "2"))))  // Functional syntax
 
 // Generic function - works with Box, Table, StatusCard, Banner
-def makeThick[T: HasBorder](element: T): T = 
-  element.border(thick)
-
-val thickBox = makeThick(box()("content"))
-val thickTable = makeThick(table(Seq("X"), Seq(Seq("Y"))))
+def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
 ```
-
-**Short aliases available:**
-- `single` = `Border.Single`
-- `double` = `Border.Double`
-- `thick` = `Border.Thick`
-- `round` = `Border.Round`
-- `noBorder` = `Border.None`
-
-This is useful for building reusable styling functions and composing UI transformations in a type-safe way.
 
 ## Working with collections
 The full power of Scala functional collections is at your fingertips to render your strings with **layoutz**
@@ -808,60 +778,34 @@ You implement four methods:
 
 The `.run()` method handles the event loop, terminal management, and threading automatically.
 
-### Message Loop
-```mermaid
-graph TD
-    A["User Presses Key"] --> B["subscriptions: Key to Message"]
-    B --> C{Message?}
-    C -->|Some| D["update: Message + State"]
-    C -->|None| E["Ignore Input"]
-    D --> F["New State + Cmd"]
-    F --> G["view: State to Element"]
-    G --> H["Render to Terminal"]
-    H --> I["Display Updated UI"]
-    I --> A
-    
-    J["Time Ticks<br/>(Sub.onTick)"] --> D
-    
-    style A fill:#e1f5fe
-    style F fill:#f3e5f5
-    style G fill:#e8f5e8
-    style H fill:#fff3e0
-```
+The **layoutz** runtime spawns three daemon threads:
+- **Render thread** - Continuously renders your `view` to the terminal (~50ms intervals)
+- **Tick thread** - Handles time-based subscriptions and file/HTTP polling (~10ms intervals)
+- **Input thread** - Blocks on terminal input, converts keys to messages via `subscriptions`
+
+All state updates happen synchronously through `update`, keeping your app logic simple and predictable.
 
 ### Key Types
-**Layoutz** comes with a Key ADT built-in
-
-Basic char input, ex: `'a'`, `'1'`, space: `' '`
 ```scala
-case class CharKey(c: Char)
-```
-Special keys:
-```scala
-case object EnterKey, BackspaceKey, TabKey, EscapeKey
+CharKey(c: Char)           // 'a', '1', ' ', etc.
+EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
+ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
+SpecialKey(name: String)   // Ctrl+Q, Ctrl+S, etc.
 ```
 
-Navigation keys:
+### Subscriptions
+Listen to ongoing events or create timers:
 ```scala
-case object ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey  
+Sub.none
+Sub.onKeyPress(handler)                              // Keyboard input
+Sub.time.every(intervalMs, msg)                      // Timers, animations, periodic ticks
+Sub.file.watch(path, onChange)                       // File changes
+Sub.http.poll(url, intervalMs, onResponse, headers)  // HTTP polling
+Sub.batch(sub1, sub2, ...)                           // Multiple subs
 ```
 
-Shortcuts (e.g `"Ctrl+S"`, `"Ctrl+Q"`)
+Example:
 ```scala
-case class SpecialKey(name: String)
-```
-
-### Subscriptions (ongoing event sources)
-**Batteries included:**
-- `Sub.none` - No subscriptions
-- `Sub.onKeyPress(handler)` - Keyboard input
-- `Sub.time.every(intervalMs, msg)` - Periodic time updates
-- `Sub.file.watch(path, onChange)` - File system changes
-- `Sub.http.poll(url, intervalMs, onResponse, headers)` - HTTP polling
-- `Sub.batch(...)` - Multiple subscriptions
-
-```scala
-// Example: Animation + keyboard + file watching
 def subscriptions(state: State) = Sub.batch(
   Sub.time.every(100, Tick),
   Sub.file.watch("config.json", cfg => ConfigChanged(cfg)),
@@ -869,40 +813,59 @@ def subscriptions(state: State) = Sub.batch(
 )
 ```
 
-### Commands (one-shot side effects)
-**Batteries included:**
-- `Cmd.none` - No command
-- `Cmd.batch(...)` - Run multiple commands
-- `Cmd.file.read(path, onResult)` - Read file → `Either[String, String]`
-- `Cmd.file.write(path, content, onResult)` - Write file → `Either[String, Unit]`
-- `Cmd.file.ls(path, onResult)` - List directory → `Either[String, List[String]]`
-- `Cmd.file.cwd(onResult)` - Get current directory → `Either[String, String]`
-- `Cmd.http.get(url, onResult, headers)` - HTTP GET
-- `Cmd.http.post(url, body, onResult, headers)` - HTTP POST
-- `Cmd.http.bearerAuth(token)` - Helper for Bearer auth headers
-- `Cmd.http.basicAuth(user, pass)` - Helper for Basic auth headers
-- `Cmd.perform(task, onResult)` - Custom async operation
-
+### Commands
+Execute one-shot side effects:
 ```scala
-// Example: File system operations, HTTP requests, custom tasks
-def update(msg: Msg, state: State) = msg match {
-  case LoadData =>
-    (state.copy(loading = true),
-     Cmd.batch(
-       Cmd.file.read("config.json", FileLoaded),
-       Cmd.file.ls("./data", DirListed),
-       Cmd.file.cwd(WorkingDirLoaded),
-       Cmd.http.get("https://api.example.com/data", ApiLoaded, 
-                    Cmd.http.bearerAuth(state.token))
-     ))
+Cmd.none
+Cmd.batch(cmd1, cmd2, ...)
+Cmd.file.read(path, onResult)                   //  -> Either[String, String]
+Cmd.file.write(path, content, onResult)         //  -> Either[String, Unit]
+Cmd.file.ls(path, onResult)                     //  -> Either[String, List[String]]
+Cmd.file.cwd(onResult)                          //  -> Either[String, String]
+Cmd.http.get(url, onResult, headers)            //  -> Either[String, String]
+Cmd.http.post(url, body, onResult, headers)     //  -> Either[String, String]
+Cmd.http.bearerAuth(token)                      //  -> Map[String, String]
+Cmd.perform(task, onResult)                     //  -> Either[String, String]
+```
+
+Example with custom side effect:
+```scala
+case class State(result: String = "idle", error: String = "")
+
+sealed trait Msg
+case object RunTask extends Msg
+case class TaskDone(result: Either[String, String]) extends Msg
+
+object SideEffectApp extends LayoutzApp[State, Msg] {
+  def init = (State(), Cmd.none)
   
-  case RunCustomTask =>
-    (state,
-     Cmd.perform(
-       () => try { Right(myOperation()) } 
-             catch { case ex: Exception => Left(ex.getMessage) },
-       TaskComplete
-     ))
+  def update(msg: Msg, state: State) = msg match {
+    case RunTask =>
+      (state.copy(result = "running..."),
+       Cmd.perform(
+         () => try {
+           // Your custom logic here
+           Thread.sleep(1000)
+           Right("Task completed!")
+         } catch {
+           case ex: Exception => Left(ex.getMessage)
+         },
+         TaskDone
+       ))
+    
+    case TaskDone(Right(msg)) => (state.copy(result = msg), Cmd.none)
+    case TaskDone(Left(err)) => (state.copy(error = err), Cmd.none)
+  }
+  
+  def subscriptions(state: State) = Sub.onKeyPress {
+    case CharKey('r') => Some(RunTask)
+    case _ => None
+  }
+  
+  def view(state: State) = layout(
+    section("Custom Task")(state.result),
+    if (state.error.isEmpty) empty else layout(state.error).margin("[error]")
+  )
 }
 ```
 
@@ -1068,7 +1031,7 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 TaskApp.run()
 ```
 
-### Form Input Example (cue4s-style)
+### Form Input Example
 Build interactive forms with choice widgets:
 
 ```scala
@@ -1084,6 +1047,7 @@ case class FormState(
 
 sealed trait Msg
 case class TypeChar(c: Char) extends Msg
+case object Backspace extends Msg
 case object NextField extends Msg
 case object MoveUp extends Msg
 case object MoveDown extends Msg
@@ -1098,6 +1062,8 @@ object FormApp extends LayoutzApp[FormState, Msg] {
   def update(msg: Msg, state: FormState) = msg match {
     case TypeChar(c) if state.field == 0 => 
       (state.copy(name = state.name + c), Cmd.none)
+    case Backspace if state.field == 0 && state.name.nonEmpty =>
+      (state.copy(name = state.name.dropRight(1)), Cmd.none)
     case MoveUp if state.field == 1 =>
       (state.copy(mood = (state.mood - 1 + moods.length) % moods.length), Cmd.none)
     case MoveDown if state.field == 1 =>
@@ -1116,11 +1082,12 @@ object FormApp extends LayoutzApp[FormState, Msg] {
   }
   
   def subscriptions(state: FormState) = Sub.onKeyPress {
-    case CharKey(c) if c.isLetter => Some(TypeChar(c))
+    case CharKey(' ') if state.field == 2 => Some(Toggle)
+    case CharKey(c) if c.isLetterOrDigit || c == ' ' => Some(TypeChar(c))
+    case BackspaceKey => Some(Backspace)
     case ArrowUpKey => Some(MoveUp)
     case ArrowDownKey => Some(MoveDown)
-    case CharKey(' ') => Some(Toggle)
-    case TabKey => Some(NextField)
+    case TabKey | EnterKey => Some(NextField)
     case _ => None
   }
   
