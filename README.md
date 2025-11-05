@@ -160,8 +160,8 @@ All the building blocks you can use in your layouts:
 ### Text: `Text`
 **layoutz** implicitly converts Strings to `Text` elements:
 ```scala
-"Simple text"       // <- automatically converted to Text element
-Text("Simple text") // <- you don't need to do this
+"Simple text"
+Text("Simple text") /* <- you don't need to do this */
 ```
 
 ### Line Break: `br`
