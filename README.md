@@ -827,7 +827,8 @@ def subscriptions(state: State) = Sub.batch(
 ```
 
 ### Commands
-Execute one-shot side effects:
+**Layoutz** comes with some helpers to make common one-shot side effects like http requests and file I/O. Use `Cmd.perform` as your escape
+hatch for custom side effects:
 
 | Command | Result Type | Description |
 |---------|-------------|-------------|
