@@ -138,6 +138,9 @@ layoutTests = testGroup "Layout"
       
   , testCase "align center" $
       render (alignCenter 10 "Hi") @?= "    Hi    "
+      
+  , testCase "justify" $
+      render (justify 20 "Hello world test") @?= "Hello   world   test"
   ]
 
 -- Dimension tests

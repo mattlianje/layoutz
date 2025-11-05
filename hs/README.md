@@ -158,19 +158,21 @@ Left   Middle Right
 Column Column Column
 ```
 
-### Text alignment: `alignLeft`, `alignRight`, `alignCenter`
+### Text alignment: `alignLeft`, `alignRight`, `alignCenter`, `justify`
 Align text within a specified width:
 ```haskell
 layout
-  [ alignLeft 20 "Left aligned"
-  , alignCenter 20 "Centered"
-  , alignRight 20 "Right aligned"
+  [ alignLeft 40 "Left aligned"
+  , alignCenter 40 "Centered"
+  , alignRight 40 "Right aligned"
+  , justify 40 "This text is justified evenly"
   ]
 ```
 ```
-Left aligned        
-      Centered      
-       Right aligned
+Left aligned                            
+               Centered                 
+                           Right aligned
+This  text  is  justified         evenly
 ```
 
 ### Horizontal rule: `hr`
@@ -187,21 +189,19 @@ hr'' "-" 10
 
 ### Vertical rule: `vr`
 ```haskell
-vr
-vr' "║"
-vr'' "|" 5
+row [vr, vr' "║", vr'' "x" 5]
 ```
 ```
-│
-│
-│
-│
-│
-│
-│
-│
-│
-│
+│ ║ x
+│ ║ x
+│ ║ x
+│ ║ x
+│ ║ x
+│ ║
+│ ║
+│ ║
+│ ║
+│ ║
 ```
 
 ### Key-value pairs: `kv`

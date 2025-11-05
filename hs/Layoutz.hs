@@ -24,7 +24,7 @@ module Layoutz
   , center, center'
   , row
   , underline, underline'
-  , alignLeft, alignRight, alignCenter
+  , alignLeft, alignRight, alignCenter, justify
     -- * Containers
   , box
   , statusCard
@@ -69,6 +69,24 @@ centerString targetWidth str
     totalPadding = targetWidth - len
     leftPad = replicate (totalPadding `div` 2) ' '
     rightPad = replicate (totalPadding - length leftPad) ' '
+
+-- | Helper: justify text (spread words evenly to fill width)
+justifyString :: Int -> String -> String
+justifyString targetWidth str
+  | len >= targetWidth = str
+  | length ws <= 1 = str  -- Can't justify single word
+  | otherwise = intercalate "" $ zipWith (++) ws spaces
+  where
+    ws = words str
+    len = length str
+    wordLengths = sum (map length ws)
+    totalSpaces = targetWidth - wordLengths
+    gaps = length ws - 1
+    baseSpaces = totalSpaces `div` gaps
+    extraSpaces = totalSpaces `mod` gaps
+    spaces = replicate extraSpaces (replicate (baseSpaces + 1) ' ') 
+             ++ replicate (gaps - extraSpaces) (replicate baseSpaces ' ')
+             ++ [""]  -- No space after last word
 
 -- Core Element typeclass
 class Element a where
@@ -233,7 +251,7 @@ instance Element Row where
         in map (padRight cellWidth) currentLines
 
 -- | Text alignment options
-data Alignment = AlignLeft | AlignRight | AlignCenter
+data Alignment = AlignLeft | AlignRight | AlignCenter | Justify
   deriving (Show, Eq)
 
 -- | Aligned text with specified width and alignment
@@ -244,6 +262,7 @@ instance Element AlignedText where
           AlignLeft   -> padRight targetWidth
           AlignRight  -> padLeft targetWidth
           AlignCenter -> centerString targetWidth
+          Justify     -> justifyString targetWidth
     in intercalate "\n" $ map alignFn (lines content)
 
 data Box = Box String [L] Border
@@ -562,6 +581,10 @@ alignRight targetWidth content = L (AlignedText content targetWidth AlignRight)
 -- | Align text to the center within specified width
 alignCenter :: Int -> String -> L
 alignCenter targetWidth content = L (AlignedText content targetWidth AlignCenter)
+
+-- | Justify text (spread words evenly to fill width)
+justify :: Int -> String -> L
+justify targetWidth content = L (AlignedText content targetWidth Justify)
 
 box :: String -> [L] -> L
 box title elements = LBox title elements NormalBorder
