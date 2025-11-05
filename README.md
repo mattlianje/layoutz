@@ -729,8 +729,8 @@ All border styling is done via the `HasBorder` typeclass, which allows you to wr
 
 ```scala
 // Two equivalent syntaxes
-val myBox = box()("content").border(Border.Double)      // Method syntax
-val myTable = Border.Thick(table(Seq("A", "B"), Seq(Seq("1", "2"))))  // Functional syntax
+val myBox = box()("content").border(Border.Double) /* builder syntax */
+val myTable = Border.Thick(table(Seq("A", "B"), Seq(Seq("1", "2")))) /* nested sytnax */
 
 // Generic function - works with Box, Table, StatusCard, Banner
 def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
@@ -790,12 +790,12 @@ The **layoutz** runtime spawns three daemon threads:
 All state updates happen synchronously through `update`, keeping your app logic simple and predictable.
 
 ### Key Types
-**layoutz** comes with a built-in key-handling ADT
+**layoutz** comes with a built-in little ADT to handle keyboard input
 ```scala
-CharKey(c: Char)           // 'a', '1', ' ', etc.
+CharKey(c: Char)           /* 'a', '1', ' ', etc. */
 EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
 ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
-SpecialKey(name: String)   // Ctrl+Q, Ctrl+S, etc.
+SpecialKey(name: String)   /* Ctrl+Q, Ctrl+S, etc. */
 ```
 
 ### Subscriptions
@@ -827,7 +827,8 @@ def subscriptions(state: State) = Sub.batch(
 ```
 
 ### Commands
-Execute one-shot side effects:
+**Layoutz** comes with some helpers to make common one-shot side effects like http requests and file I/O. Use `Cmd.perform` as your escape
+hatch for custom side effects:
 
 | Command | Result Type | Description |
 |---------|-------------|-------------|
