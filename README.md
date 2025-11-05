@@ -770,11 +770,15 @@ Build **Elm-style terminal applications** with the `LayoutzApp` architecture.
 The [Elm Architecture](https://guide.elm-lang.org/architecture/) creates unidirectional data flow: User Input -> Messages -> State Updates -> View Rendering.
 
 ### `LayoutzApp[State, Message]`
-You implement four methods:
-- `init: (State, Cmd[Message])` - Initial state and startup commands when app starts
-- `update(message: Message, state: State): (State, Cmd[Message])` - Apply message to state, return new state and commands
-- `subscriptions(state: State): Sub[Message]` - Declare which events to listen to based on state
-- `view(state: State): Element` - Render current state to UI elements
+Implement this trait:
+```scala
+trait LayoutzApp[State, Message] {
+  def init: (State, Cmd[Message])                                   /* Initial state and startup commands */
+  def update(message: Message, state: State): (State, Cmd[Message]) /* Apply message to state */
+  def subscriptions(state: State): Sub[Message]                     /* Declare event listeners */
+  def view(state: State): Element                                   /* Render state to UI */
+}
+```
 
 The `.run()` method handles the event loop, terminal management, and threading automatically.
 
@@ -786,6 +790,7 @@ The **layoutz** runtime spawns three daemon threads:
 All state updates happen synchronously through `update`, keeping your app logic simple and predictable.
 
 ### Key Types
+**layoutz** comes with a built-in key-handling ADT
 ```scala
 CharKey(c: Char)           // 'a', '1', ' ', etc.
 EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
@@ -806,6 +811,13 @@ Sub.batch(sub1, sub2, ...)                           // Multiple subs
 
 Example:
 ```scala
+import layoutz._
+
+sealed trait Msg
+case object Tick extends Msg
+case class ConfigChanged(content: Either[String, String]) extends Msg
+case object Quit extends Msg
+
 def subscriptions(state: State) = Sub.batch(
   Sub.time.every(100, Tick),
   Sub.file.watch("config.json", cfg => ConfigChanged(cfg)),
@@ -830,6 +842,8 @@ Cmd.perform(task, onResult)                     //  -> Either[String, String]
 
 Example with custom side effect:
 ```scala
+import layoutz._
+
 case class State(result: String = "idle", error: String = "")
 
 sealed trait Msg
@@ -872,7 +886,15 @@ object SideEffectApp extends LayoutzApp[State, Msg] {
 ### Input Patterns
 Basic commands:
 ```scala
-def subscriptions(state: State): Sub[Message] = 
+import layoutz._
+
+sealed trait Msg
+case object Quit extends Msg
+case object MoveUp extends Msg
+case object Confirm extends Msg
+case object Save extends Msg
+
+def subscriptions(state: State): Sub[Msg] = 
   Sub.onKeyPress {
     case CharKey('q')         => Some(Quit)
     case ArrowUpKey           => Some(MoveUp)
@@ -884,7 +906,14 @@ def subscriptions(state: State): Sub[Message] =
 
 Text input:
 ```scala
-def subscriptions(state: State): Sub[Message] = 
+import layoutz._
+
+sealed trait Msg
+case class AddChar(c: Char) extends Msg
+case object DeleteChar extends Msg
+case object SubmitText extends Msg
+
+def subscriptions(state: State): Sub[Msg] = 
   Sub.onKeyPress {
     case CharKey(c) if c.isPrintable => Some(AddChar(c))
     case BackspaceKey                => Some(DeleteChar) 
@@ -895,14 +924,22 @@ def subscriptions(state: State): Sub[Message] =
 
 Handling state dependent logic:
 ```scala
-def subscriptions(state: AppState): Sub[Message] = 
+import layoutz._
+
+case class AppState(text: String, inputMode: Boolean, shouldExit: Boolean)
+
+sealed trait Msg
+case class HandleChar(c: Char) extends Msg
+case object HandleEnter extends Msg
+
+def subscriptions(state: AppState): Sub[Msg] = 
   Sub.onKeyPress {
     case CharKey(c) => Some(HandleChar(c))
     case EnterKey   => Some(HandleEnter)
     case _          => None
   }
 
-def update(msg: Message, state: AppState): (AppState, Cmd[Message]) = msg match {
+def update(msg: Msg, state: AppState): (AppState, Cmd[Msg]) = msg match {
   case HandleChar(c) =>
     if (state.inputMode) (state.copy(text = state.text + c), Cmd.none)
     else if (c == 'q') (state.copy(shouldExit = true), Cmd.none)
