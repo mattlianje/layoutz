@@ -15,7 +15,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - **ANSI colors** and wide character support (emoji, CJK)
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
-- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, HTTP
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, common HTTP requests
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -920,74 +920,6 @@ object SideEffectApp extends LayoutzApp[State, Msg] {
     section("Custom Task")(state.result),
     if (state.error.isEmpty) empty else layout(state.error).margin("[error]")
   )
-}
-```
-
-### Input Patterns
-Basic commands:
-```scala
-import layoutz._
-
-sealed trait Msg
-case object Quit extends Msg
-case object MoveUp extends Msg
-case object Confirm extends Msg
-case object Save extends Msg
-
-def subscriptions(state: State): Sub[Msg] = 
-  Sub.onKeyPress {
-    case CharKey('q')         => Some(Quit)
-    case ArrowUpKey           => Some(MoveUp)
-    case EnterKey             => Some(Confirm)
-    case SpecialKey("Ctrl+S") => Some(Save)
-    case _                    => None
-  }
-```
-
-Text input:
-```scala
-import layoutz._
-
-sealed trait Msg
-case class AddChar(c: Char) extends Msg
-case object DeleteChar extends Msg
-case object SubmitText extends Msg
-
-def subscriptions(state: State): Sub[Msg] = 
-  Sub.onKeyPress {
-    case CharKey(c) if c.isPrintable => Some(AddChar(c))
-    case BackspaceKey                => Some(DeleteChar) 
-    case EnterKey                    => Some(SubmitText)
-    case _                           => None
-  }
-```
-
-Handling state dependent logic:
-```scala
-import layoutz._
-
-case class AppState(text: String, inputMode: Boolean, shouldExit: Boolean)
-
-sealed trait Msg
-case class HandleChar(c: Char) extends Msg
-case object HandleEnter extends Msg
-
-def subscriptions(state: AppState): Sub[Msg] = 
-  Sub.onKeyPress {
-    case CharKey(c) => Some(HandleChar(c))
-    case EnterKey   => Some(HandleEnter)
-    case _          => None
-  }
-
-def update(msg: Msg, state: AppState): (AppState, Cmd[Msg]) = msg match {
-  case HandleChar(c) =>
-    if (state.inputMode) state.copy(text = state.text + c)
-    else if (c == 'q') state.copy(shouldExit = true)
-    else state
-    
-  case HandleEnter =>
-    if (state.inputMode) submitText(state) 
-    else selectCurrent(state)
 }
 ```
 
