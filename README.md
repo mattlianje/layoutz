@@ -118,17 +118,6 @@ CounterApp.run() /* call .run to start your app */
   <img src="pix/counter-demo.gif" width="500">
 </p>
 
-**Colors:**
-```scala
-import layoutz._
-
-layout(
-  Color.Red("✗ Error: Connection failed"),
-  Color.Yellow("⚠ Warning: Retrying..."),
-  Color.Green("✓ Success: Connected")
-).render
-```
-
 ## Motivation
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
