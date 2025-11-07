@@ -6,7 +6,7 @@
 **Simple, beautiful CLI output 🪶**
 
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
-(Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/hs))
+(Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs))
 
 ## Features
 - Use **Layoutz.scala** like a header-file
