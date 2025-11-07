@@ -14,6 +14,7 @@ module Layoutz
     Element(..)
   , Border(..)
   , HasBorder(..)
+  , Colour(..)
   , L
   , Tree(..)
     -- * Basic Elements
@@ -23,13 +24,14 @@ module Layoutz
     -- * Layout Functions  
   , center, center'
   , row
-  , underline, underline'
-  , alignLeft, alignRight, alignCenter, justify
+  , underline, underline', underlineColoured
+  , alignLeft, alignRight, alignCenter, justify, wrap
     -- * Containers
   , box
   , statusCard
     -- * Widgets
   , ul
+  , ol
   , inlineBar
   , table
   , section, section', section''
@@ -43,6 +45,8 @@ module Layoutz
   , chart
     -- * Border utilities
   , withBorder
+    -- * Colour utilities
+  , withColour
     -- * Rendering
   , render
   ) where
@@ -51,21 +55,58 @@ import Data.List (intercalate, transpose)
 import Data.String (IsString(..))
 import Text.Printf (printf)
 
--- | Helper: pad a string to a target width on the right
+-- | Strip ANSI escape codes from a string for accurate width calculation
+stripAnsi :: String -> String
+stripAnsi [] = []
+stripAnsi ('\ESC':'[':rest) = stripAnsi (dropAfterM rest)
+  where 
+    dropAfterM [] = []
+    dropAfterM ('m':xs) = xs
+    dropAfterM (_:xs) = dropAfterM xs
+stripAnsi (c:rest) = c : stripAnsi rest
+
+-- | Returns width of a character in a monospace terminal: 0 for combining
+-- characters, 1 for regular characters, 2 for East Asian wide and emoji.
+charWidth :: Char -> Int
+charWidth c
+  | c < '\x0300' = 1  -- Fast path for ASCII and common Latin
+  | c >= '\x0300' && c < '\x0370' = 0  -- Combining diacriticals
+  | c >= '\x1100' && c < '\x1200' = 2  -- Hangul Jamo
+  | c >= '\x2E80' && c < '\x9FFF' = 2  -- CJK
+  | c >= '\xAC00' && c < '\xD7A4' = 2  -- Hangul Syllables
+  | c >= '\xF900' && c < '\xFB00' = 2  -- CJK Compatibility Ideographs
+  | c >= '\xFE10' && c < '\xFE20' = 2  -- Vertical forms
+  | c >= '\xFE30' && c < '\xFE70' = 2  -- CJK Compatibility Forms
+  | c >= '\xFF00' && c < '\xFF61' = 2  -- Fullwidth Forms
+  | c >= '\xFFE0' && c < '\xFFE7' = 2  -- Fullwidth symbols
+  | c >= '\x1F000' = 2  -- Emoji, symbols, supplementary ideographs
+  | c >= '\x20000' && c < '\x2FFFF' = 2  -- Supplementary ideographs
+  | c >= '\x30000' && c < '\x3FFFF' = 2  -- Tertiary ideographs
+  | otherwise = 1
+
+-- | Calculate real terminal width of string (handles ANSI, emoji, CJK)
+realLength :: String -> Int
+realLength = sum . map charWidth . stripAnsi
+
+-- | Calculate visible width (ignoring ANSI codes, handling wide chars)
+visibleLength :: String -> Int
+visibleLength = realLength
+
+-- | Helper: pad a string to a target width on the right (ANSI-aware)
 padRight :: Int -> String -> String
-padRight targetWidth str = str ++ replicate (max 0 (targetWidth - length str)) ' '
+padRight targetWidth str = str ++ replicate (max 0 (targetWidth - visibleLength str)) ' '
 
--- | Helper: pad a string to a target width on the left
+-- | Helper: pad a string to a target width on the left (ANSI-aware)
 padLeft :: Int -> String -> String
-padLeft targetWidth str = replicate (max 0 (targetWidth - length str)) ' ' ++ str
+padLeft targetWidth str = replicate (max 0 (targetWidth - visibleLength str)) ' ' ++ str
 
--- | Helper: center a string within a target width
+-- | Helper: center a string within a target width (ANSI-aware)
 centerString :: Int -> String -> String
 centerString targetWidth str
   | len >= targetWidth = str
   | otherwise = leftPad ++ str ++ rightPad
   where
-    len = length str
+    len = visibleLength str
     totalPadding = targetWidth - len
     leftPad = replicate (totalPadding `div` 2) ' '
     rightPad = replicate (totalPadding - length leftPad) ' '
@@ -98,7 +139,7 @@ class Element a where
     let rendered = renderElement element
         renderedLines = lines rendered
     in if null renderedLines then 0
-       else maximum $ 0 : map length renderedLines
+       else maximum $ 0 : map visibleLength renderedLines
   
   -- Calculate element height (number of lines)
   height :: a -> Int
@@ -126,7 +167,9 @@ render = renderElement
 --   All different types unified as L, so they can be composed together.
 data L = forall a. Element a => L a 
        | UL [L] 
+       | OL [L]
        | AutoCenter L
+       | Coloured Colour L
        | LBox String [L] Border
        | LStatusCard String String Border
        | LTable [String] [[L]] Border
@@ -134,21 +177,35 @@ data L = forall a. Element a => L a
 instance Element L where
   renderElement (L x) = render x
   renderElement (UL items) = render (UnorderedList items)
+  renderElement (OL items) = render (OrderedList items)
   renderElement (AutoCenter element) = render element  -- Will be handled by Layout
+  renderElement (Coloured colour element) = 
+    let rendered = render element
+        renderedLines = lines rendered
+        coloredLines = map (wrapAnsi colour) renderedLines
+        -- Preserve whether original had trailing newline
+        hasTrailingNewline = not (null rendered) && last rendered == '\n'
+    in if hasTrailingNewline 
+       then unlines coloredLines 
+       else intercalate "\n" coloredLines
   renderElement (LBox title elements border) = render (Box title elements border)
   renderElement (LStatusCard label content border) = render (StatusCard label content border)
   renderElement (LTable headers rows border) = render (Table headers rows border)
   
   width (L x) = width x
   width (UL items) = width (UnorderedList items)
+  width (OL items) = width (OrderedList items)
   width (AutoCenter element) = width element
+  width (Coloured _ element) = width element  -- Width ignores color
   width (LBox title elements border) = width (Box title elements border)
   width (LStatusCard label content border) = width (StatusCard label content border)
   width (LTable headers rows border) = width (Table headers rows border)
   
   height (L x) = height x  
   height (UL items) = height (UnorderedList items)
+  height (OL items) = height (OrderedList items)
   height (AutoCenter element) = height element
+  height (Coloured _ element) = height element  -- Height ignores color
   height (LBox title elements border) = height (Box title elements border)
   height (LStatusCard label content border) = height (StatusCard label content border)
   height (LTable headers rows border) = height (Table headers rows border)
@@ -164,7 +221,7 @@ instance IsString L where
   fromString = text
 
 -- Border styles
-data Border = NormalBorder | DoubleBorder | ThickBorder | RoundBorder | NoBorder
+data Border = BorderNormal | BorderDouble | BorderThick | BorderRound | BorderNone
   deriving (Show, Eq)
 
 -- | Typeclass for elements that support customizable borders
@@ -176,14 +233,45 @@ instance HasBorder L where
   setBorder border (LBox title elements _) = LBox title elements border
   setBorder border (LStatusCard label content _) = LStatusCard label content border
   setBorder border (LTable headers rows _) = LTable headers rows border
+  setBorder border (Coloured colour element) = Coloured colour (setBorder border element)
   setBorder _ other = other  -- Non-bordered elements remain unchanged
 
+-- Colour support with ANSI codes
+data Colour = ColourBlack | ColourRed | ColourGreen | ColourYellow 
+            | ColourBlue | ColourMagenta | ColourCyan | ColourWhite
+            | ColourBrightBlack | ColourBrightRed | ColourBrightGreen | ColourBrightYellow 
+            | ColourBrightBlue | ColourBrightMagenta | ColourBrightCyan | ColourBrightWhite
+  deriving (Show, Eq)
+
+-- | Get ANSI foreground color code
+colourCode :: Colour -> String
+colourCode ColourBlack         = "30"
+colourCode ColourRed           = "31"
+colourCode ColourGreen         = "32"
+colourCode ColourYellow        = "33"
+colourCode ColourBlue          = "34"
+colourCode ColourMagenta       = "35"
+colourCode ColourCyan          = "36"
+colourCode ColourWhite         = "37"
+colourCode ColourBrightBlack   = "90"
+colourCode ColourBrightRed     = "91"
+colourCode ColourBrightGreen   = "92"
+colourCode ColourBrightYellow  = "93"
+colourCode ColourBrightBlue    = "94"
+colourCode ColourBrightMagenta = "95"
+colourCode ColourBrightCyan    = "96"
+colourCode ColourBrightWhite   = "97"
+
+-- | Wrap text with ANSI color codes
+wrapAnsi :: Colour -> String -> String
+wrapAnsi colour str = "\ESC[" ++ colourCode colour ++ "m" ++ str ++ "\ESC[0m"
+
 borderChars :: Border -> (String, String, String, String, String, String, String, String, String)
-borderChars NormalBorder = ("┌", "┐", "└", "┘", "─", "│", "├", "┤", "┼")
-borderChars DoubleBorder = ("╔", "╗", "╚", "╝", "═", "║", "╠", "╣", "╬") 
-borderChars ThickBorder  = ("┏", "┓", "┗", "┛", "━", "┃", "┣", "┫", "╋")
-borderChars RoundBorder  = ("╭", "╮", "╰", "╯", "─", "│", "├", "┤", "┼")
-borderChars NoBorder     = (" ", " ", " ", " ", " ", " ", " ", " ", " ")
+borderChars BorderNormal = ("┌", "┐", "└", "┘", "─", "│", "├", "┤", "┼")
+borderChars BorderDouble = ("╔", "╗", "╚", "╝", "═", "║", "╠", "╣", "╬") 
+borderChars BorderThick  = ("┏", "┓", "┗", "┛", "━", "┃", "┣", "┫", "╋")
+borderChars BorderRound  = ("╭", "╮", "╰", "╯", "─", "│", "├", "┤", "┼")
+borderChars BorderNone   = (" ", " ", " ", " ", " ", " ", " ", " ", " ")
 
 -- Elements
 newtype Text = Text String
@@ -219,19 +307,22 @@ instance Element Centered where
     intercalate "\n" $ map (centerString targetWidth) (lines content)
 
 -- | Underlined element with custom character
-data Underlined = Underlined String String  -- content, underline_char
+data Underlined = Underlined String String (Maybe Colour)  -- content, underline_char, optional color
 instance Element Underlined where
-  renderElement (Underlined content underlineChar) = 
+  renderElement (Underlined content underlineChar maybeColour) = 
     let contentLines = lines content
         maxWidth = if null contentLines then 0 
-                   else maximum (map length contentLines)
+                   else maximum (map visibleLength contentLines)
         underlinePattern = underlineChar
         underlinePart = if length underlinePattern >= maxWidth
                    then take maxWidth underlinePattern
                    else let repeats = maxWidth `div` length underlinePattern
                             remainder = maxWidth `mod` length underlinePattern
                         in concat (replicate repeats underlinePattern) ++ take remainder underlinePattern
-    in content ++ "\n" ++ underlinePart
+        coloredUnderline = case maybeColour of
+          Nothing -> underlinePart
+          Just colour -> wrapAnsi colour underlinePart
+    in content ++ "\n" ++ coloredUnderline
 
 data Row = Row [L]
 instance Element Row where  
@@ -242,7 +333,7 @@ instance Element Row where
       elementStrings = map render elements
       elementLines = map lines elementStrings
       maxHeight = maximum (map length elementLines)
-      elementWidths = map (maximum . map length) elementLines
+      elementWidths = map (maximum . map visibleLength) elementLines
       paddedElements = zipWith padElement elementWidths elementLines
       
       padElement :: Int -> [String] -> [String]
@@ -387,11 +478,11 @@ instance Element Table where
         
         -- Fixed border construction with proper connectors
         topConnector = case border of
-          RoundBorder -> "┬"
-          NormalBorder -> "┬"
-          DoubleBorder -> "╦" 
-          ThickBorder -> "┳"
-          NoBorder -> " "
+          BorderRound -> "┬"
+          BorderNormal -> "┬"
+          BorderDouble -> "╦" 
+          BorderThick -> "┳"
+          BorderNone -> " "
         topParts = map (\w -> replicate w hChar) columnWidths
         topBorder = topLeft ++ [hChar] ++ intercalate ([hChar] ++ topConnector ++ [hChar]) topParts ++ [hChar] ++ topRight
         
@@ -401,11 +492,11 @@ instance Element Table where
         
         -- Create proper bottom border with bottom connectors
         bottomConnector = case border of
-          RoundBorder -> "┴"  -- Special case for round borders
-          NormalBorder -> "┴"
-          DoubleBorder -> "╩" 
-          ThickBorder -> "┻"
-          NoBorder -> " "
+          BorderRound -> "┴"  -- Special case for round borders
+          BorderNormal -> "┴"
+          BorderDouble -> "╩" 
+          BorderThick -> "┻"
+          BorderNone -> " "
         bottomParts = map (\w -> replicate w hChar) columnWidths  
         bottomBorder = bottomLeft ++ [hChar] ++ intercalate ([hChar] ++ bottomConnector ++ [hChar]) bottomParts ++ [hChar] ++ bottomRight
         
@@ -426,8 +517,8 @@ instance Element Table where
       
       calculateColumnWidths :: [String] -> [[L]] -> [Int]
       calculateColumnWidths hdrs rws = 
-        let headerWidths = map length hdrs
-            rowWidths = map (map (maximum . (0:) . map length . lines . render)) rws
+        let headerWidths = map visibleLength hdrs
+            rowWidths = map (map (maximum . (0:) . map visibleLength . lines . render)) rws
             allWidths = headerWidths : rowWidths
         in map (maximum . (0:)) (transpose allWidths)
       
@@ -458,13 +549,13 @@ data KeyValue = KeyValue [(String, String)]
 instance Element KeyValue where
   renderElement (KeyValue pairs) = 
     if null pairs then ""
-    else let maxKeyLength = maximum (map (length . fst) pairs)
+    else let maxKeyLength = maximum (map (realLength . fst) pairs)
              alignmentPosition = maxKeyLength + 2
          in intercalate "\n" $ map (renderPair alignmentPosition) pairs
     where
       renderPair alignPos (key, value) = 
         let keyWithColon = key ++ ":"
-            spacesNeeded = alignPos - length keyWithColon
+            spacesNeeded = alignPos - realLength keyWithColon
             padding = replicate (max 1 spacesNeeded) ' '
         in keyWithColon ++ padding ++ value
 
@@ -523,6 +614,60 @@ instance Element UnorderedList where
               in intercalate "\n" (firstOutput : restOutput)
             [] -> indent ++ bullet ++ " "
 
+newtype OrderedList = OrderedList [L]
+instance Element OrderedList where
+  renderElement (OrderedList items) = renderAtLevel 1 0 items
+    where
+      renderAtLevel startNum level itemList = 
+        let indent = replicate (level * 2) ' '
+            numbered = zip [startNum..] itemList
+        in intercalate "\n" $ map (renderItem level indent) numbered
+      
+      renderItem level indent (num, item) = 
+        if isOrderedList item
+        then renderAtLevel 1 (level + 1) (getOrderedListItems item)
+        else
+          let numStr = formatNumber level num ++ ". "
+              content = render item
+              contentLines = lines content
+          in case contentLines of
+            [singleLine] -> indent ++ numStr ++ singleLine
+            (firstLine:restLines) -> 
+              let firstOutput = indent ++ numStr ++ firstLine
+                  restIndent = replicate (length numStr) ' '
+                  restOutput = map ((indent ++ restIndent) ++) restLines
+              in intercalate "\n" (firstOutput : restOutput)
+            [] -> indent ++ numStr
+      
+      formatNumber :: Int -> Int -> String
+      formatNumber level num = 
+        case level `mod` 3 of
+          0 -> show num                    -- 1, 2, 3
+          1 -> [toEnum (96 + num)]        -- a, b, c
+          _ -> toRoman num                 -- i, ii, iii
+      
+      toRoman :: Int -> String
+      toRoman n = case n of
+        1 -> "i"
+        2 -> "ii"
+        3 -> "iii"
+        4 -> "iv"
+        5 -> "v"
+        6 -> "vi"
+        7 -> "vii"
+        8 -> "viii"
+        9 -> "ix"
+        10 -> "x"
+        _ -> show n  -- fallback for numbers > 10
+      
+      isOrderedList :: L -> Bool
+      isOrderedList (OL _) = True
+      isOrderedList _ = False
+      
+      getOrderedListItems :: L -> [L]
+      getOrderedListItems (OL xs) = xs
+      getOrderedListItems _ = []
+
 data InlineBar = InlineBar String Double
 instance Element InlineBar where
   renderElement (InlineBar label progress) =
@@ -549,20 +694,32 @@ center' :: Element a => Int -> a -> L
 center' targetWidth element = L (Centered (render element) targetWidth)
 
 underline :: Element a => a -> L
-underline element = L (Underlined (render element) "─")
+underline element = L (Underlined (render element) "─" Nothing)
 
 -- | Add underline with custom character
 underline' :: Element a => String -> a -> L
-underline' char element = L (Underlined (render element) char)
+underline' char element = L (Underlined (render element) char Nothing)
+
+-- | Add colored underline with custom character and color
+-- 
+-- Example usage:
+--   underlineColoured "=" ColourRed $ text "Error Section"
+--   underlineColoured "~" ColourGreen $ text "Success"
+--   underlineColoured "─" ColourBrightCyan $ text "Info"
+underlineColoured :: Element a => String -> Colour -> a -> L
+underlineColoured char colour element = L (Underlined (render element) char (Just colour))
 
 ul :: [L] -> L
 ul items = UL items
+
+ol :: [L] -> L
+ol items = OL items
 
 inlineBar :: String -> Double -> L
 inlineBar label progress = L (InlineBar label progress)
 
 statusCard :: String -> String -> L
-statusCard label content = LStatusCard label content NormalBorder
+statusCard label content = LStatusCard label content BorderNormal
 
 layout :: [L] -> L
 layout elements = L (Layout elements)
@@ -586,8 +743,32 @@ alignCenter targetWidth content = L (AlignedText content targetWidth AlignCenter
 justify :: Int -> String -> L
 justify targetWidth content = L (AlignedText content targetWidth Justify)
 
+-- | Wrap text to multiple lines with specified width
+wrap :: Int -> String -> L
+wrap targetWidth content = 
+  let ws = words content
+      wrappedLines = wrapWords targetWidth ws
+  in layout (map text wrappedLines)
+  where
+    wrapWords :: Int -> [String] -> [String]
+    wrapWords _ [] = []
+    wrapWords maxWidth wordsList = 
+      let (line, rest) = takeLine maxWidth wordsList
+      in line : wrapWords maxWidth rest
+    
+    takeLine :: Int -> [String] -> (String, [String])
+    takeLine _ [] = ("", [])
+    takeLine maxWidth (firstWord:restWords)
+      | length firstWord > maxWidth = (firstWord, restWords)  -- Word too long, put it on its own line
+      | otherwise = go (length firstWord) [firstWord] restWords
+      where
+        go _ acc [] = (unwords (reverse acc), [])
+        go currentLen acc (nextWord:remainingWords)
+          | currentLen + 1 + length nextWord <= maxWidth = go (currentLen + 1 + length nextWord) (nextWord:acc) remainingWords
+          | otherwise = (unwords (reverse acc), nextWord:remainingWords)
+
 box :: String -> [L] -> L
-box title elements = LBox title elements NormalBorder
+box title elements = LBox title elements BorderNormal
 
 -- | Create margin with custom prefix
 -- 
@@ -631,7 +812,7 @@ chart dataPoints = L (Chart dataPoints)
 
 -- | Create table with headers and rows
 table :: [String] -> [[L]] -> L
-table headers rows = LTable headers rows NormalBorder
+table headers rows = LTable headers rows BorderNormal
 
 -- | Create section with title and content
 section :: String -> [L] -> L
@@ -655,10 +836,19 @@ kv pairs = L (KeyValue pairs)
 -- Other elements are returned unchanged
 --
 -- Example usage:
---   withBorder ThickBorder $ statusCard "API" "UP"
---   withBorder DoubleBorder $ table ["Name"] [[text "Alice"]]
+--   withBorder BorderThick $ statusCard "API" "UP"
+--   withBorder BorderDouble $ table ["Name"] [[text "Alice"]]
 withBorder :: Border -> L -> L
 withBorder = setBorder
+
+-- | Apply a color to an element
+-- 
+-- Example usage:
+--   withColour ColourRed $ text "Error!"
+--   withColour ColourGreen $ statusCard "Status" "OK"
+--   withColour ColourBrightYellow $ box "Warning" [text "Check logs"]
+withColour :: Colour -> L -> L
+withColour colour element = Coloured colour element
 
 -- | Create tree structure
 tree :: String -> [Tree] -> L

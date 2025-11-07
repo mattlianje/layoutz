@@ -38,9 +38,9 @@ demo = layout
   , br
   , row
     [ statusCard "Users" "1.2K"
-    , withBorder DoubleBorder $ statusCard "API" "UP"
-    , withBorder ThickBorder $ statusCard "CPU" "23%"
-    , withBorder RoundBorder $ table ["Name", "Role", "Status"] 
+    , withBorder BorderDouble $ statusCard "API" "UP"
+    , withBorder BorderThick $ statusCard "CPU" "23%"
+    , withBorder BorderRound $ table ["Name", "Role", "Status"] 
         [ ["Alice", "Engineer", "Online"]
         , ["Eve", "QA", "Away"]
         ]
@@ -261,6 +261,34 @@ ul [ "Backend"
       • Footer
 ```
 
+### Ordered Lists: `ol`
+Numbered lists with automatic nesting:
+```haskell
+ol ["First step", "Second step", "Third step"]
+```
+```
+1. First step
+2. Second step
+3. Third step
+```
+
+Nested ordered lists with automatic style cycling (numbers → letters → roman numerals):
+```haskell
+ol [ "Setup"
+   , ol ["Install dependencies", "Configure", ol ["Check version"]]
+   , "Build"
+   , "Deploy"
+   ]
+```
+```
+1. Setup
+  a. Install dependencies
+  b. Configure
+    i. Check version
+2. Build
+3. Deploy
+```
+
 ### Underline: `underline`
 Add underlines to any element:
 ```haskell
@@ -392,7 +420,7 @@ layout
 ## Border Styles
 Elements like `box`, `table`, and `statusCard` support different border styles:
 
-**NormalBorder** (default):
+**BorderNormal** (default):
 ```haskell
 box "Title" ["content"]
 ```
@@ -402,9 +430,9 @@ box "Title" ["content"]
 └─────────┘
 ```
 
-**DoubleBorder**:
+**BorderDouble**:
 ```haskell
-withBorder DoubleBorder $ statusCard "API" "UP"
+withBorder BorderDouble $ statusCard "API" "UP"
 ```
 ```
 ╔═══════╗
@@ -413,9 +441,9 @@ withBorder DoubleBorder $ statusCard "API" "UP"
 ╚═══════╝
 ```
 
-**ThickBorder**:
+**BorderThick**:
 ```haskell
-withBorder ThickBorder $ table ["Name"] [["Alice"]]
+withBorder BorderThick $ table ["Name"] [["Alice"]]
 ```
 ```
 ┏━━━━━━━┓
@@ -425,9 +453,9 @@ withBorder ThickBorder $ table ["Name"] [["Alice"]]
 ┗━━━━━━━┛
 ```
 
-**RoundBorder**:
+**BorderRound**:
 ```haskell
-withBorder RoundBorder $ box "Info" ["content"]
+withBorder BorderRound $ box "Info" ["content"]
 ```
 ```
 ╭──Info───╮
@@ -435,15 +463,57 @@ withBorder RoundBorder $ box "Info" ["content"]
 ╰─────────╯
 ```
 
-**NoBorder** (invisible borders):
+**BorderNone** (invisible borders):
 ```haskell
-withBorder NoBorder $ box "Info" ["content"]
+withBorder BorderNone $ box "Info" ["content"]
 ```
 ```
   Info   
  content 
          
 ```
+
+## Colors (ANSI Support)
+
+Add color to your layouts with `withColour`:
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+import Layoutz
+
+colorDemo = layout
+  [ withColour ColourGreen $ statusCard "Status" "OK"
+  , withColour ColourRed $ statusCard "Errors" "3"
+  , withColour ColourYellow $ statusCard "Warnings" "12"
+  , withColour ColourMagenta $ box "System" 
+      [ withColour ColourGreen $ text "✓ Database: Connected"
+      , withColour ColourRed $ text "✗ Cache: Disconnected"
+      ]
+  ]
+
+-- Colors are automatically included in render output
+putStrLn $ render colorDemo
+```
+
+**Available Colors:**
+- Basic: `ColourBlack`, `ColourRed`, `ColourGreen`, `ColourYellow`, `ColourBlue`, `ColourMagenta`, `ColourCyan`, `ColourWhite`
+- Bright: `ColourBrightBlack`, `ColourBrightRed`, `ColourBrightGreen`, `ColourBrightYellow`, `ColourBrightBlue`, `ColourBrightMagenta`, `ColourBrightCyan`, `ColourBrightWhite`
+
+**Colored Underlines:**
+
+You can also color just the underline part:
+
+```haskell
+underlineColoured "=" ColourRed $ text "Error Section"
+underlineColoured "~" ColourGreen $ text "Success"
+underlineColoured "─" ColourBrightCyan $ text "Info"
+```
+
+**Note:** 
+- ANSI color codes are automatically included when you use `withColour`
+- Width calculations automatically ignore ANSI codes, so layouts stay aligned
+- Colors work seamlessly with all elements and borders
+- Use `underlineColoured` to color just the underline while keeping text normal
 
 ## REPL
 

@@ -3,6 +3,17 @@
 import Test.Tasty
 import Test.Tasty.HUnit
 import Layoutz
+import Data.List (isInfixOf)
+
+-- Helper to strip ANSI codes for testing (re-export from Layoutz would be better, but this works)
+stripAnsiTest :: String -> String
+stripAnsiTest [] = []
+stripAnsiTest ('\ESC':'[':rest) = stripAnsiTest (dropAfterM rest)
+  where 
+    dropAfterM [] = []
+    dropAfterM ('m':xs) = xs
+    dropAfterM (_:xs) = dropAfterM xs
+stripAnsiTest (c:rest) = c : stripAnsiTest rest
 
 main :: IO ()
 main = defaultMain tests
@@ -15,6 +26,7 @@ tests = testGroup "Layoutz Tests"
   , containerTests
   , layoutTests
   , dimensionTests
+  , colourTests
   ]
 
 -- Basic element tests
@@ -97,13 +109,13 @@ containerTests = testGroup "Containers"
       length (lines $ render $ statusCard "API" "UP") @?= 4
       
   , testCase "status card double border" $
-      "╔═══════╗" `elem` lines (render $ withBorder DoubleBorder $ statusCard "API" "UP") @?= True
+      "╔═══════╗" `elem` lines (render $ withBorder BorderDouble $ statusCard "API" "UP") @?= True
       
   , testCase "box default border" $
       "┌──Title──┐" `elem` lines (render $ box "Title" [text "Content"]) @?= True
       
   , testCase "box double border" $
-      "╔══Title══╗" `elem` lines (render $ withBorder DoubleBorder $ box "Title" [text "Content"]) @?= True
+      "╔══Title══╗" `elem` lines (render $ withBorder BorderDouble $ box "Title" [text "Content"]) @?= True
   ]
 
 -- Layout tests
@@ -114,6 +126,15 @@ layoutTests = testGroup "Layout"
       
   , testCase "unordered list nested" $
       "  ◦ Sub 1" `elem` lines (render $ ul [text "Item 1", ul [text "Sub 1", text "Sub 2"]]) @?= True
+      
+  , testCase "ordered list single level" $
+      render (ol [text "First", text "Second"]) @?= "1. First\n2. Second"
+      
+  , testCase "ordered list nested with letters" $
+      "  a. Nested" `elem` lines (render $ ol [text "Item 1", ol [text "Nested", text "Also nested"]]) @?= True
+      
+  , testCase "ordered list triple nested with roman numerals" $
+      "    i. Deep" `elem` lines (render $ ol [text "L1", ol [text "L2", ol [text "Deep"]]]) @?= True
       
   , testCase "table basic" $
       "│ A │ B │" `elem` lines (render $ table ["A", "B"] [[text "1", text "2"]]) @?= True
@@ -151,4 +172,46 @@ dimensionTests = testGroup "Dimensions"
       
   , testCase "height calculation" $
       height (layout [text "Line 1", text "Line 2"]) @?= 2
+  ]
+
+-- Colour tests
+colourTests :: TestTree
+colourTests = testGroup "Colours"
+  [ testCase "render includes ANSI codes" $
+      "\ESC[31m" `isInfixOf` render (withColour ColourRed $ text "Hello") @?= True
+      
+  , testCase "render includes reset code" $
+      "\ESC[0m" `isInfixOf` render (withColour ColourRed $ text "Hello") @?= True
+      
+  , testCase "colored element width ignores ANSI codes" $
+      width (withColour ColourRed $ text "Hello") @?= 5
+      
+  , testCase "colored status card maintains structure" $
+      let colored = render $ withColour ColourGreen $ withBorder BorderDouble $ statusCard "API" "UP"
+          strippedLines = map stripAnsiTest (lines colored)
+      in "╔═══════╗" `elem` strippedLines @?= True
+      
+  , testCase "colored box maintains structure" $
+      let colored = render $ withColour ColourBlue $ box "Title" [text "Content"]
+          strippedLines = map stripAnsiTest (lines colored)
+      in "┌──Title──┐" `elem` strippedLines @?= True
+      
+  , testCase "nested colors work" $
+      "\ESC[32m" `isInfixOf` render (withColour ColourRed $ layout [withColour ColourGreen $ text "Hi"]) @?= True
+      
+  , testCase "bright colors use correct codes" $
+      "\ESC[91m" `isInfixOf` render (withColour ColourBrightRed $ text "Hi") @?= True
+      
+  , testCase "color with borders both work" $
+      let colored = render $ withColour ColourYellow $ withBorder BorderThick $ statusCard "Test" "OK"
+          strippedLines = map stripAnsiTest (lines colored)
+      in "┏━━━━━━━━┓" `elem` strippedLines @?= True
+      
+  , testCase "colored underline includes ANSI codes" $
+      "\ESC[31m" `isInfixOf` render (underlineColoured "=" ColourRed $ text "Title") @?= True
+      
+  , testCase "colored underline maintains structure" $
+      let underlined = render $ underlineColoured "=" ColourRed $ text "Test"
+          strippedLines = map stripAnsiTest (lines underlined)
+      in "====" `elem` strippedLines @?= True
   ]
