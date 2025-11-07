@@ -12,6 +12,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
+- **ANSI colors** and wide character support (emoji, CJK)
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
 - [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, HTTP
@@ -116,6 +117,17 @@ CounterApp.run() /* call .run to start your app */
 <p align="center">
   <img src="pix/counter-demo.gif" width="500">
 </p>
+
+**Colors:**
+```scala
+import layoutz._
+
+layout(
+  Color.Red("✗ Error: Connection failed"),
+  Color.Yellow("⚠ Warning: Retrying..."),
+  Color.Green("✓ Success: Connected")
+).render
+```
 
 ## Motivation
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
@@ -363,6 +375,23 @@ Important Title
 Custom
 ══════
 ```
+
+### Colors: `Color`
+16 ANSI colors: `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Black` + `Bright` variants
+```scala
+// Wrap syntax
+Color.Red("Error!")
+Color.Green("✓ Success")
+
+// Method syntax  
+"Status".color(Color.BrightCyan)
+box("Alert")(text).color(Color.Yellow)
+
+// Colored underlines & margins
+"Title".underlineColoured("=", Color.Red)
+"Log".marginColoured("[INFO]", Color.Cyan)
+```
+Handles emoji and CJK characters correctly.
 
 ### Box: `box`
 With title:

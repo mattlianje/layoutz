@@ -26,7 +26,7 @@ tests = testGroup "Layoutz Tests"
   , containerTests
   , layoutTests
   , dimensionTests
-  , colourTests
+  , colorTests
   ]
 
 -- Basic element tests
@@ -174,44 +174,44 @@ dimensionTests = testGroup "Dimensions"
       height (layout [text "Line 1", text "Line 2"]) @?= 2
   ]
 
--- Colour tests
-colourTests :: TestTree
-colourTests = testGroup "Colours"
+-- Color tests
+colorTests :: TestTree
+colorTests = testGroup "Colors"
   [ testCase "render includes ANSI codes" $
-      "\ESC[31m" `isInfixOf` render (withColour ColourRed $ text "Hello") @?= True
+      "\ESC[31m" `isInfixOf` render (withColor ColorRed $ text "Hello") @?= True
       
   , testCase "render includes reset code" $
-      "\ESC[0m" `isInfixOf` render (withColour ColourRed $ text "Hello") @?= True
+      "\ESC[0m" `isInfixOf` render (withColor ColorRed $ text "Hello") @?= True
       
   , testCase "colored element width ignores ANSI codes" $
-      width (withColour ColourRed $ text "Hello") @?= 5
+      width (withColor ColorRed $ text "Hello") @?= 5
       
   , testCase "colored status card maintains structure" $
-      let colored = render $ withColour ColourGreen $ withBorder BorderDouble $ statusCard "API" "UP"
+      let colored = render $ withColor ColorGreen $ withBorder BorderDouble $ statusCard "API" "UP"
           strippedLines = map stripAnsiTest (lines colored)
       in "╔═══════╗" `elem` strippedLines @?= True
       
   , testCase "colored box maintains structure" $
-      let colored = render $ withColour ColourBlue $ box "Title" [text "Content"]
+      let colored = render $ withColor ColorBlue $ box "Title" [text "Content"]
           strippedLines = map stripAnsiTest (lines colored)
       in "┌──Title──┐" `elem` strippedLines @?= True
       
   , testCase "nested colors work" $
-      "\ESC[32m" `isInfixOf` render (withColour ColourRed $ layout [withColour ColourGreen $ text "Hi"]) @?= True
+      "\ESC[32m" `isInfixOf` render (withColor ColorRed $ layout [withColor ColorGreen $ text "Hi"]) @?= True
       
   , testCase "bright colors use correct codes" $
-      "\ESC[91m" `isInfixOf` render (withColour ColourBrightRed $ text "Hi") @?= True
+      "\ESC[91m" `isInfixOf` render (withColor ColorBrightRed $ text "Hi") @?= True
       
   , testCase "color with borders both work" $
-      let colored = render $ withColour ColourYellow $ withBorder BorderThick $ statusCard "Test" "OK"
+      let colored = render $ withColor ColorYellow $ withBorder BorderThick $ statusCard "Test" "OK"
           strippedLines = map stripAnsiTest (lines colored)
       in "┏━━━━━━━━┓" `elem` strippedLines @?= True
       
   , testCase "colored underline includes ANSI codes" $
-      "\ESC[31m" `isInfixOf` render (underlineColoured "=" ColourRed $ text "Title") @?= True
+      "\ESC[31m" `isInfixOf` render (underlineColored "=" ColorRed $ text "Title") @?= True
       
   , testCase "colored underline maintains structure" $
-      let underlined = render $ underlineColoured "=" ColourRed $ text "Test"
+      let underlined = render $ underlineColored "=" ColorRed $ text "Test"
           strippedLines = map stripAnsiTest (lines underlined)
       in "====" `elem` strippedLines @?= True
   ]

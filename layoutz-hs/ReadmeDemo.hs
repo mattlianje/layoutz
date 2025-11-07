@@ -10,11 +10,11 @@ t = withBorder BorderRound $ table ["Name", "Role", "Status"]
 
 -- Nest, compose, combine them
 d = layout
-    [ center $ row [underlineColoured "^" ColourBrightMagenta $ text "Layoutz", "... A Small Demo"]
+    [ center $ row [underlineColored "^" ColorBrightMagenta $ text "Layoutz", "... A Small Demo"]
     , row
-        [ withColour ColourBrightBlue $ statusCard "Users" "1.2K"
-        , withColour ColourBrightGreen $ withBorder BorderDouble $ statusCard "API" "UP"
-        , withColour ColourBrightYellow $ withBorder BorderThick $ statusCard "CPU" "23%"
+        [ withColor ColorBrightBlue $ statusCard "Users" "1.2K"
+        , withColor ColorBrightGreen $ withBorder BorderDouble $ statusCard "API" "UP"
+        , withColor ColorBrightYellow $ withBorder BorderThick $ statusCard "CPU" "23%"
         , t
         , section "Pugilists" 
             [kv [("Kazushi", "Sakuraba"), ("Jet 李連杰", "Li"), ("Rory", "MacDonald")]]
@@ -26,12 +26,12 @@ d = layout
                 [ wrap 20 "Where there is a will ... Water x Necessaries" ]
             , ol [ "Arcole" , "Lodi" , ol [ "Iéna" , ol ["Austerlitz"] ] ] ]
         , margin "[Haskell!]"
-            [ withColour ColourGreen $ box "Deploy Status"
+            [ withColor ColorGreen $ box "Deploy Status"
                 [ inlineBar "Build" 1.0
                 , inlineBar "Test" 0.8
                 , inlineBar "Deploy" 0.3
                 ]
-            , withColour ColourCyan $ tree "📁 Project" 
+            , withColor ColorCyan $ tree "📁 Project" 
                 [ branch "src" 
                     [ leaf "main.hs"
                     , leaf "api.hs"

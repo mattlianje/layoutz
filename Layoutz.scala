@@ -71,7 +71,7 @@ package object layoutz {
       while (i <= rendered.length) {
         if (i == rendered.length || rendered.charAt(i) == '\n') {
           if (i > start) {
-            val lineWidth = stripAnsiCodes(rendered.substring(start, i)).length
+            val lineWidth = realLength(rendered.substring(start, i))
             if (lineWidth > maxWidth) maxWidth = lineWidth
           }
           start = i + 1
@@ -90,7 +90,9 @@ package object layoutz {
     /** Center this element within specified width */
     final def center(width: Int): Centered = Centered(this, width)
 
-    /** Auto-center this element within layout context */
+    /** Auto-center this element within layout context (width determined by
+      * sibling elements)
+      */
     final def center(): AutoCentered = AutoCentered(this)
 
     /** Left-align this element within specified width */
@@ -110,10 +112,14 @@ package object layoutz {
       Truncated(this, maxWidth, ellipsis)
 
     /** Add underline to this element with default character */
-    final def underline(): Underline = Underline(this, "─")
+    final def underline(): Underline = Underline(this, "─", None)
 
     /** Add underline to this element with custom character */
-    final def underline(char: String): Underline = Underline(this, char)
+    final def underline(char: String): Underline = Underline(this, char, None)
+
+    /** Add colored underline to this element */
+    final def underlineColoured(char: String, color: Color): Underline =
+      Underline(this, char, Some(color))
 
     /** Justify this element's text to exact width by distributing spaces */
     final def justify(width: Int): Justified = Justified(this, width)
@@ -123,7 +129,14 @@ package object layoutz {
       Justified(this, width, justifyLastLine = true)
 
     /** Add a prefix margin to this element */
-    final def margin(prefix: String): Margin = Margin(prefix, Seq(this))
+    final def margin(prefix: String): Margin = Margin(prefix, Seq(this), None)
+
+    /** Add a colored prefix margin to this element */
+    final def marginColoured(prefix: String, color: Color): Margin =
+      Margin(prefix, Seq(this), Some(color))
+
+    /** Apply a color to this element */
+    final def color(c: Color): Colored = Colored(c, this)
 
   }
 
@@ -134,11 +147,89 @@ package object layoutz {
     AnsiEscapeRegex.replaceAllIn(text, "")
   }
 
+  /** Returns width of a character in a monospace terminal: 0 for combining
+    * characters, 1 for regular characters, 2 for East Asian wide and emoji.
+    */
+  private def charWidth(c: Char): Int = {
+    val codePoint = c.toInt
+    if (codePoint < 0x0300) 1 // Fast path for ASCII and common Latin
+    else if (codePoint >= 0x0300 && codePoint < 0x0370)
+      0 // Combining diacriticals
+    else if (codePoint >= 0x1100 && codePoint < 0x1200) 2 // Hangul Jamo
+    else if (codePoint >= 0x2e80 && codePoint < 0x9fff) 2 // CJK
+    else if (codePoint >= 0xac00 && codePoint < 0xd7a4) 2 // Hangul Syllables
+    else if (codePoint >= 0xf900 && codePoint < 0xfb00)
+      2 // CJK Compatibility Ideographs
+    else if (codePoint >= 0xfe10 && codePoint < 0xfe20) 2 // Vertical forms
+    else if (codePoint >= 0xfe30 && codePoint < 0xfe70)
+      2 // CJK Compatibility Forms
+    else if (codePoint >= 0xff00 && codePoint < 0xff61) 2 // Fullwidth Forms
+    else if (codePoint >= 0xffe0 && codePoint < 0xffe7) 2 // Fullwidth symbols
+    else if (codePoint >= 0x1f000) 2 // Emoji, symbols, supplementary ideographs
+    else if (codePoint >= 0x20000 && codePoint < 0x2ffff)
+      2 // Supplementary ideographs
+    else if (codePoint >= 0x30000 && codePoint < 0x3ffff)
+      2 // Tertiary ideographs
+    else 1
+  }
+
+  /** Calculate real terminal width of string (handles ANSI, emoji, CJK) */
+  def realLength(text: String): Int = {
+    stripAnsiCodes(text).map(charWidth).sum
+  }
+
   /** Flatten multiline elements to single line for components that need
     * single-line content
     */
   private def flattenToSingleLine(element: Element): String = {
     element.render.split('\n').mkString(" ")
+  }
+
+  /** ANSI color support with 16 standard terminal colors */
+  sealed trait Color {
+    def code: String
+
+    /** Apply this color to an element */
+    def apply(element: Element): Colored = Colored(this, element)
+
+    /** Apply this color to a string (auto-converts to Text) */
+    def apply(text: String): Colored = Colored(this, Text(text))
+  }
+
+  object Color {
+    /* Standard colors */
+    case object Black extends Color { val code = "30" }
+    case object Red extends Color { val code = "31" }
+    case object Green extends Color { val code = "32" }
+    case object Yellow extends Color { val code = "33" }
+    case object Blue extends Color { val code = "34" }
+    case object Magenta extends Color { val code = "35" }
+    case object Cyan extends Color { val code = "36" }
+    case object White extends Color { val code = "37" }
+
+    /* Bright variants */
+    case object BrightBlack extends Color { val code = "90" }
+    case object BrightRed extends Color { val code = "91" }
+    case object BrightGreen extends Color { val code = "92" }
+    case object BrightYellow extends Color { val code = "93" }
+    case object BrightBlue extends Color { val code = "94" }
+    case object BrightMagenta extends Color { val code = "95" }
+    case object BrightCyan extends Color { val code = "96" }
+    case object BrightWhite extends Color { val code = "97" }
+  }
+
+  /** Wrap text with ANSI color codes */
+  private def wrapAnsi(color: Color, content: String): String = {
+    "\u001b[" + color.code + "m" + content + "\u001b[0m"
+  }
+
+  /** Element wrapper that applies color to its content */
+  final case class Colored(color: Color, element: Element) extends Element {
+    def render: String = {
+      val rendered = element.render
+      val lines = rendered.split('\n')
+      lines.map(line => wrapAnsi(color, line)).mkString("\n")
+    }
   }
 
   final case class Text(content: String) extends Element {
@@ -150,43 +241,54 @@ package object layoutz {
   }
 
   /** Margin element that adds a prefix to each line of content */
-  final case class Margin(prefix: String, elements: Seq[Element])
-      extends Element {
+  final case class Margin(
+      prefix: String,
+      elements: Seq[Element],
+      color: Option[Color] = None
+  ) extends Element {
     def render: String = {
       val content =
         if (elements.length == 1) elements.head else Layout(elements)
       val rendered = content.render
       val lines = rendered.split('\n')
 
-      lines.map(line => s"$prefix $line").mkString("\n")
+      val coloredPrefix = color match {
+        case Some(c) => wrapAnsi(c, prefix)
+        case None    => prefix
+      }
+
+      lines.map(line => s"$coloredPrefix $line").mkString("\n")
     }
   }
 
   /** Underline element that draws a line under any element */
   final case class Underline(
       element: Element,
-      underlineChar: String = "─"
+      underlineChar: String = "─",
+      color: Option[Color] = None
   ) extends Element {
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
-      val maxWidth =
-        if (lines.isEmpty) 0
-        else lines.map(line => stripAnsiCodes(line).length).max
+      val maxWidth = if (lines.isEmpty) 0 else lines.map(realLength).max
 
       if (maxWidth == 0) return content
 
-      // Underlines, but truncates if unerline pattern is too long
-      val underlinePattern = underlineChar
-      val underline = if (underlinePattern.length >= maxWidth) {
-        underlinePattern.take(maxWidth)
+      /* Build underline by repeating pattern to match width */
+      val underline = if (underlineChar.length >= maxWidth) {
+        underlineChar.take(maxWidth)
       } else {
-        val repeats = maxWidth / underlinePattern.length
-        val remainder = maxWidth % underlinePattern.length
-        (underlinePattern * repeats) + underlinePattern.take(remainder)
+        val repeats = maxWidth / underlineChar.length
+        val remainder = maxWidth % underlineChar.length
+        (underlineChar * repeats) + underlineChar.take(remainder)
       }
 
-      content + "\n" + underline
+      val coloredUnderline = color match {
+        case Some(c) => wrapAnsi(c, underline)
+        case None    => underline
+      }
+
+      content + "\n" + coloredUnderline
     }
   }
 
@@ -302,20 +404,25 @@ package object layoutz {
       val content = element.render
       val lines = content.split('\n')
 
-      lines
-        .map { line =>
-          val lineLength = stripAnsiCodes(line).length
-          if (lineLength >= targetWidth) {
-            line // If line is already wider than target width, don't truncate
-          } else {
-            val totalPadding = targetWidth - lineLength
-            val leftPadding =
-              (totalPadding + 1) / 2 /* Give extra space to left when odd */
-            val rightPadding = totalPadding - leftPadding
-            (" " * leftPadding) + line + (" " * rightPadding)
+      /* Find the longest line to center the whole block as a unit */
+      val maxLineLength = if (lines.isEmpty) 0 else lines.map(realLength).max
+
+      if (maxLineLength >= targetWidth) {
+        /* Content already wider than target - don't modify */
+        content
+      } else {
+        /* Center the whole block - all lines get the same left padding */
+        val totalPadding = targetWidth - maxLineLength
+        val leftPadding = (totalPadding + 1) / 2
+
+        lines
+          .map { line =>
+            val lineLength = realLength(line)
+            val rightPadding = targetWidth - lineLength - leftPadding
+            (" " * leftPadding) + line + (" " * math.max(0, rightPadding))
           }
-        }
-        .mkString("\n")
+          .mkString("\n")
+      }
     }
   }
 
@@ -333,7 +440,7 @@ package object layoutz {
 
       lines
         .map { line =>
-          val lineLength = stripAnsiCodes(line).length
+          val lineLength = realLength(line)
           if (lineLength >= targetWidth) {
             line // If line is already wider than target width, don't truncate
           } else {
@@ -353,7 +460,7 @@ package object layoutz {
 
       lines
         .map { line =>
-          val lineLength = stripAnsiCodes(line).length
+          val lineLength = realLength(line)
           if (lineLength >= targetWidth) {
             line // If line is already wider than target width, don't truncate
           } else {
@@ -612,7 +719,7 @@ package object layoutz {
       headers.indices.map { columnIndex =>
         allRowLines.flatMap { row =>
           if (columnIndex < row.length) {
-            row(columnIndex).map(line => stripAnsiCodes(line).length)
+            row(columnIndex).map(line => realLength(line))
           } else Seq(0)
         }.max
       }
@@ -674,7 +781,7 @@ package object layoutz {
           .zip(widths)
           .map { case (lines, width) =>
             val line = if (lineIndex < lines.length) lines(lineIndex) else ""
-            val visibleLength = stripAnsiCodes(line).length
+            val visibleLength = realLength(line)
             val padding = width - visibleLength
             line + (" " * math.max(0, padding))
           }
@@ -720,7 +827,7 @@ package object layoutz {
 
       val maxTextLength =
         if (allLines.isEmpty) 0
-        else allLines.map(line => stripAnsiCodes(line).length).max
+        else allLines.map(line => realLength(line)).max
       val contentWidth = maxTextLength + Dimensions.MIN_CONTENT_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
@@ -732,13 +839,13 @@ package object layoutz {
         bottomLeft + horizontal * (contentWidth + 2) + bottomRight
 
       val labelCardLines = labelLines.map { line =>
-        val visibleLength = stripAnsiCodes(line).length
+        val visibleLength = realLength(line)
         val padding = contentWidth - visibleLength
         s"$vertical $line${" " * padding} $vertical"
       }
 
       val contentCardLines = contentLines.map { line =>
-        val visibleLength = stripAnsiCodes(line).length
+        val visibleLength = realLength(line)
         val padding = contentWidth - visibleLength
         s"$vertical $line${" " * padding} $vertical"
       }
@@ -938,7 +1045,7 @@ package object layoutz {
       val lines = if (rendered.isEmpty) Array("") else rendered.split('\n')
       val maxWidth =
         if (lines.isEmpty) 0
-        else lines.map(line => stripAnsiCodes(line).length).max
+        else lines.map(line => realLength(line)).max
       val totalWidth = maxWidth + Dimensions.BOX_INNER_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
@@ -950,7 +1057,7 @@ package object layoutz {
         bottomLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + bottomRight
 
       val contentLines = lines.map { line =>
-        val visibleLength = stripAnsiCodes(line).length
+        val visibleLength = realLength(line)
         val padding = maxWidth - visibleLength
         val actualPadding = " " * padding
         s"$vertical $line$actualPadding $vertical"
@@ -1067,7 +1174,7 @@ package object layoutz {
       val contentLines = content.render.split('\n')
       val contentWidth =
         if (contentLines.isEmpty) 0
-        else contentLines.map(line => stripAnsiCodes(line).length).max
+        else contentLines.map(line => realLength(line)).max
       val titleWidth =
         if (title.nonEmpty) title.length + Dimensions.MIN_CONTENT_PADDING else 0
       val innerWidth = math.max(contentWidth, titleWidth)
@@ -1090,7 +1197,7 @@ package object layoutz {
         s"$bottomLeft${horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$bottomRight"
 
       val paddedContent = contentLines.map { line =>
-        val padding = innerWidth - stripAnsiCodes(line).length
+        val padding = innerWidth - realLength(line)
         s"$vertical $line${" " * padding} $vertical"
       }
 
@@ -1414,7 +1521,7 @@ package object layoutz {
 
       lines
         .map { line =>
-          val visibleLength = stripAnsiCodes(line).length
+          val visibleLength = realLength(line)
           if (visibleLength <= maxWidth) line
           else {
             val truncateAt = maxWidth - ellipsis.length
@@ -1574,7 +1681,31 @@ package object layoutz {
 
   /** Add underline to an element with custom character */
   def underline(char: String = "─")(element: Element): Underline =
-    Underline(element, char)
+    Underline(element, char, None)
+
+  /** Add colored underline to an element with custom character and color
+    *
+    * Example usage: underlineColoured("=", Color.Red)(Text("Error Section"))
+    * underlineColoured("~", Color.Green)(Text("Success"))
+    * underlineColoured("─", Color.BrightCyan)(Text("Info"))
+    */
+  def underlineColoured(char: String, color: Color)(
+      element: Element
+  ): Underline =
+    Underline(element, char, Some(color))
+
+  /** Apply a color to an element (deprecated - use Color.Red(element) or
+    * element.color(Color.Red))
+    *
+    * Example usage: Color.Red("Error!") Color.Green(statusCard(Text("Status"),
+    * Text("OK"))) box("Warning")(Text("Check logs")).color(Color.BrightYellow)
+    */
+  @deprecated(
+    "Use Color.Red(element) or element.color(Color.Red) instead",
+    "0.4.0"
+  )
+  def withColour(color: Color)(element: Element): Colored =
+    Colored(color, element)
 
   /** Ordered (numbered) list */
   def ol(items: Element*): OrderedList = OrderedList(items)
@@ -1623,7 +1754,17 @@ package object layoutz {
 
   /** Add a prefix margin to elements */
   def margin(prefix: String)(elements: Element*): Margin =
-    Margin(prefix, elements)
+    Margin(prefix, elements, None)
+
+  /** Add a colored prefix margin to elements
+    *
+    * Example usage: marginColour("[error]", Color.Red)(Text("Something went
+    * wrong")) marginColour("[info]", Color.BrightCyan)(Text("FYI: Check the
+    * logs")) marginColour("[success]", Color.Green)(Text("Operation
+    * completed"))
+    */
+  def marginColour(prefix: String, color: Color)(elements: Element*): Margin =
+    Margin(prefix, elements, Some(color))
 
   /* ═══════════════════════════════════════════════════════════════════════════
    * IMPLICIT CONVERSIONS */

@@ -475,19 +475,19 @@ withBorder BorderNone $ box "Info" ["content"]
 
 ## Colors (ANSI Support)
 
-Add color to your layouts with `withColour`:
+Add color to your layouts with `withColor`:
 
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 import Layoutz
 
 colorDemo = layout
-  [ withColour ColourGreen $ statusCard "Status" "OK"
-  , withColour ColourRed $ statusCard "Errors" "3"
-  , withColour ColourYellow $ statusCard "Warnings" "12"
-  , withColour ColourMagenta $ box "System" 
-      [ withColour ColourGreen $ text "✓ Database: Connected"
-      , withColour ColourRed $ text "✗ Cache: Disconnected"
+  [ withColor ColorGreen $ statusCard "Status" "OK"
+  , withColor ColorRed $ statusCard "Errors" "3"
+  , withColor ColorYellow $ statusCard "Warnings" "12"
+  , withColor ColorMagenta $ box "System" 
+      [ withColor ColorGreen $ text "✓ Database: Connected"
+      , withColor ColorRed $ text "✗ Cache: Disconnected"
       ]
   ]
 
@@ -496,24 +496,24 @@ putStrLn $ render colorDemo
 ```
 
 **Available Colors:**
-- Basic: `ColourBlack`, `ColourRed`, `ColourGreen`, `ColourYellow`, `ColourBlue`, `ColourMagenta`, `ColourCyan`, `ColourWhite`
-- Bright: `ColourBrightBlack`, `ColourBrightRed`, `ColourBrightGreen`, `ColourBrightYellow`, `ColourBrightBlue`, `ColourBrightMagenta`, `ColourBrightCyan`, `ColourBrightWhite`
+- Basic: `ColorBlack`, `ColorRed`, `ColorGreen`, `ColorYellow`, `ColorBlue`, `ColorMagenta`, `ColorCyan`, `ColorWhite`
+- Bright: `ColorBrightBlack`, `ColorBrightRed`, `ColorBrightGreen`, `ColorBrightYellow`, `ColorBrightBlue`, `ColorBrightMagenta`, `ColorBrightCyan`, `ColorBrightWhite`
 
 **Colored Underlines:**
 
 You can also color just the underline part:
 
 ```haskell
-underlineColoured "=" ColourRed $ text "Error Section"
-underlineColoured "~" ColourGreen $ text "Success"
-underlineColoured "─" ColourBrightCyan $ text "Info"
+underlineColored "=" ColorRed $ text "Error Section"
+underlineColored "~" ColorGreen $ text "Success"
+underlineColored "─" ColorBrightCyan $ text "Info"
 ```
 
 **Note:** 
-- ANSI color codes are automatically included when you use `withColour`
+- ANSI color codes are automatically included when you use `withColor`
 - Width calculations automatically ignore ANSI codes, so layouts stay aligned
 - Colors work seamlessly with all elements and borders
-- Use `underlineColoured` to color just the underline while keeping text normal
+- Use `underlineColored` to color just the underline while keeping text normal
 
 ## REPL
 

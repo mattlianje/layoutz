@@ -1474,4 +1474,183 @@ Longer line 2
     assertEquals("Done".margin("[LOG]").render, "[LOG] Done")
   }
 
+  test("color support - Color.Red() syntax") {
+    val redText = Color.Red("Error")
+    val rendered = redText.render
+
+    // Should contain ANSI color codes
+    assert(rendered.contains("\u001b[31m"))
+    assert(rendered.contains("\u001b[0m"))
+    assert(rendered.contains("Error"))
+  }
+
+  test("color support - element.color() method") {
+    val greenText = "Success".color(Color.Green)
+    val rendered = greenText.render
+
+    assert(rendered.contains("\u001b[32m"))
+    assert(rendered.contains("\u001b[0m"))
+    assert(rendered.contains("Success"))
+  }
+
+  test("color support - all colors") {
+    val colors = Seq(
+      Color.Black,
+      Color.Red,
+      Color.Green,
+      Color.Yellow,
+      Color.Blue,
+      Color.Magenta,
+      Color.Cyan,
+      Color.White,
+      Color.BrightBlack,
+      Color.BrightRed,
+      Color.BrightGreen,
+      Color.BrightYellow,
+      Color.BrightBlue,
+      Color.BrightMagenta,
+      Color.BrightCyan,
+      Color.BrightWhite
+    )
+
+    colors.foreach { color =>
+      val colored = color("test")
+      val rendered = colored.render
+      assert(rendered.contains("\u001b["))
+      assert(rendered.contains("test"))
+    }
+  }
+
+  test("colored underline - function") {
+    val redUnderline = underlineColoured("=", Color.Red)("Error Section")
+    val rendered = redUnderline.render
+
+    assert(rendered.contains("Error Section"))
+    assert(rendered.contains("="))
+    assert(rendered.contains("\u001b[31m")) // Red color code
+    assert(rendered.contains("\u001b[0m")) // Reset code
+  }
+
+  test("colored underline - element method") {
+    val cyanUnderline = "Info".underlineColoured("─", Color.BrightCyan)
+    val rendered = cyanUnderline.render
+
+    assert(rendered.contains("Info"))
+    assert(rendered.contains("─"))
+    assert(rendered.contains("\u001b[96m")) // Bright cyan color code
+  }
+
+  test("colored margin - function") {
+    val redMargin = marginColour("[ERROR]", Color.Red)("Something went wrong")
+    val rendered = redMargin.render
+
+    assert(rendered.contains("[ERROR]"))
+    assert(rendered.contains("Something went wrong"))
+    assert(rendered.contains("\u001b[31m"))
+    assert(rendered.contains("\u001b[0m"))
+  }
+
+  test("colored margin - element method") {
+    val greenMargin =
+      "Operation completed".marginColoured("[SUCCESS]", Color.Green)
+    val rendered = greenMargin.render
+
+    assert(rendered.contains("[SUCCESS]"))
+    assert(rendered.contains("Operation completed"))
+    assert(rendered.contains("\u001b[32m"))
+  }
+
+  test("colored margin - multiline") {
+    val multiline = layout("Line 1", "Line 2", "Line 3")
+    val marginColored = marginColour("[INFO]", Color.BrightCyan)(multiline)
+    val rendered = marginColored.render
+    val lines = rendered.split('\n')
+
+    assertEquals(lines.length, 3)
+    lines.foreach { line =>
+      assert(line.contains("[INFO]"))
+      assert(line.contains("\u001b[96m")) // Bright cyan
+    }
+  }
+
+  test("realLength - ASCII text") {
+    assertEquals(realLength("Hello"), 5)
+    assertEquals(realLength("Hello World"), 11)
+  }
+
+  test("realLength - wide characters (emoji)") {
+    assertEquals(realLength("Hello 👋"), 8) // 6 ASCII + 2 for emoji
+    assertEquals(realLength("🎉🎊"), 4) // 2 emojis = 4 width
+  }
+
+  test("realLength - CJK characters") {
+    assertEquals(realLength("こんにちは"), 10) // 5 Japanese chars = 10 width
+    assertEquals(realLength("你好"), 4) // 2 Chinese chars = 4 width
+  }
+
+  test("realLength - ANSI codes stripped") {
+    val colored = "\u001b[31mHello\u001b[0m"
+    assertEquals(realLength(colored), 5)
+  }
+
+  test("realLength - mixed content") {
+    val mixed = "\u001b[32mHello 👋 世界\u001b[0m"
+    // "Hello " = 6, 👋 = 2, " " = 1, 世界 = 4
+    assertEquals(realLength(mixed), 13)
+  }
+
+  test("colored element width calculation") {
+    val coloredText = Color.Red("Hello")
+    // Width should ignore ANSI codes
+    assertEquals(coloredText.width, 5)
+  }
+
+  test("colored element with wide chars width calculation") {
+    val coloredEmoji = Color.Blue("Hello 👋")
+    // "Hello " = 6, 👋 = 2
+    assertEquals(coloredEmoji.width, 8)
+  }
+
+  test("colored underline width matches content") {
+    val underlined = underlineColoured("─", Color.Red)("Hello")
+    val rendered = underlined.render
+    val lines = rendered.split('\n')
+
+    assertEquals(lines.length, 2)
+    // First line is content
+    assert(lines(0).contains("Hello"))
+    // Second line should have underline with color codes
+    assert(lines(1).contains("─"))
+  }
+
+  test("color combinations") {
+    val complex = layout(
+      Color.Red("Error:").underline(),
+      Color.Yellow("Warning:").underline("~"),
+      Color.Green("Success:").underline("=")
+    )
+
+    val rendered = complex.render
+    assert(rendered.contains("\u001b[31m")) // Red
+    assert(rendered.contains("\u001b[33m")) // Yellow
+    assert(rendered.contains("\u001b[32m")) // Green
+    assert(rendered.contains("Error:"))
+    assert(rendered.contains("Warning:"))
+    assert(rendered.contains("Success:"))
+  }
+
+  test("color with method chaining") {
+    val styled = box("Status")(
+      "API: UP".color(Color.Green),
+      "DB: UP".color(Color.Green),
+      "Cache: DOWN".color(Color.Red)
+    )
+
+    val rendered = styled.render
+    assert(rendered.contains("Status"))
+    assert(rendered.contains("API: UP"))
+    assert(rendered.contains("\u001b[32m")) // Green
+    assert(rendered.contains("\u001b[31m")) // Red
+  }
+
 }

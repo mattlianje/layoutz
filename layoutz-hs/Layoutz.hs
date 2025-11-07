@@ -14,7 +14,7 @@ module Layoutz
     Element(..)
   , Border(..)
   , HasBorder(..)
-  , Colour(..)
+  , Color(..)
   , L
   , Tree(..)
     -- * Basic Elements
@@ -24,7 +24,7 @@ module Layoutz
     -- * Layout Functions  
   , center, center'
   , row
-  , underline, underline', underlineColoured
+  , underline, underline', underlineColored
   , alignLeft, alignRight, alignCenter, justify, wrap
     -- * Containers
   , box
@@ -45,8 +45,8 @@ module Layoutz
   , chart
     -- * Border utilities
   , withBorder
-    -- * Colour utilities
-  , withColour
+    -- * Color utilities
+  , withColor
     -- * Rendering
   , render
   ) where
@@ -169,7 +169,7 @@ data L = forall a. Element a => L a
        | UL [L] 
        | OL [L]
        | AutoCenter L
-       | Coloured Colour L
+       | Colored Color L
        | LBox String [L] Border
        | LStatusCard String String Border
        | LTable [String] [[L]] Border
@@ -179,10 +179,10 @@ instance Element L where
   renderElement (UL items) = render (UnorderedList items)
   renderElement (OL items) = render (OrderedList items)
   renderElement (AutoCenter element) = render element  -- Will be handled by Layout
-  renderElement (Coloured colour element) = 
+  renderElement (Colored color element) = 
     let rendered = render element
         renderedLines = lines rendered
-        coloredLines = map (wrapAnsi colour) renderedLines
+        coloredLines = map (wrapAnsi color) renderedLines
         -- Preserve whether original had trailing newline
         hasTrailingNewline = not (null rendered) && last rendered == '\n'
     in if hasTrailingNewline 
@@ -196,7 +196,7 @@ instance Element L where
   width (UL items) = width (UnorderedList items)
   width (OL items) = width (OrderedList items)
   width (AutoCenter element) = width element
-  width (Coloured _ element) = width element  -- Width ignores color
+  width (Colored _ element) = width element  -- Width ignores color
   width (LBox title elements border) = width (Box title elements border)
   width (LStatusCard label content border) = width (StatusCard label content border)
   width (LTable headers rows border) = width (Table headers rows border)
@@ -205,7 +205,7 @@ instance Element L where
   height (UL items) = height (UnorderedList items)
   height (OL items) = height (OrderedList items)
   height (AutoCenter element) = height element
-  height (Coloured _ element) = height element  -- Height ignores color
+  height (Colored _ element) = height element  -- Height ignores color
   height (LBox title elements border) = height (Box title elements border)
   height (LStatusCard label content border) = height (StatusCard label content border)
   height (LTable headers rows border) = height (Table headers rows border)
@@ -233,38 +233,38 @@ instance HasBorder L where
   setBorder border (LBox title elements _) = LBox title elements border
   setBorder border (LStatusCard label content _) = LStatusCard label content border
   setBorder border (LTable headers rows _) = LTable headers rows border
-  setBorder border (Coloured colour element) = Coloured colour (setBorder border element)
+  setBorder border (Colored color element) = Colored color (setBorder border element)
   setBorder _ other = other  -- Non-bordered elements remain unchanged
 
--- Colour support with ANSI codes
-data Colour = ColourBlack | ColourRed | ColourGreen | ColourYellow 
-            | ColourBlue | ColourMagenta | ColourCyan | ColourWhite
-            | ColourBrightBlack | ColourBrightRed | ColourBrightGreen | ColourBrightYellow 
-            | ColourBrightBlue | ColourBrightMagenta | ColourBrightCyan | ColourBrightWhite
+-- Color support with ANSI codes
+data Color = ColorBlack | ColorRed | ColorGreen | ColorYellow 
+           | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
+           | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow 
+           | ColorBrightBlue | ColorBrightMagenta | ColorBrightCyan | ColorBrightWhite
   deriving (Show, Eq)
 
 -- | Get ANSI foreground color code
-colourCode :: Colour -> String
-colourCode ColourBlack         = "30"
-colourCode ColourRed           = "31"
-colourCode ColourGreen         = "32"
-colourCode ColourYellow        = "33"
-colourCode ColourBlue          = "34"
-colourCode ColourMagenta       = "35"
-colourCode ColourCyan          = "36"
-colourCode ColourWhite         = "37"
-colourCode ColourBrightBlack   = "90"
-colourCode ColourBrightRed     = "91"
-colourCode ColourBrightGreen   = "92"
-colourCode ColourBrightYellow  = "93"
-colourCode ColourBrightBlue    = "94"
-colourCode ColourBrightMagenta = "95"
-colourCode ColourBrightCyan    = "96"
-colourCode ColourBrightWhite   = "97"
+colorCode :: Color -> String
+colorCode ColorBlack         = "30"
+colorCode ColorRed           = "31"
+colorCode ColorGreen         = "32"
+colorCode ColorYellow        = "33"
+colorCode ColorBlue          = "34"
+colorCode ColorMagenta       = "35"
+colorCode ColorCyan          = "36"
+colorCode ColorWhite         = "37"
+colorCode ColorBrightBlack   = "90"
+colorCode ColorBrightRed     = "91"
+colorCode ColorBrightGreen   = "92"
+colorCode ColorBrightYellow  = "93"
+colorCode ColorBrightBlue    = "94"
+colorCode ColorBrightMagenta = "95"
+colorCode ColorBrightCyan    = "96"
+colorCode ColorBrightWhite   = "97"
 
 -- | Wrap text with ANSI color codes
-wrapAnsi :: Colour -> String -> String
-wrapAnsi colour str = "\ESC[" ++ colourCode colour ++ "m" ++ str ++ "\ESC[0m"
+wrapAnsi :: Color -> String -> String
+wrapAnsi color str = "\ESC[" ++ colorCode color ++ "m" ++ str ++ "\ESC[0m"
 
 borderChars :: Border -> (String, String, String, String, String, String, String, String, String)
 borderChars BorderNormal = ("┌", "┐", "└", "┘", "─", "│", "├", "┤", "┼")
@@ -307,9 +307,9 @@ instance Element Centered where
     intercalate "\n" $ map (centerString targetWidth) (lines content)
 
 -- | Underlined element with custom character
-data Underlined = Underlined String String (Maybe Colour)  -- content, underline_char, optional color
+data Underlined = Underlined String String (Maybe Color)  -- content, underline_char, optional color
 instance Element Underlined where
-  renderElement (Underlined content underlineChar maybeColour) = 
+  renderElement (Underlined content underlineChar maybeColor) = 
     let contentLines = lines content
         maxWidth = if null contentLines then 0 
                    else maximum (map visibleLength contentLines)
@@ -319,9 +319,9 @@ instance Element Underlined where
                    else let repeats = maxWidth `div` length underlinePattern
                             remainder = maxWidth `mod` length underlinePattern
                         in concat (replicate repeats underlinePattern) ++ take remainder underlinePattern
-        coloredUnderline = case maybeColour of
+        coloredUnderline = case maybeColor of
           Nothing -> underlinePart
-          Just colour -> wrapAnsi colour underlinePart
+          Just color -> wrapAnsi color underlinePart
     in content ++ "\n" ++ coloredUnderline
 
 data Row = Row [L]
@@ -703,11 +703,11 @@ underline' char element = L (Underlined (render element) char Nothing)
 -- | Add colored underline with custom character and color
 -- 
 -- Example usage:
---   underlineColoured "=" ColourRed $ text "Error Section"
---   underlineColoured "~" ColourGreen $ text "Success"
---   underlineColoured "─" ColourBrightCyan $ text "Info"
-underlineColoured :: Element a => String -> Colour -> a -> L
-underlineColoured char colour element = L (Underlined (render element) char (Just colour))
+--   underlineColored "=" ColorRed $ text "Error Section"
+--   underlineColored "~" ColorGreen $ text "Success"
+--   underlineColored "─" ColorBrightCyan $ text "Info"
+underlineColored :: Element a => String -> Color -> a -> L
+underlineColored char color element = L (Underlined (render element) char (Just color))
 
 ul :: [L] -> L
 ul items = UL items
@@ -844,11 +844,11 @@ withBorder = setBorder
 -- | Apply a color to an element
 -- 
 -- Example usage:
---   withColour ColourRed $ text "Error!"
---   withColour ColourGreen $ statusCard "Status" "OK"
---   withColour ColourBrightYellow $ box "Warning" [text "Check logs"]
-withColour :: Colour -> L -> L
-withColour colour element = Coloured colour element
+--   withColor ColorRed $ text "Error!"
+--   withColor ColorGreen $ statusCard "Status" "OK"
+--   withColor ColorBrightYellow $ box "Warning" [text "Check logs"]
+withColor :: Color -> L -> L
+withColor color element = Colored color element
 
 -- | Create tree structure
 tree :: String -> [Tree] -> L
