@@ -144,7 +144,9 @@ Since you can extend this `Element` interface, you can create any `Element`s you
 ## Fluent API
 Some typesetting operations work as both nouns and verbs.
 
-For example "a margin", and "to margin something". For these, layoutz offers a so-called "fluent" syntax with transformations avaible in infix
+For example "a margin", and "to margin something". 
+
+For these, layoutz offers a so-called "fluent" syntax with transformations avaible in infix
 position via dot-completion (They boil down to the same case classes and render the same thing under the hood... 
 it is just a matter of taste and how your brain works).
 
