@@ -397,7 +397,7 @@ ANSI styles are added the same way with `.style` and `Style.<...>`
 - `Blink` `Reverse` `Hidden` `Strikethrough`
 - `NoStyle` *(for conditional formatting)*
 
-### Custom Components
+### Create your Custom Elements
 
 Create your own components by implementing the `Element` trait
 
