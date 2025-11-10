@@ -123,9 +123,9 @@ CounterApp.run() /* call .run to start your app */
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
 - Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
-- One the side, layoutz also has a Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook.
+- One the side, **layoutz** also has a Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook.
    - The runtime has some little niceties built-in like common cmd's like file I/O, HTTP-requests, and a key input handler
-- But at the end of the day, you can use layoutz merely to structure strings (without any of the TUI stuff)
+- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
 
 ## Core concepts
 - Every piece of content is an `Element`
@@ -137,6 +137,9 @@ layout(elem1, elem2, elem3)  /* Joins with "\n" */
 Call `.render` on an element to get a String
 
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
+
+Since you can extend this `Element` interface, you can create any `Element`s you can imagine... and they will compose with all the other
+**layoutz** built-in `Element`s ... and don't need to rely on a [side-car component library](https://github.com/charmbracelet/bubbles).
 
 ## Fluent API
 Some typesetting operations work as both nouns and verbs.
