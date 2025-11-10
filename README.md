@@ -638,26 +638,24 @@ Add prefix margins to elements for compiler-style error messages:
 
 ```scala
 layout(
-  "Ooops",
-  br,
+  "Ooops!",
   row("val result: Int = ", underline("^")("getString()")),
   "Expected Int, found String"
 ).margin("[error]")
 ```
 ```
-[error] Ooops
-[error]
-[error]
+[error] Ooops!
 [error] val result: Int =  getString()
 [error]                    ^^^^^^^^^^^
 [error] Expected Int, found String
+
 ```
 
 Available in both fluent (`.margin()`) and nested syntax (`margin("prefix")()`).
 
 ## Text Formatting & Layout
 
-### Alignment: `center`/`leftAlign`/`rightAlign`
+### Alignment: `center`,`leftAlign`,`rightAlign`
 Align text within a specified width
 ```scala
 /* Fluent */
