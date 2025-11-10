@@ -50,6 +50,14 @@ import {
   BorderStyle,
   margins,
 
+  // Colors and styles
+  Color,
+  Style,
+  color,
+  style,
+  underlineColored,
+  marginColored,
+
   // Test default import too
   default as layoutzDefault,
 } from "./layoutz";
@@ -511,7 +519,6 @@ status: active`;
   });
 
   it("should handle the scala-style demo example", () => {
-    // This is the exact example from scala-style-demo.ts
     const t = table(
       ["Name", "Role", "Status"],
       [
@@ -531,5 +538,144 @@ status: active`;
     expect(rendered).toContain("Nasty");
     expect(rendered).toContain("╭"); // Round borders
     expect(rendered).toContain("╰");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// COLORS AND STYLES
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("Colors", () => {
+  it("should apply color functionally", () => {
+    const rendered = color(Color.Red)(text("Hello")).render();
+    expect(rendered).toContain("\x1b[31m");
+    expect(rendered).toContain("Hello");
+  });
+
+  it("should apply color fluently", () => {
+    const rendered = text("Hello").color(Color.Green).render();
+    expect(rendered).toContain("\x1b[32m");
+  });
+
+  it("should skip NoColor", () => {
+    const rendered = text("Hello").color(Color.NoColor).render();
+    expect(rendered).toBe("Hello");
+  });
+
+  it("should override chained colors", () => {
+    const rendered = text("Hello").color(Color.Red).color(Color.Blue).render();
+    expect(rendered).toContain("\x1b[34m");
+    expect(rendered).not.toContain("\x1b[31m");
+  });
+
+  it("should color containers", () => {
+    expect(
+      box("Title")(text("Content")).color(Color.Yellow).render()
+    ).toContain("\x1b[33m");
+    expect(statusCard("API", "UP").color(Color.Green).render()).toContain(
+      "\x1b[32m"
+    );
+    expect(tree("Root").color(Color.Cyan).render()).toContain("\x1b[36m");
+  });
+});
+
+describe("Styles", () => {
+  it("should apply style functionally", () => {
+    const rendered = style(Style.Bold)(text("Hello")).render();
+    expect(rendered).toContain("\x1b[1m");
+  });
+
+  it("should apply style fluently", () => {
+    const rendered = text("Hello").style(Style.Italic).render();
+    expect(rendered).toContain("\x1b[3m");
+  });
+
+  it("should skip NoStyle", () => {
+    expect(text("Hello").style(Style.NoStyle).render()).toBe("Hello");
+  });
+
+  it("should chain styles", () => {
+    const rendered = text("Hello")
+      .style(Style.Bold)
+      .style(Style.Underline)
+      .render();
+    expect(rendered).toContain("\x1b[4m");
+  });
+
+  it("should combine color and style", () => {
+    const rendered = text("Hello").color(Color.Red).style(Style.Bold).render();
+    expect(rendered).toContain("\x1b[1m");
+    expect(rendered).toContain("\x1b[31m");
+  });
+});
+
+describe("Colored underlines", () => {
+  it("should color underline only", () => {
+    const lines = underlineColored("=", Color.Blue)(text("Test"))
+      .render()
+      .split("\n");
+    expect(lines[0]).toBe("Test");
+    expect(lines[1]).toContain("\x1b[34m");
+  });
+
+  it("should handle CJK width correctly", () => {
+    const lines = underlineColored("^", Color.Magenta)(text("李連杰"))
+      .render()
+      .split("\n");
+    const underline = lines[1].replace(/\x1b\[[0-9;]*m/g, "");
+    expect(underline).toBe("^^^^^^");
+  });
+});
+
+describe("Margins", () => {
+  it("should color margin prefix", () => {
+    const rendered = marginColored("[ERROR]", Color.Red)(text("Oops")).render();
+    expect(rendered).toContain("\x1b[31m");
+    expect(rendered).toContain("[ERROR]");
+  });
+
+  it("should use margins shorthand", () => {
+    const plain = margins
+      .error(text("Failed"))
+      .render()
+      .replace(/\x1b\[[0-9;]*m/g, "");
+    expect(plain).toContain("[error]");
+  });
+});
+
+describe("Fluent margin API", () => {
+  it("should apply margin fluently", () => {
+    const rendered = text("Hello").margin("[LOG]").render();
+    expect(rendered).toContain("[LOG]");
+  });
+
+  it("should chain margin with color and style", () => {
+    expect(text("Test").color(Color.Green).margin("[INFO]").render()).toContain(
+      "[INFO]"
+    );
+    expect(text("Test").style(Style.Bold).margin("[!]").render()).toContain(
+      "[!]"
+    );
+  });
+
+  it("should work on containers", () => {
+    expect(box("Title")(text("Content")).margin("[BOX]").render()).toContain(
+      "[BOX]"
+    );
+    expect(statusCard("API", "UP").margin("[SVC]").render()).toContain("[SVC]");
+    expect(tree("Root").margin(">> ").render()).toContain(">> ");
+  });
+
+  it("should chain everything", () => {
+    const rendered = box("Deploy")(text("Building..."))
+      .border(Border.Double)
+      .color(Color.BrightBlue)
+      .style(Style.Bold)
+      .margin("[BUILD]")
+      .render();
+
+    expect(rendered).toContain("[BUILD]");
+    expect(rendered).toContain("\x1b[94m");
+    expect(rendered).toContain("\x1b[1m");
   });
 });

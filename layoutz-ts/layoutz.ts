@@ -1,7 +1,7 @@
 /*
  * +==========================================================================+
  * |                                layoutz                                   |
- * |            Friendly, expressive print-layout DSL for TypeScript          |
+ * |            Friendly, expressive print-layout DSL for JS                  |
  * |                            Version 0.0.2                                 |
  * |                    Compatible with Node.js and browsers                  |
  * |                                                                          |
@@ -62,6 +62,45 @@ function stripAnsiCodes(text: string): string {
 }
 
 /**
+ * Get the display width of a single character
+ * Accounts for wide characters (CJK, emoji) that take 2 columns
+ */
+function charWidth(char: string): number {
+  const codePoint = char.codePointAt(0);
+  if (!codePoint) return 0;
+
+  if (codePoint < 0x0300) return 1; // Fast path for ASCII and common Latin
+  if (codePoint >= 0x0300 && codePoint < 0x0370) return 0; // Combining diacriticals
+  if (codePoint >= 0x1100 && codePoint < 0x1200) return 2; // Hangul Jamo
+  if (codePoint >= 0x2e80 && codePoint < 0x9fff) return 2; // CJK
+  if (codePoint >= 0xac00 && codePoint < 0xd7a4) return 2; // Hangul Syllables
+  if (codePoint >= 0xf900 && codePoint < 0xfb00) return 2; // CJK Compatibility Ideographs
+  if (codePoint >= 0xfe10 && codePoint < 0xfe20) return 2; // Vertical forms
+  if (codePoint >= 0xfe30 && codePoint < 0xfe70) return 2; // CJK Compatibility Forms
+  if (codePoint >= 0xff00 && codePoint < 0xff61) return 2; // Fullwidth Forms
+  if (codePoint >= 0xffe0 && codePoint < 0xffe7) return 2; // Fullwidth symbols
+  if (codePoint >= 0x1f000) return 2; // Emoji, symbols, supplementary ideographs
+  if (codePoint >= 0x20000 && codePoint < 0x2ffff) return 2; // Supplementary ideographs
+  if (codePoint >= 0x30000 && codePoint < 0x3ffff) return 2; // Tertiary ideographs
+  return 1;
+}
+
+/**
+ * Get the real display length of a string, accounting for:
+ * - ANSI escape codes (removed)
+ * - Wide characters (CJK, emoji) that take 2 columns
+ * - Combining characters that take 0 columns
+ */
+function realLength(text: string): number {
+  const stripped = stripAnsiCodes(text);
+  let length = 0;
+  for (const char of stripped) {
+    length += charWidth(char);
+  }
+  return length;
+}
+
+/**
  * Flatten multiline elements to single line for components that need single-line content
  */
 function flattenToSingleLine(element: Element): string {
@@ -104,6 +143,18 @@ export class Text implements Element {
   render(): string {
     return this.content;
   }
+
+  color(colorType: Color): Colored {
+    return new Colored(this, colorType);
+  }
+
+  style(styleType: Style): Styled {
+    return new Styled(this, styleType);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
+  }
 }
 
 /**
@@ -112,6 +163,68 @@ export class Text implements Element {
 export class LineBreak implements Element {
   render(): string {
     return "\n";
+  }
+}
+
+/**
+ * Colored element wrapper
+ */
+export class Colored implements Element {
+  constructor(
+    private element: Element,
+    private colorType: Color
+  ) {}
+
+  render(): string {
+    const code = getColorCode(this.colorType);
+    const content = this.element.render();
+    if (!code) return content;
+
+    const lines = content.split("\n");
+    return lines.map((line) => wrapAnsi(line, code)).join("\n");
+  }
+
+  color(newColor: Color): Colored {
+    return new Colored(this.element, newColor);
+  }
+
+  style(styleParam: Style): Styled {
+    return new Styled(this, styleParam);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
+  }
+}
+
+/**
+ * Styled element wrapper
+ */
+export class Styled implements Element {
+  constructor(
+    private element: Element,
+    private styleType: Style
+  ) {}
+
+  render(): string {
+    const code = getStyleCode(this.styleType);
+    const content = this.element.render();
+    if (!code) return content;
+
+    const lines = content.split("\n");
+    return lines.map((line) => wrapAnsi(line, code)).join("\n");
+  }
+
+  color(colorParam: Color): Colored {
+    return new Colored(this, colorParam);
+  }
+
+  style(newStyle: Style): Styled {
+    return new Styled(this, newStyle);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
   }
 }
 
@@ -151,6 +264,87 @@ export const Border = {
 } as const;
 
 export type BorderType = (typeof Border)[keyof typeof Border];
+
+/**
+ * ANSI Color codes
+ */
+export enum Color {
+  Black = "black",
+  Red = "red",
+  Green = "green",
+  Yellow = "yellow",
+  Blue = "blue",
+  Magenta = "magenta",
+  Cyan = "cyan",
+  White = "white",
+  BrightBlack = "brightBlack",
+  BrightRed = "brightRed",
+  BrightGreen = "brightGreen",
+  BrightYellow = "brightYellow",
+  BrightBlue = "brightBlue",
+  BrightMagenta = "brightMagenta",
+  BrightCyan = "brightCyan",
+  BrightWhite = "brightWhite",
+  NoColor = "noColor",
+}
+
+function getColorCode(color: Color): string {
+  const codes: Record<Color, string> = {
+    [Color.Black]: "30",
+    [Color.Red]: "31",
+    [Color.Green]: "32",
+    [Color.Yellow]: "33",
+    [Color.Blue]: "34",
+    [Color.Magenta]: "35",
+    [Color.Cyan]: "36",
+    [Color.White]: "37",
+    [Color.BrightBlack]: "90",
+    [Color.BrightRed]: "91",
+    [Color.BrightGreen]: "92",
+    [Color.BrightYellow]: "93",
+    [Color.BrightBlue]: "94",
+    [Color.BrightMagenta]: "95",
+    [Color.BrightCyan]: "96",
+    [Color.BrightWhite]: "97",
+    [Color.NoColor]: "",
+  };
+  return codes[color];
+}
+
+/**
+ * ANSI Style codes
+ */
+export enum Style {
+  Bold = "bold",
+  Dim = "dim",
+  Italic = "italic",
+  Underline = "underline",
+  Blink = "blink",
+  Reverse = "reverse",
+  Hidden = "hidden",
+  Strikethrough = "strikethrough",
+  NoStyle = "noStyle",
+}
+
+function getStyleCode(style: Style): string {
+  const codes: Record<Style, string> = {
+    [Style.Bold]: "1",
+    [Style.Dim]: "2",
+    [Style.Italic]: "3",
+    [Style.Underline]: "4",
+    [Style.Blink]: "5",
+    [Style.Reverse]: "7",
+    [Style.Hidden]: "8",
+    [Style.Strikethrough]: "9",
+    [Style.NoStyle]: "",
+  };
+  return codes[style];
+}
+
+function wrapAnsi(content: string, code: string): string {
+  if (!code) return content;
+  return `\u001b[${code}m${content}\u001b[0m`;
+}
 
 export type BorderChars = {
   topLeft: string;
@@ -211,13 +405,16 @@ export class KeyValue implements Element {
   render(): string {
     if (this.pairs.length === 0) return "";
 
-    const maxKeyLength = Math.max(...this.pairs.map(([key]) => key.length));
+    const maxKeyLength = Math.max(
+      ...this.pairs.map(([key]) => realLength(key))
+    );
     const alignmentPosition = maxKeyLength + 2;
 
     return this.pairs
       .map(([key, value]) => {
         const keyWithColon = `${key}:`;
-        const spacesNeeded = alignmentPosition - keyWithColon.length;
+        const visualLength = realLength(keyWithColon);
+        const spacesNeeded = alignmentPosition - visualLength;
         const padding = " ".repeat(Math.max(1, spacesNeeded));
         return `${keyWithColon}${padding}${value}`;
       })
@@ -254,7 +451,6 @@ export class UnorderedList implements Element {
 
     for (const item of this.items) {
       if (item instanceof UnorderedList) {
-        // For nested lists, render them at the next level
         const nestedContent = item.renderAtLevel(level + 1);
         if (nestedContent) {
           result.push(nestedContent);
@@ -290,6 +486,18 @@ export class Tree implements Element {
     private children: Tree[] = []
   ) {}
 
+  color(colorType: Color): Colored {
+    return new Colored(this, colorType);
+  }
+
+  style(styleType: Style): Styled {
+    return new Styled(this, styleType);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
+  }
+
   render(): string {
     return this.renderAtLevel(0, true, []);
   }
@@ -300,13 +508,11 @@ export class Tree implements Element {
     parentPrefixes: boolean[]
   ): string {
     if (level === 0 && this.children.length === 0) {
-      // Leaf node at root level
       return this.label;
     }
 
     let result = "";
 
-    // Add the current node
     if (level === 0) {
       result += this.label;
     } else {
@@ -450,7 +656,7 @@ export class Box implements Element {
   constructor(
     private elements: Element[],
     private title: string = "",
-    private style: BorderStyle = BorderStyle.Single
+    private borderStyle: BorderStyle = BorderStyle.Single
   ) {}
 
   /**
@@ -458,6 +664,18 @@ export class Box implements Element {
    */
   border(style: BorderType): Box {
     return new Box(this.elements, this.title, style as BorderStyle);
+  }
+
+  color(colorType: Color): Colored {
+    return new Colored(this, colorType);
+  }
+
+  style(styleType: Style): Styled {
+    return new Styled(this, styleType);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
   }
 
   render(): string {
@@ -476,7 +694,7 @@ export class Box implements Element {
     const innerWidth = Math.max(contentWidth, titleWidth);
     const totalWidth = innerWidth + DIMENSIONS.BOX_INNER_PADDING;
 
-    const chars = getBorderChars(this.style);
+    const chars = getBorderChars(this.borderStyle);
 
     const topBorder = this.title
       ? (() => {
@@ -552,6 +770,18 @@ export class Row implements Element {
 
     return result.join("\n");
   }
+
+  color(colorType: Color): Colored {
+    return new Colored(this, colorType);
+  }
+
+  style(styleType: Style): Styled {
+    return new Styled(this, styleType);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
+  }
 }
 
 /**
@@ -561,7 +791,42 @@ export class Layout implements Element {
   constructor(private elements: Element[]) {}
 
   render(): string {
-    return this.elements.map((el) => el.render()).join("\n");
+    // Calculate layout max width for auto-centering
+    const layoutWidth = this.calculateLayoutWidth();
+
+    // Resolve AutoCentered elements to Centered with calculated width
+    const resolvedElements = this.elements.map((el) => {
+      if (el instanceof AutoCentered) {
+        return new Center(el.element, layoutWidth);
+      }
+      return el;
+    });
+
+    return resolvedElements.map((el) => el.render()).join("\n");
+  }
+
+  private calculateLayoutWidth(): number {
+    const widths = this.elements.map((el) => {
+      if (el instanceof AutoCentered) {
+        return getWidth(el.element);
+      }
+      return getWidth(el);
+    });
+    return widths.length > 0
+      ? Math.max(...widths)
+      : DIMENSIONS.DEFAULT_RULE_WIDTH;
+  }
+
+  color(colorType: Color): Colored {
+    return new Colored(this, colorType);
+  }
+
+  style(styleType: Style): Styled {
+    return new Styled(this, styleType);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
   }
 }
 
@@ -597,7 +862,7 @@ export class StatusCard implements Element {
   constructor(
     private label: Element,
     private content: Element,
-    private style: BorderStyle = BorderStyle.Single
+    private borderStyle: BorderStyle = BorderStyle.Single
   ) {}
 
   /**
@@ -605,6 +870,18 @@ export class StatusCard implements Element {
    */
   border(style: BorderType): StatusCard {
     return new StatusCard(this.label, this.content, style as BorderStyle);
+  }
+
+  color(colorType: Color): Colored {
+    return new Colored(this, colorType);
+  }
+
+  style(styleType: Style): Styled {
+    return new Styled(this, styleType);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
   }
 
   render(): string {
@@ -621,7 +898,7 @@ export class StatusCard implements Element {
         : Math.max(...allLines.map((line) => stripAnsiCodes(line).length));
     const contentWidth = maxTextLength + DIMENSIONS.MIN_CONTENT_PADDING;
 
-    const chars = getBorderChars(this.style);
+    const chars = getBorderChars(this.borderStyle);
 
     const topBorder =
       chars.topLeft +
@@ -658,7 +935,7 @@ export class Table implements Element {
   constructor(
     private headers: Element[],
     private rows: Element[][],
-    private style: BorderStyle = BorderStyle.Single
+    private borderStyle: BorderStyle = BorderStyle.Single
   ) {}
 
   /**
@@ -676,7 +953,7 @@ export class Table implements Element {
     const allRowLines = [headerLines, ...rowLines];
 
     const columnWidths = this.calculateColumnWidths(allRowLines);
-    const chars = getBorderChars(this.style);
+    const chars = getBorderChars(this.borderStyle);
 
     const borders = this.createTableBorders(columnWidths, chars);
 
@@ -741,7 +1018,6 @@ export class Table implements Element {
   }
 
   private getJunctionChars(chars: BorderChars) {
-    // Simplified junction logic - in a full implementation you'd want proper junction characters per style
     return {
       teeDown: "┬",
       teeUp: "┴",
@@ -786,6 +1062,22 @@ export function text(content: string): Text {
 }
 
 /**
+ * Apply color to an element
+ */
+export function color(colorType: Color) {
+  return (element: string | Element): Colored =>
+    new Colored(toElement(element), colorType);
+}
+
+/**
+ * Apply style to an element
+ */
+export function style(styleType: Style) {
+  return (element: string | Element): Styled =>
+    new Styled(toElement(element), styleType);
+}
+
+/**
  * Create a vertical layout
  */
 export function layout(...elements: (string | Element)[]): Layout {
@@ -818,8 +1110,9 @@ export function ul(...items: (string | Element)[]): UnorderedList {
 /**
  * Create an ordered list
  */
-export function ol(...items: Element[]): OrderedList {
-  return new OrderedList(items);
+export function ol(...items: (string | Element)[]): OrderedList {
+  const elements = toElements(items);
+  return new OrderedList(elements);
 }
 
 /**
@@ -920,19 +1213,34 @@ export class Center implements Element {
   render(): string {
     const content = this.element.render();
     const lines = content.split("\n");
-    const targetWidth = this.width ?? 80; // Default width if not specified
+    const defaultWidth =
+      typeof process !== "undefined" && process.stdout?.columns
+        ? process.stdout.columns
+        : 80;
+    const targetWidth = this.width ?? defaultWidth;
+
+    // Find the longest line to center the whole block as a unit
+    const maxLineLength =
+      lines.length === 0
+        ? 0
+        : Math.max(...lines.map((line) => stripAnsiCodes(line).length));
+
+    if (maxLineLength >= targetWidth) {
+      // Content already wider than target - don't modify
+      return content;
+    }
+
+    // Center the whole block - all lines get the same left padding
+    const totalPadding = targetWidth - maxLineLength;
+    const leftPadding = Math.floor((totalPadding + 1) / 2);
 
     return lines
       .map((line) => {
-        const visibleLength = stripAnsiCodes(line).length;
-        if (visibleLength >= targetWidth) {
-          return line; // Don't center if already too long
-        }
-
-        const padding = targetWidth - visibleLength;
-        const leftPad = Math.floor(padding / 2);
-        const rightPad = padding - leftPad;
-        return " ".repeat(leftPad) + line + " ".repeat(rightPad);
+        const lineLength = stripAnsiCodes(line).length;
+        const rightPadding = targetWidth - lineLength - leftPadding;
+        return (
+          " ".repeat(leftPadding) + line + " ".repeat(Math.max(0, rightPadding))
+        );
       })
       .join("\n");
   }
@@ -941,7 +1249,13 @@ export class Center implements Element {
 /**
  * Center an element
  */
-export function center(element: string | Element, width?: number): Center {
+export function center(
+  element: string | Element,
+  width?: number
+): Center | AutoCentered {
+  if (width === undefined) {
+    return new AutoCentered(toElement(element));
+  }
   return new Center(toElement(element), width);
 }
 
@@ -953,11 +1267,29 @@ export function underline(char = "─") {
 }
 
 /**
+ * Add colored underline to an element
+ */
+export function underlineColored(char: string, colorType: Color) {
+  return (element: string | Element) =>
+    new Underline(toElement(element), char, colorType);
+}
+
+/**
  * Add a prefix margin to elements
  */
 export function margin(prefix: string) {
   return (...elements: (string | Element)[]) =>
     new Margin(prefix, toElements(elements));
+}
+
+/**
+ * Add a colored prefix margin to elements
+ */
+export function marginColored(prefix: string, colorType: Color) {
+  return (...elements: (string | Element)[]) => {
+    const coloredPrefix = wrapAnsi(prefix, getColorCode(colorType));
+    return new Margin(coloredPrefix, toElements(elements));
+  };
 }
 
 /**
@@ -972,6 +1304,9 @@ export function tree(label: string): any {
 
   // Copy all Tree methods to the function
   result.render = () => baseTree.render();
+  result.color = (colorType: Color) => baseTree.color(colorType);
+  result.style = (styleType: Style) => baseTree.style(styleType);
+  result.margin = (prefix: string) => baseTree.margin(prefix);
   result.label = label;
   result.children = [];
 
@@ -1103,15 +1438,14 @@ export const margins = {
 export class Underline implements Element {
   constructor(
     private element: Element,
-    private char: string = "─"
+    private char: string = "─",
+    private underlineColor?: Color
   ) {}
 
   render(): string {
     const content = this.element.render();
     const lines = content.split("\n");
-    const maxWidth = Math.max(
-      ...lines.map((line) => stripAnsiCodes(line).length)
-    );
+    const maxWidth = Math.max(...lines.map((line) => realLength(line)));
 
     // Create underline by repeating the pattern to match the width
     let underlineStr = "";
@@ -1120,7 +1454,27 @@ export class Underline implements Element {
     }
     underlineStr = underlineStr.substring(0, maxWidth);
 
+    // Apply color only to the underline, not the content
+    if (this.underlineColor) {
+      const code = getColorCode(this.underlineColor);
+      if (code) {
+        underlineStr = wrapAnsi(underlineStr, code);
+      }
+    }
+
     return content + "\n" + underlineStr;
+  }
+
+  color(colorType: Color): Colored {
+    return new Colored(this, colorType);
+  }
+
+  style(styleType: Style): Styled {
+    return new Styled(this, styleType);
+  }
+
+  margin(prefix: string): Margin {
+    return new Margin(prefix, [this]);
   }
 }
 
@@ -1209,7 +1563,7 @@ export class Chart implements Element {
 export class Banner implements Element {
   constructor(
     private content: Element,
-    private style: BorderStyle = BorderStyle.Double
+    private borderStyle: BorderStyle = BorderStyle.Double
   ) {}
 
   /**
@@ -1228,7 +1582,7 @@ export class Banner implements Element {
         : Math.max(...lines.map((line) => stripAnsiCodes(line).length));
     const contentWidth = maxWidth + DIMENSIONS.MIN_CONTENT_PADDING;
 
-    const chars = getBorderChars(this.style);
+    const chars = getBorderChars(this.borderStyle);
     const topBorder = `${chars.topLeft}${chars.horizontal.repeat(contentWidth + 2)}${chars.topRight}`;
     const bottomBorder = `${chars.bottomLeft}${chars.horizontal.repeat(contentWidth + 2)}${chars.bottomRight}`;
 
@@ -1531,10 +1885,9 @@ export class RightAligned implements Element {
  * AutoCentered - auto center based on layout context
  */
 export class AutoCentered implements Element {
-  constructor(private element: Element) {}
+  constructor(public element: Element) {}
 
   render(): string {
-    // For now, just return the element - container layouts will handle centering
     return this.element.render();
   }
 }
@@ -1553,6 +1906,14 @@ const layoutz = {
   // Core elements
   layout,
   text,
+
+  // Colors and Styles
+  color,
+  style,
+  Color,
+  Style,
+  underlineColored,
+  marginColored,
 
   // Containers
   box,

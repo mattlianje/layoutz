@@ -15,6 +15,7 @@ module Layoutz
   , Border(..)
   , HasBorder(..)
   , Color(..)
+  , Style(..)
   , L
   , Tree(..)
     -- * Basic Elements
@@ -47,6 +48,8 @@ module Layoutz
   , withBorder
     -- * Color utilities
   , withColor
+    -- * Style utilities
+  , withStyle
     -- * Rendering
   , render
   ) where
@@ -170,6 +173,7 @@ data L = forall a. Element a => L a
        | OL [L]
        | AutoCenter L
        | Colored Color L
+       | Styled Style L
        | LBox String [L] Border
        | LStatusCard String String Border
        | LTable [String] [[L]] Border
@@ -188,6 +192,15 @@ instance Element L where
     in if hasTrailingNewline 
        then unlines coloredLines 
        else intercalate "\n" coloredLines
+  renderElement (Styled style element) = 
+    let rendered = render element
+        renderedLines = lines rendered
+        styledLines = map (wrapStyle style) renderedLines
+        -- Preserve whether original had trailing newline
+        hasTrailingNewline = not (null rendered) && last rendered == '\n'
+    in if hasTrailingNewline 
+       then unlines styledLines 
+       else intercalate "\n" styledLines
   renderElement (LBox title elements border) = render (Box title elements border)
   renderElement (LStatusCard label content border) = render (StatusCard label content border)
   renderElement (LTable headers rows border) = render (Table headers rows border)
@@ -197,6 +210,7 @@ instance Element L where
   width (OL items) = width (OrderedList items)
   width (AutoCenter element) = width element
   width (Colored _ element) = width element  -- Width ignores color
+  width (Styled _ element) = width element  -- Width ignores style
   width (LBox title elements border) = width (Box title elements border)
   width (LStatusCard label content border) = width (StatusCard label content border)
   width (LTable headers rows border) = width (Table headers rows border)
@@ -206,6 +220,7 @@ instance Element L where
   height (OL items) = height (OrderedList items)
   height (AutoCenter element) = height element
   height (Colored _ element) = height element  -- Height ignores color
+  height (Styled _ element) = height element  -- Height ignores style
   height (LBox title elements border) = height (Box title elements border)
   height (LStatusCard label content border) = height (StatusCard label content border)
   height (LTable headers rows border) = height (Table headers rows border)
@@ -234,10 +249,11 @@ instance HasBorder L where
   setBorder border (LStatusCard label content _) = LStatusCard label content border
   setBorder border (LTable headers rows _) = LTable headers rows border
   setBorder border (Colored color element) = Colored color (setBorder border element)
+  setBorder border (Styled style element) = Styled style (setBorder border element)
   setBorder _ other = other  -- Non-bordered elements remain unchanged
 
 -- Color support with ANSI codes
-data Color = ColorBlack | ColorRed | ColorGreen | ColorYellow 
+data Color = ColorNoColor | ColorBlack | ColorRed | ColorGreen | ColorYellow 
            | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
            | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow 
            | ColorBrightBlue | ColorBrightMagenta | ColorBrightCyan | ColorBrightWhite
@@ -245,6 +261,7 @@ data Color = ColorBlack | ColorRed | ColorGreen | ColorYellow
 
 -- | Get ANSI foreground color code
 colorCode :: Color -> String
+colorCode ColorNoColor       = ""
 colorCode ColorBlack         = "30"
 colorCode ColorRed           = "31"
 colorCode ColorGreen         = "32"
@@ -264,7 +281,32 @@ colorCode ColorBrightWhite   = "97"
 
 -- | Wrap text with ANSI color codes
 wrapAnsi :: Color -> String -> String
-wrapAnsi color str = "\ESC[" ++ colorCode color ++ "m" ++ str ++ "\ESC[0m"
+wrapAnsi color str 
+  | null (colorCode color) = str
+  | otherwise = "\ESC[" ++ colorCode color ++ "m" ++ str ++ "\ESC[0m"
+
+-- Style support with ANSI codes
+data Style = StyleNoStyle | StyleBold | StyleDim | StyleItalic | StyleUnderline
+           | StyleBlink | StyleReverse | StyleHidden | StyleStrikethrough
+  deriving (Show, Eq)
+
+-- | Get ANSI style code
+styleCode :: Style -> String
+styleCode StyleNoStyle       = ""
+styleCode StyleBold          = "1"
+styleCode StyleDim           = "2"
+styleCode StyleItalic        = "3"
+styleCode StyleUnderline     = "4"
+styleCode StyleBlink         = "5"
+styleCode StyleReverse       = "7"
+styleCode StyleHidden        = "8"
+styleCode StyleStrikethrough = "9"
+
+-- | Wrap text with ANSI style codes
+wrapStyle :: Style -> String -> String
+wrapStyle style str
+  | null (styleCode style) = str
+  | otherwise = "\ESC[" ++ styleCode style ++ "m" ++ str ++ "\ESC[0m"
 
 borderChars :: Border -> (String, String, String, String, String, String, String, String, String)
 borderChars BorderNormal = ("┌", "┐", "└", "┘", "─", "│", "├", "┤", "┼")
@@ -849,6 +891,15 @@ withBorder = setBorder
 --   withColor ColorBrightYellow $ box "Warning" [text "Check logs"]
 withColor :: Color -> L -> L
 withColor color element = Colored color element
+
+-- | Apply a style to an element
+-- 
+-- Example usage:
+--   withStyle StyleBold $ text "Important!"
+--   withStyle StyleItalic $ text "Emphasis"
+--   withStyle StyleUnderline $ text "Notice"
+withStyle :: Style -> L -> L
+withStyle style element = Styled style element
 
 -- | Create tree structure
 tree :: String -> [Tree] -> L

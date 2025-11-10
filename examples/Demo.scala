@@ -19,8 +19,8 @@ object ReadmeDemo {
   val d = layout(
     center(
       row(
-        underlineColoured("^", Color.BrightMagenta)("Layoutz"),
-        "... A Small Demo"
+        underlineColored("^", Color.BrightMagenta)("Layoutz").style(Style.Bold),
+        "... A Small Demo (ちいさい)"
       )
     ),
     row(
@@ -37,7 +37,7 @@ object ReadmeDemo {
         box("Wrapped")(
           wrap("Where there is a will ... Water x Necessaries", 20)
         ),
-        ol("Arcole", "Lodi", ol("Iéna", ol("Austerlitz")))
+        ol("Arcole", "Austerlitz", ol("Iéna", ol("Бородино")))
       ),
       margin("[Scala!]")(
         box("Deploy Status")(
@@ -48,7 +48,7 @@ object ReadmeDemo {
         tree("📁 Project")(
           tree("src")(
             tree("main.scala"),
-            tree("api.scala")
+            tree("test.scala")
           )
         ).color(Color.Cyan)
       )

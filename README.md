@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="pix/layoutz-demo.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="700">
 </p>
 
-# <img src="pix/layoutz.png" width="60"> layoutz
+# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
@@ -54,13 +54,13 @@ val demo = layout(
     statusCard("DB", "99.9%"),
     Border.Thick(statusCard("Cache", "READY"))
   ),
-  br,
   box("Services")(
     ul("Production", "Staging", ul("test-api", ul("more nest"))),
-    br,
     inlineBar("Health", 0.94)
   ).border(Border.Round)
-).render
+)
+
+println(demo.render)
 ```
 ```
             Test Dashboard
@@ -69,15 +69,11 @@ val demo = layout(
 ║ API    ║ │ DB      │ ┃ Cache   ┃
 ║ LIVE   ║ │ 99.9%   │ ┃ READY   ┃
 ╚════════╝ └─────────┘ ┗━━━━━━━━━┛
-
-
 ╭─────────────Services──────────────╮
 │ • Production                      │
 │ • Staging                         │
 │   ◦ test-api                      │
 │     ▪ more nest                   │
-│                                   │
-│                                   │
 │ Health [██████████████████──] 94% │
 ╰───────────────────────────────────╯
 ```
@@ -118,17 +114,6 @@ CounterApp.run() /* call .run to start your app */
   <img src="pix/counter-demo.gif" width="500">
 </p>
 
-**Colors:**
-```scala
-import layoutz._
-
-layout(
-  Color.Red("✗ Error: Connection failed"),
-  Color.Yellow("⚠ Warning: Retrying..."),
-  Color.Green("✓ Success: Connected")
-).render
-```
-
 ## Motivation
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
@@ -147,13 +132,16 @@ Call `.render` on an element to get a String
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Fluent API
-For some `Element`s you can use dot-completion instead of nesting:
+Some typesetting operations work as both nouns ("a margin") and verbs ("to margin something"). For these, layoutz offers fluent syntax:
+They boil down to the same case classes and render the same thing under the hood, it is just a matter of taste and how your brain works.
 
+Nested style:
 ```scala
-// Nested
 margin(">>")(underline()("Hello\nWorld!"))
+```
 
-// Fluent
+Fluent style:
+```scala
 "Hello\nWorld!".underline.margin(">>")
 ```
 
@@ -360,11 +348,10 @@ ul(
 ### Underline: `underline`
 Add underlines to any element
 ```scala
-// Fluent syntax
+/* Fluent syntax */
 "Important Title".underline()
 "Custom".underline("=")
 
-// Nested syntax
 underline()("Important Title")
 underline("=")("Custom")
 ```
@@ -377,21 +364,56 @@ Custom
 ```
 
 ### Colors: `Color`
-16 ANSI colors: `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Black` + `Bright` variants
+
 ```scala
-// Wrap syntax
 Color.Red("Error!")
-Color.Green("✓ Success")
-
-// Method syntax  
 "Status".color(Color.BrightCyan)
-box("Alert")(text).color(Color.Yellow)
-
-// Colored underlines & margins
-"Title".underlineColoured("=", Color.Red)
-"Log".marginColoured("[INFO]", Color.Cyan)
+"Title".underlineColored("=", Color.Red)
+"Log".marginColored("[INFO]", Color.Cyan)
 ```
-Handles emoji and CJK characters correctly.
+
+**Colors:**
+- `Black` `Red` `Green` `Yellow` `Blue` `Magenta` `Cyan` `White`
+- `BrightBlack` `BrightRed` `BrightGreen` `BrightYellow` `BrightBlue` `BrightMagenta` `BrightCyan` `BrightWhite`
+- `NoColor` *(for conditional formatting)*
+
+### Styles: `Style`
+
+```scala
+"Important!".style(Style.Bold)
+"Error!".color(Color.Red).style(Style.Bold)
+"Notice".style(Style.Bold).style(Style.Italic)
+```
+
+**Styles:**
+- `Bold` `Dim` `Italic` `Underline`
+- `Blink` `Reverse` `Hidden` `Strikethrough`
+- `NoStyle` *(for conditional formatting)*
+
+### Custom Components
+
+Create your own components by implementing the `Element` trait
+
+For example lets create a square we can re-use:
+```scala
+case class Square(size: Int) extends Element {
+  def render: String = {
+    if (size < 2) return ""
+    val width = size * 2 - 2
+    val top = "┌" + ("─" * width) + "┐"
+    val middle = (1 to size - 2).map(_ => "│" + (" " * width) + "│")
+    val bottom = "└" + ("─" * width) + "┘"
+    (top +: middle :+ bottom).mkString("\n")
+  }
+}
+```
+
+Then re-use it like any element:
+```scala
+row(
+  Square(2) Square(4), Square(6).color(Color.Blue)
+).render
+```
 
 ### Box: `box`
 With title:
@@ -505,7 +527,7 @@ Pick one option from a list (like cue4s singleChoice):
 SingleChoice(
   label = "How was your day?",
   options = Seq("great", "okay", "meh"),
-  selected = 0,  // currently selected index
+  selected = 0,
   active = true
 )
 ```
@@ -522,8 +544,8 @@ Pick multiple options from a list (like cue4s multiChoice):
 MultiChoice(
   label = "Favorite colors?",
   options = Seq("Red", "Blue", "Green"),
-  selected = Set(0, 2),  // indices of selected items
-  cursor = 1,  // current cursor position
+  selected = Set(0, 2),
+  cursor = 1,
   active = true
 )
 ```
@@ -546,11 +568,11 @@ Left          Right
 ### Padding: `pad`
 Add uniform padding around any element
 ```scala
-// Fluent syntax
+/* Fluent */
 "content".pad(2)
 box(kv("cpu" -> "45%")).pad(1)
 
-// Nested syntax
+/* Nested */
 pad(2)("content")
 pad(1)(box(kv("cpu" -> "45%")))
 ```
@@ -563,11 +585,11 @@ pad(1)(box(kv("cpu" -> "45%")))
 ### Truncation: `truncate`
 Truncate long text with ellipsis
 ```scala
-// Fluent syntax
+/* Fluent */
 "This is a very long text that will be cut off".truncate(15)
 "Custom ellipsis example text here".truncate(20, "…")
 
-// Nested syntax
+/* Nested */
 truncate(15)("This is a very long text that will be cut off")
 truncate(20, "…")("Custom ellipsis example text here")
 ```
@@ -625,12 +647,12 @@ Available in both fluent (`.margin()`) and nested syntax (`margin("prefix")()`).
 ### Alignment: `center`/`leftAlign`/`rightAlign`
 Align text within a specified width
 ```scala
-// Fluent syntax
+/* Fluent */
 "TITLE".center(20)
 "Left side".leftAlign(20)
 "Right side".rightAlign(20)
 
-// Nested syntax
+/* Nested */
 center("TITLE", 20)
 leftAlign("Left side", 20)
 rightAlign("Right side", 20)
@@ -643,7 +665,7 @@ Left side
 
 Works with multiline text:
 ```scala
-"Line 1\nLine 2".center(15)  // or: center("Line 1\nLine 2", 15)
+"Line 1\nLine 2".center(15)
 ```
 ```
    Line 1   
@@ -653,10 +675,10 @@ Works with multiline text:
 ### Text Wrapping: `wrap`
 Wrap long text at word boundaries
 ```scala
-// Fluent syntax
+/* Fluent */
 "This is a very long line that should be wrapped at word boundaries".wrap(20)
 
-// Nested syntax
+/* Nested */
 wrap("This is a very long line that should be wrapped at word boundaries", 20)
 ```
 ```
@@ -666,14 +688,14 @@ wrapped at word
 boundaries
 ```
 
-### Text Justification: `justify`/`justifyAll`
+### Text Justification: `justify`,`justifyAll`
 Distribute spaces to fit exact width
 ```scala
-// Fluent syntax
+/* Fluent */
 "All the lines\nmaybe the last".justify(20).render
 "All the lines\nmaybe the last".justifyAll(20).render
 
-// Nested syntax
+/* Nested */
 justify("All the lines\nmaybe the last", 20).render
 justifyAll("All the lines\nmaybe the last", 20).render
 ```
@@ -757,11 +779,6 @@ box("No borders")("Just content").border(Border.None)
 All border styling is done via the `HasBorder` typeclass, which allows you to write generic code that works with any bordered element:
 
 ```scala
-// Two equivalent syntaxes
-val myBox = box()("content").border(Border.Double) /* builder syntax */
-val myTable = Border.Thick(table(Seq("A", "B"), Seq(Seq("1", "2")))) /* nested sytnax */
-
-// Generic function - works with Box, Table, StatusCard, Banner
 def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
 ```
 

@@ -30,7 +30,6 @@ import Layoutz
 Beautiful, compositional text layouts:
 
 ```haskell
-{-# LANGUAGE OverloadedStrings #-}
 import Layoutz
 
 demo = layout
@@ -475,45 +474,53 @@ withBorder BorderNone $ box "Info" ["content"]
 
 ## Colors (ANSI Support)
 
-Add color to your layouts with `withColor`:
+```haskell
+withColor ColorRed $ text "Error!"
+withColor ColorGreen $ statusCard "Status" "OK"
+underlineColored "=" ColorRed $ text "Section Title"
+```
+
+**Colors:**
+- `ColorBlack` `ColorRed` `ColorGreen` `ColorYellow` `ColorBlue` `ColorMagenta` `ColorCyan` `ColorWhite`
+- `ColorBrightBlack` `ColorBrightRed` `ColorBrightGreen` `ColorBrightYellow` `ColorBrightBlue` `ColorBrightMagenta` `ColorBrightCyan` `ColorBrightWhite`
+- `ColorNoColor` *(for conditional formatting)*
+
+## Styles (ANSI Support)
 
 ```haskell
-{-# LANGUAGE OverloadedStrings #-}
-import Layoutz
+withStyle StyleBold $ text "Important"
+withColor ColorRed $ withStyle StyleBold $ text "Critical Error"
+```
 
-colorDemo = layout
-  [ withColor ColorGreen $ statusCard "Status" "OK"
-  , withColor ColorRed $ statusCard "Errors" "3"
-  , withColor ColorYellow $ statusCard "Warnings" "12"
-  , withColor ColorMagenta $ box "System" 
-      [ withColor ColorGreen $ text "✓ Database: Connected"
-      , withColor ColorRed $ text "✗ Cache: Disconnected"
-      ]
+**Styles:**
+- `StyleBold` `StyleDim` `StyleItalic` `StyleUnderline`
+- `StyleBlink` `StyleReverse` `StyleHidden` `StyleStrikethrough`
+- `StyleNoStyle` *(for conditional formatting)*
+
+## Custom Components
+
+Create your own components by implementing the `Element` typeclass — no component library needed:
+
+```haskell
+data Square = Square Int
+
+instance Element Square where
+  renderElement (Square size) 
+    | size < 2 = ""
+    | otherwise = intercalate "\n" (top : middle ++ [bottom])
+    where
+      width = size * 2 - 2
+      top = "┌" ++ replicate width '─' ++ "┐"
+      middle = replicate (size - 2) ("│" ++ replicate width ' ' ++ "│")
+      bottom = "└" ++ replicate width '─' ++ "┘"
+
+-- Use it like any other element
+main = putStrLn $ render $ layout
+  [ text "Here's a square:"
+  , L (Square 5)
+  , withColor ColorBlue $ L (Square 3)
   ]
-
--- Colors are automatically included in render output
-putStrLn $ render colorDemo
 ```
-
-**Available Colors:**
-- Basic: `ColorBlack`, `ColorRed`, `ColorGreen`, `ColorYellow`, `ColorBlue`, `ColorMagenta`, `ColorCyan`, `ColorWhite`
-- Bright: `ColorBrightBlack`, `ColorBrightRed`, `ColorBrightGreen`, `ColorBrightYellow`, `ColorBrightBlue`, `ColorBrightMagenta`, `ColorBrightCyan`, `ColorBrightWhite`
-
-**Colored Underlines:**
-
-You can also color just the underline part:
-
-```haskell
-underlineColored "=" ColorRed $ text "Error Section"
-underlineColored "~" ColorGreen $ text "Success"
-underlineColored "─" ColorBrightCyan $ text "Info"
-```
-
-**Note:** 
-- ANSI color codes are automatically included when you use `withColor`
-- Width calculations automatically ignore ANSI codes, so layouts stay aligned
-- Colors work seamlessly with all elements and borders
-- Use `underlineColored` to color just the underline while keeping text normal
 
 ## REPL
 

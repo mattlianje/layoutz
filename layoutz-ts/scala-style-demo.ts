@@ -5,19 +5,22 @@ import {
   section,
   kv,
   ul,
+  ol,
   box,
   row,
   table,
   center,
   underline,
+  underlineColored,
   statusCard,
   margin,
   inlineBar,
   tree,
+  wrap,
   Border,
+  Color,
+  Style,
 } from "./layoutz";
-
-console.log("🎨 Scala-style Fluent API Demo\n");
 
 /* Define layouts */
 const t = table(
@@ -31,35 +34,40 @@ const t = table(
 
 /* Nest, compose, combine them */
 const d = layout(
-  center(row("Layoutz", underline("ˆ")("DEMO"))),
-  row(
-    statusCard("Users", "1.2K"),
-    statusCard("API", "UP").border(Border.Double),
-    statusCard("CPU", "23%").border(Border.Thick),
-    t,
-    section("Pugilists")(
-      kv(["Kazushi", "Sakuraba"], ["Jet", "Li"], ["Rory", "MacDonald"])
+  center(
+    row(
+      underlineColored("^", Color.BrightMagenta)("Layoutz").style(Style.Bold),
+      "... A Small Demo (ちいさい)"
     )
   ),
-  margin("[TypeScript!]")(
-    row(
+  row(
+    statusCard("Users", "1.2K").color(Color.BrightBlue),
+    statusCard("API", "UP").border(Border.Double).color(Color.BrightGreen),
+    statusCard("CPU", "23%").border(Border.Thick).color(Color.BrightYellow),
+    t,
+    section("Pugilists")(
+      kv(["Kazushi", "Sakuraba"], ["Jet 李連杰", "Li"], ["Rory", "MacDonald"])
+    )
+  ),
+  row(
+    layout(
+      box("Wrapped")(wrap(20)("Where there is a will ... Water x Necessaries")),
+      ol("Arcole", "Austerlitz", ol("Iéna", ol("Бородино")))
+    ),
+    margin("[TypeScript!]")(
       box("Deploy Status")(
         layout(
           inlineBar("Build", 1.0),
           inlineBar("Test", 0.8),
           inlineBar("Deploy", 0.3)
         )
-      ),
-      tree("📁 Project")(tree("src")(tree("main.ts"), tree("api.ts")))
+      ).color(Color.Green),
+      tree("📁 Project")(tree("src")(tree("main.ts"), tree("test.ts"))).color(
+        Color.Cyan
+      )
     )
   )
 );
 
 /* Get pretty strings w/ .render */
 console.log(d.render());
-
-console.log("\n🚀 Now the TypeScript API feels just like the Scala API!");
-console.log("✅ Non-curried constructors");
-console.log("✅ Fluent .border() methods");
-console.log("✅ Automatic string-to-text conversion");
-console.log("✅ Clean, readable syntax");

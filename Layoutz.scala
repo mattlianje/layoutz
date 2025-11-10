@@ -59,7 +59,7 @@ package object layoutz {
   }
 
   /** Core layout element */
-  sealed trait Element {
+  trait Element {
     def render: String
     final def width: Width = {
       val rendered = render
@@ -118,7 +118,7 @@ package object layoutz {
     final def underline(char: String): Underline = Underline(this, char, None)
 
     /** Add colored underline to this element */
-    final def underlineColoured(char: String, color: Color): Underline =
+    final def underlineColored(char: String, color: Color): Underline =
       Underline(this, char, Some(color))
 
     /** Justify this element's text to exact width by distributing spaces */
@@ -132,11 +132,14 @@ package object layoutz {
     final def margin(prefix: String): Margin = Margin(prefix, Seq(this), None)
 
     /** Add a colored prefix margin to this element */
-    final def marginColoured(prefix: String, color: Color): Margin =
+    final def marginColored(prefix: String, color: Color): Margin =
       Margin(prefix, Seq(this), Some(color))
 
     /** Apply a color to this element */
     final def color(c: Color): Colored = Colored(c, this)
+
+    /** Apply a style to this element */
+    final def style(s: Style): Styled = Styled(s, this)
 
   }
 
@@ -197,6 +200,9 @@ package object layoutz {
   }
 
   object Color {
+    /* No-op color (for conditional formatting) */
+    case object NoColor extends Color { val code = "" }
+
     /* Standard colors */
     case object Black extends Color { val code = "30" }
     case object Red extends Color { val code = "31" }
@@ -218,9 +224,35 @@ package object layoutz {
     case object BrightWhite extends Color { val code = "97" }
   }
 
+  /** ANSI text styles (bold, italic, etc.) */
+  sealed trait Style {
+    def code: String
+  }
+
+  object Style {
+    /* No-op style (for conditional formatting) */
+    case object NoStyle extends Style { val code = "" }
+
+    case object Bold extends Style { val code = "1" }
+    case object Dim extends Style { val code = "2" }
+    case object Italic extends Style { val code = "3" }
+    case object Underline extends Style { val code = "4" }
+    case object Blink extends Style { val code = "5" }
+    case object Reverse extends Style { val code = "7" }
+    case object Hidden extends Style { val code = "8" }
+    case object Strikethrough extends Style { val code = "9" }
+  }
+
   /** Wrap text with ANSI color codes */
   private def wrapAnsi(color: Color, content: String): String = {
-    "\u001b[" + color.code + "m" + content + "\u001b[0m"
+    if (color.code.isEmpty) content
+    else "\u001b[" + color.code + "m" + content + "\u001b[0m"
+  }
+
+  /** Wrap text with ANSI style codes */
+  private def wrapStyle(style: Style, content: String): String = {
+    if (style.code.isEmpty) content
+    else "\u001b[" + style.code + "m" + content + "\u001b[0m"
   }
 
   /** Element wrapper that applies color to its content */
@@ -229,6 +261,15 @@ package object layoutz {
       val rendered = element.render
       val lines = rendered.split('\n')
       lines.map(line => wrapAnsi(color, line)).mkString("\n")
+    }
+  }
+
+  /** Element wrapper that applies style to its content */
+  final case class Styled(style: Style, element: Element) extends Element {
+    def render: String = {
+      val rendered = element.render
+      val lines = rendered.split('\n')
+      lines.map(line => wrapStyle(style, line)).mkString("\n")
     }
   }
 
@@ -642,13 +683,13 @@ package object layoutz {
     def render: String = {
       if (pairs.isEmpty) return ""
 
-      val maxKeyLength = pairs.map(_._1.length).max
+      val maxKeyLength = pairs.map(p => realLength(p._1)).max
       val alignmentPosition = maxKeyLength + 2
 
       pairs
         .map { case (key, value) =>
           val keyWithColon = s"$key:"
-          val spacesNeeded = alignmentPosition - keyWithColon.length
+          val spacesNeeded = alignmentPosition - realLength(keyWithColon)
           val padding = " " * math.max(1, spacesNeeded)
           s"$keyWithColon$padding$value"
         }
@@ -1685,14 +1726,21 @@ package object layoutz {
 
   /** Add colored underline to an element with custom character and color
     *
-    * Example usage: underlineColoured("=", Color.Red)(Text("Error Section"))
-    * underlineColoured("~", Color.Green)(Text("Success"))
-    * underlineColoured("─", Color.BrightCyan)(Text("Info"))
+    * Example usage: underlineColored("=", Color.Red)(Text("Error Section"))
+    * underlineColored("~", Color.Green)(Text("Success")) underlineColored("─",
+    * Color.BrightCyan)(Text("Info"))
     */
-  def underlineColoured(char: String, color: Color)(
+  def underlineColored(char: String, color: Color)(
       element: Element
   ): Underline =
     Underline(element, char, Some(color))
+
+  /** Apply a style to an element
+    *
+    * Example usage: style(Style.Bold)("Important!")
+    * style(Style.Italic)("Emphasis")
+    */
+  def style(s: Style)(element: Element): Styled = Styled(s, element)
 
   /** Apply a color to an element (deprecated - use Color.Red(element) or
     * element.color(Color.Red))
@@ -1704,7 +1752,7 @@ package object layoutz {
     "Use Color.Red(element) or element.color(Color.Red) instead",
     "0.4.0"
   )
-  def withColour(color: Color)(element: Element): Colored =
+  def withColor(color: Color)(element: Element): Colored =
     Colored(color, element)
 
   /** Ordered (numbered) list */
@@ -1758,12 +1806,11 @@ package object layoutz {
 
   /** Add a colored prefix margin to elements
     *
-    * Example usage: marginColour("[error]", Color.Red)(Text("Something went
-    * wrong")) marginColour("[info]", Color.BrightCyan)(Text("FYI: Check the
-    * logs")) marginColour("[success]", Color.Green)(Text("Operation
-    * completed"))
+    * Example usage: marginColor("[error]", Color.Red)(Text("Something went
+    * wrong")) marginColor("[info]", Color.BrightCyan)(Text("FYI: Check the
+    * logs")) marginColor("[success]", Color.Green)(Text("Operation completed"))
     */
-  def marginColour(prefix: String, color: Color)(elements: Element*): Margin =
+  def marginColor(prefix: String, color: Color)(elements: Element*): Margin =
     Margin(prefix, elements, Some(color))
 
   /* ═══════════════════════════════════════════════════════════════════════════
