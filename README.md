@@ -48,14 +48,18 @@ Beautiful + compositional strings
 import layoutz._
 
 val demo = layout(
-  underline("ˆ")("Test Dashboard").center(),
+  underline("ˆ")("Test Dashboard").center,
   row(
-    Border.Double(statusCard("API", "LIVE")),
+    statusCard("API", "LIVE").border(Border.Double),
     statusCard("DB", "99.9%"),
-    Border.Thick(statusCard("Cache", "READY"))
+    statusCard("Cache", "READY").border(Border.Thick)
   ),
   box("Services")(
-    ul("Production", "Staging", ul("test-api", ul("more nest"))),
+    ul("Production", "Staging", 
+       ul("test-api", 
+          ul("more nest")
+         )
+      ),
     inlineBar("Health", 0.94)
   ).border(Border.Round)
 )
