@@ -412,21 +412,8 @@ case class Square(size: Int) extends Element {
 Then re-use it like any element:
 ```scala
 row(
-  Square(2) Square(4), Square(6).color(Color.Blue)
+  Square(2) Square(4), Square(6)
 ).render
-=======
-/* You can use wrap syntax... */
-Color.Red("Error!")
-Color.Green("Success")
-
-/* Method syntax */
-"Status".color(Color.BrightCyan)
-box("Alert")(text).color(Color.Yellow)
-
-/* Colored underlines & margins */
-"Title".underlineColoured("=", Color.Red)
-"Log".marginColoured("[INFO]", Color.Cyan)
->>>>>>> f31d82084897cdf3139c27627ff35ba7ef3d56d8
 ```
 
 ### Box: `box`
