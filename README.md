@@ -6,16 +6,16 @@
 **Simple, beautiful CLI output 🪶**
 
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
-(Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/hs))
+(Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs))
 
 ## Features
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
-- **ANSI colors** and wide character support (emoji, CJK)
+- ANSI colors and wide character support
 - Lists, trees, tables, charts, progress bars, spinners...
 - Thread-safe, purely functional rendering
-- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's with timers, animations, file watching, common HTTP requests
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -366,6 +366,7 @@ Custom
 ### Colors: `Color`
 
 ```scala
+<<<<<<< HEAD
 Color.Red("Error!")
 "Status".color(Color.BrightCyan)
 "Title".underlineColored("=", Color.Red)
@@ -413,6 +414,19 @@ Then re-use it like any element:
 row(
   Square(2) Square(4), Square(6).color(Color.Blue)
 ).render
+=======
+/* You can use wrap syntax... */
+Color.Red("Error!")
+Color.Green("Success")
+
+/* Method syntax */
+"Status".color(Color.BrightCyan)
+box("Alert")(text).color(Color.Yellow)
+
+/* Colored underlines & margins */
+"Title".underlineColoured("=", Color.Red)
+"Log".marginColoured("[INFO]", Color.Cyan)
+>>>>>>> f31d82084897cdf3139c27627ff35ba7ef3d56d8
 ```
 
 ### Box: `box`
@@ -585,11 +599,18 @@ pad(1)(box(kv("cpu" -> "45%")))
 ### Truncation: `truncate`
 Truncate long text with ellipsis
 ```scala
+<<<<<<< HEAD
 /* Fluent */
 "This is a very long text that will be cut off".truncate(15)
 "Custom ellipsis example text here".truncate(20, "…")
 
 /* Nested */
+=======
+"This is a very long text that will be cut off".truncate(15)
+"Custom ellipsis example text here".truncate(20, "…")
+
+/* Nested syntax */
+>>>>>>> f31d82084897cdf3139c27627ff35ba7ef3d56d8
 truncate(15)("This is a very long text that will be cut off")
 truncate(20, "…")("Custom ellipsis example text here")
 ```
@@ -691,11 +712,10 @@ boundaries
 ### Text Justification: `justify`,`justifyAll`
 Distribute spaces to fit exact width
 ```scala
-/* Fluent */
 "All the lines\nmaybe the last".justify(20).render
 "All the lines\nmaybe the last".justifyAll(20).render
 
-/* Nested */
+/* Nested syntax normal */
 justify("All the lines\nmaybe the last", 20).render
 justifyAll("All the lines\nmaybe the last", 20).render
 ```
@@ -778,7 +798,18 @@ box("No borders")("Just content").border(Border.None)
 #### HasBorder Typeclass
 All border styling is done via the `HasBorder` typeclass, which allows you to write generic code that works with any bordered element:
 
+You can also use `Border` to wrap or inline your layoutz compositions. These two are equivalent:
 ```scala
+<<<<<<< HEAD
+=======
+val fluentBorder = table(Seq("A", "B"), Seq(Seq("1", "2"))).border(Border.Thick)
+val nestedBorder = Border.Thick(table(Seq("A", "B"), Seq(Seq("1", "2"))))
+```
+
+Knowing about this typeclass can be of use as you extend the `Element` interface to make your own elements. For
+example this function that would work with any implementer of `HasBorder`
+```scala
+>>>>>>> f31d82084897cdf3139c27627ff35ba7ef3d56d8
 def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
 ```
 
