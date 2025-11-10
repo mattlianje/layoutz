@@ -142,9 +142,7 @@ Since you can extend this `Element` interface, you can create any `Element`s you
 **layoutz** built-in `Element`s ... and don't need to rely on a [side-car component library](https://github.com/charmbracelet/bubbles).
 
 ## Fluent API
-Some typesetting operations work as both nouns and verbs.
-
-For example "a margin", and "to margin something". 
+Some typesetting elements work as both nouns ("an underline") and verbs ("to underline something").
 
 For these, layoutz offers a so-called "fluent" syntax with transformations avaible in infix
 position via dot-completion (They boil down to the same case classes and render the same thing under the hood... 
