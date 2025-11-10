@@ -118,11 +118,14 @@ CounterApp.run() /* call .run to start your app */
   <img src="pix/counter-demo.gif" width="500">
 </p>
 
-## Motivation
+## Why layoutz?
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
 - Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
+- One the side, layoutz also has a Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook.
+   - The runtime has some little niceties built-in like common cmd's like file I/O, HTTP-requests, and a key input handler
+- But at the end of the day, you can use layoutz merely to structure strings (without any of the TUI stuff)
 
 ## Core concepts
 - Every piece of content is an `Element`
