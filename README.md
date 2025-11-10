@@ -780,9 +780,29 @@ box("Hello hello")("World!").border(
 ```
 
 #### Border.None
-You can also disable borders entirely:
+You can also disable borders entirely, which can be quite nice especially for tables:
 ```scala
-box("No borders")("Just content").border(Border.None)
+val t = table(
+    Seq("Name", "Role", "Status"),
+    Seq(
+      Seq("Alice", "Engineer", "Online"),
+      Seq("Eve", "QA", "Away"),
+      Seq(
+        ul("Gegard", ul("Mousasi", ul("was a BAD man"))),
+        "Fighter",
+        "Nasty"
+      )
+    )
+  ).border(Border.Round)
+```
+```
+  Name                  Role       Status
+
+  Alice                 Engineer   Online
+  Eve                   QA         Away
+  • Gegard              Fighter    Nasty
+    ◦ Mousasi
+      ▪ was a BAD man
 ```
 
 #### HasBorder Typeclass
