@@ -136,8 +136,11 @@ Call `.render` on an element to get a String
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
 ## Fluent API
-Some typesetting operations work as both nouns ("a margin") and verbs ("to margin something"). For these, layoutz offers fluent syntax:
-They boil down to the same case classes and render the same thing under the hood, it is just a matter of taste and how your brain works.
+Some typesetting operations work as both nouns and verbs.
+
+For example "a margin", and "to margin something". For these, layoutz offers a so-called "fluent" syntax with transformations avaible in infix
+position via dot-completion (They boil down to the same case classes and render the same thing under the hood... 
+it is just a matter of taste and how your brain works).
 
 Nested style:
 ```scala
@@ -414,7 +417,15 @@ case class Square(size: Int) extends Element {
 
 Then re-use it like any element:
 ```scala
-row(Square(2) Square(4), Square(6))
+row(Square(2), Square(4), Square(6))
+```
+```
+┌──┐ ┌──────┐ ┌──────────┐
+└──┘ │      │ │          │
+     │      │ │          │
+     └──────┘ │          │
+              │          │
+              └──────────┘
 ```
 
 ### Box: `box`
