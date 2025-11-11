@@ -399,21 +399,24 @@ center' 20 "Manual width"  -- Fixed width
 ```
 
 ### Margin: `margin`
-Use `margin` for "compiler-style" prefixes:
+Add prefix margins to elements for compiler-style error messages:
 
 ```haskell
-layout
-  [ margin "[error]" ["Type error: expected Int, got String"]
-  , margin "[warn]" ["Unused variable 'temp'"] 
-  , margin "[success]" ["Build completed successfully"]
-  , margin "[info]" ["Pro tip: Use layoutz for beautiful output"]
+margin "[error]"
+  [ text "Ooops"
+  , text ""
+  , row [ text "val result: Int = "
+        , underline "^" $ text "getString()"
+        ]
+  , text "Expected Int, found String"
   ]
 ```
 ```
-[error] Type error: expected Int, got String
-[warn] Unused variable 'temp'
-[success] Build completed successfully
-[info] Pro tip: Use layoutz for beautiful output
+[error] Ooops
+[error]
+[error] val result: Int =  getString()
+[error]                    ^^^^^^^^^^^
+[error] Expected Int, found String
 ```
 
 ## Border Styles
@@ -499,7 +502,7 @@ withColor ColorRed $ withStyle StyleBold $ text "Critical Error"
 
 ## Custom Components
 
-Create your own components by implementing the `Element` typeclass — no component library needed:
+Create your own components by implementing the `Element` typeclass
 
 ```haskell
 data Square = Square Int
@@ -509,17 +512,30 @@ instance Element Square where
     | size < 2 = ""
     | otherwise = intercalate "\n" (top : middle ++ [bottom])
     where
-      width = size * 2 - 2
-      top = "┌" ++ replicate width '─' ++ "┐"
-      middle = replicate (size - 2) ("│" ++ replicate width ' ' ++ "│")
-      bottom = "└" ++ replicate width '─' ++ "┘"
+      w = size * 2 - 2
+      top = "┌" ++ replicate w '─' ++ "┐"
+      middle = replicate (size - 2) ("│" ++ replicate w ' ' ++ "│")
+      bottom = "└" ++ replicate w '─' ++ "┘"
+
+-- Helper to avoid wrapping with L
+square :: Int -> L
+square n = L (Square n)
 
 -- Use it like any other element
-main = putStrLn $ render $ layout
-  [ text "Here's a square:"
-  , L (Square 5)
-  , withColor ColorBlue $ L (Square 3)
+putStrLn $ render $ row
+  [ square 3
+  , square 5
+  , square 7
   ]
+```
+```
+┌────┐ ┌────────┐ ┌────────────┐
+│    │ │        │ │            │
+└────┘ │        │ │            │
+       │        │ │            │
+       └────────┘ │            │
+                  │            │
+                  └────────────┘
 ```
 
 ## REPL
