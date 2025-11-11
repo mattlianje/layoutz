@@ -48,14 +48,18 @@ Beautiful + compositional strings
 import layoutz._
 
 val demo = layout(
-  underline("ˆ")("Test Dashboard").center(),
+  underline("ˆ")("Test Dashboard").center,
   row(
-    Border.Double(statusCard("API", "LIVE")),
+    statusCard("API", "LIVE").border(Border.Double),
     statusCard("DB", "99.9%"),
-    Border.Thick(statusCard("Cache", "READY"))
+    statusCard("Cache", "READY").border(Border.Thick)
   ),
   box("Services")(
-    ul("Production", "Staging", ul("test-api", ul("more nest"))),
+    ul("Production", "Staging", 
+       ul("test-api", 
+          ul("more nest")
+         )
+      ),
     inlineBar("Health", 0.94)
   ).border(Border.Round)
 )
@@ -114,11 +118,14 @@ CounterApp.run() /* call .run to start your app */
   <img src="pix/counter-demo.gif" width="500">
 </p>
 
-## Motivation
+## Why layoutz?
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
 - Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
+- One the side, **layoutz** also has a Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook.
+   - The runtime has some little niceties built-in like common cmd's like file I/O, HTTP-requests, and a key input handler
+- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
 
 ## Core concepts
 - Every piece of content is an `Element`
@@ -131,9 +138,15 @@ Call `.render` on an element to get a String
 
 The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
 
+Since you can extend this `Element` interface, you can create any `Element`s you can imagine... and they will compose with all the other
+**layoutz** built-in `Element`s ... and don't need to rely on a [side-car component library](https://github.com/charmbracelet/bubbles).
+
 ## Fluent API
-Some typesetting operations work as both nouns ("a margin") and verbs ("to margin something"). For these, layoutz offers fluent syntax:
-They boil down to the same case classes and render the same thing under the hood, it is just a matter of taste and how your brain works.
+Some typesetting elements work as both nouns ("an underline") and verbs ("to underline something").
+
+For these, layoutz offers a so-called "fluent" syntax with transformations avaible in infix
+position via dot-completion (They boil down to the same case classes and render the same thing under the hood... 
+it is just a matter of taste and how your brain works).
 
 Nested style:
 ```scala
@@ -364,9 +377,8 @@ Custom
 ```
 
 ### Colors: `Color`
-
+Just add ANSI coloring with `.color` and `Color.<...>` to see what is available
 ```scala
-<<<<<<< HEAD
 Color.Red("Error!")
 "Status".color(Color.BrightCyan)
 "Title".underlineColored("=", Color.Red)
@@ -379,7 +391,7 @@ Color.Red("Error!")
 - `NoColor` *(for conditional formatting)*
 
 ### Styles: `Style`
-
+ANSI styles are added the same way with `.style` and `Style.<...>`
 ```scala
 "Important!".style(Style.Bold)
 "Error!".color(Color.Red).style(Style.Bold)
@@ -391,7 +403,7 @@ Color.Red("Error!")
 - `Blink` `Reverse` `Hidden` `Strikethrough`
 - `NoStyle` *(for conditional formatting)*
 
-### Custom Components
+### Create your Custom Elements
 
 Create your own components by implementing the `Element` trait
 
@@ -411,22 +423,15 @@ case class Square(size: Int) extends Element {
 
 Then re-use it like any element:
 ```scala
-row(
-  Square(2) Square(4), Square(6).color(Color.Blue)
-).render
-=======
-/* You can use wrap syntax... */
-Color.Red("Error!")
-Color.Green("Success")
-
-/* Method syntax */
-"Status".color(Color.BrightCyan)
-box("Alert")(text).color(Color.Yellow)
-
-/* Colored underlines & margins */
-"Title".underlineColoured("=", Color.Red)
-"Log".marginColoured("[INFO]", Color.Cyan)
->>>>>>> f31d82084897cdf3139c27627ff35ba7ef3d56d8
+row(Square(2), Square(4), Square(6))
+```
+```
+┌──┐ ┌──────┐ ┌──────────┐
+└──┘ │      │ │          │
+     │      │ │          │
+     └──────┘ │          │
+              │          │
+              └──────────┘
 ```
 
 ### Box: `box`
@@ -599,18 +604,11 @@ pad(1)(box(kv("cpu" -> "45%")))
 ### Truncation: `truncate`
 Truncate long text with ellipsis
 ```scala
-<<<<<<< HEAD
 /* Fluent */
 "This is a very long text that will be cut off".truncate(15)
 "Custom ellipsis example text here".truncate(20, "…")
 
 /* Nested */
-=======
-"This is a very long text that will be cut off".truncate(15)
-"Custom ellipsis example text here".truncate(20, "…")
-
-/* Nested syntax */
->>>>>>> f31d82084897cdf3139c27627ff35ba7ef3d56d8
 truncate(15)("This is a very long text that will be cut off")
 truncate(20, "…")("Custom ellipsis example text here")
 ```
@@ -646,26 +644,24 @@ Add prefix margins to elements for compiler-style error messages:
 
 ```scala
 layout(
-  "Ooops",
-  br,
+  "Ooops!",
   row("val result: Int = ", underline("^")("getString()")),
   "Expected Int, found String"
 ).margin("[error]")
 ```
 ```
-[error] Ooops
-[error]
-[error]
+[error] Ooops!
 [error] val result: Int =  getString()
 [error]                    ^^^^^^^^^^^
 [error] Expected Int, found String
+
 ```
 
 Available in both fluent (`.margin()`) and nested syntax (`margin("prefix")()`).
 
 ## Text Formatting & Layout
 
-### Alignment: `center`/`leftAlign`/`rightAlign`
+### Alignment: `center`,`leftAlign`,`rightAlign`
 Align text within a specified width
 ```scala
 /* Fluent */
@@ -790,26 +786,37 @@ box("Hello hello")("World!").border(
 ```
 
 #### Border.None
-You can also disable borders entirely:
+You can also disable borders entirely, which can be quite nice especially for tables:
 ```scala
-box("No borders")("Just content").border(Border.None)
+val t = table(
+    Seq("Name", "Role", "Status"),
+    Seq(
+      Seq("Alice", "Engineer", "Online"),
+      Seq("Eve", "QA", "Away"),
+      Seq(
+        ul("Gegard", ul("Mousasi", ul("was a BAD man"))),
+        "Fighter",
+        "Nasty"
+      )
+    )
+  ).border(Border.Round)
+```
+```
+  Name                  Role       Status
+
+  Alice                 Engineer   Online
+  Eve                   QA         Away
+  • Gegard              Fighter    Nasty
+    ◦ Mousasi
+      ▪ was a BAD man
 ```
 
 #### HasBorder Typeclass
 All border styling is done via the `HasBorder` typeclass, which allows you to write generic code that works with any bordered element:
 
-You can also use `Border` to wrap or inline your layoutz compositions. These two are equivalent:
-```scala
-<<<<<<< HEAD
-=======
-val fluentBorder = table(Seq("A", "B"), Seq(Seq("1", "2"))).border(Border.Thick)
-val nestedBorder = Border.Thick(table(Seq("A", "B"), Seq(Seq("1", "2"))))
-```
-
 Knowing about this typeclass can be of use as you extend the `Element` interface to make your own elements. For
 example this function that would work with any implementer of `HasBorder`
 ```scala
->>>>>>> f31d82084897cdf3139c27627ff35ba7ef3d56d8
 def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
 ```
 
