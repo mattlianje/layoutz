@@ -405,8 +405,8 @@ Add prefix margins to elements for compiler-style error messages:
 margin "[error]"
   [ text "Ooops"
   , text ""
-  , row [ text "val result: Int = "
-        , underline "^" $ text "getString()"
+  , row [ text "result :: Int = "
+        , underline' "^" $ text "getString"
         ]
   , text "Expected Int, found String"
   ]
@@ -414,8 +414,8 @@ margin "[error]"
 ```
 [error] Ooops
 [error]
-[error] val result: Int =  getString()
-[error]                    ^^^^^^^^^^^
+[error] result :: Int =  getString
+[error]                  ^^^^^^^^^
 [error] Expected Int, found String
 ```
 
