@@ -395,10 +395,9 @@ Color.Red("Error!")
 - `Color.True(r, g, b)` - 24-bit RGB true color
 
 ```scala
-// 256-color palette gradient
-val gradient = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
+import layoutz._
 
-// RGB true color gradient
+val gradient = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
 val rgbGradient = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
 
 layout(gradient, rgbGradient).putStrLn
