@@ -391,6 +391,39 @@ pad 2 $ text "content"
         
 ```
 
+### Spinners: `spinner`
+Animated loading spinners for TUI apps:
+```haskell
+spinner "Loading..." frameNum SpinnerDots
+spinner "Processing" frameNum SpinnerLine
+spinner "Working" frameNum SpinnerClock
+spinner "Thinking" frameNum SpinnerBounce
+```
+
+Styles:
+- **`SpinnerDots`** - Braille dot spinner: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+- **`SpinnerLine`** - Classic line spinner: | / - \
+- **`SpinnerClock`** - Clock face spinner: 🕐 🕑 🕒 ...
+- **`SpinnerBounce`** - Bouncing dots: ⠁ ⠂ ⠄ ⠂
+
+Increment the frame number on each render to animate:
+```haskell
+-- In your app state, track a frame counter
+data AppState = AppState { spinnerFrame :: Int, ... }
+
+-- In your view function
+spinner "Loading" (spinnerFrame state) SpinnerDots
+
+-- In your update function (triggered by a tick or key press)
+state { spinnerFrame = spinnerFrame state + 1 }
+```
+
+With colors:
+```haskell
+withColor ColorGreen $ spinner "Success!" frame SpinnerDots
+withColor ColorYellow $ spinner "Warning" frame SpinnerLine
+```
+
 ### Centering: `center`
 Smart auto-centering and manual width:
 ```haskell
@@ -629,6 +662,178 @@ cabal repl
 │ 1 │ 2 │
 └───┴───┘
 ```
+
+## Interactive Apps
+
+Build **Elm-style terminal applications** with the built-in TUI runtime.
+
+### Simple TUI Runtime
+
+The runtime provides a dead-simple event loop for building interactive terminal apps:
+
+```haskell
+import Layoutz
+
+data CounterMsg = Inc | Dec
+
+counterApp :: LayoutzApp Int CounterMsg
+counterApp = LayoutzApp
+  { appInit = 0
+  
+  , appView = \count ->
+      layout
+        [ section "Counter" [text $ "Count: " <> show count]
+        , br
+        , ul ["Press '+' or '-'", "Press ESC to quit"]
+        ]
+  
+  , appUpdate = \msg count -> case msg of
+      Inc -> count + 1
+      Dec -> count - 1
+  
+  , appOnKey = \key _state -> case key of
+      CharKey '+' -> Just Inc
+      CharKey '-' -> Just Dec
+      _           -> Nothing
+  }
+
+main :: IO ()
+main = runApp counterApp
+```
+
+### `LayoutzApp state msg`
+
+Build interactive apps by defining:
+- **`appInit`** - Initial state
+- **`appView`** - Render state to UI (pure function)
+- **`appUpdate`** - Update state with message (pure function)
+- **`appOnKey`** - Map keyboard input to messages (pure function)
+
+The `runApp` function handles:
+- Terminal setup (raw mode, no echo)
+- Event loop (read input → map to messages → update state → re-render)
+- Screen management (clearing, cursor)
+- Cleanup on exit (ESC, Ctrl+C, or Ctrl+D)
+
+### Key Types
+
+Handle keyboard input with the `Key` ADT:
+```haskell
+CharKey Char           -- 'a', '1', ' ', etc.
+EnterKey               -- Enter/Return
+BackspaceKey           -- Backspace
+TabKey                 -- Tab
+EscapeKey              -- Escape
+DeleteKey              -- Delete
+ArrowUpKey             -- ↑
+ArrowDownKey           -- ↓
+ArrowLeftKey           -- ←
+ArrowRightKey          -- →
+SpecialKey String      -- Ctrl+X, etc.
+TickKey                -- Auto-tick (sent every 150ms for animations)
+```
+
+**Note**: The runtime automatically sends `TickKey` events every 150ms, enabling smooth animations like spinners and progress bars without requiring manual key presses. Apps can choose to handle or ignore ticks based on their current state.
+
+### Example: Navigation App
+
+```haskell
+data NavMsg = MoveUp | MoveDown | Select
+
+data NavState = NavState 
+  { selected :: Int
+  , items :: [String]
+  }
+
+navApp :: LayoutzApp NavState NavMsg
+navApp = LayoutzApp
+  { appInit = NavState 0 ["Option 1", "Option 2", "Option 3"]
+  
+  , appView = \state ->
+      let renderItem idx item = 
+            if idx == selected state
+            then withColor ColorGreen $ text ("→ " <> item)
+            else text ("  " <> item)
+          itemList = zipWith renderItem [0..] (items state)
+      in section "Menu" itemList
+  
+  , appUpdate = \msg state -> case msg of
+      MoveUp -> state { selected = max 0 (selected state - 1) }
+      MoveDown -> state { selected = min (length (items state) - 1) (selected state + 1) }
+      Select -> state  -- Handle selection
+  
+  , appOnKey = \key _state -> case key of
+      ArrowUpKey   -> Just MoveUp
+      ArrowDownKey -> Just MoveDown
+      EnterKey     -> Just Select
+      _            -> Nothing
+  }
+```
+
+The runtime is **zero-dependency** - just Haskell's standard library. Perfect for building:
+- Interactive CLIs
+- Terminal dashboards
+- Configuration wizards
+- Live data displays
+- TUI games
+
+### Example: Task List Manager
+
+A complete interactive task manager with navigation and completion tracking:
+
+```haskell
+import Layoutz
+import Data.Set (Set)
+import qualified Data.Set as Set
+
+data TaskState = TaskState
+  { tasks     :: [String]
+  , selected  :: Int
+  , completed :: Set Int
+  } deriving (Show)
+
+data TaskMsg = MoveUp | MoveDown | ToggleTask
+
+taskListApp :: LayoutzApp TaskState TaskMsg
+taskListApp = LayoutzApp
+  { appInit = TaskState
+      { tasks = ["Process data", "Generate reports", "Backup files"]
+      , selected = 0
+      , completed = Set.empty
+      }
+  
+  , appView = \state ->
+      let taskList = zipWith (renderTask state) [0..] (tasks state)
+      in layout
+           [ section "Task Manager" taskList
+           , br
+           , text $ "Completed: " <> show (Set.size $ completed state)
+           ]
+  
+  , appUpdate = \msg state -> case msg of
+      MoveUp -> state { selected = max 0 (selected state - 1) }
+      MoveDown -> state { selected = min (length (tasks state) - 1) (selected state + 1) }
+      ToggleTask ->
+        let idx = selected state
+            newCompleted = if Set.member idx (completed state)
+                          then Set.delete idx (completed state)
+                          else Set.insert idx (completed state)
+        in state { completed = newCompleted }
+  
+  , appOnKey = \key _state -> case key of
+      ArrowUpKey   -> Just MoveUp
+      ArrowDownKey -> Just MoveDown
+      EnterKey     -> Just ToggleTask
+      _            -> Nothing
+  }
+  where
+    renderTask state idx task =
+      let emoji = if Set.member idx (completed state) then "✅" else "📋"
+          marker = if idx == selected state then "► " else "  "
+      in text $ marker <> emoji <> " " <> task
+```
+
+See [TaskListDemo.hs](TaskListDemo.hs) for the complete working example.
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)

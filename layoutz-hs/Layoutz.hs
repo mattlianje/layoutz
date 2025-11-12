@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ExistentialQuantification, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, ExistentialQuantification, FlexibleInstances, RecordWildCards #-}
 
 {- | 
 Module      : Layoutz
@@ -44,6 +44,9 @@ module Layoutz
   , vr, vr', vr''
   , pad
   , chart
+    -- * Spinners
+  , spinner
+  , SpinnerStyle(..)
     -- * Border utilities
   , withBorder
     -- * Color utilities
@@ -52,11 +55,29 @@ module Layoutz
   , withStyle
     -- * Rendering
   , render
+    -- * TUI Runtime
+  , LayoutzApp(..)
+  , Key(..)
+  , Cmd(..)
+  , Sub(..)
+  , runApp
+    -- * Subscriptions
+  , onKeyPress
+  , onTick
+  , batch
   ) where
 
 import Data.List (intercalate, transpose)
 import Data.String (IsString(..))
+import Data.Char (ord, chr)
 import Text.Printf (printf)
+import System.IO
+import System.Exit (exitSuccess)
+import Control.Exception (catch, AsyncException(..))
+import System.Timeout (timeout)
+import Control.Monad (when, forever)
+import Control.Concurrent (forkIO, threadDelay, killThread, ThreadId)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
 
 -- | Strip ANSI escape codes from a string for accurate width calculation
 stripAnsi :: String -> String
@@ -939,4 +960,294 @@ leaf name = Tree name []
 -- | Create branch tree node with children
 branch :: String -> [Tree] -> Tree
 branch name children = Tree name children
+
+-- ============================================================================
+-- Spinner Animations
+-- ============================================================================
+
+-- | Spinner style with animation frames
+data SpinnerStyle
+  = SpinnerDots      -- ^ Braille dot spinner: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+  | SpinnerLine      -- ^ Classic line spinner: | / - \
+  | SpinnerClock     -- ^ Clock face spinner: 🕐 🕑 🕒 ... 
+  | SpinnerBounce    -- ^ Bouncing dots: ⠁ ⠂ ⠄ ⠂
+  deriving (Show, Eq)
+
+-- | Get animation frames for a spinner style
+spinnerFrames :: SpinnerStyle -> [String]
+spinnerFrames SpinnerDots   = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+spinnerFrames SpinnerLine   = ["|", "/", "-", "\\"]
+spinnerFrames SpinnerClock  = ["🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛"]
+spinnerFrames SpinnerBounce = ["⠁", "⠂", "⠄", "⠂"]
+
+-- | Spinner animation element
+data Spinner = Spinner String Int SpinnerStyle  -- label, frame, style
+
+instance Element Spinner where
+  renderElement (Spinner label frame style) =
+    let frames = spinnerFrames style
+        spinChar = frames !! (frame `mod` length frames)
+    in if null label
+       then spinChar
+       else spinChar ++ " " ++ label
+
+-- | Create an animated spinner
+--
+-- Example usage:
+-- @
+-- spinner "Loading" 5 SpinnerDots   -- Shows the 5th frame of dots spinner
+-- spinner "Processing" 0 SpinnerLine  -- Shows first frame with label
+-- @
+--
+-- Increment the frame number each render to animate:
+-- @
+-- layout [spinner "Working" (tickCount `mod` 10) SpinnerDots]
+-- @
+spinner :: String -> Int -> SpinnerStyle -> L
+spinner label frame style = L (Spinner label frame style)
+
+-- ============================================================================
+-- TUI Runtime - Simple event loop for interactive terminal applications
+-- ============================================================================
+
+-- | Keyboard input representation
+data Key
+  = CharKey Char           -- ^ Regular character keys: 'a', '1', ' ', etc.
+  | EnterKey               -- ^ Enter/Return key
+  | BackspaceKey           -- ^ Backspace key
+  | TabKey                 -- ^ Tab key
+  | EscapeKey              -- ^ Escape key
+  | DeleteKey              -- ^ Delete key
+  | ArrowUpKey             -- ^ Up arrow
+  | ArrowDownKey           -- ^ Down arrow
+  | ArrowLeftKey           -- ^ Left arrow
+  | ArrowRightKey          -- ^ Right arrow
+  | SpecialKey String      -- ^ Ctrl+X, etc.
+  deriving (Show, Eq)
+
+-- | Commands - side effects to perform (currently just a placeholder)
+data Cmd msg = None deriving (Show, Eq)
+
+-- | Subscriptions - event sources your app listens to
+data Sub msg 
+  = SubNone                                    -- ^ No subscriptions
+  | SubKeyPress (Key -> Maybe msg)             -- ^ Subscribe to keyboard input
+  | SubTick msg                                -- ^ Subscribe to periodic ticks (~100ms)
+  | SubBatch [Sub msg]                         -- ^ Combine multiple subscriptions
+
+-- | Combine multiple subscriptions
+batch :: [Sub msg] -> Sub msg
+batch = SubBatch
+
+-- | Subscribe to keyboard events
+onKeyPress :: (Key -> Maybe msg) -> Sub msg
+onKeyPress = SubKeyPress
+
+-- | Subscribe to periodic ticks for animations
+onTick :: msg -> Sub msg
+onTick = SubTick
+
+-- | The core application structure - Elm Architecture style
+--
+-- Build interactive TUI apps by defining:
+--   * Initial state and startup commands
+--   * How to update state based on messages
+--   * What events to subscribe to
+--   * How to render state to UI
+--
+-- Example:
+-- @
+-- data CounterMsg = Inc | Dec
+--
+-- counterApp :: LayoutzApp Int CounterMsg
+-- counterApp = LayoutzApp
+--   { appInit = (0, None)
+--   , appUpdate = \\msg count -> case msg of
+--       Inc -> (count + 1, None)
+--       Dec -> (count - 1, None)
+--   , appSubscriptions = \\_ -> onKeyPress $ \\key -> case key of
+--       CharKey '+' -> Just Inc
+--       CharKey '-' -> Just Dec
+--       _           -> Nothing
+--   , appView = \\count -> layout [text $ "Count: " <> show count]
+--   }
+-- @
+data LayoutzApp state msg = LayoutzApp
+  { appInit          :: (state, Cmd msg)                 -- ^ Initial state and startup commands
+  , appUpdate        :: msg -> state -> (state, Cmd msg) -- ^ Update state with message, return new state and commands
+  , appSubscriptions :: state -> Sub msg                 -- ^ Declare event subscriptions based on current state
+  , appView          :: state -> L                       -- ^ Render state to UI
+  }
+
+-- | Run an interactive TUI application
+--
+-- This function:
+--   * Sets up raw terminal mode (no echo, no buffering)
+--   * Clears screen and hides cursor
+--   * Renders initial view
+--   * Enters event loop that:
+--       - Listens to subscribed events (keyboard, ticks, etc.)
+--       - Dispatches messages to update function
+--       - Updates state and re-renders
+--   * Restores terminal on exit (ESC, Ctrl+C, or Ctrl+D)
+--
+-- Press ESC, Ctrl+C, or Ctrl+D to quit the application.
+runApp :: LayoutzApp state msg -> IO ()
+runApp LayoutzApp{..} = do
+  oldBuffering <- hGetBuffering stdin
+  oldEcho <- hGetEcho stdin
+  
+  hSetBuffering stdin NoBuffering
+  hSetBuffering stdout NoBuffering
+  hSetEcho stdin False
+  
+  enterAltScreen
+  clearScreen
+  hideCursor
+  
+  let (initialState, _initialCmd) = appInit
+  
+  stateRef <- newIORef initialState
+  lastRendered <- newIORef ""
+  
+  renderThread <- forkIO $ forever $ do
+    state <- readIORef stateRef
+    let rendered = render (appView state)
+    lastRender <- readIORef lastRendered
+    
+    when (rendered /= lastRender) $ do
+      putStr $ "\ESC[H\ESC[J" ++ rendered
+      hFlush stdout
+      writeIORef lastRendered rendered
+    
+    threadDelay 33333
+  
+  let hasTick sub = case sub of
+        SubTick _ -> True
+        SubBatch subs -> any hasTick subs
+        _ -> False
+      
+      getKeyHandler sub = case sub of
+        SubKeyPress handler -> Just handler
+        SubBatch subs -> case [h | SubKeyPress h <- subs] of
+          (h:_) -> Just h
+          [] -> Nothing
+        _ -> Nothing
+      
+      getTickMsg sub = case sub of
+        SubTick msg -> Just msg
+        SubBatch subs -> case [msg | SubTick msg <- subs] of
+          (msg:_) -> Just msg
+          [] -> Nothing
+        _ -> Nothing
+  
+  let inputLoop = do
+        state <- readIORef stateRef
+        let subs = appSubscriptions state
+            hasTickSub = hasTick subs
+            keyHandler = getKeyHandler subs
+            tickMsg = getTickMsg subs
+        
+        maybeKey <- if hasTickSub 
+                    then timeout 100000 readKey
+                    else Just <$> readKey
+        
+        case maybeKey of
+          Nothing -> do
+            case tickMsg of
+              Just msg -> do
+                atomicModifyIORef' stateRef $ \s -> let (newState, _cmd) = appUpdate msg s in (newState, ())
+                inputLoop
+              Nothing -> inputLoop
+          
+          Just key -> case key of
+            EscapeKey           -> killThread renderThread >> cleanup oldBuffering oldEcho
+            SpecialKey "Ctrl+C" -> killThread renderThread >> cleanup oldBuffering oldEcho
+            SpecialKey "Ctrl+D" -> killThread renderThread >> cleanup oldBuffering oldEcho
+            
+            _ -> case keyHandler of
+              Just handler -> case handler key of
+                Just msg -> do
+                  atomicModifyIORef' stateRef $ \s -> let (newState, _cmd) = appUpdate msg s in (newState, ())
+                  inputLoop
+                Nothing -> inputLoop
+              Nothing -> inputLoop
+  
+  inputLoop `catch` \ex -> case ex of
+    UserInterrupt -> killThread renderThread >> cleanup oldBuffering oldEcho
+    _             -> killThread renderThread >> cleanup oldBuffering oldEcho
+
+-- | Clean up terminal and exit
+cleanup :: BufferMode -> Bool -> IO ()
+cleanup oldBuffering oldEcho = do
+  showCursor
+  exitAltScreen
+  hFlush stdout
+  hSetBuffering stdin oldBuffering
+  hSetEcho stdin oldEcho
+  exitSuccess
+
+-- | Clear the screen and move cursor to top-left
+clearScreen :: IO ()
+clearScreen = putStr "\ESC[2J\ESC[H"
+
+-- | Clear scrollback buffer (terminal history)
+clearScrollback :: IO ()
+clearScrollback = putStr "\ESC[3J"
+
+-- | Hide the terminal cursor
+hideCursor :: IO ()
+hideCursor = putStr "\ESC[?25l"
+
+-- | Show the terminal cursor
+showCursor :: IO ()
+showCursor = putStr "\ESC[?25h"
+
+-- | Enter alternate screen buffer (like vim/less use)
+enterAltScreen :: IO ()
+enterAltScreen = putStr "\ESC[?1049h"
+
+-- | Exit alternate screen buffer
+exitAltScreen :: IO ()
+exitAltScreen = putStr "\ESC[?1049l"
+
+-- | Read a single key from stdin and parse it
+readKey :: IO Key
+readKey = do
+  c <- getChar
+  case ord c of
+    10  -> return EnterKey         -- LF (Unix)
+    13  -> return EnterKey         -- CR (Windows/Mac)
+    27  -> readEscapeSequence      -- ESC - might be arrow key
+    9   -> return TabKey
+    127 -> return BackspaceKey     -- DEL (often used as backspace)
+    8   -> return BackspaceKey     -- BS
+    n | n >= 32 && n <= 126 -> return $ CharKey (chr n)  -- Printable ASCII
+      | n < 32 -> return $ SpecialKey ("Ctrl+" ++ [chr (n + 64)])  -- Ctrl+Key
+      | otherwise -> return $ CharKey (chr n)
+
+-- | Read escape sequence for arrow keys and other special keys
+-- Uses a small timeout to distinguish between ESC key and ESC sequences
+readEscapeSequence :: IO Key
+readEscapeSequence = do
+  -- Try to read next character with 50ms timeout
+  -- If timeout, it's just ESC key; if character arrives, it's an escape sequence
+  maybeChar <- timeout 50000 getChar  -- 50000 microseconds = 50ms
+  case maybeChar of
+    Nothing -> return EscapeKey  -- Timeout - just ESC key pressed
+    Just '[' -> do
+      -- It's an escape sequence, read the command character
+      c2 <- getChar
+      case c2 of
+        'A' -> return ArrowUpKey
+        'B' -> return ArrowDownKey
+        'C' -> return ArrowRightKey
+        'D' -> return ArrowLeftKey
+        '3' -> do
+          c3 <- getChar  -- Read the '~'
+          if c3 == '~'
+            then return DeleteKey
+            else return EscapeKey
+        _ -> return EscapeKey
+    Just _ -> return EscapeKey  -- Some other character after ESC
 

@@ -33,6 +33,39 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
 
+executable counter-demo
+  main-is:             CounterDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      .
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable simple-game
+  main-is:             SimpleGame.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      .
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable spinner-demo
+  main-is:             SpinnerDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      .
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable task-list-demo
+  main-is:             TaskListDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+                     , containers
+  hs-source-dirs:      .
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
 test-suite layoutz-tests
   type:                exitcode-stdio-1.0
   main-is:             Test.hs
