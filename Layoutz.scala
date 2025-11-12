@@ -141,6 +141,9 @@ package object layoutz {
     /** Apply a style to this element */
     final def style(s: Style): Styled = Styled(s, this)
 
+    /** Print this element to stdout */
+    final def putStrLn: Unit = println(render)
+
   }
 
   private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
@@ -222,11 +225,44 @@ package object layoutz {
     case object BrightMagenta extends Color { val code = "95" }
     case object BrightCyan extends Color { val code = "96" }
     case object BrightWhite extends Color { val code = "97" }
+
+    /* 256-color palette (0-255) */
+    final case class Full(colorCode: Int) extends Color {
+      val code = s"38;5;$colorCode"
+    }
+
+    /* 24-bit true color (RGB) */
+    final case class True(r: Int, g: Int, b: Int) extends Color {
+      val code = s"38;2;$r;$g;$b"
+    }
   }
 
   /** ANSI text styles (bold, italic, etc.) */
   sealed trait Style {
     def code: String
+
+    /** Combine with another style */
+    def ++(other: Style): CombinedStyle = CombinedStyle(this, other)
+  }
+
+  /** Combined style that applies multiple styles */
+  final case class CombinedStyle(first: Style, second: Style) extends Style {
+    def code: String = first.code // Not used directly, but kept for interface
+
+    override def ++(other: Style): CombinedStyle = CombinedStyle(this, other)
+
+    /** Flatten all styles in this combined style */
+    def flatten: List[Style] = {
+      val firstStyles = first match {
+        case c: CombinedStyle => c.flatten
+        case s                => List(s)
+      }
+      val secondStyles = second match {
+        case c: CombinedStyle => c.flatten
+        case s                => List(s)
+      }
+      firstStyles ++ secondStyles
+    }
   }
 
   object Style {
@@ -269,7 +305,19 @@ package object layoutz {
     def render: String = {
       val rendered = element.render
       val lines = rendered.split('\n')
-      lines.map(line => wrapStyle(style, line)).mkString("\n")
+
+      style match {
+        case combined: CombinedStyle =>
+          // Flatten and apply all styles by nesting them
+          val styles = combined.flatten
+          lines
+            .map { line =>
+              styles.foldLeft(line) { (acc, s) => wrapStyle(s, acc) }
+            }
+            .mkString("\n")
+        case _ =>
+          lines.map(line => wrapStyle(style, line)).mkString("\n")
+      }
     }
   }
 
@@ -701,7 +749,7 @@ package object layoutz {
   final case class Table(
       headers: Seq[Element],
       rows: Seq[Seq[Element]],
-      style: Border = Border.Single
+      borderStyle: Border = Border.Single
   ) extends Element {
 
     def render: String = {
@@ -715,19 +763,19 @@ package object layoutz {
       val allRowLines = headerLines +: rowLines
 
       val columnWidths = calculateColumnWidths(allRowLines)
-      val borders = TableBorders(columnWidths, style)
+      val borders = TableBorders(columnWidths, borderStyle)
 
       val headerRowHeight = headerLines.map(_.length).max
       val headerRows = buildMultilineTableRows(
         headerLines,
         columnWidths,
         headerRowHeight,
-        style
+        borderStyle
       )
 
       val dataRows = rowLines.flatMap { row =>
         val rowHeight = row.map(_.length).max
-        buildMultilineTableRows(row, columnWidths, rowHeight, style)
+        buildMultilineTableRows(row, columnWidths, rowHeight, borderStyle)
       }
 
       (Seq(borders.top) ++ headerRows ++ Seq(
@@ -855,7 +903,7 @@ package object layoutz {
   final case class StatusCard(
       label: Element,
       content: Element,
-      style: Border = Border.Single
+      borderStyle: Border = Border.Single
   ) extends Element {
 
     def render: String = {
@@ -872,7 +920,7 @@ package object layoutz {
       val contentWidth = maxTextLength + Dimensions.MIN_CONTENT_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        style.chars
+        borderStyle.chars
 
       val topBorder =
         topLeft + horizontal * (contentWidth + 2) + topRight
@@ -1078,7 +1126,7 @@ package object layoutz {
   }
 
   /** Banner - decorative text in a box */
-  final case class Banner(content: Element, style: Border = Border.Double)
+  final case class Banner(content: Element, borderStyle: Border = Border.Double)
       extends Element {
 
     def render: String = {
@@ -1090,7 +1138,7 @@ package object layoutz {
       val totalWidth = maxWidth + Dimensions.BOX_INNER_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        style.chars
+        borderStyle.chars
 
       val top =
         topLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + topRight
@@ -1176,23 +1224,63 @@ package object layoutz {
 
     implicit val tableBorder: HasBorder[Table] = new HasBorder[Table] {
       def setBorder(element: Table, newStyle: Border): Table =
-        element.copy(style = newStyle)
+        element.copy(borderStyle = newStyle)
     }
 
     implicit val statusCardBorder: HasBorder[StatusCard] =
       new HasBorder[StatusCard] {
         def setBorder(element: StatusCard, newStyle: Border): StatusCard =
-          element.copy(style = newStyle)
+          element.copy(borderStyle = newStyle)
       }
 
     implicit val boxBorder: HasBorder[Box] = new HasBorder[Box] {
       def setBorder(element: Box, newStyle: Border): Box =
-        element.copy(style = newStyle)
+        element.copy(borderStyle = newStyle)
     }
 
     implicit val bannerBorder: HasBorder[Banner] = new HasBorder[Banner] {
       def setBorder(element: Banner, newStyle: Border): Banner =
-        element.copy(style = newStyle)
+        element.copy(borderStyle = newStyle)
+    }
+
+    implicit val styledBorder: HasBorder[Styled] = new HasBorder[Styled] {
+      def setBorder(element: Styled, newStyle: Border): Styled = {
+        element.element match {
+          case t: Table =>
+            element.copy(element = tableBorder.setBorder(t, newStyle))
+          case sc: StatusCard =>
+            element.copy(element = statusCardBorder.setBorder(sc, newStyle))
+          case b: Box =>
+            element.copy(element = boxBorder.setBorder(b, newStyle))
+          case bn: Banner =>
+            element.copy(element = bannerBorder.setBorder(bn, newStyle))
+          case s: Styled =>
+            element.copy(element = styledBorder.setBorder(s, newStyle))
+          case c: Colored =>
+            element.copy(element = coloredBorder.setBorder(c, newStyle))
+          case _ => element
+        }
+      }
+    }
+
+    implicit val coloredBorder: HasBorder[Colored] = new HasBorder[Colored] {
+      def setBorder(element: Colored, newStyle: Border): Colored = {
+        element.element match {
+          case t: Table =>
+            element.copy(element = tableBorder.setBorder(t, newStyle))
+          case sc: StatusCard =>
+            element.copy(element = statusCardBorder.setBorder(sc, newStyle))
+          case b: Box =>
+            element.copy(element = boxBorder.setBorder(b, newStyle))
+          case bn: Banner =>
+            element.copy(element = bannerBorder.setBorder(bn, newStyle))
+          case s: Styled =>
+            element.copy(element = styledBorder.setBorder(s, newStyle))
+          case c: Colored =>
+            element.copy(element = coloredBorder.setBorder(c, newStyle))
+          case _ => element
+        }
+      }
     }
   }
 
@@ -1205,7 +1293,7 @@ package object layoutz {
   final case class Box(
       title: String = "",
       elements: Seq[Element],
-      style: Border = Border.Single
+      borderStyle: Border = Border.Single
   ) extends Element {
 
     def render: String = {
@@ -1222,7 +1310,7 @@ package object layoutz {
       val totalWidth = innerWidth + Dimensions.BOX_INNER_PADDING
 
       val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        style.chars
+        borderStyle.chars
 
       val topBorder = if (title.nonEmpty) {
         val titlePadding =
@@ -1496,6 +1584,25 @@ package object layoutz {
     */
   def row(elements: Element*): Row = Row(elements)
 
+  /** Tight row - concatenates elements horizontally without spacing */
+  def tightRow(elements: Element*): Element = new Element {
+    def render: String = {
+      if (elements.isEmpty) return ""
+      val renderedElements = elements.map(_.render.split('\n'))
+      val maxHeight = renderedElements.map(_.length).max
+
+      (0 until maxHeight)
+        .map { lineIndex =>
+          renderedElements
+            .map { lines =>
+              if (lineIndex < lines.length) lines(lineIndex) else ""
+            }
+            .mkString("")
+        }
+        .mkString("\n")
+    }
+  }
+
   /** Tree builder that can act as both leaf and branch creator */
   case class TreeBuilder(name: String) extends TreeNode {
     def apply(children: TreeNode*): TreeBranch = TreeBranch(name, children)
@@ -1741,19 +1848,6 @@ package object layoutz {
     * style(Style.Italic)("Emphasis")
     */
   def style(s: Style)(element: Element): Styled = Styled(s, element)
-
-  /** Apply a color to an element (deprecated - use Color.Red(element) or
-    * element.color(Color.Red))
-    *
-    * Example usage: Color.Red("Error!") Color.Green(statusCard(Text("Status"),
-    * Text("OK"))) box("Warning")(Text("Check logs")).color(Color.BrightYellow)
-    */
-  @deprecated(
-    "Use Color.Red(element) or element.color(Color.Red) instead",
-    "0.4.0"
-  )
-  def withColor(color: Color)(element: Element): Colored =
-    Colored(color, element)
 
   /** Ordered (numbered) list */
   def ol(items: Element*): OrderedList = OrderedList(items)

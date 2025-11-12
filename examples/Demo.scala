@@ -36,7 +36,8 @@ object ReadmeDemo {
       layout(
         box("Wrapped")(
           wrap("Where there is a will ... Water x Necessaries", 20)
-        ),
+        ).style(Style.Reverse ++ Style.Bold)
+          .color(Color.BrightMagenta),
         ol("Arcole", "Austerlitz", ol("Iéna", ol("Бородино")))
       ),
       margin("[Scala!]")(

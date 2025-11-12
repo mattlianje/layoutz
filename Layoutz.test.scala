@@ -193,11 +193,11 @@ status: active"""
     val thickBox = makeThick(box()("content"))
     val thickTable = makeThick(table(Seq("X"), Seq(Seq("Y"))))
 
-    assert(thickBox.style == Border.Thick)
-    assert(thickTable.style == Border.Thick)
-    assert(myBox.style == Border.Double)
-    assert(box2.style == Border.Double)
-    assert(table2.style == Border.None)
+    assert(thickBox.borderStyle == Border.Thick)
+    assert(thickTable.borderStyle == Border.Thick)
+    assert(myBox.borderStyle == Border.Double)
+    assert(box2.borderStyle == Border.Double)
+    assert(table2.borderStyle == Border.None)
   }
 
   test("padding element") {
@@ -1572,6 +1572,38 @@ Longer line 2
     val multi = "Notice".style(Style.Bold).style(Style.Italic).render
     assert(multi.contains("\u001b[1m"))
     assert(multi.contains("\u001b[3m"))
+  }
+
+  test("style concatenation with ++") {
+    val concat = "Text".style(Style.Bold ++ Style.Italic).render
+    assert(concat.contains("\u001b[1m"))
+    assert(concat.contains("\u001b[3m"))
+
+    val triple =
+      "More".style(Style.Bold ++ Style.Italic ++ Style.Underline).render
+    assert(triple.contains("\u001b[1m"))
+    assert(triple.contains("\u001b[3m"))
+    assert(triple.contains("\u001b[4m"))
+  }
+
+  test("extended colors") {
+    val full = "Test".color(Color.Full(196)).render
+    assert(full.contains("38;5;196"))
+
+    val trueColor = "RGB".color(Color.True(255, 128, 0)).render
+    assert(trueColor.contains("38;2;255;128;0"))
+  }
+
+  test("tightRow") {
+    val tight = tightRow("A".color(Color.Red), "B".color(Color.Green), "C")
+    assert(tight.render == "\u001b[31mA\u001b[0m\u001b[32mB\u001b[0mC")
+  }
+
+  test("border after style") {
+    val t = table(Seq("A", "B"), Seq(Seq("1", "2")))
+    val styled = t.style(Style.Bold).border(Border.Thick)
+    assert(styled.render.contains("┏"))
+    assert(styled.render.contains("\u001b[1m"))
   }
 
 }

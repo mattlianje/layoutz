@@ -390,6 +390,20 @@ Color.Red("Error!")
 - `BrightBlack` `BrightRed` `BrightGreen` `BrightYellow` `BrightBlue` `BrightMagenta` `BrightCyan` `BrightWhite`
 - `NoColor` *(for conditional formatting)*
 
+**Extended colors:**
+- `Color.Full(n)` - 256-color palette (0-255)
+- `Color.True(r, g, b)` - 24-bit RGB true color
+
+```scala
+// 256-color palette gradient
+val gradient = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
+
+// RGB true color gradient
+val rgbGradient = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
+
+layout(gradient, rgbGradient).putStrLn
+```
+
 ### Styles: `Style`
 ANSI styles are added the same way with `.style` and `Style.<...>`
 ```scala
@@ -402,6 +416,20 @@ ANSI styles are added the same way with `.style` and `Style.<...>`
 - `Bold` `Dim` `Italic` `Underline`
 - `Blink` `Reverse` `Hidden` `Strikethrough`
 - `NoStyle` *(for conditional formatting)*
+
+**Combining styles:**
+Use `++` to combine multiple styles at once:
+```scala
+"Fancy!".style(Style.Bold ++ Style.Italic ++ Style.Underline)
+table(headers, rows).border(Border.Thick).style(Style.Bold ++ Style.Reverse)
+```
+
+**Quick printing:**
+Use `.putStrLn` to render and print in one call:
+```scala
+layout("Hello", "World").putStrLn
+box("Status", "All systems operational").style(Style.Bold).putStrLn
+```
 
 ### Create your Custom Elements
 
