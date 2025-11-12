@@ -436,7 +436,7 @@ ANSI styles are added the same way with `.style` and `Style.<...>`
 Use `++` to combine multiple styles at once:
 ```scala
 "Fancy!".style(Style.Bold ++ Style.Italic ++ Style.Underline)
-table(headers, rows).border(Border.Thick).style(Style.Bold ++ Style.Reverse)
+table(<???>).border(Border.Thick).style(Style.Bold ++ Style.Reverse)
 ```
 
 <p align="center">
