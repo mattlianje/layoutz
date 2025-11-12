@@ -8,6 +8,29 @@
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
 (Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs))
 
+## Table of Contents
+- [Features](#features)
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Why layoutz?](#why-layoutz)
+- [Core Concepts](#core-concepts)
+- [Fluent API](#fluent-api)
+- [Elements](#elements)
+  - [Text, Sections, Layouts & Rows](#text-text)
+  - [Lists, Tables & Trees](#ordered-lists-ol)
+  - [Boxes, Cards & Borders](#box-box)
+  - [Progress Bars & Spinners](#progress-bar-inlinebar)
+  - [Charts & Formatting](#chart-chart)
+  - [Colors & Styles](#colors-color)
+  - [Custom Elements](#create-your-custom-elements)
+- [Text Formatting & Layout](#text-formatting--layout)
+- [Working with Collections](#working-with-collections)
+- [Interactive Apps](#interactive-apps)
+  - [LayoutzApp Architecture](#layoutzappstate-message)
+  - [Subscriptions & Commands](#subscriptions)
+  - [Examples](#complex-example)
+- [Inspiration](#inspiration)
+
 ## Features
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements

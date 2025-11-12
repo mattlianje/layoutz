@@ -24,7 +24,7 @@ module Layoutz
   , br
     -- * Layout Functions  
   , center, center'
-  , row
+  , row, tightRow
   , underline, underline', underlineColored
   , alignLeft, alignRight, alignCenter, justify, wrap
     -- * Containers
@@ -257,6 +257,8 @@ data Color = ColorNoColor | ColorBlack | ColorRed | ColorGreen | ColorYellow
            | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
            | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow 
            | ColorBrightBlue | ColorBrightMagenta | ColorBrightCyan | ColorBrightWhite
+           | ColorFull Int           -- ^ 256-color palette (0-255)
+           | ColorTrue Int Int Int   -- ^ 24-bit RGB true color (r, g, b)
   deriving (Show, Eq)
 
 -- | Get ANSI foreground color code
@@ -278,6 +280,10 @@ colorCode ColorBrightBlue    = "94"
 colorCode ColorBrightMagenta = "95"
 colorCode ColorBrightCyan    = "96"
 colorCode ColorBrightWhite   = "97"
+colorCode (ColorFull n)      = "38;5;" ++ show (clamp 0 255 n)
+  where clamp min' max' val = max min' (min max' val)
+colorCode (ColorTrue r g b)  = "38;2;" ++ show (clamp 0 255 r) ++ ";" ++ show (clamp 0 255 g) ++ ";" ++ show (clamp 0 255 b)
+  where clamp min' max' val = max min' (min max' val)
 
 -- | Wrap text with ANSI color codes
 wrapAnsi :: Color -> String -> String
@@ -288,7 +294,20 @@ wrapAnsi color str
 -- Style support with ANSI codes
 data Style = StyleNoStyle | StyleBold | StyleDim | StyleItalic | StyleUnderline
            | StyleBlink | StyleReverse | StyleHidden | StyleStrikethrough
+           | StyleCombined [Style]  -- ^ Combine multiple styles
   deriving (Show, Eq)
+
+-- | Combine styles using ++
+instance Semigroup Style where
+  StyleNoStyle <> other = other
+  other <> StyleNoStyle = other
+  StyleCombined styles1 <> StyleCombined styles2 = StyleCombined (styles1 ++ styles2)
+  StyleCombined styles <> style = StyleCombined (styles ++ [style])
+  style <> StyleCombined styles = StyleCombined (style : styles)
+  style1 <> style2 = StyleCombined [style1, style2]
+
+instance Monoid Style where
+  mempty = StyleNoStyle
 
 -- | Get ANSI style code
 styleCode :: Style -> String
@@ -301,6 +320,9 @@ styleCode StyleBlink         = "5"
 styleCode StyleReverse       = "7"
 styleCode StyleHidden        = "8"
 styleCode StyleStrikethrough = "9"
+styleCode (StyleCombined styles) = 
+  let codes = filter (not . null) (map styleCode styles)
+  in if null codes then "" else intercalate ";" codes
 
 -- | Wrap text with ANSI style codes
 wrapStyle :: Style -> String -> String
@@ -366,12 +388,13 @@ instance Element Underlined where
           Just color -> wrapAnsi color underlinePart
     in content ++ "\n" ++ coloredUnderline
 
-data Row = Row [L]
+data Row = Row [L] Bool  -- elements, tight (no spacing)
 instance Element Row where  
-  renderElement (Row elements) 
+  renderElement (Row elements tight) 
     | null elements = ""
-    | otherwise = intercalate "\n" $ map (intercalate " ") (transpose paddedElements)
+    | otherwise = intercalate "\n" $ map (intercalate separator) (transpose paddedElements)
     where
+      separator = if tight then "" else " "
       elementStrings = map render elements
       elementLines = map lines elementStrings
       maxHeight = maximum (map length elementLines)
@@ -660,12 +683,12 @@ newtype OrderedList = OrderedList [L]
 instance Element OrderedList where
   renderElement (OrderedList items) = renderAtLevel 1 0 items
     where
-      renderAtLevel startNum level itemList = 
+      renderAtLevel startNum level itemList =
         let indent = replicate (level * 2) ' '
             numbered = zip [startNum..] itemList
         in intercalate "\n" $ map (renderItem level indent) numbered
       
-      renderItem level indent (num, item) = 
+      renderItem level indent (num, item) =
         if isOrderedList item
         then renderAtLevel 1 (level + 1) (getOrderedListItems item)
         else
@@ -674,7 +697,7 @@ instance Element OrderedList where
               contentLines = lines content
           in case contentLines of
             [singleLine] -> indent ++ numStr ++ singleLine
-            (firstLine:restLines) -> 
+            (firstLine:restLines) ->
               let firstOutput = indent ++ numStr ++ firstLine
                   restIndent = replicate (length numStr) ' '
                   restOutput = map ((indent ++ restIndent) ++) restLines
@@ -682,7 +705,7 @@ instance Element OrderedList where
             [] -> indent ++ numStr
       
       formatNumber :: Int -> Int -> String
-      formatNumber level num = 
+      formatNumber level num =
         case level `mod` 3 of
           0 -> show num                    -- 1, 2, 3
           1 -> [toEnum (96 + num)]        -- a, b, c
@@ -743,7 +766,7 @@ underline' :: Element a => String -> a -> L
 underline' char element = L (Underlined (render element) char Nothing)
 
 -- | Add colored underline with custom character and color
--- 
+--
 -- Example usage:
 --   underlineColored "=" ColorRed $ text "Error Section"
 --   underlineColored "~" ColorGreen $ text "Success"
@@ -767,7 +790,11 @@ layout :: [L] -> L
 layout elements = L (Layout elements)
 
 row :: [L] -> L  
-row elements = L (Row elements)
+row elements = L (Row elements False)
+
+-- | Create horizontal row with no spacing between elements (for gradients, etc.)
+tightRow :: [L] -> L
+tightRow elements = L (Row elements True)
 
 -- | Align text to the left within specified width
 alignLeft :: Int -> String -> L
@@ -787,14 +814,14 @@ justify targetWidth content = L (AlignedText content targetWidth Justify)
 
 -- | Wrap text to multiple lines with specified width
 wrap :: Int -> String -> L
-wrap targetWidth content = 
+wrap targetWidth content =
   let ws = words content
       wrappedLines = wrapWords targetWidth ws
   in layout (map text wrappedLines)
   where
     wrapWords :: Int -> [String] -> [String]
     wrapWords _ [] = []
-    wrapWords maxWidth wordsList = 
+    wrapWords maxWidth wordsList =
       let (line, rest) = takeLine maxWidth wordsList
       in line : wrapWords maxWidth rest
     
@@ -884,7 +911,7 @@ withBorder :: Border -> L -> L
 withBorder = setBorder
 
 -- | Apply a color to an element
--- 
+--
 -- Example usage:
 --   withColor ColorRed $ text "Error!"
 --   withColor ColorGreen $ statusCard "Status" "OK"
@@ -893,7 +920,7 @@ withColor :: Color -> L -> L
 withColor color element = Colored color element
 
 -- | Apply a style to an element
--- 
+--
 -- Example usage:
 --   withStyle StyleBold $ text "Important!"
 --   withStyle StyleItalic $ text "Emphasis"

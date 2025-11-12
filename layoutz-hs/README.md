@@ -152,9 +152,14 @@ row
   , layout ["Right", "Column"]
   ]
 ```
+
+### Tight Row: `tightRow`
+Like `row`, but with no spacing between elements (useful for gradients and progress bars):
+```haskell
+tightRow [withColor ColorRed $ text "█", withColor ColorGreen $ text "█", withColor ColorBlue $ text "█"]
 ```
-Left   Middle Right 
-Column Column Column
+```
+███
 ```
 
 ### Text alignment: `alignLeft`, `alignRight`, `alignCenter`, `justify`
@@ -477,28 +482,93 @@ withBorder BorderNone $ box "Info" ["content"]
 
 ## Colors (ANSI Support)
 
-```haskell
-withColor ColorRed $ text "Error!"
-withColor ColorGreen $ statusCard "Status" "OK"
-underlineColored "=" ColorRed $ text "Section Title"
-```
+Add ANSI colors to any element:
 
-**Colors:**
+```haskell
+layout[
+  withColor ColorRed $ text "The quick brown fox...",
+  withColor ColorBrightCyan $ text "The quick brown fox...",
+  underlineColored "~" ColorRed $ text "The quick brown fox...",
+  margin "[INFO]" [withColor ColorCyan $ text "The quick brown fox..."]
+]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-2.png" width="700">
+</p>
+
+
+**Standard Colors:**
 - `ColorBlack` `ColorRed` `ColorGreen` `ColorYellow` `ColorBlue` `ColorMagenta` `ColorCyan` `ColorWhite`
 - `ColorBrightBlack` `ColorBrightRed` `ColorBrightGreen` `ColorBrightYellow` `ColorBrightBlue` `ColorBrightMagenta` `ColorBrightCyan` `ColorBrightWhite`
 - `ColorNoColor` *(for conditional formatting)*
 
-## Styles (ANSI Support)
+**Extended Colors:**
+- `ColorFull n` - 256-color palette (0-255)
+- `ColorTrue r g b` - 24-bit RGB true color
+
+### Color Gradients
+
+Create beautiful gradients with extended colors:
 
 ```haskell
-withStyle StyleBold $ text "Important"
-withColor ColorRed $ withStyle StyleBold $ text "Critical Error"
+let palette = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 18..231]
+    redToBlue = tightRow $ map (\i -> withColor (ColorTrue i 100 (255 - i)) $ text "█") [0, 4..255]
+    greenFade = tightRow $ map (\i -> withColor (ColorTrue 0 (255 - i) i) $ text "█") [0, 4..255]
+    rainbow = tightRow $ map colorBlock [0, 4..255]
+      where
+        colorBlock i =
+          let r = if i < 128 then i * 2 else 255
+              g = if i < 128 then 255 else (255 - i) * 2
+              b = if i > 128 then (i - 128) * 2 else 0
+          in withColor (ColorTrue r g b) $ text "█"
+
+putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-1.png" width="700">
+</p>
+
+
+## Styles (ANSI Support)
+
+Add ANSI styles to any element:
+
+```haskell
+layout[
+  withStyle StyleBold $ text "The quick brown fox...",
+  withColor ColorRed $ withStyle StyleBold $ text "The quick brown fox...",
+  withStyle StyleReverse $ withStyle StyleItalic $ text "The quick brown fox..."
+]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-1.png" width="700">
+</p>
 
 **Styles:**
 - `StyleBold` `StyleDim` `StyleItalic` `StyleUnderline`
 - `StyleBlink` `StyleReverse` `StyleHidden` `StyleStrikethrough`
 - `StyleNoStyle` *(for conditional formatting)*
+
+**Combining Styles:**
+
+Use `<>` to combine multiple styles at once:
+
+```haskell
+layout[
+  withStyle (StyleBold <> StyleItalic <> StyleUnderline) $ text "The quick brown fox...",
+  withStyle (StyleBold <> StyleReverse) $ text "The quick brown fox..."
+]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-2.png" width="700">
+</p>
+
+You can also combine colors and styles:
+
+```haskell
+withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The quick brown fox..."
+```
 
 ## Custom Components
 

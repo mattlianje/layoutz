@@ -24,8 +24,9 @@ d = layout
     , br
     , row
         [ layout
-            [ box "Wrapped"
-                [ wrap 20 "Where there is a will ... Water x Necessaries" ]
+            [ withColor ColorBrightMagenta $ withStyle (StyleReverse <> StyleBold) $ 
+                box "Wrapped"
+                    [ wrap 20 "Where there is a will ... Water x Necessaries" ]
             , ol [ "Arcole" , "Austerlitz" , ol [ "Iéna" , ol ["Бородино"] ] ] ]
         , margin "[Haskell!]"
             [ withColor ColorGreen $ box "Deploy Status"

@@ -27,6 +27,8 @@ tests = testGroup "Layoutz Tests"
   , layoutTests
   , dimensionTests
   , colorTests
+  , extendedColorTests
+  , styleTests
   ]
 
 -- Basic element tests
@@ -214,4 +216,73 @@ colorTests = testGroup "Colors"
       let underlined = render $ underlineColored "=" ColorRed $ text "Test"
           strippedLines = map stripAnsiTest (lines underlined)
       in "====" `elem` strippedLines @?= True
+  ]
+
+-- Extended color tests (256-color and RGB)
+extendedColorTests :: TestTree
+extendedColorTests = testGroup "Extended Colors"
+  [ testCase "256-color palette (ColorFull)" $
+      "\ESC[38;5;" `isInfixOf` render (withColor (ColorFull 196) $ text "Red") @?= True
+      
+  , testCase "256-color clamping max" $
+      "\ESC[38;5;255" `isInfixOf` render (withColor (ColorFull 300) $ text "Clamped") @?= True
+      
+  , testCase "256-color clamping min" $
+      "\ESC[38;5;0" `isInfixOf` render (withColor (ColorFull (-10)) $ text "Clamped") @?= True
+      
+  , testCase "RGB true color (ColorTrue)" $
+      "\ESC[38;2;" `isInfixOf` render (withColor (ColorTrue 255 100 50) $ text "RGB") @?= True
+      
+  , testCase "RGB true color full spec" $
+      "\ESC[38;2;255;100;50" `isInfixOf` render (withColor (ColorTrue 255 100 50) $ text "RGB") @?= True
+      
+  , testCase "RGB color clamping" $
+      "\ESC[38;2;255;255;0" `isInfixOf` render (withColor (ColorTrue 300 300 (-10)) $ text "Clamped") @?= True
+      
+  , testCase "tightRow renders without spaces" $
+      stripAnsiTest (render $ tightRow [withColor ColorRed $ text "A", withColor ColorGreen $ text "B"]) @?= "AB"
+      
+  , testCase "tightRow vs row spacing" $
+      let tightResult = stripAnsiTest (render $ tightRow [text "A", text "B"])
+          normalResult = render $ row [text "A", text "B"]
+      in (tightResult == "AB" && normalResult == "A B") @?= True
+  ]
+
+-- Style tests (including combining)
+styleTests :: TestTree
+styleTests = testGroup "Styles"
+  [ testCase "bold style" $
+      "\ESC[1m" `isInfixOf` render (withStyle StyleBold $ text "Bold") @?= True
+      
+  , testCase "italic style" $
+      "\ESC[3m" `isInfixOf` render (withStyle StyleItalic $ text "Italic") @?= True
+      
+  , testCase "combined styles with <>" $
+      let combined = render $ withStyle (StyleBold <> StyleItalic) $ text "Fancy"
+      in ("\ESC[1;3m" `isInfixOf` combined || "\ESC[3;1m" `isInfixOf` combined) @?= True
+      
+  , testCase "triple combined styles" $
+      let combined = render $ withStyle (StyleBold <> StyleItalic <> StyleUnderline) $ text "Very Fancy"
+          hasAll = "\ESC[" `isInfixOf` combined && "1" `isInfixOf` combined && "3" `isInfixOf` combined && "4" `isInfixOf` combined
+      in hasAll @?= True
+      
+  , testCase "style with color both work" $
+      let styled = render $ withColor ColorRed $ withStyle StyleBold $ text "Important"
+      in ("\ESC[31m" `isInfixOf` styled && "\ESC[1m" `isInfixOf` styled) @?= True
+      
+  , testCase "style maintains element width" $
+      width (withStyle StyleBold $ text "Hello") @?= 5
+      
+  , testCase "combined style maintains structure" $
+      let styled = render $ withStyle (StyleBold <> StyleReverse) $ box "Title" [text "Content"]
+          strippedLines = map stripAnsiTest (lines styled)
+      in "┌──Title──┐" `elem` strippedLines @?= True
+      
+  , testCase "wrap text at word boundaries" $
+      let wrapped = render $ wrap 10 "This is a very long text"
+          wrappedLines = lines wrapped
+      in length wrappedLines > 1 @?= True
+      
+  , testCase "wrap preserves words" $
+      "This is a" `isInfixOf` render (wrap 10 "This is a test") @?= True
   ]

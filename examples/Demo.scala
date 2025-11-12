@@ -1,28 +1,25 @@
 import layoutz._
 
 object ReadmeDemo {
-  /* Define layouts */
+
+  /** * Define layouts **
+    */
   val t = table(
     Seq("Name", "Role", "Status"),
     Seq(
       Seq("Alice", "Engineer", "Online"),
       Seq("Eve", "QA", "Away"),
-      Seq(
-        ul("Gegard", ul("Mousasi", ul("was a BAD man"))),
-        "Fighter",
-        "Nasty"
-      )
+      Seq(ul("Gegard", ul("Mousasi", ul("was a BAD man"))), "Fighter", "Nasty")
     )
   ).border(Border.Round)
 
-  /* Nest, compose, combine them */
+  /** * Nest, compose, combine them **
+    */
   val d = layout(
-    center(
-      row(
-        underlineColored("^", Color.BrightMagenta)("Layoutz").style(Style.Bold),
-        "... A Small Demo (ちいさい)"
-      )
-    ),
+    row(
+      underlineColored("^", Color.BrightMagenta)("Layoutz").style(Style.Bold),
+      "... A Small Demo (ちいさい)"
+    ).center(),
     row(
       statusCard("Users", "1.2K").color(Color.BrightBlue),
       statusCard("API", "UP").border(Border.Double).color(Color.BrightGreen),
@@ -36,8 +33,9 @@ object ReadmeDemo {
       layout(
         box("Wrapped")(
           wrap("Where there is a will ... Water x Necessaries", 20)
-        ).style(Style.Reverse ++ Style.Bold)
-          .color(Color.BrightMagenta),
+        )
+          .color(Color.BrightMagenta)
+          .style(Style.Reverse ++ Style.Bold),
         ol("Arcole", "Austerlitz", ol("Iéna", ol("Бородино")))
       ),
       margin("[Scala!]")(
@@ -56,7 +54,8 @@ object ReadmeDemo {
     )
   )
 
-  /* Get pretty strings w/ .render */
+  /** * Get pretty strings w/ .render **
+    */
   def main(args: Array[String]): Unit = {
     println(d.render)
   }
