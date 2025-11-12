@@ -568,7 +568,7 @@ textInput("Password", "", "Enter password", active = false)
 ```
 
 ### Single Choice: `SingleChoice`
-Pick one option from a list (like cue4s singleChoice):
+Pick one option from a list:
 ```scala
 SingleChoice(
   label = "How was your day?",
@@ -585,7 +585,7 @@ SingleChoice(
 ```
 
 ### Multi Choice: `MultiChoice`
-Pick multiple options from a list (like cue4s multiChoice):
+Pick multiple options from a list:
 ```scala
 MultiChoice(
   label = "Favorite colors?",
