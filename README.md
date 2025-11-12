@@ -134,11 +134,9 @@ CounterApp.run() /* call .run to start your app */
 ```scala
 layout(elem1, elem2, elem3)  /* Joins with "\n" */
 ```
-Call `.render` on an element to get a String
-
-The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
-
-Since you can extend this `Element` interface, you can create any `Element`s you can imagine... and they will compose with all the other
+- Call `.render` on an element to get a String or `.putStrLn` to render and print in one call.
+- The power comes from **uniform composition**, since everything is an `Element`, everything can be combined with everything else.
+- Since you can extend this `Element` interface, you can create any `Element`s you can imagine... and they will compose with all the other
 **layoutz** built-in `Element`s ... and don't need to rely on a [side-car component library](https://github.com/charmbracelet/bubbles).
 
 ## Fluent API
@@ -158,7 +156,7 @@ Fluent style:
 "Hello\nWorld!".underline.margin(">>")
 ```
 
-Both render:
+Both fluent and nested will render:
 ```
 >> Hello
 >> World!
@@ -395,22 +393,37 @@ Color.Red("Error!")
 - `Color.True(r, g, b)` - 24-bit RGB true color
 
 ```scala
-// 256-color palette gradient
-val gradient = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
+/* 256-color palette gradient */
+val palette = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
 
-// RGB true color gradient
-val rgbGradient = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
+/* RGB gradients */
+val redToBlue = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
+val greenFade = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(0, 255 - i, i))): _*)
+val rainbow = tightRow((0 to 255 by 8).map { i =>
+  val r = if (i < 128) i * 2 else 255
+  val g = if (i < 128) 255 else (255 - i) * 2
+  val b = if (i > 128) (i - 128) * 2 else 0
+  "█".color(Color.True(r, g, b))
+}: _*)
 
-layout(gradient, rgbGradient).putStrLn
+layout(palette, redToBlue, greenFade, rainbow).putStrLn
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="400">
+</p>
+
 
 ### Styles: `Style`
 ANSI styles are added the same way with `.style` and `Style.<...>`
 ```scala
-"Important!".style(Style.Bold)
-"Error!".color(Color.Red).style(Style.Bold)
-"Notice".style(Style.Bold).style(Style.Italic)
+"The quick brown fox...".style(Style.Bold)
+"The quick brown fox...".color(Color.Red).style(Style.Bold)
+"The quick brown fox...".style(Style.Reverse).style(Style.Italic)
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="400">
+</p>
 
 **Styles:**
 - `Bold` `Dim` `Italic` `Underline`
@@ -424,12 +437,9 @@ Use `++` to combine multiple styles at once:
 table(headers, rows).border(Border.Thick).style(Style.Bold ++ Style.Reverse)
 ```
 
-**Quick printing:**
-Use `.putStrLn` to render and print in one call:
-```scala
-layout("Hello", "World").putStrLn
-box("Status", "All systems operational").style(Style.Bold).putStrLn
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="400">
+</p>
 
 ### Create your Custom Elements
 
