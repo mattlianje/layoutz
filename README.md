@@ -376,12 +376,17 @@ Custom
 
 ### Colors: `Color`
 Just add ANSI coloring with `.color` and `Color.<...>` to see what is available
+
 ```scala
-Color.Red("Error!")
-"Status".color(Color.BrightCyan)
-"Title".underlineColored("=", Color.Red)
-"Log".marginColored("[INFO]", Color.Cyan)
+Color.Red("The quick brown fox...")
+"The quick brown fox...".color(Color.BrightCyan)
+"The quick brown fox...".underlineColored("~", Color.Red)
+"The quick brown fox...".marginColored("[INFO]", Color.Cyan)
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-2.png" width="700">
+</p>
 
 **Colors:**
 - `Black` `Red` `Green` `Yellow` `Blue` `Magenta` `Cyan` `White`
