@@ -3,7 +3,7 @@
 GITHUB_USER="mattlianje"
 ARTIFACT_NAME="layoutz"
 SCALA_VERSIONS=("2.12" "2.13" "3")
-VERSION="0.4.0"
+VERSION="0.5.0"
 BUNDLE_DIR="$HOME/maven-bundle"
 
 process_scala_version() {
