@@ -14,6 +14,7 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
 - ANSI colors and wide character support
 - Lists, trees, tables, charts, progress bars, spinners...
+- Easy creation of custom elements
 - Thread-safe, purely functional rendering
 - [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's
 
