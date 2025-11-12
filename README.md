@@ -412,7 +412,7 @@ layout(palette, redToBlue, greenFade, rainbow).putStrLn
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="400">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="700">
 </p>
 
 
@@ -424,7 +424,7 @@ ANSI styles are added the same way with `.style` and `Style.<...>`
 "The quick brown fox...".style(Style.Reverse).style(Style.Italic)
 ```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="400">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="700">
 </p>
 
 **Styles:**
@@ -440,7 +440,7 @@ table(headers, rows).border(Border.Thick).style(Style.Bold ++ Style.Reverse)
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="400">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
 </p>
 
 ### Create your Custom Elements
