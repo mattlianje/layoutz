@@ -5,8 +5,10 @@
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
-(Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs))
+Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
+Easily create new primitives, compose them into any UI you can imagine (no component-library limitations).
+
+Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
 
 ## Table of Contents
 - [Features](#features)
@@ -29,6 +31,11 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
   - [LayoutzApp Architecture](#layoutzappstate-message)
   - [Subscriptions & Commands](#subscriptions)
   - [Examples](#complex-example)
+- [Practical Examples](#practical-examples)
+  - [File viewer](#file-viewer)
+  - [API poller](#api-poller)
+  - [Multi-endpoint monitor](#multi-endpoint-monitor)
+  - [HTTP fetch on demand](#http-fetch-on-demand)
 - [Inspiration](#inspiration)
 
 ## Features
@@ -1048,7 +1055,9 @@ object SideEffectApp extends LayoutzApp[State, Msg] {
 ```
 
 ### Complex Example
-A task manager with navigation, progress tracking, and stateful emojis.
+
+<details>
+<summary>Task manager with navigation, progress tracking, and stateful emojis</summary>
 
 <p align="center">
   <img src="pix/nav-demo-edit.gif" width="600">
@@ -1163,6 +1172,7 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 
 TaskApp.run()
 ```
+</details>
 
 ### Form input example
 <details>
@@ -1228,9 +1238,7 @@ object FormApp extends LayoutzApp[FormState, Msg] {
   
   def view(state: FormState) = layout(
     textInput("Name", state.name, "Type here", state.field == 0),
-    br,
     SingleChoice("How was your day?", moods, state.mood, state.field == 1),
-    br,
     MultiChoice("Favorite letters?", options, state.letters, state.cursor, state.field == 2)
   )
 }
@@ -1238,6 +1246,209 @@ object FormApp extends LayoutzApp[FormState, Msg] {
 </details>
 
 See [FormExample.scala](examples/FormExample.scala) for a complete working example.
+
+
+## Practical Examples
+
+Small interactive TUI apps using built-in `Cmd` and `Sub` features.
+
+### File viewer
+
+<details>
+<summary>Watch and display file contents</summary>
+
+```scala
+import layoutz._
+
+case class FileState(content: String, error: Option[String])
+sealed trait Msg
+case class FileLoaded(result: Either[String, String]) extends Msg
+
+object FileViewer extends LayoutzApp[FileState, Msg] {
+  val filename = "README.md"
+  
+  def init = (FileState("Loading...", None), Cmd.file.read(filename, FileLoaded))
+  
+  def update(msg: Msg, state: FileState) = msg match {
+    case FileLoaded(Right(content)) => 
+      (state.copy(content = content.take(500), error = None), Cmd.none)
+    case FileLoaded(Left(err)) => 
+      (state.copy(error = Some(err)), Cmd.none)
+  }
+  
+  def subscriptions(state: FileState) = 
+    Sub.file.watch(filename, FileLoaded)
+  
+  def view(state: FileState) = {
+    val display = state.error match {
+      case Some(err) => Color.BrightRed(s"Error: $err")
+      case None => wrap(state.content, 60)
+    }
+    
+    layout(
+      underlineColored("=", Color.BrightMagenta)("File Viewer").style(Style.Bold),
+      kv("File" -> filename).color(Color.BrightBlue),
+      box("Content")(display).border(Border.Round),
+      "Auto-reloads on file change • q: quit".color(Color.BrightBlack)
+    )
+  }
+}
+
+FileViewer.run()
+```
+</details>
+
+### API poller
+
+<details>
+<summary>Poll API endpoint and display JSON</summary>
+
+```scala
+import layoutz._
+
+case class ApiState(response: String, lastUpdate: String, error: Option[String])
+sealed trait Msg
+case class ApiResponse(result: Either[String, String]) extends Msg
+
+object ApiPoller extends LayoutzApp[ApiState, Msg] {
+  val apiUrl = "https://api.github.com/zen"
+  
+  def init = (ApiState("Loading...", "Never", None), Cmd.none)
+  
+  def update(msg: Msg, state: ApiState) = msg match {
+    case ApiResponse(Right(data)) =>
+      val now = java.time.LocalTime.now().toString.take(8)
+      (state.copy(response = data, lastUpdate = now, error = None), Cmd.none)
+    case ApiResponse(Left(err)) =>
+      (state.copy(error = Some(err)), Cmd.none)
+  }
+  
+  def subscriptions(state: ApiState) =
+    Sub.http.poll(apiUrl, 3000, ApiResponse)
+  
+  def view(state: ApiState) = {
+    val display = state.error match {
+      case Some(err) => Color.BrightRed(s"Error: $err")
+      case None => wrap(state.response, 60).color(Color.BrightGreen)
+    }
+    
+    layout(
+      underlineColored("~", Color.BrightCyan)("API Poller").style(Style.Bold),
+      kv("Endpoint" -> apiUrl, "Last Update" -> state.lastUpdate).color(Color.BrightBlue),
+      box("Response")(display).border(Border.Round),
+      "Polls every 3s • q: quit".color(Color.BrightBlack)
+    )
+  }
+}
+
+ApiPoller.run()
+```
+</details>
+
+### Multi-endpoint monitor
+
+<details>
+<summary>Monitor multiple APIs with Sub.batch</summary>
+
+```scala
+import layoutz._
+
+case class MonitorState(
+  github: String = "...",
+  httpbin: String = "...",
+  placeholder: String = "..."
+)
+
+sealed trait Msg
+case class GithubResp(result: Either[String, String]) extends Msg
+case class HttpbinResp(result: Either[String, String]) extends Msg
+case class PlaceholderResp(result: Either[String, String]) extends Msg
+
+object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
+  def init = (MonitorState(), Cmd.none)
+  
+  def update(msg: Msg, state: MonitorState) = msg match {
+    case GithubResp(Right(data)) => (state.copy(github = data.take(20)), Cmd.none)
+    case GithubResp(Left(e)) => (state.copy(github = s"ERROR: $e"), Cmd.none)
+    case HttpbinResp(Right(_)) => (state.copy(httpbin = "UP"), Cmd.none)
+    case HttpbinResp(Left(e)) => (state.copy(httpbin = s"ERROR: $e"), Cmd.none)
+    case PlaceholderResp(Right(_)) => (state.copy(placeholder = "UP"), Cmd.none)
+    case PlaceholderResp(Left(e)) => (state.copy(placeholder = s"ERROR: $e"), Cmd.none)
+  }
+  
+  def subscriptions(state: MonitorState) = Sub.batch(
+    Sub.http.poll("https://api.github.com/zen", 4000, GithubResp),
+    Sub.http.poll("https://httpbin.org/get", 5000, HttpbinResp),
+    Sub.http.poll("https://jsonplaceholder.typicode.com/posts/1", 6000, PlaceholderResp)
+  )
+  
+  def view(state: MonitorState) = layout(
+    underlineColored("~", Color.BrightGreen)("Multi-API Monitor").style(Style.Bold),
+    br,
+    table(
+      Seq("Service", "Status"),
+      Seq(
+        Seq("GitHub", state.github),
+        Seq("HTTPBin", state.httpbin),
+        Seq("JSONPlaceholder", state.placeholder)
+      )
+    ).border(Border.Round),
+    br,
+    "Auto-polls all endpoints • q: quit".color(Color.BrightBlack)
+  )
+}
+
+MultiMonitor.run()
+```
+</details>
+
+### HTTP fetch on demand
+
+<details>
+<summary>Fetch data with Cmd.http.get</summary>
+
+```scala
+import layoutz._
+
+case class FetchState(data: String, loading: Boolean, count: Int)
+sealed trait Msg
+case object Fetch extends Msg
+case class Response(result: Either[String, String]) extends Msg
+
+object HttpFetcher extends LayoutzApp[FetchState, Msg] {
+  def init = (FetchState("Press 'f' to fetch", false, 0), Cmd.none)
+  
+  def update(msg: Msg, state: FetchState) = msg match {
+    case Fetch =>
+      (state.copy(loading = true, count = state.count + 1), 
+       Cmd.http.get("https://api.github.com/zen", Response))
+    case Response(Right(data)) =>
+      (state.copy(data = data, loading = false), Cmd.none)
+    case Response(Left(err)) =>
+      (state.copy(data = s"Error: $err", loading = false), Cmd.none)
+  }
+  
+  def subscriptions(state: FetchState) = Sub.onKeyPress {
+    case CharKey('f') => Some(Fetch)
+    case _ => None
+  }
+  
+  def view(state: FetchState) = {
+    val status: Element = if (state.loading) spinner("Fetching", state.count % 10)
+                          else Text(s"Fetched ${state.count} times")
+    
+    layout(
+      underlineColored("=", Color.BrightCyan)("HTTP Fetcher").style(Style.Bold),
+      box("Zen Quote")(wrap(state.data, 50)).border(Border.Round).color(Color.BrightGreen),
+      status,
+      "f: fetch • q: quit".color(Color.BrightBlack)
+    )
+  }
+}
+
+HttpFetcher.run()
+```
+</details>
 
 
 ## Inspiration
