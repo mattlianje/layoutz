@@ -19,9 +19,15 @@ d = layout
         , withColor ColorBrightYellow $ withBorder BorderThick $ statusCard "CPU" "23%"
         , t
         , section "Pugilists" 
-            [kv [("Kazushi", "Sakuraba"), ("Jet 李連杰", "Li"), ("Rory", "MacDonald")]]
+            [ layout
+                [ kv [("Kazushi", "Sakuraba"), ("Jet 李連杰", "Li"), ("Rory", "MacDonald")]
+                , tightRow $ map (\i -> 
+                    let r = if i < 128 then i * 2 else 255; g = if i < 128 then 255 else (255 - i) * 2
+                        b = if i > 128 then (i - 128) * 2 else 0
+                    in withColor (ColorTrue r g b) $ text "█") [0, 12..255]
+                ]
+            ]
         ]
-    , br
     , row
         [ layout
             [ withColor ColorBrightMagenta $ withStyle (StyleReverse <> StyleBold) $ 
