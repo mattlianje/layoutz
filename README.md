@@ -30,12 +30,13 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 - [Interactive Apps](#interactive-apps)
   - [LayoutzApp Architecture](#layoutzappstate-message)
   - [Subscriptions & Commands](#subscriptions)
-  - [Examples](#complex-example)
-- [Practical Examples](#practical-examples)
+- [Examples](#examples)
   - [File viewer](#file-viewer)
   - [API poller](#api-poller)
   - [Multi-endpoint monitor](#multi-endpoint-monitor)
   - [HTTP fetch on demand](#http-fetch-on-demand)
+  - [Complex task manager](#complex-task-manager)
+  - [Form input widgets](#form-input-widgets)
 - [Inspiration](#inspiration)
 
 ## Features
@@ -1054,201 +1055,7 @@ object SideEffectApp extends LayoutzApp[State, Msg] {
 }
 ```
 
-### Complex Example
-
-<details>
-<summary>Task manager with navigation, progress tracking, and stateful emojis</summary>
-
-<p align="center">
-  <img src="pix/nav-demo-edit.gif" width="600">
-</p>
-
-```scala
-import layoutz._
-
-case class TaskState(
-    tasks: List[String],
-    selected: Int,
-    isLoading: Boolean,
-    completed: Set[Int],
-    progress: Double,
-    startTime: Long,
-    spinnerFrame: Int
-)
-
-sealed trait TaskMessage
-case object MoveUp extends TaskMessage
-case object MoveDown extends TaskMessage
-case object StartTask extends TaskMessage
-case object UpdateTick extends TaskMessage
-
-object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
-  def init = (TaskState(
-    tasks = List("Process data", "Generate reports", "Backup files"),
-    selected = 0,
-    isLoading = false,
-    completed = Set.empty,
-    progress = 0.0,
-    startTime = 0,
-    spinnerFrame = 0
-  ), Cmd.none)
-
-  def update(msg: TaskMessage, state: TaskState) = msg match {
-    case MoveUp if !state.isLoading =>
-      val newSelected =
-        if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
-      (state.copy(selected = newSelected), Cmd.none)
-
-    case MoveDown if !state.isLoading =>
-      val newSelected =
-        if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
-      (state.copy(selected = newSelected), Cmd.none)
-
-    case StartTask if !state.isLoading =>
-      (state.copy(
-        isLoading = true,
-        progress = 0.0,
-        startTime = System.currentTimeMillis()
-      ), Cmd.none)
-
-    case UpdateTick if state.isLoading =>
-      val elapsed = System.currentTimeMillis() - state.startTime
-      val newProgress = math.min(1.0, elapsed / 3000.0)
-
-      val newState = if (newProgress >= 1.0) {
-        state.copy(
-          isLoading = false,
-          completed = state.completed + state.selected,
-          progress = 1.0
-        )
-      } else {
-        state.copy(progress = newProgress)
-      }
-      
-      // Also update spinner frame
-      (newState.copy(spinnerFrame = newState.spinnerFrame + 1), Cmd.none)
-
-    case UpdateTick => (state.copy(spinnerFrame = state.spinnerFrame + 1), Cmd.none)
-    case _           => (state, Cmd.none)
-  }
-
-  def subscriptions(state: TaskState) = Sub.batch(
-    Sub.time.every(100, UpdateTick),
-    Sub.onKeyPress {
-      case CharKey('w') | ArrowUpKey   => Some(MoveUp)
-      case CharKey('s') | ArrowDownKey => Some(MoveDown)
-      case CharKey(' ') | EnterKey     => Some(StartTask)
-      case _                           => None
-    }
-  )
-
-  def view(state: TaskState) = {
-    val taskList = state.tasks.zipWithIndex.map { case (task, index) =>
-      val emoji =
-        if (state.completed.contains(index)) "✅"
-        else if (state.isLoading && index == state.selected) "⚡"
-        else "📋"
-      val marker = if (index == state.selected) "►" else " "
-      s"$marker $emoji $task"
-    }
-
-    val status = if (state.isLoading) {
-      layout(
-        spinner("Processing", state.spinnerFrame),
-        inlineBar("Progress", state.progress),
-        f"${state.progress * 100}%.0f%% complete"
-      )
-    } else {
-      layout("Press SPACE to start, W/S to navigate")
-    }
-
-    layout(
-      section("Tasks")(Layout(taskList.map(Text))),
-      br,
-      section("Status")(status)
-    )
-  }
-}
-
-TaskApp.run()
-```
-</details>
-
-### Form input example
-<details>
-
-<summary>Build interactive forms with choice widgets:</summary>
-
-```scala
-import layoutz._
-
-case class FormState(
-    name: String = "",
-    mood: Int = 0,
-    letters: Set[Int] = Set.empty,
-    cursor: Int = 0,
-    field: Int = 0
-)
-
-sealed trait Msg
-case class TypeChar(c: Char) extends Msg
-case object Backspace extends Msg
-case object NextField extends Msg
-case object MoveUp extends Msg
-case object MoveDown extends Msg
-case object Toggle extends Msg
-
-object FormApp extends LayoutzApp[FormState, Msg] {
-  val moods = Seq("great", "okay", "meh")
-  val options = ('A' to 'F').map(_.toString).toSeq
-  
-  def init = (FormState(), Cmd.none)
-  
-  def update(msg: Msg, state: FormState) = msg match {
-    case TypeChar(c) if state.field == 0 => 
-      (state.copy(name = state.name + c), Cmd.none)
-    case Backspace if state.field == 0 && state.name.nonEmpty =>
-      (state.copy(name = state.name.dropRight(1)), Cmd.none)
-    case MoveUp if state.field == 1 =>
-      (state.copy(mood = (state.mood - 1 + moods.length) % moods.length), Cmd.none)
-    case MoveDown if state.field == 1 =>
-      (state.copy(mood = (state.mood + 1) % moods.length), Cmd.none)
-    case MoveUp if state.field == 2 =>
-      (state.copy(cursor = (state.cursor - 1 + options.length) % options.length), Cmd.none)
-    case MoveDown if state.field == 2 =>
-      (state.copy(cursor = (state.cursor + 1) % options.length), Cmd.none)
-    case Toggle if state.field == 2 =>
-      val newLetters = if (state.letters.contains(state.cursor))
-        state.letters - state.cursor else state.letters + state.cursor
-      (state.copy(letters = newLetters), Cmd.none)
-    case NextField =>
-      (state.copy(field = (state.field + 1) % 3), Cmd.none)
-    case _ => (state, Cmd.none)
-  }
-  
-  def subscriptions(state: FormState) = Sub.onKeyPress {
-    case CharKey(' ') if state.field == 2 => Some(Toggle)
-    case CharKey(c) if c.isLetterOrDigit || c == ' ' => Some(TypeChar(c))
-    case BackspaceKey => Some(Backspace)
-    case ArrowUpKey => Some(MoveUp)
-    case ArrowDownKey => Some(MoveDown)
-    case TabKey | EnterKey => Some(NextField)
-    case _ => None
-  }
-  
-  def view(state: FormState) = layout(
-    textInput("Name", state.name, "Type here", state.field == 0),
-    SingleChoice("How was your day?", moods, state.mood, state.field == 1),
-    MultiChoice("Favorite letters?", options, state.letters, state.cursor, state.field == 2)
-  )
-}
-```
-</details>
-
-See [FormExample.scala](examples/FormExample.scala) for a complete working example.
-
-
-## Practical Examples
+## Examples
 
 Small interactive TUI apps using built-in `Cmd` and `Sub` features.
 
@@ -1448,6 +1255,199 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
 
 HttpFetcher.run()
 ```
+</details>
+
+### Complex task manager
+
+<details>
+<summary>Task manager with navigation, progress tracking, and stateful emojis</summary>
+
+<p align="center">
+  <img src="pix/nav-demo-edit.gif" width="600">
+</p>
+
+```scala
+import layoutz._
+
+case class TaskState(
+    tasks: List[String],
+    selected: Int,
+    isLoading: Boolean,
+    completed: Set[Int],
+    progress: Double,
+    startTime: Long,
+    spinnerFrame: Int
+)
+
+sealed trait TaskMessage
+case object MoveUp extends TaskMessage
+case object MoveDown extends TaskMessage
+case object StartTask extends TaskMessage
+case object UpdateTick extends TaskMessage
+
+object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
+  def init = (TaskState(
+    tasks = List("Process data", "Generate reports", "Backup files"),
+    selected = 0,
+    isLoading = false,
+    completed = Set.empty,
+    progress = 0.0,
+    startTime = 0,
+    spinnerFrame = 0
+  ), Cmd.none)
+
+  def update(msg: TaskMessage, state: TaskState) = msg match {
+    case MoveUp if !state.isLoading =>
+      val newSelected =
+        if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
+      (state.copy(selected = newSelected), Cmd.none)
+
+    case MoveDown if !state.isLoading =>
+      val newSelected =
+        if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
+      (state.copy(selected = newSelected), Cmd.none)
+
+    case StartTask if !state.isLoading =>
+      (state.copy(
+        isLoading = true,
+        progress = 0.0,
+        startTime = System.currentTimeMillis()
+      ), Cmd.none)
+
+    case UpdateTick if state.isLoading =>
+      val elapsed = System.currentTimeMillis() - state.startTime
+      val newProgress = math.min(1.0, elapsed / 3000.0)
+
+      val newState = if (newProgress >= 1.0) {
+        state.copy(
+          isLoading = false,
+          completed = state.completed + state.selected,
+          progress = 1.0
+        )
+      } else {
+        state.copy(progress = newProgress)
+      }
+      
+      // Also update spinner frame
+      (newState.copy(spinnerFrame = newState.spinnerFrame + 1), Cmd.none)
+
+    case UpdateTick => (state.copy(spinnerFrame = state.spinnerFrame + 1), Cmd.none)
+    case _           => (state, Cmd.none)
+  }
+
+  def subscriptions(state: TaskState) = Sub.batch(
+    Sub.time.every(100, UpdateTick),
+    Sub.onKeyPress {
+      case CharKey('w') | ArrowUpKey   => Some(MoveUp)
+      case CharKey('s') | ArrowDownKey => Some(MoveDown)
+      case CharKey(' ') | EnterKey     => Some(StartTask)
+      case _                           => None
+    }
+  )
+
+  def view(state: TaskState) = {
+    val taskList = state.tasks.zipWithIndex.map { case (task, index) =>
+      val emoji =
+        if (state.completed.contains(index)) "✅"
+        else if (state.isLoading && index == state.selected) "⚡"
+        else "📋"
+      val marker = if (index == state.selected) "►" else " "
+      s"$marker $emoji $task"
+    }
+
+    val status = if (state.isLoading) {
+      layout(
+        spinner("Processing", state.spinnerFrame),
+        inlineBar("Progress", state.progress),
+        f"${state.progress * 100}%.0f%% complete"
+      )
+    } else {
+      layout("Press SPACE to start, W/S to navigate")
+    }
+
+    layout(
+      section("Tasks")(Layout(taskList.map(Text))),
+      section("Status")(status)
+    )
+  }
+}
+
+TaskApp.run()
+```
+</details>
+
+### Form input widgets
+
+<details>
+<summary>Build interactive forms with choice widgets</summary>
+
+```scala
+import layoutz._
+
+case class FormState(
+    name: String = "",
+    mood: Int = 0,
+    letters: Set[Int] = Set.empty,
+    cursor: Int = 0,
+    field: Int = 0
+)
+
+sealed trait Msg
+case class TypeChar(c: Char) extends Msg
+case object Backspace extends Msg
+case object NextField extends Msg
+case object MoveUp extends Msg
+case object MoveDown extends Msg
+case object Toggle extends Msg
+
+object FormApp extends LayoutzApp[FormState, Msg] {
+  val moods = Seq("great", "okay", "meh")
+  val options = ('A' to 'F').map(_.toString).toSeq
+  
+  def init = (FormState(), Cmd.none)
+  
+  def update(msg: Msg, state: FormState) = msg match {
+    case TypeChar(c) if state.field == 0 => 
+      (state.copy(name = state.name + c), Cmd.none)
+    case Backspace if state.field == 0 && state.name.nonEmpty =>
+      (state.copy(name = state.name.dropRight(1)), Cmd.none)
+    case MoveUp if state.field == 1 =>
+      (state.copy(mood = (state.mood - 1 + moods.length) % moods.length), Cmd.none)
+    case MoveDown if state.field == 1 =>
+      (state.copy(mood = (state.mood + 1) % moods.length), Cmd.none)
+    case MoveUp if state.field == 2 =>
+      (state.copy(cursor = (state.cursor - 1 + options.length) % options.length), Cmd.none)
+    case MoveDown if state.field == 2 =>
+      (state.copy(cursor = (state.cursor + 1) % options.length), Cmd.none)
+    case Toggle if state.field == 2 =>
+      val newLetters = if (state.letters.contains(state.cursor))
+        state.letters - state.cursor else state.letters + state.cursor
+      (state.copy(letters = newLetters), Cmd.none)
+    case NextField =>
+      (state.copy(field = (state.field + 1) % 3), Cmd.none)
+    case _ => (state, Cmd.none)
+  }
+  
+  def subscriptions(state: FormState) = Sub.onKeyPress {
+    case CharKey(' ') if state.field == 2 => Some(Toggle)
+    case CharKey(c) if c.isLetterOrDigit || c == ' ' => Some(TypeChar(c))
+    case BackspaceKey => Some(Backspace)
+    case ArrowUpKey => Some(MoveUp)
+    case ArrowDownKey => Some(MoveDown)
+    case TabKey | EnterKey => Some(NextField)
+    case _ => None
+  }
+  
+  def view(state: FormState) = layout(
+    textInput("Name", state.name, "Type here", state.field == 0),
+    SingleChoice("How was your day?", moods, state.mood, state.field == 1),
+    MultiChoice("Favorite letters?", options, state.letters, state.cursor, state.field == 2)
+  )
+}
+```
+
+See [FormExample.scala](examples/FormExample.scala) for a complete working example.
+
 </details>
 
 
