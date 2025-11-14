@@ -12,6 +12,7 @@ Build declarative and composable sections, trees, tables, dashboards for your Ha
 - Zero dependencies, use `Layoutz.hs` like a header file
 - Rich text formatting: alignment, underlines, padding, margins
 - Lists, trees, tables, charts, banners...
+- Easily create new primitives (no component-library limitations).
 
 ## Installation
 
