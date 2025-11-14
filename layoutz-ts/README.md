@@ -6,27 +6,45 @@
 
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards for your JavaScript applications.
+Declarative, composable text layouts for JavaScript and TypeScript.
 
 ## Features
 
 - Zero dependencies
-- Effortless composition of elements
-- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
-- Lists, trees, tables, charts, banners...
+- Fluent, composable API
+- Full ANSI color and styling support
+- Text styles: bold, italic, underline, and more
+- Rich text formatting: alignment, wrapping, justification, padding, truncation
+- Lists, trees, tables, charts, boxes, banners, progress bars
 
 ## Installation
 
-Install via npm:
+**Node.js / npm:**
 
 ```bash
 npm install layoutz
 ```
 
-All you need:
-
 ```typescript
 import * as L from "layoutz";
+```
+
+**Browser / CDN:**
+
+```html
+<script type="module">
+  import { layout, box, text, Color } from 'https://unpkg.com/layoutz@latest/dist/index.esm.js';
+  
+  const demo = layout(
+    box("Browser Demo")(
+      text("Works in browser").color(Color.Green),
+      text("No dependencies"),
+      text("ES modules")
+    )
+  );
+  
+  console.log(demo.render());
+</script>
 ```
 
 ## Quickstart
@@ -157,12 +175,30 @@ Third
 
 ### Row (horizontal): `row`
 
+Horizontal layout with spacing:
+
 ```typescript
 row("Left", "Middle", "Right");
 ```
 
 ```
 Left Middle Right
+```
+
+### Tight Row: `tightRow`
+
+Horizontal layout without spacing:
+
+```typescript
+tightRow(
+  text("█").color(Color.Red),
+  text("█").color(Color.Green),
+  text("█").color(Color.Blue)
+);
+```
+
+```
+███
 ```
 
 ### Columns: `columns`
@@ -329,18 +365,36 @@ Custom
 Apply ANSI colors to any element:
 
 ```typescript
-import { color, Color } from "layoutz";
+import { Color } from "layoutz";
 
 statusCard("API", "LIVE").color(Color.Green);
 box("Error")("Something failed").color(Color.Red);
-color(Color.BrightMagenta)("Important text");
+text("Important").color(Color.BrightMagenta);
 ```
 
-**Available colors:**
+**Standard colors:**
 
 - `Black` `Red` `Green` `Yellow` `Blue` `Magenta` `Cyan` `White`
 - `BrightBlack` `BrightRed` `BrightGreen` `BrightYellow` `BrightBlue` `BrightMagenta` `BrightCyan` `BrightWhite`
 - `NoColor` _(for conditional formatting)_
+
+**256-color palette:**
+
+```typescript
+import { colorFull } from "layoutz";
+
+text("Orange").color(colorFull(208));
+text("Deep blue").color(colorFull(21));
+```
+
+**True color (RGB):**
+
+```typescript
+import { colorTrue } from "layoutz";
+
+text("Custom").color(colorTrue(255, 100, 50));
+text("█").color(colorTrue(128, 200, 255));
+```
 
 **Conditional coloring:**
 
@@ -353,6 +407,7 @@ statusCard("Status", message).color(isError ? Color.Red : Color.NoColor);
 
 ```typescript
 underlineColored("^", Color.BrightMagenta)("Title");
+underlineColored("=", colorTrue(255, 0, 255))("RGB underline");
 ```
 
 ### Styles: `Style`
@@ -360,11 +415,17 @@ underlineColored("^", Color.BrightMagenta)("Title");
 Apply ANSI text styles to any element:
 
 ```typescript
-import { style, Style } from "layoutz";
+import { Style } from "layoutz";
 
-"Important!".style(Style.Bold);
-"Error!".color(Color.Red).style(Style.Bold);
-"Notice".style(Style.Bold).style(Style.Italic);
+text("Important").style(Style.Bold);
+text("Error").color(Color.Red).style(Style.Bold);
+```
+
+**Combine multiple styles:**
+
+```typescript
+text("Highlighted").styles(Style.Bold, Style.Reverse);
+box("Alert")("Critical").styles(Style.Bold, Style.Italic, Style.Underline);
 ```
 
 **Available styles:**

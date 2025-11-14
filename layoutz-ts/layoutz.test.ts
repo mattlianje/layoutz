@@ -11,6 +11,7 @@ import {
 
   // Layout
   row,
+  tightRow,
   center,
   autoCenter,
   margin,
@@ -55,6 +56,9 @@ import {
   Style,
   color,
   style,
+  styles,
+  colorFull,
+  colorTrue,
   underlineColored,
   marginColored,
 
@@ -356,6 +360,31 @@ status: active`;
     expect(rendered).toContain("78%");
   });
 
+  it("should create tight rows without spacing", () => {
+    const tightRowElement = tightRow(
+      text("A"),
+      text("B"),
+      text("C")
+    );
+
+    const rendered = tightRowElement.render();
+    expect(rendered).toBe("ABC");
+  });
+
+  it("should create tight rows with colored blocks", () => {
+    const coloredBlocks = tightRow(
+      text("█").color(Color.Red),
+      text("█").color(Color.Green),
+      text("█").color(Color.Blue)
+    );
+
+    const rendered = coloredBlocks.render();
+    expect(rendered).toContain("█");
+    expect(rendered).toContain("\x1b[31m"); // Red
+    expect(rendered).toContain("\x1b[32m"); // Green
+    expect(rendered).toContain("\x1b[34m"); // Blue
+  });
+
   // ═════════════════════════════════════════════════════════════════════════════
   // UNDERLINES & MARGINS
   // ═════════════════════════════════════════════════════════════════════════════
@@ -602,10 +631,62 @@ describe("Styles", () => {
     expect(rendered).toContain("\x1b[4m");
   });
 
+  it("should combine multiple styles with styles() function", () => {
+    const rendered = text("Hello").style(styles(Style.Bold, Style.Italic)).render();
+    expect(rendered).toContain("\x1b[1m"); // Bold
+    expect(rendered).toContain("\x1b[3m"); // Italic
+  });
+
+  it("should combine multiple styles with .styles() method", () => {
+    const rendered = text("Hello").styles(Style.Bold, Style.Italic).render();
+    expect(rendered).toContain("\x1b[1m"); // Bold
+    expect(rendered).toContain("\x1b[3m"); // Italic
+  });
+
+  it("should combine three styles with .styles()", () => {
+    const rendered = text("Hello")
+      .styles(Style.Bold, Style.Italic, Style.Underline)
+      .render();
+    expect(rendered).toContain("\x1b[1m"); // Bold
+    expect(rendered).toContain("\x1b[3m"); // Italic
+    expect(rendered).toContain("\x1b[4m"); // Underline
+  });
+
+  it("should apply styles functionally with styles()", () => {
+    const rendered = style(styles(Style.Bold, Style.Reverse))(text("Test")).render();
+    expect(rendered).toContain("\x1b[1m");
+    expect(rendered).toContain("\x1b[7m");
+  });
+
+  it("should work with combined styles on containers", () => {
+    const rendered = box("Title")(text("Content"))
+      .styles(Style.Bold, Style.Italic)
+      .render();
+    expect(rendered).toContain("\x1b[1m");
+    expect(rendered).toContain("\x1b[3m");
+  });
+
   it("should combine color and style", () => {
     const rendered = text("Hello").color(Color.Red).style(Style.Bold).render();
     expect(rendered).toContain("\x1b[1m");
     expect(rendered).toContain("\x1b[31m");
+  });
+
+  it("should combine color with multiple styles", () => {
+    const rendered = text("Hello")
+      .color(Color.Blue)
+      .styles(Style.Bold, Style.Underline)
+      .render();
+    expect(rendered).toContain("\x1b[1m");
+    expect(rendered).toContain("\x1b[4m");
+    expect(rendered).toContain("\x1b[34m");
+  });
+
+  it("should work like Scala's Style.Reverse ++ Style.Bold", () => {
+    // This is the JS/TS equivalent of Scala's: Style.Reverse ++ Style.Bold
+    const rendered = text("Scala-style").styles(Style.Reverse, Style.Bold).render();
+    expect(rendered).toContain("\x1b[7m"); // Reverse
+    expect(rendered).toContain("\x1b[1m"); // Bold
   });
 });
 
@@ -640,6 +721,149 @@ describe("Margins", () => {
       .render()
       .replace(/\x1b\[[0-9;]*m/g, "");
     expect(plain).toContain("[error]");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 256-COLOR PALETTE AND TRUE COLOR SUPPORT
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("256-color palette support", () => {
+  it("should create 256-color palette color", () => {
+    const color256 = colorFull(196); // Bright red in 256-color palette
+    expect(color256).toEqual({ type: "full", colorCode: 196 });
+  });
+
+  it("should apply 256-color palette to text", () => {
+    const rendered = text("Hello").color(colorFull(21)).render();
+    expect(rendered).toContain("\x1b[38;5;21m"); // 256-color code format
+    expect(rendered).toContain("Hello");
+    expect(rendered).toContain("\x1b[0m");
+  });
+
+  it("should apply 256-color functionally", () => {
+    const rendered = color(colorFull(220))(text("Warning")).render();
+    expect(rendered).toContain("\x1b[38;5;220m");
+    expect(rendered).toContain("Warning");
+  });
+
+  it("should apply 256-color to containers", () => {
+    const rendered = box("Title")(text("Content"))
+      .color(colorFull(99))
+      .render();
+    expect(rendered).toContain("\x1b[38;5;99m");
+  });
+
+  it("should handle 256-color in underlines", () => {
+    const lines = underlineColored("=", colorFull(160))(text("Test"))
+      .render()
+      .split("\n");
+    expect(lines[0]).toBe("Test");
+    expect(lines[1]).toContain("\x1b[38;5;160m");
+  });
+
+  it("should handle 256-color in margins", () => {
+    const rendered = marginColored("[LOG]", colorFull(27))(text("Info")).render();
+    expect(rendered).toContain("\x1b[38;5;27m");
+    expect(rendered).toContain("[LOG]");
+  });
+
+  it("should chain 256-color with style", () => {
+    const rendered = text("Bold and colored")
+      .color(colorFull(208))
+      .style(Style.Bold)
+      .render();
+    expect(rendered).toContain("\x1b[38;5;208m");
+    expect(rendered).toContain("\x1b[1m");
+  });
+});
+
+describe("True color (24-bit RGB) support", () => {
+  it("should create true color", () => {
+    const rgb = colorTrue(255, 100, 50);
+    expect(rgb).toEqual({ type: "true", r: 255, g: 100, b: 50 });
+  });
+
+  it("should apply true color to text", () => {
+    const rendered = text("Hello").color(colorTrue(255, 0, 0)).render();
+    expect(rendered).toContain("\x1b[38;2;255;0;0m"); // RGB red
+    expect(rendered).toContain("Hello");
+    expect(rendered).toContain("\x1b[0m");
+  });
+
+  it("should apply true color functionally", () => {
+    const rendered = color(colorTrue(0, 255, 0))(text("Green")).render();
+    expect(rendered).toContain("\x1b[38;2;0;255;0m");
+    expect(rendered).toContain("Green");
+  });
+
+  it("should apply true color to containers", () => {
+    const rendered = statusCard("API", "UP")
+      .color(colorTrue(100, 200, 150))
+      .render();
+    expect(rendered).toContain("\x1b[38;2;100;200;150m");
+  });
+
+  it("should handle true color in underlines", () => {
+    const lines = underlineColored("^", colorTrue(255, 0, 255))(text("Test"))
+      .render()
+      .split("\n");
+    expect(lines[0]).toBe("Test");
+    expect(lines[1]).toContain("\x1b[38;2;255;0;255m");
+  });
+
+  it("should handle true color in margins", () => {
+    const rendered = marginColored("[INFO]", colorTrue(50, 150, 250))(
+      text("Message")
+    ).render();
+    expect(rendered).toContain("\x1b[38;2;50;150;250m");
+    expect(rendered).toContain("[INFO]");
+  });
+
+  it("should chain true color with style", () => {
+    const rendered = text("Italic and colored")
+      .color(colorTrue(128, 128, 255))
+      .style(Style.Italic)
+      .render();
+    expect(rendered).toContain("\x1b[38;2;128;128;255m");
+    expect(rendered).toContain("\x1b[3m");
+  });
+
+  it("should work with gradient-like colors", () => {
+    // Test a gradient from red to blue
+    const colors = [];
+    for (let i = 0; i < 5; i++) {
+      const red = 255 - i * 51;
+      const blue = i * 51;
+      colors.push(text("█").color(colorTrue(red, 0, blue)).render());
+    }
+
+    colors.forEach((coloredBlock) => {
+      expect(coloredBlock).toContain("\x1b[38;2;");
+      expect(coloredBlock).toContain("█");
+    });
+  });
+
+  it("should override chained true colors", () => {
+    const rendered = text("Hello")
+      .color(colorTrue(255, 0, 0))
+      .color(colorTrue(0, 255, 0))
+      .render();
+    expect(rendered).toContain("\x1b[38;2;0;255;0m");
+    expect(rendered).not.toContain("\x1b[38;2;255;0;0m");
+  });
+
+  it("should work in complex layouts", () => {
+    const demo = row(
+      statusCard("Users", "1.2K").color(colorTrue(100, 150, 255)),
+      statusCard("API", "UP").color(colorTrue(100, 255, 100)),
+      statusCard("CPU", "23%").color(colorTrue(255, 200, 100))
+    );
+
+    const rendered = demo.render();
+    expect(rendered).toContain("\x1b[38;2;100;150;255m");
+    expect(rendered).toContain("\x1b[38;2;100;255;100m");
+    expect(rendered).toContain("\x1b[38;2;255;200;100m");
   });
 });
 
