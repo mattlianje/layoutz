@@ -361,11 +361,7 @@ status: active`;
   });
 
   it("should create tight rows without spacing", () => {
-    const tightRowElement = tightRow(
-      text("A"),
-      text("B"),
-      text("C")
-    );
+    const tightRowElement = tightRow(text("A"), text("B"), text("C"));
 
     const rendered = tightRowElement.render();
     expect(rendered).toBe("ABC");
@@ -632,7 +628,9 @@ describe("Styles", () => {
   });
 
   it("should combine multiple styles with styles() function", () => {
-    const rendered = text("Hello").style(styles(Style.Bold, Style.Italic)).render();
+    const rendered = text("Hello")
+      .style(styles(Style.Bold, Style.Italic))
+      .render();
     expect(rendered).toContain("\x1b[1m"); // Bold
     expect(rendered).toContain("\x1b[3m"); // Italic
   });
@@ -653,7 +651,9 @@ describe("Styles", () => {
   });
 
   it("should apply styles functionally with styles()", () => {
-    const rendered = style(styles(Style.Bold, Style.Reverse))(text("Test")).render();
+    const rendered = style(styles(Style.Bold, Style.Reverse))(
+      text("Test")
+    ).render();
     expect(rendered).toContain("\x1b[1m");
     expect(rendered).toContain("\x1b[7m");
   });
@@ -684,7 +684,9 @@ describe("Styles", () => {
 
   it("should work like Scala's Style.Reverse ++ Style.Bold", () => {
     // This is the JS/TS equivalent of Scala's: Style.Reverse ++ Style.Bold
-    const rendered = text("Scala-style").styles(Style.Reverse, Style.Bold).render();
+    const rendered = text("Scala-style")
+      .styles(Style.Reverse, Style.Bold)
+      .render();
     expect(rendered).toContain("\x1b[7m"); // Reverse
     expect(rendered).toContain("\x1b[1m"); // Bold
   });
@@ -763,7 +765,10 @@ describe("256-color palette support", () => {
   });
 
   it("should handle 256-color in margins", () => {
-    const rendered = marginColored("[LOG]", colorFull(27))(text("Info")).render();
+    const rendered = marginColored(
+      "[LOG]",
+      colorFull(27)
+    )(text("Info")).render();
     expect(rendered).toContain("\x1b[38;5;27m");
     expect(rendered).toContain("[LOG]");
   });
@@ -785,7 +790,9 @@ describe("True color (24-bit RGB) support", () => {
   });
 
   it("should apply true color to text", () => {
-    const rendered = text("Hello").color(colorTrue(255, 0, 0)).render();
+    const rendered = text("Hello")
+      .color(colorTrue(255, 0, 0))
+      .render();
     expect(rendered).toContain("\x1b[38;2;255;0;0m"); // RGB red
     expect(rendered).toContain("Hello");
     expect(rendered).toContain("\x1b[0m");
@@ -805,7 +812,10 @@ describe("True color (24-bit RGB) support", () => {
   });
 
   it("should handle true color in underlines", () => {
-    const lines = underlineColored("^", colorTrue(255, 0, 255))(text("Test"))
+    const lines = underlineColored(
+      "^",
+      colorTrue(255, 0, 255)
+    )(text("Test"))
       .render()
       .split("\n");
     expect(lines[0]).toBe("Test");
@@ -813,9 +823,10 @@ describe("True color (24-bit RGB) support", () => {
   });
 
   it("should handle true color in margins", () => {
-    const rendered = marginColored("[INFO]", colorTrue(50, 150, 250))(
-      text("Message")
-    ).render();
+    const rendered = marginColored(
+      "[INFO]",
+      colorTrue(50, 150, 250)
+    )(text("Message")).render();
     expect(rendered).toContain("\x1b[38;2;50;150;250m");
     expect(rendered).toContain("[INFO]");
   });
@@ -835,7 +846,11 @@ describe("True color (24-bit RGB) support", () => {
     for (let i = 0; i < 5; i++) {
       const red = 255 - i * 51;
       const blue = i * 51;
-      colors.push(text("█").color(colorTrue(red, 0, blue)).render());
+      colors.push(
+        text("█")
+          .color(colorTrue(red, 0, blue))
+          .render()
+      );
     }
 
     colors.forEach((coloredBlock) => {

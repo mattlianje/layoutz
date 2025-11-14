@@ -33,8 +33,13 @@ import * as L from "layoutz";
 
 ```html
 <script type="module">
-  import { layout, box, text, Color } from 'https://unpkg.com/layoutz@latest/dist/index.esm.js';
-  
+  import {
+    layout,
+    box,
+    text,
+    Color,
+  } from "https://unpkg.com/layoutz@latest/dist/index.esm.js";
+
   const demo = layout(
     box("Browser Demo")(
       text("Works in browser").color(Color.Green),
@@ -42,7 +47,7 @@ import * as L from "layoutz";
       text("ES modules")
     )
   );
-  
+
   console.log(demo.render());
 </script>
 ```
@@ -243,8 +248,8 @@ table()(
   ["Name", "Age", "City"],
   [
     ["Alice", "30", "New York"],
-    ["Bob", "25"], /* auto-padded */
-    ["Charlie", "35", "London", "Extra"], /* auto-truncated */
+    ["Bob", "25"] /* auto-padded */,
+    ["Charlie", "35", "London", "Extra"] /* auto-truncated */,
   ]
 );
 ```
@@ -361,6 +366,7 @@ text("Important").color(Color.BrightMagenta);
 ```
 
 Standard colors:
+
 - `Black` `Red` `Green` `Yellow` `Blue` `Magenta` `Cyan` `White`
 - `BrightBlack` `BrightRed` `BrightGreen` `BrightYellow` `BrightBlue` `BrightMagenta` `BrightCyan` `BrightWhite`
 - `NoColor` (for conditional formatting)

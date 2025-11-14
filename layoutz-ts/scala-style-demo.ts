@@ -39,7 +39,8 @@ const gradient = Array.from({ length: 22 }, (_, idx) => {
   const i = idx * 12;
   const r = i < 128 ? i * 2 : 255;
   const g = i < 128 ? 255 : (255 - i) * 2;
-  const b = i > 128 ? (i - 128) * 2 : 0; return text("█").color(colorTrue(r, g, b));
+  const b = i > 128 ? (i - 128) * 2 : 0;
+  return text("█").color(colorTrue(r, g, b));
 });
 /*** Nest, compose, combine them ***/
 const d = layout(
@@ -56,7 +57,11 @@ const d = layout(
     t,
     section("Pugilists")(
       layout(
-        kv(["Kazushi", "Sakuraba"], ["Jet 李連杰", "Li"], ["Rory", "MacDonald"]),
+        kv(
+          ["Kazushi", "Sakuraba"],
+          ["Jet 李連杰", "Li"],
+          ["Rory", "MacDonald"]
+        ),
         tightRow(...gradient)
       )
     )
@@ -71,12 +76,14 @@ const d = layout(
     margin("[TypeScript!]")(
       box("Deploy Status")(
         layout(
-          inlineBar("Build", 1.0), inlineBar("Test", 0.8), inlineBar("Deploy", 0.3)
+          inlineBar("Build", 1.0),
+          inlineBar("Test", 0.8),
+          inlineBar("Deploy", 0.3)
         )
       ).color(Color.Green),
-      tree("📁 Project")(
-        tree("src")(tree("main.ts"), tree("test.ts"))
-      ).color(Color.Cyan)
+      tree("📁 Project")(tree("src")(tree("main.ts"), tree("test.ts"))).color(
+        Color.Cyan
+      )
     )
   )
 );

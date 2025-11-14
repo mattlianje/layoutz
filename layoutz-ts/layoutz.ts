@@ -217,7 +217,7 @@ export class Styled implements Element {
   render(): string {
     const content = this.element.render();
     const lines = content.split("\n");
-    
+
     // Handle combined styles
     if (typeof this.styleType === "object" && "_type" in this.styleType) {
       const combined = this.styleType as CombinedStyles;
@@ -235,7 +235,7 @@ export class Styled implements Element {
         })
         .join("\n");
     }
-    
+
     // Handle single style
     const code = getStyleCode(this.styleType);
     if (!code) return content;
@@ -420,7 +420,7 @@ export type StyleType = Style | CombinedStyles;
 
 /**
  * Combine multiple styles into one - fluent alternative to Scala's ++ operator
- * 
+ *
  * @example
  * styles(Style.Bold, Style.Italic)
  * styles(Style.Bold, Style.Underline, Style.Reverse)
@@ -431,11 +431,15 @@ export function styles(...styleList: Style[]): CombinedStyles {
 
 function getStyleCode(style: StyleType): string {
   // Handle combined styles
-  if (typeof style === "object" && "_type" in style && style._type === "combined") {
+  if (
+    typeof style === "object" &&
+    "_type" in style &&
+    style._type === "combined"
+  ) {
     // Return the first style's code for now, actual application happens in wrapStyle
     return style.styles.length > 0 ? getSingleStyleCode(style.styles[0]) : "";
   }
-  
+
   return getSingleStyleCode(style as Style);
 }
 
@@ -1268,12 +1272,14 @@ export function row(...elements: (string | Element)[]): Row {
  */
 export function tightRow(...elements: (string | Element)[]): Element {
   const elementsArray = toElements(elements);
-  
+
   return {
     render(): string {
       if (elementsArray.length === 0) return "";
-      
-      const renderedElements = elementsArray.map((el) => el.render().split("\n"));
+
+      const renderedElements = elementsArray.map((el) =>
+        el.render().split("\n")
+      );
       const maxHeight = Math.max(
         ...renderedElements.map((lines) => lines.length)
       );

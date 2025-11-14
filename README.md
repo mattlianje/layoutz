@@ -32,6 +32,8 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
   - [Subscriptions & Commands](#subscriptions)
 - [Examples](#examples)
   - [File viewer](#file-viewer)
+  - [Stopwatch timer](#stopwatch-timer)
+  - [Custom side effects](#custom-side-effects)
   - [API poller](#api-poller)
   - [Multi-endpoint monitor](#multi-endpoint-monitor)
   - [HTTP fetch on demand](#http-fetch-on-demand)
@@ -1012,48 +1014,6 @@ def update(msg: Msg, state: State) = msg match {
 }
 ```
 
-### Application with custom side effects
-```scala
-import layoutz._
-
-case class State(result: String = "idle", error: String = "")
-
-sealed trait Msg
-case object RunTask extends Msg
-case class TaskDone(result: Either[String, String]) extends Msg
-
-object SideEffectApp extends LayoutzApp[State, Msg] {
-  def init = State()
-  
-  def update(msg: Msg, state: State) = msg match {
-    case RunTask =>
-      (state.copy(result = "running..."),
-       Cmd.perform(
-         () => try {
-           // Your custom logic here
-           Thread.sleep(1000)
-           Right("Task completed!")
-         } catch {
-           case ex: Exception => Left(ex.getMessage)
-         },
-         TaskDone
-       ))
-    
-    case TaskDone(Right(msg)) => state.copy(result = msg)
-    case TaskDone(Left(err)) => state.copy(error = err)
-  }
-  
-  def subscriptions(state: State) = Sub.onKeyPress {
-    case CharKey('r') => Some(RunTask)
-    case _ => None
-  }
-  
-  def view(state: State) = layout(
-    section("Custom Task")(state.result),
-    if (state.error.isEmpty) empty else layout(state.error).margin("[error]")
-  )
-}
-```
 
 ## Examples
 
@@ -1096,12 +1056,138 @@ object FileViewer extends LayoutzApp[FileState, Msg] {
       underlineColored("=", Color.BrightMagenta)("File Viewer").style(Style.Bold),
       kv("File" -> filename).color(Color.BrightBlue),
       box("Content")(display).border(Border.Round),
-      "Auto-reloads on file change • q: quit".color(Color.BrightBlack)
+      "Auto-reloads on file change".color(Color.BrightBlack)
     )
   }
 }
 
 FileViewer.run()
+```
+</details>
+
+### Stopwatch timer
+
+<details>
+<summary>Custom timer using Sub.time.every</summary>
+
+```scala
+import layoutz._
+
+case class TimerState(seconds: Int, running: Boolean)
+sealed trait Msg
+case object Tick extends Msg
+case object ToggleTimer extends Msg
+case object ResetTimer extends Msg
+
+object StopwatchApp extends LayoutzApp[TimerState, Msg] {
+  def init = (TimerState(0, false), Cmd.none)
+  
+  def update(msg: Msg, state: TimerState) = msg match {
+    case Tick => 
+      (state.copy(seconds = state.seconds + 1), Cmd.none)
+    case ToggleTimer => 
+      (state.copy(running = !state.running), Cmd.none)
+    case ResetTimer => 
+      (TimerState(0, running = false), Cmd.none)
+  }
+  
+  def subscriptions(state: TimerState) = Sub.batch(
+    if (state.running) Sub.time.every(1000, Tick) else Sub.none,
+    Sub.onKeyPress {
+      case CharKey(' ') => Some(ToggleTimer)
+      case CharKey('r') => Some(ResetTimer)
+      case _ => None
+    }
+  )
+  
+  def view(state: TimerState) = {
+    val minutes = state.seconds / 60
+    val secs = state.seconds % 60
+    val timeDisplay = f"$minutes%02d:$secs%02d"
+    
+    val statusColor = if (state.running) Color.BrightGreen else Color.BrightYellow
+    val statusText = if (state.running) "RUNNING" else "PAUSED"
+    
+    layout(
+      underlineColored("=", Color.BrightCyan)("Stopwatch").style(Style.Bold),
+      "",
+      box("Time")(
+        timeDisplay.style(Style.Bold).center(20)
+      ).color(statusColor).border(Border.Double),
+      "",
+      kv(
+        "Status" -> statusText,
+        "Elapsed" -> s"${state.seconds}s"
+      ).color(Color.BrightBlue),
+      "",
+      ul(
+        "space: start/pause",
+        "r: reset"
+      ).color(Color.BrightBlack)
+    )
+  }
+}
+
+StopwatchApp.run()
+```
+</details>
+
+### Custom side effects
+
+<details>
+<summary>Using Cmd.perform for side effects</summary>
+
+```scala
+import layoutz._
+
+case class TaskState(status: String = "idle", count: Int = 0)
+
+sealed trait Msg
+case object RunTask extends Msg
+case class TaskDone(result: Either[String, String]) extends Msg
+
+object SideEffectApp extends LayoutzApp[TaskState, Msg] {
+  def init = (TaskState(), Cmd.none)
+  
+  def update(msg: Msg, state: TaskState) = msg match {
+    case RunTask =>
+      (state.copy(status = "running..."),
+       Cmd.perform(
+         () => {
+           println("Firing missile...")
+           Thread.sleep(500)
+           if (scala.util.Random.nextDouble() < 0.3) {
+             println("Missile failed to launch")
+             Left("Launch failure")
+           } else {
+             println("Impact confirmed")
+             Right("completed")
+           }
+         },
+         TaskDone
+       ))
+    
+    case TaskDone(Right(_)) => 
+      state.copy(status = "success", count = state.count + 1)
+    
+    case TaskDone(Left(err)) =>
+      state.copy(status = s"error: $err")
+  }
+  
+  def subscriptions(state: TaskState) = Sub.onKeyPress {
+    case CharKey('r') => Some(RunTask)
+    case _ => None
+  }
+  
+  def view(state: TaskState) = layout(
+    section("Side Effect Demo")(
+      kv("Status" -> state.status, "Count" -> state.count.toString)
+    ),
+    "r: run task".color(Color.BrightBlack)
+  )
+}
+
+SideEffectApp.run()
 ```
 </details>
 
@@ -1143,7 +1229,7 @@ object ApiPoller extends LayoutzApp[ApiState, Msg] {
       underlineColored("~", Color.BrightCyan)("API Poller").style(Style.Bold),
       kv("Endpoint" -> apiUrl, "Last Update" -> state.lastUpdate).color(Color.BrightBlue),
       box("Response")(display).border(Border.Round),
-      "Polls every 3s • q: quit".color(Color.BrightBlack)
+      "Polls every 3s".color(Color.BrightBlack)
     )
   }
 }
@@ -1201,7 +1287,7 @@ object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
       )
     ).border(Border.Round),
     br,
-    "Auto-polls all endpoints • q: quit".color(Color.BrightBlack)
+    "Auto-polls all endpoints".color(Color.BrightBlack)
   )
 }
 
@@ -1248,7 +1334,7 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
       underlineColored("=", Color.BrightCyan)("HTTP Fetcher").style(Style.Bold),
       box("Zen Quote")(wrap(state.data, 50)).border(Border.Round).color(Color.BrightGreen),
       status,
-      "f: fetch • q: quit".color(Color.BrightBlack)
+      "f: fetch".color(Color.BrightBlack)
     )
   }
 }
