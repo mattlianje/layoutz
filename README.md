@@ -1068,7 +1068,7 @@ FileViewer.run()
 ### Stopwatch timer
 
 <details>
-<summary>Custom timer using Sub.time.every</summary>
+<summary>Custom timer using `Sub.time.every`</summary>
 
 ```scala
 import layoutz._
@@ -1135,7 +1135,7 @@ StopwatchApp.run()
 ### Custom side effects
 
 <details>
-<summary>Using Cmd.perform for side effects</summary>
+<summary>Using `Cmd.perform` for side effects</summary>
 
 ```scala
 import layoutz._
@@ -1241,7 +1241,7 @@ ApiPoller.run()
 ### Multi-endpoint monitor
 
 <details>
-<summary>Monitor multiple APIs with Sub.batch</summary>
+<summary>Monitor multiple APIs with `Sub.batch`</summary>
 
 ```scala
 import layoutz._
@@ -1298,7 +1298,7 @@ MultiMonitor.run()
 ### HTTP fetch on demand
 
 <details>
-<summary>Fetch data with Cmd.http.get</summary>
+<summary>Fetch data with `Cmd.http.get`</summary>
 
 ```scala
 import layoutz._
