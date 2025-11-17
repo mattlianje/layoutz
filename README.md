@@ -10,6 +10,22 @@ Easily create new primitives (no component-library limitations).
 
 Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
 
+## Features
+- Use **Layoutz.scala** like a header-file
+- Effortless composition of elements
+- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
+- ANSI colors and wide character support
+- Lists, trees, tables, charts, progress bars, spinners...
+- Easy creation of custom elements
+- Thread-safe, purely functional rendering
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's
+
+<p align="center">
+<img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
+<br>
+<sub><a href="examples/NavLoadApp.scala">interactive task list</a> • <a href="examples/SimpleGame.scala">simple game</a></sub>
+</p>
+
 ## Table of Contents
 - [Features](#features)
 - [Installation](#installation)
@@ -40,22 +56,6 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
   - [Complex task manager](#complex-task-manager)
   - [Form input widgets](#form-input-widgets)
 - [Inspiration](#inspiration)
-
-## Features
-- Use **Layoutz.scala** like a header-file
-- Effortless composition of elements
-- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
-- ANSI colors and wide character support
-- Lists, trees, tables, charts, progress bars, spinners...
-- Easy creation of custom elements
-- Thread-safe, purely functional rendering
-- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's
-
-<p align="center">
-<img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
-<br>
-<sub><a href="examples/NavLoadApp.scala">interactive task list</a> • <a href="examples/SimpleGame.scala">simple game</a></sub>
-</p>
 
 ## Installation
 **layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
