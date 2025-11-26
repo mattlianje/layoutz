@@ -19,7 +19,7 @@ Also in: [Scala](https://github.com/mattlianje/layoutz), [JavaScript](https://gi
 - [`LayoutzApp`](#interactive-apps) for Elm-style TUI's
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutzapp-demo.gif" height="300"><img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/game-demo.gif" height="300">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutzapp-demo.gif" height="350"><img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/game-demo.gif" height="350">
 <br>
 <sub><a href="TaskListDemo.hs">task list</a> • <a href="SimpleGame.hs">simple game</a></sub>
 </p>
