@@ -8,7 +8,7 @@
 
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
 
-Also in: [Scala](https://github.com/mattlianje/layoutz), [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts)
+Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Scala](https://github.com/mattlianje/layoutz)
 
 ## Features
 - Zero dependencies, use `Layoutz.hs` like a header file
@@ -21,7 +21,7 @@ Also in: [Scala](https://github.com/mattlianje/layoutz), [JavaScript](https://gi
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutzapp-demo.gif" height="350"><img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/game-demo.gif" height="350">
 <br>
-<sub><a href="TaskListDemo.hs">task list</a> • <a href="SimpleGame.hs">simple game</a></sub>
+<sub><a href="TaskListDemo.hs">TaskListDemo.hs</a> • <a href="SimpleGame.hs">SimpleGame.hs</a></sub>
 </p>
 
 ## Table of Contents
@@ -112,7 +112,7 @@ main = runApp counterApp
 ## Why layoutz?
 - We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between
 - **layoutz** is a tiny, declarative DSL for structured CLI output
-- On the side, it has a little Elm-style runtime + keyhandling DSL to animate your elements, much like a flipbook
+- On the side, it has a little Elm-style runtime + keyhandling DSL to animate your elements, much like a flipbook...
      - But you can just use **Layoutz** without any of the TUI stuff
 
 ## Core concepts
