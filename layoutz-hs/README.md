@@ -746,14 +746,14 @@ main = runApp counterApp
 
 ### How the Runtime Works
 
-The `runApp` function spawns three threads:
+The `runApp` function spawns three daemon threads:
 - **Render thread** - Continuously renders `appView state` to terminal (~30fps)
 - **Input thread** - Reads keys, maps via `appSubscriptions`, calls `appUpdate`
 - **Command thread** - Executes `Cmd` side effects async, feeds results back
 
-All state flows through pure functions. Commands run without blocking the UI.
+As per the above, commands run without blocking the UI.
 
-Press **ESC**, **Ctrl+C**, or **Ctrl+D** to exit.
+Press **ESC** to exit.
 
 ### `LayoutzApp state msg`
 
