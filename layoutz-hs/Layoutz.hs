@@ -1,4 +1,8 @@
-{-# LANGUAGE OverloadedStrings, ExistentialQuantification, FlexibleInstances, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 
 {- | 
 Module      : Layoutz
@@ -59,6 +63,9 @@ module Layoutz
   , LayoutzApp(..)
   , Key(..)
   , Cmd(..)
+  , cmd
+  , cmdMsg
+  , executeCmd
   , Sub(..)
   , runApp
     -- * Subscriptions
@@ -76,8 +83,8 @@ import System.Exit (exitSuccess)
 import Control.Exception (catch, AsyncException(..))
 import System.Timeout (timeout)
 import Control.Monad (when, forever)
-import Control.Concurrent (forkIO, threadDelay, killThread, ThreadId)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef')
+import Control.Concurrent (forkIO, threadDelay, killThread, Chan, newChan, writeChan, readChan)
+import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
 
 -- | Strip ANSI escape codes from a string for accurate width calculation
 stripAnsi :: String -> String
@@ -108,13 +115,19 @@ charWidth c
   | c >= '\x30000' && c < '\x3FFFF' = 2  -- Tertiary ideographs
   | otherwise = 1
 
--- | Calculate real terminal width of string (handles ANSI, emoji, CJK)
-realLength :: String -> Int
-realLength = sum . map charWidth . stripAnsi
-
--- | Calculate visible width (ignoring ANSI codes, handling wide chars)
+-- | Calculate visible width of string (handles ANSI codes, emoji, CJK)
 visibleLength :: String -> Int
-visibleLength = realLength
+visibleLength = sum . map charWidth . stripAnsi
+
+-- | Apply a function to each line, preserving trailing newlines
+mapLines :: (String -> String) -> String -> String
+mapLines f str
+  | null str  = str
+  | otherwise = let ls = lines str
+                    hasTrailingNewline = last str == '\n'
+                in if hasTrailingNewline 
+                   then unlines (map f ls)
+                   else intercalate "\n" (map f ls)
 
 -- | Helper: pad a string to a target width on the right (ANSI-aware)
 padRight :: Int -> String -> String
@@ -204,24 +217,8 @@ instance Element L where
   renderElement (UL items) = render (UnorderedList items)
   renderElement (OL items) = render (OrderedList items)
   renderElement (AutoCenter element) = render element  -- Will be handled by Layout
-  renderElement (Colored color element) = 
-    let rendered = render element
-        renderedLines = lines rendered
-        coloredLines = map (wrapAnsi color) renderedLines
-        -- Preserve whether original had trailing newline
-        hasTrailingNewline = not (null rendered) && last rendered == '\n'
-    in if hasTrailingNewline 
-       then unlines coloredLines 
-       else intercalate "\n" coloredLines
-  renderElement (Styled style element) = 
-    let rendered = render element
-        renderedLines = lines rendered
-        styledLines = map (wrapStyle style) renderedLines
-        -- Preserve whether original had trailing newline
-        hasTrailingNewline = not (null rendered) && last rendered == '\n'
-    in if hasTrailingNewline 
-       then unlines styledLines 
-       else intercalate "\n" styledLines
+  renderElement (Colored color element) = mapLines (wrapAnsi color) (render element)
+  renderElement (Styled style element) = mapLines (wrapStyle style) (render element)
   renderElement (LBox title elements border) = render (Box title elements border)
   renderElement (LStatusCard label content border) = render (StatusCard label content border)
   renderElement (LTable headers rows border) = render (Table headers rows border)
@@ -301,10 +298,12 @@ colorCode ColorBrightBlue    = "94"
 colorCode ColorBrightMagenta = "95"
 colorCode ColorBrightCyan    = "96"
 colorCode ColorBrightWhite   = "97"
-colorCode (ColorFull n)      = "38;5;" ++ show (clamp 0 255 n)
-  where clamp min' max' val = max min' (min max' val)
-colorCode (ColorTrue r g b)  = "38;2;" ++ show (clamp 0 255 r) ++ ";" ++ show (clamp 0 255 g) ++ ";" ++ show (clamp 0 255 b)
-  where clamp min' max' val = max min' (min max' val)
+colorCode (ColorFull n)      = "38;5;" ++ show (clamp n)
+colorCode (ColorTrue r g b)  = "38;2;" ++ show (clamp r) ++ ";" ++ show (clamp g) ++ ";" ++ show (clamp b)
+
+-- | Clamp value to 0-255 range for color codes
+clamp :: Int -> Int
+clamp = max 0 . min 255
 
 -- | Wrap text with ANSI color codes
 wrapAnsi :: Color -> String -> String
@@ -362,7 +361,7 @@ borderChars BorderNone   = (" ", " ", " ", " ", " ", " ", " ", " ", " ")
 newtype Text = Text String
 instance Element Text where renderElement (Text s) = s
 
-newtype LineBreak = LineBreak ()  
+data LineBreak = LineBreak
 instance Element LineBreak where renderElement _ = ""
 
 data Layout = Layout [L]
@@ -398,15 +397,10 @@ instance Element Underlined where
     let contentLines = lines content
         maxWidth = if null contentLines then 0 
                    else maximum (map visibleLength contentLines)
-        underlinePattern = underlineChar
-        underlinePart = if length underlinePattern >= maxWidth
-                   then take maxWidth underlinePattern
-                   else let repeats = maxWidth `div` length underlinePattern
-                            remainder = maxWidth `mod` length underlinePattern
-                        in concat (replicate repeats underlinePattern) ++ take remainder underlinePattern
-        coloredUnderline = case maybeColor of
-          Nothing -> underlinePart
-          Just color -> wrapAnsi color underlinePart
+        repeats = maxWidth `div` length underlineChar
+        remainder = maxWidth `mod` length underlineChar
+        underlinePart = concat (replicate repeats underlineChar) ++ take remainder underlineChar
+        coloredUnderline = maybe underlinePart (`wrapAnsi` underlinePart) maybeColor
     in content ++ "\n" ++ coloredUnderline
 
 data Row = Row [L] Bool  -- elements, tight (no spacing)
@@ -635,13 +629,13 @@ data KeyValue = KeyValue [(String, String)]
 instance Element KeyValue where
   renderElement (KeyValue pairs) = 
     if null pairs then ""
-    else let maxKeyLength = maximum (map (realLength . fst) pairs)
+    else let maxKeyLength = maximum (map (visibleLength . fst) pairs)
              alignmentPosition = maxKeyLength + 2
          in intercalate "\n" $ map (renderPair alignmentPosition) pairs
     where
       renderPair alignPos (key, value) = 
         let keyWithColon = key ++ ":"
-            spacesNeeded = alignPos - realLength keyWithColon
+            spacesNeeded = alignPos - visibleLength keyWithColon
             padding = replicate (max 1 spacesNeeded) ' '
         in keyWithColon ++ padding ++ value
 
@@ -666,14 +660,6 @@ instance Element Tree where
            else nodeLine ++ "\n" ++ intercalate "\n" childLines
 
 
-isUnorderedList :: L -> Bool
-isUnorderedList (UL _) = True
-isUnorderedList _ = False
-
-getUnorderedListItems :: L -> [L]
-getUnorderedListItems (UL items) = items
-getUnorderedListItems _ = []
-
 newtype UnorderedList = UnorderedList [L]
 instance Element UnorderedList where
   renderElement (UnorderedList items) = renderAtLevel 0 items
@@ -685,20 +671,18 @@ instance Element UnorderedList where
             indent = replicate (level * 2) ' '
         in intercalate "\n" $ map (renderItem level indent currentBullet) itemList
       
-      renderItem level indent bullet item = 
-        if isUnorderedList item
-        then renderAtLevel (level + 1) (getUnorderedListItems item)
-        else
-          let content = render item
-              contentLines = lines content
-          in case contentLines of
-            [singleLine] -> indent ++ bullet ++ " " ++ singleLine
-            (firstLine:restLines) -> 
-              let firstOutput = indent ++ bullet ++ " " ++ firstLine
-                  restIndent = replicate (length indent + length bullet + 1) ' '
-                  restOutput = map (restIndent ++) restLines
-              in intercalate "\n" (firstOutput : restOutput)
-            [] -> indent ++ bullet ++ " "
+      renderItem level indent bullet item = case item of
+        UL nested -> renderAtLevel (level + 1) nested
+        _ -> let content = render item
+                 contentLines = lines content
+             in case contentLines of
+               [singleLine] -> indent ++ bullet ++ " " ++ singleLine
+               (firstLine:restLines) -> 
+                 let firstOutput = indent ++ bullet ++ " " ++ firstLine
+                     restIndent = replicate (length indent + length bullet + 1) ' '
+                     restOutput = map (restIndent ++) restLines
+                 in intercalate "\n" (firstOutput : restOutput)
+               [] -> indent ++ bullet ++ " "
 
 newtype OrderedList = OrderedList [L]
 instance Element OrderedList where
@@ -709,50 +693,31 @@ instance Element OrderedList where
             numbered = zip [startNum..] itemList
         in intercalate "\n" $ map (renderItem level indent) numbered
       
-      renderItem level indent (num, item) =
-        if isOrderedList item
-        then renderAtLevel 1 (level + 1) (getOrderedListItems item)
-        else
-          let numStr = formatNumber level num ++ ". "
-              content = render item
-              contentLines = lines content
-          in case contentLines of
-            [singleLine] -> indent ++ numStr ++ singleLine
-            (firstLine:restLines) ->
-              let firstOutput = indent ++ numStr ++ firstLine
-                  restIndent = replicate (length numStr) ' '
-                  restOutput = map ((indent ++ restIndent) ++) restLines
-              in intercalate "\n" (firstOutput : restOutput)
-            [] -> indent ++ numStr
+      renderItem level indent (num, item) = case item of
+        OL nested -> renderAtLevel 1 (level + 1) nested
+        _ -> let numStr = formatNumber level num ++ ". "
+                 content = render item
+                 contentLines = lines content
+             in case contentLines of
+               [singleLine] -> indent ++ numStr ++ singleLine
+               (firstLine:restLines) ->
+                 let firstOutput = indent ++ numStr ++ firstLine
+                     restIndent = replicate (length numStr) ' '
+                     restOutput = map ((indent ++ restIndent) ++) restLines
+                 in intercalate "\n" (firstOutput : restOutput)
+               [] -> indent ++ numStr
       
       formatNumber :: Int -> Int -> String
-      formatNumber level num =
-        case level `mod` 3 of
-          0 -> show num                    -- 1, 2, 3
-          1 -> [toEnum (96 + num)]        -- a, b, c
-          _ -> toRoman num                 -- i, ii, iii
+      formatNumber lvl num = case lvl `mod` 3 of
+        0 -> show num              -- 1, 2, 3
+        1 -> [toEnum (96 + num)]   -- a, b, c
+        _ -> toRoman num           -- i, ii, iii
       
       toRoman :: Int -> String
-      toRoman n = case n of
-        1 -> "i"
-        2 -> "ii"
-        3 -> "iii"
-        4 -> "iv"
-        5 -> "v"
-        6 -> "vi"
-        7 -> "vii"
-        8 -> "viii"
-        9 -> "ix"
-        10 -> "x"
-        _ -> show n  -- fallback for numbers > 10
-      
-      isOrderedList :: L -> Bool
-      isOrderedList (OL _) = True
-      isOrderedList _ = False
-      
-      getOrderedListItems :: L -> [L]
-      getOrderedListItems (OL xs) = xs
-      getOrderedListItems _ = []
+      toRoman = \case
+        1  -> "i";   2  -> "ii";  3  -> "iii"; 4  -> "iv"; 5  -> "v"
+        6  -> "vi";  7  -> "vii"; 8  -> "viii"; 9  -> "ix"; 10 -> "x"
+        n  -> show n
 
 data InlineBar = InlineBar String Double
 instance Element InlineBar where
@@ -770,7 +735,7 @@ text :: String -> L
 text s = L (Text s)
 
 br :: L  
-br = L (LineBreak ())
+br = L LineBreak
 
 center :: Element a => a -> L
 center element = AutoCenter (L element)
@@ -796,10 +761,10 @@ underlineColored :: Element a => String -> Color -> a -> L
 underlineColored char color element = L (Underlined (render element) char (Just color))
 
 ul :: [L] -> L
-ul items = UL items
+ul = UL
 
 ol :: [L] -> L
-ol items = OL items
+ol = OL
 
 inlineBar :: String -> Double -> L
 inlineBar label progress = L (InlineBar label progress)
@@ -926,7 +891,6 @@ kv pairs = L (KeyValue pairs)
 -- Other elements are returned unchanged
 --
 -- Example usage:
---   withBorder BorderThick $ statusCard "API" "UP"
 --   withBorder BorderDouble $ table ["Name"] [[text "Alice"]]
 withBorder :: Border -> L -> L
 withBorder = setBorder
@@ -934,20 +898,15 @@ withBorder = setBorder
 -- | Apply a color to an element
 --
 -- Example usage:
---   withColor ColorRed $ text "Error!"
---   withColor ColorGreen $ statusCard "Status" "OK"
 --   withColor ColorBrightYellow $ box "Warning" [text "Check logs"]
 withColor :: Color -> L -> L
-withColor color element = Colored color element
+withColor = Colored
 
 -- | Apply a style to an element
---
 -- Example usage:
 --   withStyle StyleBold $ text "Important!"
---   withStyle StyleItalic $ text "Emphasis"
---   withStyle StyleUnderline $ text "Notice"
 withStyle :: Style -> L -> L
-withStyle style element = Styled style element
+withStyle = Styled
 
 -- | Create tree structure
 tree :: String -> [Tree] -> L
@@ -967,10 +926,10 @@ branch name children = Tree name children
 
 -- | Spinner style with animation frames
 data SpinnerStyle
-  = SpinnerDots      -- ^ Braille dot spinner: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
-  | SpinnerLine      -- ^ Classic line spinner: | / - \
-  | SpinnerClock     -- ^ Clock face spinner: 🕐 🕑 🕒 ... 
-  | SpinnerBounce    -- ^ Bouncing dots: ⠁ ⠂ ⠄ ⠂
+  = SpinnerDots
+  | SpinnerLine
+  | SpinnerClock
+  | SpinnerBounce
   deriving (Show, Eq)
 
 -- | Get animation frames for a spinner style
@@ -1025,8 +984,30 @@ data Key
   | SpecialKey String      -- ^ Ctrl+X, etc.
   deriving (Show, Eq)
 
--- | Commands - side effects to perform (currently just a placeholder)
-data Cmd msg = None deriving (Show, Eq)
+-- | Commands - side effects the runtime will execute after each update
+data Cmd msg
+  = None                        -- ^ No effect
+  | Cmd (IO (Maybe msg))        -- ^ Run IO, optionally produce a message
+  | Batch [Cmd msg]             -- ^ Combine multiple commands
+
+-- | Create a command from an IO action (fire and forget)
+cmd :: IO () -> Cmd msg
+cmd io = Cmd (io >> pure Nothing)
+
+-- | Create a command that produces a message after IO completes
+cmdMsg :: IO msg -> Cmd msg
+cmdMsg io = Cmd (Just <$> io)
+
+-- | Execute a command and return any resulting message
+executeCmd :: Cmd msg -> IO (Maybe msg)
+executeCmd None = pure Nothing
+executeCmd (Cmd io) = io
+executeCmd (Batch cmds) = do
+  results <- mapM executeCmd cmds
+  pure $ foldr pickFirst Nothing results
+  where 
+    pickFirst (Just m) _ = Just m
+    pickFirst Nothing  r = r
 
 -- | Subscriptions - event sources your app listens to
 data Sub msg 
@@ -1105,9 +1086,33 @@ runApp LayoutzApp{..} = do
   clearScreen
   hideCursor
   
-  let (initialState, _initialCmd) = appInit
+  let (initialState, initialCmd) = appInit
   
   stateRef <- newIORef initialState
+  cmdChan <- newChan  -- Channel for commands to execute
+  
+  -- Helper to update state and queue commands
+  let updateState msg = do
+        cmdToRun <- atomicModifyIORef' stateRef $ \s -> 
+          let (newState, c) = appUpdate msg s in (newState, c)
+        case cmdToRun of
+          None -> pure ()
+          _    -> writeChan cmdChan cmdToRun
+  
+  -- Command thread: executes commands async, feeds results back
+  cmdThread <- forkIO $ forever $ do
+    cmdToRun <- readChan cmdChan
+    maybeMsg <- executeCmd cmdToRun
+    case maybeMsg of
+      Just msg -> updateState msg  -- Feed message back into app
+      Nothing  -> pure ()
+  
+  -- Execute initial command
+  case initialCmd of
+    None -> pure ()
+    _    -> writeChan cmdChan initialCmd
+  
+  lastLineCount <- newIORef 0
   lastRendered <- newIORef ""
   
   renderThread <- forkIO $ forever $ do
@@ -1116,9 +1121,16 @@ runApp LayoutzApp{..} = do
     lastRender <- readIORef lastRendered
     
     when (rendered /= lastRender) $ do
-      putStr $ "\ESC[H\ESC[J" ++ rendered
+      prevLineCount <- readIORef lastLineCount
+      let renderedLines = lines rendered
+          currentLineCount = length renderedLines
+          -- Move cursor home, then write each line with clear-to-end-of-line
+          output = "\ESC[H" ++ concatMap (\l -> l ++ "\ESC[K\n") renderedLines -- TODO refactor
+                   ++ concat (replicate (max 0 (prevLineCount - currentLineCount)) "\ESC[K\n") -- clears lines from previous render
+      putStr output
       hFlush stdout
       writeIORef lastRendered rendered
+      writeIORef lastLineCount currentLineCount
     
     threadDelay 33333
   
@@ -1141,7 +1153,9 @@ runApp LayoutzApp{..} = do
           [] -> Nothing
         _ -> Nothing
   
-  let inputLoop = do
+  let killThreads = killThread renderThread >> killThread cmdThread
+  
+      inputLoop = do
         state <- readIORef stateRef
         let subs = appSubscriptions state
             hasTickSub = hasTick subs
@@ -1155,27 +1169,23 @@ runApp LayoutzApp{..} = do
         case maybeKey of
           Nothing -> do
             case tickMsg of
-              Just msg -> do
-                atomicModifyIORef' stateRef $ \s -> let (newState, _cmd) = appUpdate msg s in (newState, ())
-                inputLoop
+              Just msg -> updateState msg >> inputLoop
               Nothing -> inputLoop
           
           Just key -> case key of
-            EscapeKey           -> killThread renderThread >> cleanup oldBuffering oldEcho
-            SpecialKey "Ctrl+C" -> killThread renderThread >> cleanup oldBuffering oldEcho
-            SpecialKey "Ctrl+D" -> killThread renderThread >> cleanup oldBuffering oldEcho
+            EscapeKey           -> killThreads >> cleanup oldBuffering oldEcho
+            SpecialKey "Ctrl+C" -> killThreads >> cleanup oldBuffering oldEcho
+            SpecialKey "Ctrl+D" -> killThreads >> cleanup oldBuffering oldEcho
             
             _ -> case keyHandler of
               Just handler -> case handler key of
-                Just msg -> do
-                  atomicModifyIORef' stateRef $ \s -> let (newState, _cmd) = appUpdate msg s in (newState, ())
-                  inputLoop
+                Just msg -> updateState msg >> inputLoop
                 Nothing -> inputLoop
               Nothing -> inputLoop
   
   inputLoop `catch` \ex -> case ex of
-    UserInterrupt -> killThread renderThread >> cleanup oldBuffering oldEcho
-    _             -> killThread renderThread >> cleanup oldBuffering oldEcho
+    UserInterrupt -> killThreads >> cleanup oldBuffering oldEcho
+    _             -> killThreads >> cleanup oldBuffering oldEcho
 
 -- | Clean up terminal and exit
 cleanup :: BufferMode -> Bool -> IO ()
@@ -1190,10 +1200,6 @@ cleanup oldBuffering oldEcho = do
 -- | Clear the screen and move cursor to top-left
 clearScreen :: IO ()
 clearScreen = putStr "\ESC[2J\ESC[H"
-
--- | Clear scrollback buffer (terminal history)
-clearScrollback :: IO ()
-clearScrollback = putStr "\ESC[3J"
 
 -- | Hide the terminal cursor
 hideCursor :: IO ()

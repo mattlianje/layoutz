@@ -6,13 +6,35 @@
 
 **Simple, beautiful CLI output for Haskell 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards for your Haskell applications.
+Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
+
+Also in: [Scala](https://github.com/mattlianje/layoutz), [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts)
 
 ## Features
 - Zero dependencies, use `Layoutz.hs` like a header file
 - Rich text formatting: alignment, underlines, padding, margins
-- Lists, trees, tables, charts, banners...
-- Easily create new primitives (no component-library limitations).
+- Lists, trees, tables, charts, spinners...
+- ANSI colors and wide character support
+- Easily create new primitives (no component-library limitations)
+- [`LayoutzApp`](#interactive-apps) for Elm-style TUI's
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutzapp-demo.gif" height="300"><img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/game-demo.gif" height="300">
+<br>
+<sub><a href="TaskListDemo.hs">task list</a> • <a href="SimpleGame.hs">simple game</a></sub>
+</p>
+
+## Table of Contents
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Why layoutz?](#why-layoutz)
+- [Core Concepts](#core-concepts)
+- [Elements](#elements)
+- [Border Styles](#border-styles)
+- [Colors](#colors-ansi-support)
+- [Styles](#styles-ansi-support)
+- [Custom Components](#custom-components)
+- [Interactive Apps](#interactive-apps)
 
 ## Installation
 
@@ -28,40 +50,70 @@ import Layoutz
 
 ## Quickstart
 
-Beautiful, compositional text layouts:
+**(1/2) Static rendering** - Beautiful, compositional strings:
 
 ```haskell
 import Layoutz
 
 demo = layout
-  [ center $ row ["Layoutz", underline' "ˆ" $ text "DEMO"]
+  [ center $ row 
+      [ withStyle StyleBold $ text "Layoutz"
+      , withColor ColorCyan $ underline' "ˆ" $ text "DEMO"
+      ]
   , br
   , row
     [ statusCard "Users" "1.2K"
     , withBorder BorderDouble $ statusCard "API" "UP"
-    , withBorder BorderThick $ statusCard "CPU" "23%"
-    , withBorder BorderRound $ table ["Name", "Role", "Status"] 
-        [ ["Alice", "Engineer", "Online"]
-        , ["Eve", "QA", "Away"]
+    , withColor ColorRed $ withBorder BorderThick $ statusCard "CPU" "23%"
+    , withStyle StyleReverse $ withBorder BorderRound $ table ["Name", "Role", "Skills"] 
+	[ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
+        , ["Eve", "QA", "Testing"]
         ]
-    , section "Pugilists" [kv [("Kazushi", "Sakuraba"), ("Jet", "Li")]]
     ]
   ]
 
 putStrLn $ render demo
 ```
 
-```
-                                Layoutz DEMO
-                                        ˆˆˆˆ
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/intro-demo.png" width="700">
+</p>
 
-┌─────────┐ ╔═══════╗ ┏━━━━━━━┓ ╭───────┬──────────┬────────╮ === Pugilists ===
-│ Users   │ ║ API   ║ ┃ CPU   ┃ │ Name  │ Role     │ Status │ Kazushi: Sakuraba
-│ 1.2K    │ ║ UP    ║ ┃ 23%   ┃ ├───────┼──────────┼────────┤ Jet:     Li
-└─────────┘ ╚═══════╝ ┗━━━━━━━┛ │ Alice │ Engineer │ Online │
-                                │ Eve   │ QA       │ Away   │
-                                ╰───────┴──────────┴────────╯
+
+**(2/2) Interactive apps** - Build Elm-style TUI's:
+
+```haskell
+import Layoutz
+
+data Msg = Inc | Dec
+
+counterApp :: LayoutzApp Int Msg
+counterApp = LayoutzApp
+  { appInit = (0, None)
+  , appUpdate = \msg count -> case msg of
+      Inc -> (count + 1, None)
+      Dec -> (count - 1, None)
+  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
+      CharKey '+' -> Just Inc
+      CharKey '-' -> Just Dec
+      _           -> Nothing
+  , appView = \count -> layout
+      [ section "Counter" [text $ "Count: " <> show count]
+      , ul ["Press '+' or '-'", "ESC to quit"]
+      ]
+  }
+
+main = runApp counterApp
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="400">
+</p>
+
+## Why layoutz?
+- We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between
+- **layoutz** is a tiny, declarative DSL for structured CLI output
+- On the side, it has a little Elm-style runtime + keyhandling DSL to animate your elements, much like a flipbook
+     - But you can just use **Layoutz** without any of the TUI stuff
 
 ## Core concepts
 - Every piece of content is an `Element`
@@ -545,10 +597,10 @@ layout[
 Create beautiful gradients with extended colors:
 
 ```haskell
-let palette = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 18..231]
+let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
     redToBlue = tightRow $ map (\i -> withColor (ColorTrue i 100 (255 - i)) $ text "█") [0, 4..255]
     greenFade = tightRow $ map (\i -> withColor (ColorTrue 0 (255 - i) i) $ text "█") [0, 4..255]
-    rainbow = tightRow $ map colorBlock [0, 4..255]
+    rainbow   = tightRow $ map colorBlock [0, 4..255]
       where
         colorBlock i =
           let r = if i < 128 then i * 2 else 255
@@ -668,173 +720,105 @@ cabal repl
 
 Build **Elm-style terminal applications** with the built-in TUI runtime.
 
-### Simple TUI Runtime
-
-The runtime provides a dead-simple event loop for building interactive terminal apps:
-
 ```haskell
 import Layoutz
 
-data CounterMsg = Inc | Dec
+data Msg = Inc | Dec
 
-counterApp :: LayoutzApp Int CounterMsg
+counterApp :: LayoutzApp Int Msg
 counterApp = LayoutzApp
-  { appInit = 0
-  
-  , appView = \count ->
-      layout
-        [ section "Counter" [text $ "Count: " <> show count]
-        , br
-        , ul ["Press '+' or '-'", "Press ESC to quit"]
-        ]
-  
+  { appInit = (0, None)
   , appUpdate = \msg count -> case msg of
-      Inc -> count + 1
-      Dec -> count - 1
-  
-  , appOnKey = \key _state -> case key of
+      Inc -> (count + 1, None)
+      Dec -> (count - 1, None)
+  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
       CharKey '+' -> Just Inc
       CharKey '-' -> Just Dec
       _           -> Nothing
+  , appView = \count -> layout
+      [ section "Counter" [text $ "Count: " <> show count]
+      , ul ["Press '+' or '-'", "ESC to quit"]
+      ]
   }
 
-main :: IO ()
 main = runApp counterApp
 ```
 
+### How the Runtime Works
+
+The `runApp` function spawns three threads:
+- **Render thread** - Continuously renders `appView state` to terminal (~30fps)
+- **Input thread** - Reads keys, maps via `appSubscriptions`, calls `appUpdate`
+- **Command thread** - Executes `Cmd` side effects async, feeds results back
+
+All state flows through pure functions. Commands run without blocking the UI.
+
+Press **ESC**, **Ctrl+C**, or **Ctrl+D** to exit.
+
 ### `LayoutzApp state msg`
 
-Build interactive apps by defining:
-- **`appInit`** - Initial state
-- **`appView`** - Render state to UI (pure function)
-- **`appUpdate`** - Update state with message (pure function)
-- **`appOnKey`** - Map keyboard input to messages (pure function)
+```haskell
+data LayoutzApp state msg = LayoutzApp
+  { appInit          :: (state, Cmd msg)                 -- Initial state + startup command
+  , appUpdate        :: msg -> state -> (state, Cmd msg) -- Pure state transitions
+  , appSubscriptions :: state -> Sub msg                 -- Event sources
+  , appView          :: state -> L                       -- Render to UI
+  }
+```
 
-The `runApp` function handles:
-- Terminal setup (raw mode, no echo)
-- Event loop (read input → map to messages → update state → re-render)
-- Screen management (clearing, cursor)
-- Cleanup on exit (ESC, Ctrl+C, or Ctrl+D)
+### Subscriptions
+
+| Subscription | Description |
+|--------------|-------------|
+| `onKeyPress (Key -> Maybe msg)` | Keyboard input |
+| `onTick msg` | Periodic ticks (~100ms) for animations |
+| `batch [sub1, sub2, ...]` | Combine subscriptions |
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `None` | No effect |
+| `Cmd (IO (Maybe msg))` | Run IO, optionally produce message |
+| `Batch [cmd1, cmd2, ...]` | Multiple commands |
+| `cmd :: IO () -> Cmd msg` | Fire and forget |
+| `cmdMsg :: IO msg -> Cmd msg` | IO that returns a message |
+
+**Example: Logger with file I/O**
+```haskell
+import Layoutz
+
+data Msg = Log | Saved
+data State = State { count :: Int, status :: String }
+
+loggerApp :: LayoutzApp State Msg
+loggerApp = LayoutzApp
+  { appInit = (State 0 "Ready", None)
+  , appUpdate = \msg s -> case msg of
+      Log   -> (s { count = count s + 1 }, 
+                cmd $ appendFile "log.txt" ("Entry " <> show (count s) <> "\n"))
+      Saved -> (s { status = "Saved!" }, None)
+  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
+      CharKey 'l' -> Just Log
+      _           -> Nothing
+  , appView = \s -> layout
+      [ section "Logger" [text $ "Entries: " <> show (count s)]
+      , text (status s)
+      , ul ["'l' to log", "ESC to quit"]
+      ]
+  }
+
+main = runApp loggerApp
+```
 
 ### Key Types
 
-Handle keyboard input with the `Key` ADT:
 ```haskell
-CharKey Char           -- 'a', '1', ' ', etc.
-EnterKey               -- Enter/Return
-BackspaceKey           -- Backspace
-TabKey                 -- Tab
-EscapeKey              -- Escape
-DeleteKey              -- Delete
-ArrowUpKey             -- ↑
-ArrowDownKey           -- ↓
-ArrowLeftKey           -- ←
-ArrowRightKey          -- →
-SpecialKey String      -- Ctrl+X, etc.
-TickKey                -- Auto-tick (sent every 150ms for animations)
+CharKey Char       -- 'a', '1', ' '
+EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
+ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
+SpecialKey String  -- "Ctrl+C", etc.
 ```
-
-**Note**: The runtime automatically sends `TickKey` events every 150ms, enabling smooth animations like spinners and progress bars without requiring manual key presses. Apps can choose to handle or ignore ticks based on their current state.
-
-### Example: Navigation App
-
-```haskell
-data NavMsg = MoveUp | MoveDown | Select
-
-data NavState = NavState 
-  { selected :: Int
-  , items :: [String]
-  }
-
-navApp :: LayoutzApp NavState NavMsg
-navApp = LayoutzApp
-  { appInit = NavState 0 ["Option 1", "Option 2", "Option 3"]
-  
-  , appView = \state ->
-      let renderItem idx item = 
-            if idx == selected state
-            then withColor ColorGreen $ text ("→ " <> item)
-            else text ("  " <> item)
-          itemList = zipWith renderItem [0..] (items state)
-      in section "Menu" itemList
-  
-  , appUpdate = \msg state -> case msg of
-      MoveUp -> state { selected = max 0 (selected state - 1) }
-      MoveDown -> state { selected = min (length (items state) - 1) (selected state + 1) }
-      Select -> state  -- Handle selection
-  
-  , appOnKey = \key _state -> case key of
-      ArrowUpKey   -> Just MoveUp
-      ArrowDownKey -> Just MoveDown
-      EnterKey     -> Just Select
-      _            -> Nothing
-  }
-```
-
-The runtime is **zero-dependency** - just Haskell's standard library. Perfect for building:
-- Interactive CLIs
-- Terminal dashboards
-- Configuration wizards
-- Live data displays
-- TUI games
-
-### Example: Task List Manager
-
-A complete interactive task manager with navigation and completion tracking:
-
-```haskell
-import Layoutz
-import Data.Set (Set)
-import qualified Data.Set as Set
-
-data TaskState = TaskState
-  { tasks     :: [String]
-  , selected  :: Int
-  , completed :: Set Int
-  } deriving (Show)
-
-data TaskMsg = MoveUp | MoveDown | ToggleTask
-
-taskListApp :: LayoutzApp TaskState TaskMsg
-taskListApp = LayoutzApp
-  { appInit = TaskState
-      { tasks = ["Process data", "Generate reports", "Backup files"]
-      , selected = 0
-      , completed = Set.empty
-      }
-  
-  , appView = \state ->
-      let taskList = zipWith (renderTask state) [0..] (tasks state)
-      in layout
-           [ section "Task Manager" taskList
-           , br
-           , text $ "Completed: " <> show (Set.size $ completed state)
-           ]
-  
-  , appUpdate = \msg state -> case msg of
-      MoveUp -> state { selected = max 0 (selected state - 1) }
-      MoveDown -> state { selected = min (length (tasks state) - 1) (selected state + 1) }
-      ToggleTask ->
-        let idx = selected state
-            newCompleted = if Set.member idx (completed state)
-                          then Set.delete idx (completed state)
-                          else Set.insert idx (completed state)
-        in state { completed = newCompleted }
-  
-  , appOnKey = \key _state -> case key of
-      ArrowUpKey   -> Just MoveUp
-      ArrowDownKey -> Just MoveDown
-      EnterKey     -> Just ToggleTask
-      _            -> Nothing
-  }
-  where
-    renderTask state idx task =
-      let emoji = if Set.member idx (completed state) then "✅" else "📋"
-          marker = if idx == selected state then "► " else "  "
-      in text $ marker <> emoji <> " " <> task
-```
-
-See [TaskListDemo.hs](TaskListDemo.hs) for the complete working example.
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)
