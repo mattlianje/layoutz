@@ -5,8 +5,33 @@
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style apps for your consoles. Part of [d4](https://github.com/mattlianje/d4)
-(Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs))
+Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
+Easily create new primitives (no component-library limitations).
+
+Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
+
+<p align="center">
+  <sub>Supported by</sub><br>
+  <a href="https://www.bitcomplete.io/" target="_blank" rel="noopener noreferrer">
+    <img src="https://raw.githubusercontent.com/mattlianje/d4/master/pix/bc-sponsor.svg" width="350">
+  </a>
+</p>
+
+## Features
+- Use **Layoutz.scala** like a header-file
+- Effortless composition of elements
+- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
+- ANSI colors and wide character support
+- Lists, trees, tables, charts, progress bars, spinners...
+- Easy creation of custom elements
+- Thread-safe, purely functional rendering
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's
+
+<p align="center">
+<img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
+<br>
+<sub><a href="examples/NavLoadApp.scala">interactive task list</a> • <a href="examples/SimpleGame.scala">simple game</a></sub>
+</p>
 
 ## Table of Contents
 - [Features](#features)
@@ -28,24 +53,16 @@ Build declarative and composable sections, trees, tables, dashboards, and intera
 - [Interactive Apps](#interactive-apps)
   - [LayoutzApp Architecture](#layoutzappstate-message)
   - [Subscriptions & Commands](#subscriptions)
-  - [Examples](#complex-example)
+- [Examples](#examples)
+  - [File viewer](#file-viewer)
+  - [Stopwatch timer](#stopwatch-timer)
+  - [Custom side effects](#custom-side-effects)
+  - [API poller](#api-poller)
+  - [Multi-endpoint monitor](#multi-endpoint-monitor)
+  - [HTTP fetch on demand](#http-fetch-on-demand)
+  - [Complex task manager](#complex-task-manager)
+  - [Form input widgets](#form-input-widgets)
 - [Inspiration](#inspiration)
-
-## Features
-- Use **Layoutz.scala** like a header-file
-- Effortless composition of elements
-- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
-- ANSI colors and wide character support
-- Lists, trees, tables, charts, progress bars, spinners...
-- Easy creation of custom elements
-- Thread-safe, purely functional rendering
-- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's
-
-<p align="center">
-<img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
-<br>
-<sub><a href="examples/NavLoadApp.scala">interactive task list</a> • <a href="examples/SimpleGame.scala">simple game</a></sub>
-</p>
 
 ## Installation
 **layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
@@ -1004,51 +1021,339 @@ def update(msg: Msg, state: State) = msg match {
 }
 ```
 
-### Application with custom side effects
+
+## Examples
+
+Small interactive TUI apps using built-in `Cmd` and `Sub` features.
+
+### File viewer
+
+<details>
+<summary>Watch and display file contents</summary>
+
 ```scala
 import layoutz._
 
-case class State(result: String = "idle", error: String = "")
+case class FileState(content: String, error: Option[String])
+sealed trait Msg
+case class FileLoaded(result: Either[String, String]) extends Msg
+
+object FileViewer extends LayoutzApp[FileState, Msg] {
+  val filename = "README.md"
+  
+  def init = (FileState("Loading...", None), Cmd.file.read(filename, FileLoaded))
+  
+  def update(msg: Msg, state: FileState) = msg match {
+    case FileLoaded(Right(content)) => 
+      (state.copy(content = content.take(500), error = None), Cmd.none)
+    case FileLoaded(Left(err)) => 
+      (state.copy(error = Some(err)), Cmd.none)
+  }
+  
+  def subscriptions(state: FileState) = 
+    Sub.file.watch(filename, FileLoaded)
+  
+  def view(state: FileState) = {
+    val display = state.error match {
+      case Some(err) => Color.BrightRed(s"Error: $err")
+      case None => wrap(state.content, 60)
+    }
+    
+    layout(
+      underlineColored("=", Color.BrightMagenta)("File Viewer").style(Style.Bold),
+      kv("File" -> filename).color(Color.BrightBlue),
+      box("Content")(display).border(Border.Round),
+      "Auto-reloads on file change".color(Color.BrightBlack)
+    )
+  }
+}
+
+FileViewer.run()
+```
+</details>
+
+### Stopwatch timer
+
+<details>
+<summary>Custom timer using `Sub.time.every`</summary>
+
+```scala
+import layoutz._
+
+case class TimerState(seconds: Int, running: Boolean)
+sealed trait Msg
+case object Tick extends Msg
+case object ToggleTimer extends Msg
+case object ResetTimer extends Msg
+
+object StopwatchApp extends LayoutzApp[TimerState, Msg] {
+  def init = (TimerState(0, false), Cmd.none)
+  
+  def update(msg: Msg, state: TimerState) = msg match {
+    case Tick => 
+      (state.copy(seconds = state.seconds + 1), Cmd.none)
+    case ToggleTimer => 
+      (state.copy(running = !state.running), Cmd.none)
+    case ResetTimer => 
+      (TimerState(0, running = false), Cmd.none)
+  }
+  
+  def subscriptions(state: TimerState) = Sub.batch(
+    if (state.running) Sub.time.every(1000, Tick) else Sub.none,
+    Sub.onKeyPress {
+      case CharKey(' ') => Some(ToggleTimer)
+      case CharKey('r') => Some(ResetTimer)
+      case _ => None
+    }
+  )
+  
+  def view(state: TimerState) = {
+    val minutes = state.seconds / 60
+    val secs = state.seconds % 60
+    val timeDisplay = f"$minutes%02d:$secs%02d"
+    
+    val statusColor = if (state.running) Color.BrightGreen else Color.BrightYellow
+    val statusText = if (state.running) "RUNNING" else "PAUSED"
+    
+    layout(
+      underlineColored("=", Color.BrightCyan)("Stopwatch").style(Style.Bold),
+      "",
+      box("Time")(
+        timeDisplay.style(Style.Bold).center(20)
+      ).color(statusColor).border(Border.Double),
+      "",
+      kv(
+        "Status" -> statusText,
+        "Elapsed" -> s"${state.seconds}s"
+      ).color(Color.BrightBlue),
+      "",
+      ul(
+        "space: start/pause",
+        "r: reset"
+      ).color(Color.BrightBlack)
+    )
+  }
+}
+
+StopwatchApp.run()
+```
+</details>
+
+### Custom side effects
+
+<details>
+<summary>Using `Cmd.perform` for side effects</summary>
+
+```scala
+import layoutz._
+
+case class TaskState(status: String = "idle", count: Int = 0)
 
 sealed trait Msg
 case object RunTask extends Msg
 case class TaskDone(result: Either[String, String]) extends Msg
 
-object SideEffectApp extends LayoutzApp[State, Msg] {
-  def init = State()
+object SideEffectApp extends LayoutzApp[TaskState, Msg] {
+  def init = (TaskState(), Cmd.none)
   
-  def update(msg: Msg, state: State) = msg match {
+  def update(msg: Msg, state: TaskState) = msg match {
     case RunTask =>
-      (state.copy(result = "running..."),
+      (state.copy(status = "running..."),
        Cmd.perform(
-         () => try {
-           // Your custom logic here
-           Thread.sleep(1000)
-           Right("Task completed!")
-         } catch {
-           case ex: Exception => Left(ex.getMessage)
+         () => {
+           println("Firing missile...")
+           Thread.sleep(500)
+           if (scala.util.Random.nextDouble() < 0.3) {
+             println("Missile failed to launch")
+             Left("Launch failure")
+           } else {
+             println("Impact confirmed")
+             Right("completed")
+           }
          },
          TaskDone
        ))
     
-    case TaskDone(Right(msg)) => state.copy(result = msg)
-    case TaskDone(Left(err)) => state.copy(error = err)
+    case TaskDone(Right(_)) => 
+      state.copy(status = "success", count = state.count + 1)
+    
+    case TaskDone(Left(err)) =>
+      state.copy(status = s"error: $err")
   }
   
-  def subscriptions(state: State) = Sub.onKeyPress {
+  def subscriptions(state: TaskState) = Sub.onKeyPress {
     case CharKey('r') => Some(RunTask)
     case _ => None
   }
   
-  def view(state: State) = layout(
-    section("Custom Task")(state.result),
-    if (state.error.isEmpty) empty else layout(state.error).margin("[error]")
+  def view(state: TaskState) = layout(
+    section("Side Effect Demo")(
+      kv("Status" -> state.status, "Count" -> state.count.toString)
+    ),
+    "r: run task".color(Color.BrightBlack)
   )
 }
-```
 
-### Complex Example
-A task manager with navigation, progress tracking, and stateful emojis.
+SideEffectApp.run()
+```
+</details>
+
+### API poller
+
+<details>
+<summary>Poll API endpoint and display JSON</summary>
+
+```scala
+import layoutz._
+
+case class ApiState(response: String, lastUpdate: String, error: Option[String])
+sealed trait Msg
+case class ApiResponse(result: Either[String, String]) extends Msg
+
+object ApiPoller extends LayoutzApp[ApiState, Msg] {
+  val apiUrl = "https://api.github.com/zen"
+  
+  def init = (ApiState("Loading...", "Never", None), Cmd.none)
+  
+  def update(msg: Msg, state: ApiState) = msg match {
+    case ApiResponse(Right(data)) =>
+      val now = java.time.LocalTime.now().toString.take(8)
+      (state.copy(response = data, lastUpdate = now, error = None), Cmd.none)
+    case ApiResponse(Left(err)) =>
+      (state.copy(error = Some(err)), Cmd.none)
+  }
+  
+  def subscriptions(state: ApiState) =
+    Sub.http.poll(apiUrl, 3000, ApiResponse)
+  
+  def view(state: ApiState) = {
+    val display = state.error match {
+      case Some(err) => Color.BrightRed(s"Error: $err")
+      case None => wrap(state.response, 60).color(Color.BrightGreen)
+    }
+    
+    layout(
+      underlineColored("~", Color.BrightCyan)("API Poller").style(Style.Bold),
+      kv("Endpoint" -> apiUrl, "Last Update" -> state.lastUpdate).color(Color.BrightBlue),
+      box("Response")(display).border(Border.Round),
+      "Polls every 3s".color(Color.BrightBlack)
+    )
+  }
+}
+
+ApiPoller.run()
+```
+</details>
+
+### Multi-endpoint monitor
+
+<details>
+<summary>Monitor multiple APIs with `Sub.batch`</summary>
+
+```scala
+import layoutz._
+
+case class MonitorState(
+  github: String = "...",
+  httpbin: String = "...",
+  placeholder: String = "..."
+)
+
+sealed trait Msg
+case class GithubResp(result: Either[String, String]) extends Msg
+case class HttpbinResp(result: Either[String, String]) extends Msg
+case class PlaceholderResp(result: Either[String, String]) extends Msg
+
+object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
+  def init = (MonitorState(), Cmd.none)
+  
+  def update(msg: Msg, state: MonitorState) = msg match {
+    case GithubResp(Right(data)) => (state.copy(github = data.take(20)), Cmd.none)
+    case GithubResp(Left(e)) => (state.copy(github = s"ERROR: $e"), Cmd.none)
+    case HttpbinResp(Right(_)) => (state.copy(httpbin = "UP"), Cmd.none)
+    case HttpbinResp(Left(e)) => (state.copy(httpbin = s"ERROR: $e"), Cmd.none)
+    case PlaceholderResp(Right(_)) => (state.copy(placeholder = "UP"), Cmd.none)
+    case PlaceholderResp(Left(e)) => (state.copy(placeholder = s"ERROR: $e"), Cmd.none)
+  }
+  
+  def subscriptions(state: MonitorState) = Sub.batch(
+    Sub.http.poll("https://api.github.com/zen", 4000, GithubResp),
+    Sub.http.poll("https://httpbin.org/get", 5000, HttpbinResp),
+    Sub.http.poll("https://jsonplaceholder.typicode.com/posts/1", 6000, PlaceholderResp)
+  )
+  
+  def view(state: MonitorState) = layout(
+    underlineColored("~", Color.BrightGreen)("Multi-API Monitor").style(Style.Bold),
+    br,
+    table(
+      Seq("Service", "Status"),
+      Seq(
+        Seq("GitHub", state.github),
+        Seq("HTTPBin", state.httpbin),
+        Seq("JSONPlaceholder", state.placeholder)
+      )
+    ).border(Border.Round),
+    br,
+    "Auto-polls all endpoints".color(Color.BrightBlack)
+  )
+}
+
+MultiMonitor.run()
+```
+</details>
+
+### HTTP fetch on demand
+
+<details>
+<summary>Fetch data with `Cmd.http.get`</summary>
+
+```scala
+import layoutz._
+
+case class FetchState(data: String, loading: Boolean, count: Int)
+sealed trait Msg
+case object Fetch extends Msg
+case class Response(result: Either[String, String]) extends Msg
+
+object HttpFetcher extends LayoutzApp[FetchState, Msg] {
+  def init = (FetchState("Press 'f' to fetch", false, 0), Cmd.none)
+  
+  def update(msg: Msg, state: FetchState) = msg match {
+    case Fetch =>
+      (state.copy(loading = true, count = state.count + 1), 
+       Cmd.http.get("https://api.github.com/zen", Response))
+    case Response(Right(data)) =>
+      (state.copy(data = data, loading = false), Cmd.none)
+    case Response(Left(err)) =>
+      (state.copy(data = s"Error: $err", loading = false), Cmd.none)
+  }
+  
+  def subscriptions(state: FetchState) = Sub.onKeyPress {
+    case CharKey('f') => Some(Fetch)
+    case _ => None
+  }
+  
+  def view(state: FetchState) = {
+    val status: Element = if (state.loading) spinner("Fetching", state.count % 10)
+                          else Text(s"Fetched ${state.count} times")
+    
+    layout(
+      underlineColored("=", Color.BrightCyan)("HTTP Fetcher").style(Style.Bold),
+      box("Zen Quote")(wrap(state.data, 50)).border(Border.Round).color(Color.BrightGreen),
+      status,
+      "f: fetch".color(Color.BrightBlack)
+    )
+  }
+}
+
+HttpFetcher.run()
+```
+</details>
+
+### Complex task manager
+
+<details>
+<summary>Task manager with navigation, progress tracking, and stateful emojis</summary>
 
 <p align="center">
   <img src="pix/nav-demo-edit.gif" width="600">
@@ -1155,7 +1460,6 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 
     layout(
       section("Tasks")(Layout(taskList.map(Text))),
-      br,
       section("Status")(status)
     )
   }
@@ -1163,11 +1467,12 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
 
 TaskApp.run()
 ```
+</details>
 
-### Form input example
+### Form input widgets
+
 <details>
-
-<summary>Build interactive forms with choice widgets:</summary>
+<summary>Build interactive forms with choice widgets</summary>
 
 ```scala
 import layoutz._
@@ -1228,16 +1533,15 @@ object FormApp extends LayoutzApp[FormState, Msg] {
   
   def view(state: FormState) = layout(
     textInput("Name", state.name, "Type here", state.field == 0),
-    br,
     SingleChoice("How was your day?", moods, state.mood, state.field == 1),
-    br,
     MultiChoice("Favorite letters?", options, state.letters, state.cursor, state.field == 2)
   )
 }
 ```
-</details>
 
 See [FormExample.scala](examples/FormExample.scala) for a complete working example.
+
+</details>
 
 
 ## Inspiration

@@ -144,12 +144,16 @@ export class Text implements Element {
     return this.content;
   }
 
-  color(colorType: Color): Colored {
+  color(colorType: ColorType): Colored {
     return new Colored(this, colorType);
   }
 
-  style(styleType: Style): Styled {
+  style(styleType: StyleType): Styled {
     return new Styled(this, styleType);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -172,7 +176,7 @@ export class LineBreak implements Element {
 export class Colored implements Element {
   constructor(
     private element: Element,
-    private colorType: Color
+    private colorType: ColorType
   ) {}
 
   render(): string {
@@ -184,12 +188,16 @@ export class Colored implements Element {
     return lines.map((line) => wrapAnsi(line, code)).join("\n");
   }
 
-  color(newColor: Color): Colored {
+  color(newColor: ColorType): Colored {
     return new Colored(this.element, newColor);
   }
 
-  style(styleParam: Style): Styled {
+  style(styleParam: StyleType): Styled {
     return new Styled(this, styleParam);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -203,24 +211,47 @@ export class Colored implements Element {
 export class Styled implements Element {
   constructor(
     private element: Element,
-    private styleType: Style
+    private styleType: StyleType
   ) {}
 
   render(): string {
-    const code = getStyleCode(this.styleType);
     const content = this.element.render();
-    if (!code) return content;
-
     const lines = content.split("\n");
+
+    // Handle combined styles
+    if (typeof this.styleType === "object" && "_type" in this.styleType) {
+      const combined = this.styleType as CombinedStyles;
+      return lines
+        .map((line) => {
+          let result = line;
+          // Apply each style by nesting them
+          for (const s of combined.styles) {
+            const code = getSingleStyleCode(s);
+            if (code) {
+              result = wrapAnsi(result, code);
+            }
+          }
+          return result;
+        })
+        .join("\n");
+    }
+
+    // Handle single style
+    const code = getStyleCode(this.styleType);
+    if (!code) return content;
     return lines.map((line) => wrapAnsi(line, code)).join("\n");
   }
 
-  color(colorParam: Color): Colored {
+  color(colorParam: ColorType): Colored {
     return new Colored(this, colorParam);
   }
 
-  style(newStyle: Style): Styled {
+  style(newStyle: StyleType): Styled {
     return new Styled(this, newStyle);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -266,7 +297,7 @@ export const Border = {
 export type BorderType = (typeof Border)[keyof typeof Border];
 
 /**
- * ANSI Color codes
+ * ANSI Color codes - Standard 16 colors
  */
 export enum Color {
   Black = "black",
@@ -288,7 +319,55 @@ export enum Color {
   NoColor = "noColor",
 }
 
-function getColorCode(color: Color): string {
+/**
+ * 256-color palette (0-255)
+ */
+export interface ColorFull {
+  type: "full";
+  colorCode: number;
+}
+
+/**
+ * 24-bit true color (RGB)
+ */
+export interface ColorTrue {
+  type: "true";
+  r: number;
+  g: number;
+  b: number;
+}
+
+/**
+ * Union type for all color types
+ */
+export type ColorType = Color | ColorFull | ColorTrue;
+
+/**
+ * Create a 256-color palette color (0-255)
+ */
+export function colorFull(colorCode: number): ColorFull {
+  return { type: "full", colorCode };
+}
+
+/**
+ * Create a 24-bit true color (RGB 0-255 each)
+ */
+export function colorTrue(r: number, g: number, b: number): ColorTrue {
+  return { type: "true", r, g, b };
+}
+
+function getColorCode(color: ColorType): string {
+  // Handle ColorFull
+  if (typeof color === "object" && color.type === "full") {
+    return `38;5;${color.colorCode}`;
+  }
+
+  // Handle ColorTrue
+  if (typeof color === "object" && color.type === "true") {
+    return `38;2;${color.r};${color.g};${color.b}`;
+  }
+
+  // Handle standard Color enum
   const codes: Record<Color, string> = {
     [Color.Black]: "30",
     [Color.Red]: "31",
@@ -308,7 +387,7 @@ function getColorCode(color: Color): string {
     [Color.BrightWhite]: "97",
     [Color.NoColor]: "",
   };
-  return codes[color];
+  return codes[color as Color] || "";
 }
 
 /**
@@ -326,7 +405,45 @@ export enum Style {
   NoStyle = "noStyle",
 }
 
-function getStyleCode(style: Style): string {
+/**
+ * Combined styles - represents multiple styles applied together
+ */
+export interface CombinedStyles {
+  _type: "combined";
+  styles: Style[];
+}
+
+/**
+ * Union type for single or combined styles
+ */
+export type StyleType = Style | CombinedStyles;
+
+/**
+ * Combine multiple styles into one - fluent alternative to Scala's ++ operator
+ *
+ * @example
+ * styles(Style.Bold, Style.Italic)
+ * styles(Style.Bold, Style.Underline, Style.Reverse)
+ */
+export function styles(...styleList: Style[]): CombinedStyles {
+  return { _type: "combined", styles: styleList };
+}
+
+function getStyleCode(style: StyleType): string {
+  // Handle combined styles
+  if (
+    typeof style === "object" &&
+    "_type" in style &&
+    style._type === "combined"
+  ) {
+    // Return the first style's code for now, actual application happens in wrapStyle
+    return style.styles.length > 0 ? getSingleStyleCode(style.styles[0]) : "";
+  }
+
+  return getSingleStyleCode(style as Style);
+}
+
+function getSingleStyleCode(style: Style): string {
   const codes: Record<Style, string> = {
     [Style.Bold]: "1",
     [Style.Dim]: "2",
@@ -486,12 +603,16 @@ export class Tree implements Element {
     private children: Tree[] = []
   ) {}
 
-  color(colorType: Color): Colored {
+  color(colorType: ColorType): Colored {
     return new Colored(this, colorType);
   }
 
-  style(styleType: Style): Styled {
+  style(styleType: StyleType): Styled {
     return new Styled(this, styleType);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -666,12 +787,16 @@ export class Box implements Element {
     return new Box(this.elements, this.title, style as BorderStyle);
   }
 
-  color(colorType: Color): Colored {
+  color(colorType: ColorType): Colored {
     return new Colored(this, colorType);
   }
 
-  style(styleType: Style): Styled {
+  style(styleType: StyleType): Styled {
     return new Styled(this, styleType);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -771,12 +896,16 @@ export class Row implements Element {
     return result.join("\n");
   }
 
-  color(colorType: Color): Colored {
+  color(colorType: ColorType): Colored {
     return new Colored(this, colorType);
   }
 
-  style(styleType: Style): Styled {
+  style(styleType: StyleType): Styled {
     return new Styled(this, styleType);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -817,12 +946,16 @@ export class Layout implements Element {
       : DIMENSIONS.DEFAULT_RULE_WIDTH;
   }
 
-  color(colorType: Color): Colored {
+  color(colorType: ColorType): Colored {
     return new Colored(this, colorType);
   }
 
-  style(styleType: Style): Styled {
+  style(styleType: StyleType): Styled {
     return new Styled(this, styleType);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -872,12 +1005,16 @@ export class StatusCard implements Element {
     return new StatusCard(this.label, this.content, style as BorderStyle);
   }
 
-  color(colorType: Color): Colored {
+  color(colorType: ColorType): Colored {
     return new Colored(this, colorType);
   }
 
-  style(styleType: Style): Styled {
+  style(styleType: StyleType): Styled {
     return new Styled(this, styleType);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -1064,7 +1201,7 @@ export function text(content: string): Text {
 /**
  * Apply color to an element
  */
-export function color(colorType: Color) {
+export function color(colorType: ColorType) {
   return (element: string | Element): Colored =>
     new Colored(toElement(element), colorType);
 }
@@ -1072,7 +1209,7 @@ export function color(colorType: Color) {
 /**
  * Apply style to an element
  */
-export function style(styleType: Style) {
+export function style(styleType: StyleType) {
   return (element: string | Element): Styled =>
     new Styled(toElement(element), styleType);
 }
@@ -1128,6 +1265,36 @@ export function box(title = "", style = BorderStyle.Single) {
  */
 export function row(...elements: (string | Element)[]): Row {
   return new Row(toElements(elements));
+}
+
+/**
+ * Tight row - concatenates elements horizontally without spacing
+ */
+export function tightRow(...elements: (string | Element)[]): Element {
+  const elementsArray = toElements(elements);
+
+  return {
+    render(): string {
+      if (elementsArray.length === 0) return "";
+
+      const renderedElements = elementsArray.map((el) =>
+        el.render().split("\n")
+      );
+      const maxHeight = Math.max(
+        ...renderedElements.map((lines) => lines.length)
+      );
+
+      const result: string[] = [];
+      for (let lineIndex = 0; lineIndex < maxHeight; lineIndex++) {
+        const lineParts = renderedElements.map((lines) =>
+          lineIndex < lines.length ? lines[lineIndex] : ""
+        );
+        result.push(lineParts.join(""));
+      }
+
+      return result.join("\n");
+    },
+  };
 }
 
 /**
@@ -1269,7 +1436,7 @@ export function underline(char = "─") {
 /**
  * Add colored underline to an element
  */
-export function underlineColored(char: string, colorType: Color) {
+export function underlineColored(char: string, colorType: ColorType) {
   return (element: string | Element) =>
     new Underline(toElement(element), char, colorType);
 }
@@ -1285,7 +1452,7 @@ export function margin(prefix: string) {
 /**
  * Add a colored prefix margin to elements
  */
-export function marginColored(prefix: string, colorType: Color) {
+export function marginColored(prefix: string, colorType: ColorType) {
   return (...elements: (string | Element)[]) => {
     const coloredPrefix = wrapAnsi(prefix, getColorCode(colorType));
     return new Margin(coloredPrefix, toElements(elements));
@@ -1304,8 +1471,8 @@ export function tree(label: string): any {
 
   // Copy all Tree methods to the function
   result.render = () => baseTree.render();
-  result.color = (colorType: Color) => baseTree.color(colorType);
-  result.style = (styleType: Style) => baseTree.style(styleType);
+  result.color = (colorType: ColorType) => baseTree.color(colorType);
+  result.style = (styleType: StyleType) => baseTree.style(styleType);
   result.margin = (prefix: string) => baseTree.margin(prefix);
   result.label = label;
   result.children = [];
@@ -1439,7 +1606,7 @@ export class Underline implements Element {
   constructor(
     private element: Element,
     private char: string = "─",
-    private underlineColor?: Color
+    private underlineColor?: ColorType
   ) {}
 
   render(): string {
@@ -1465,12 +1632,16 @@ export class Underline implements Element {
     return content + "\n" + underlineStr;
   }
 
-  color(colorType: Color): Colored {
+  color(colorType: ColorType): Colored {
     return new Colored(this, colorType);
   }
 
-  style(styleType: Style): Styled {
+  style(styleType: StyleType): Styled {
     return new Styled(this, styleType);
+  }
+
+  styles(...styleList: Style[]): Styled {
+    return new Styled(this, { _type: "combined", styles: styleList });
   }
 
   margin(prefix: string): Margin {
@@ -1910,8 +2081,11 @@ const layoutz = {
   // Colors and Styles
   color,
   style,
+  styles,
   Color,
   Style,
+  colorFull,
+  colorTrue,
   underlineColored,
   marginColored,
 
@@ -1922,6 +2096,7 @@ const layoutz = {
 
   // Layout
   row,
+  tightRow,
   center,
   autoCenter,
   margin,
@@ -1977,6 +2152,7 @@ export const dsl = {
   section,
   banner,
   row,
+  tightRow,
   center,
   autoCenter,
   margin,

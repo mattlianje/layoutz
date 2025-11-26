@@ -8,6 +8,7 @@ import {
   ol,
   box,
   row,
+  tightRow,
   table,
   center,
   underline,
@@ -17,12 +18,15 @@ import {
   inlineBar,
   tree,
   wrap,
+  text,
   Border,
   Color,
   Style,
+  styles,
+  colorTrue,
 } from "./layoutz";
 
-/* Define layouts */
+/*** Define layouts ***/
 const t = table(
   ["Name", "Role", "Status"],
   [
@@ -31,12 +35,18 @@ const t = table(
     [ul("Gegard", ul("Mousasi", ul("was a BAD man"))), "Fighter", "Nasty"],
   ]
 ).border(Border.Round);
-
-/* Nest, compose, combine them */
+const gradient = Array.from({ length: 22 }, (_, idx) => {
+  const i = idx * 12;
+  const r = i < 128 ? i * 2 : 255;
+  const g = i < 128 ? 255 : (255 - i) * 2;
+  const b = i > 128 ? (i - 128) * 2 : 0;
+  return text("█").color(colorTrue(r, g, b));
+});
+/*** Nest, compose, combine them ***/
 const d = layout(
   center(
     row(
-      underlineColored("^", Color.BrightMagenta)("Layoutz").style(Style.Bold),
+      underlineColored("^", Color.BrightMagenta)("Layoutz").styles(Style.Bold),
       "... A Small Demo (ちいさい)"
     )
   ),
@@ -46,12 +56,21 @@ const d = layout(
     statusCard("CPU", "23%").border(Border.Thick).color(Color.BrightYellow),
     t,
     section("Pugilists")(
-      kv(["Kazushi", "Sakuraba"], ["Jet 李連杰", "Li"], ["Rory", "MacDonald"])
+      layout(
+        kv(
+          ["Kazushi", "Sakuraba"],
+          ["Jet 李連杰", "Li"],
+          ["Rory", "MacDonald"]
+        ),
+        tightRow(...gradient)
+      )
     )
   ),
   row(
     layout(
-      box("Wrapped")(wrap(20)("Where there is a will ... Water x Necessaries")),
+      box("Wrapped")(wrap(20)("Where there is a will ... Water x Necessaries"))
+        .color(Color.BrightMagenta)
+        .styles(Style.Reverse, Style.Bold),
       ol("Arcole", "Austerlitz", ol("Iéna", ol("Бородино")))
     ),
     margin("[TypeScript!]")(
@@ -68,6 +87,5 @@ const d = layout(
     )
   )
 );
-
-/* Get pretty strings w/ .render */
+/*** Get pretty strings w/ .render ***/
 console.log(d.render());

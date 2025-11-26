@@ -1,37 +1,58 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ts/pix/layoutz-ts-3.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ts/pix/layoutz-ts-demo.png" width="700">
 </p>
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards for your JavaScript applications.
+Declarative and composable text layouts for JavaScript and TypeScript.
 
 ## Features
 
 - Zero dependencies
-- Effortless composition of elements
-- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
-- Lists, trees, tables, charts, banners...
+- Fluent, composable API
+- Full ANSI color and styling support
+- Text styles: bold, italic, underline, and more
+- Rich text formatting: alignment, wrapping, justification, padding, truncation
+- Lists, trees, tables, charts, boxes, banners, progress bars
 
 ## Installation
 
-Install via npm:
+**Node.js / npm:**
 
 ```bash
 npm install layoutz
 ```
 
-All you need:
-
 ```typescript
 import * as L from "layoutz";
 ```
 
-## Quickstart
+**Browser / CDN:**
 
-Beautiful, compositional text layouts:
+```html
+<script type="module">
+  import {
+    layout,
+    box,
+    text,
+    Color,
+  } from "https://unpkg.com/layoutz@latest/dist/index.esm.js";
+
+  const demo = layout(
+    box("Browser Demo")(
+      text("Works in browser").color(Color.Green),
+      text("No dependencies"),
+      text("ES modules")
+    )
+  );
+
+  console.log(demo.render());
+</script>
+```
+
+## Quickstart
 
 ```typescript
 import * as L from "layoutz";
@@ -43,10 +64,8 @@ const demo = L.layout(
     L.statusCard("DB", "99.9%"),
     L.statusCard("Cache", "READY").border(L.Border.Thick)
   ),
-  "",
   L.box("Services")(
     L.ul("Production", "Staging", L.ul("test-api", L.ul("more nest"))),
-    "",
     L.inlineBar("Health", 0.94)
   ).border(L.Border.Round)
 );
@@ -77,30 +96,28 @@ console.log(demo.render());
 ## Core concepts
 
 - Every piece of content is an `Element`
-- Elements are **immutable** and **composable** - you build complex layouts by combining simple elements
-- A `layout` arranges elements **vertically** with consistent spacing:
+- Elements are immutable and composable
+- `layout` arranges elements vertically with consistent spacing:
 
 ```typescript
-layout(elem1, elem2, elem3); // Joins with "\n"
+layout(elem1, elem2, elem3); /* Joins with "\n" */
 ```
 
-Call `.render()` on an element to get a string
-
-The power comes from **uniform composition** - since everything is an `Element`, everything can be combined with everything else.
+Call `.render()` on an element to get a string.
 
 ## API Style
 
-TypeScript `layoutz` uses a **functional** approach with builder methods:
+Functional approach with builder methods:
 
 ```typescript
-// Compose elements functionally
+/* Compose elements */
 const element = box("Title")(
   ul("Item 1", "Item 2"),
   inlineBar("Progress", 0.75)
 ).border(Border.Double);
 
-// Chain transformations
-const formatted = "Hello World".center(20).underline().pad(2);
+/* Chain transformations */
+const formatted = text("Hello World").center(20).underline().pad(2);
 ```
 
 ## Elements
@@ -109,16 +126,14 @@ All components that implement the Element interface you can use in your layouts.
 
 ### Text
 
-TypeScript `layoutz` automatically converts strings to `Text` elements:
+Strings are automatically converted to `Text` elements:
 
 ```typescript
-"Simple text"; // <- automatically converted to Text element
-text("Simple text"); // <- explicit Text constructor
+"Simple text"; /* automatically converted */
+text("Simple text"); /* explicit constructor */
 ```
 
 ### Line Break
-
-Add extra line-break "\n" with empty string:
 
 ```typescript
 layout("Line 1", "", "Line 2");
@@ -157,12 +172,30 @@ Third
 
 ### Row (horizontal): `row`
 
+Horizontal layout with spacing:
+
 ```typescript
 row("Left", "Middle", "Right");
 ```
 
 ```
 Left Middle Right
+```
+
+### Tight Row: `tightRow`
+
+Horizontal layout without spacing between elements:
+
+```typescript
+tightRow(
+  text("█").color(Color.Red),
+  text("█").color(Color.Green),
+  text("█").color(Color.Blue)
+);
+```
+
+```
+███
 ```
 
 ### Columns: `columns`
@@ -208,15 +241,15 @@ role : admin
 
 ### Table: `table`
 
-Tables automatically normalize row lengths - truncating long rows and padding short ones:
+Tables automatically normalize row lengths:
 
 ```typescript
 table()(
-  ["Name", "Age", "City"], // headers
+  ["Name", "Age", "City"],
   [
     ["Alice", "30", "New York"],
-    ["Bob", "25"], // Short row - auto-padded
-    ["Charlie", "35", "London", "Extra"], // Long row - auto-truncated
+    ["Bob", "25"] /* auto-padded */,
+    ["Charlie", "35", "London", "Extra"] /* auto-truncated */,
   ]
 );
 ```
@@ -233,8 +266,6 @@ table()(
 
 ### Ordered Lists: `ol`
 
-Automatically numbered lists
-
 ```typescript
 ol("First step", "Second step", "Third step");
 ```
@@ -245,7 +276,7 @@ ol("First step", "Second step", "Third step");
 3. Third step
 ```
 
-Hierarchical nested numbering
+Nested numbering:
 
 ```typescript
 ol(
@@ -270,8 +301,6 @@ ol(
 
 ### Unordered Lists: `ul`
 
-Clean unordered lists with custom bullets
-
 ```typescript
 ul("Feature A", "Feature B", "Feature C");
 ul("→")("Item 1", "Item 2");
@@ -286,7 +315,7 @@ ul("→")("Item 1", "Item 2");
 → Item 2
 ```
 
-Nested lists with auto-styling
+Nested lists:
 
 ```typescript
 ul(
@@ -329,30 +358,49 @@ Custom
 Apply ANSI colors to any element:
 
 ```typescript
-import { color, Color } from "layoutz";
+import { Color } from "layoutz";
 
 statusCard("API", "LIVE").color(Color.Green);
 box("Error")("Something failed").color(Color.Red);
-color(Color.BrightMagenta)("Important text");
+text("Important").color(Color.BrightMagenta);
 ```
 
-**Available colors:**
+Standard colors:
 
 - `Black` `Red` `Green` `Yellow` `Blue` `Magenta` `Cyan` `White`
 - `BrightBlack` `BrightRed` `BrightGreen` `BrightYellow` `BrightBlue` `BrightMagenta` `BrightCyan` `BrightWhite`
-- `NoColor` _(for conditional formatting)_
+- `NoColor` (for conditional formatting)
 
-**Conditional coloring:**
+256-color palette:
+
+```typescript
+import { colorFull } from "layoutz";
+
+text("Orange").color(colorFull(208));
+text("Deep blue").color(colorFull(21));
+```
+
+True color (RGB):
+
+```typescript
+import { colorTrue } from "layoutz";
+
+text("Custom").color(colorTrue(255, 100, 50));
+text("█").color(colorTrue(128, 200, 255));
+```
+
+Conditional coloring:
 
 ```typescript
 const isError = true;
 statusCard("Status", message).color(isError ? Color.Red : Color.NoColor);
 ```
 
-**Colored underlines:**
+Colored underlines:
 
 ```typescript
 underlineColored("^", Color.BrightMagenta)("Title");
+underlineColored("=", colorTrue(255, 0, 255))("RGB underline");
 ```
 
 ### Styles: `Style`
@@ -360,18 +408,24 @@ underlineColored("^", Color.BrightMagenta)("Title");
 Apply ANSI text styles to any element:
 
 ```typescript
-import { style, Style } from "layoutz";
+import { Style } from "layoutz";
 
-"Important!".style(Style.Bold);
-"Error!".color(Color.Red).style(Style.Bold);
-"Notice".style(Style.Bold).style(Style.Italic);
+text("Important").style(Style.Bold);
+text("Error").color(Color.Red).style(Style.Bold);
 ```
 
-**Available styles:**
+Combine multiple styles:
+
+```typescript
+text("Highlighted").styles(Style.Bold, Style.Reverse);
+box("Alert")("Critical").styles(Style.Bold, Style.Italic, Style.Underline);
+```
+
+Available styles:
 
 - `Bold` `Dim` `Italic` `Underline`
 - `Blink` `Reverse` `Hidden` `Strikethrough`
-- `NoStyle` _(for conditional formatting)_
+- `NoStyle` (for conditional formatting)
 
 ### Box: `box`
 
@@ -465,8 +519,6 @@ API            │████████████████████�
 
 ### Padding: `pad`
 
-Add uniform padding around any element
-
 ```typescript
 pad(2)("content");
 ```
@@ -478,8 +530,6 @@ pad(2)("content");
 ```
 
 ### Truncation: `truncate`
-
-Truncate long text with ellipsis
 
 ```typescript
 truncate(15)("This is a very long text that will be cut off");
@@ -493,8 +543,6 @@ Custom ellipsis ex…
 
 ### Empty Element: `empty`
 
-Useful for conditional rendering
-
 ```typescript
 layout(
   "Always shown",
@@ -505,11 +553,9 @@ layout(
 
 ### Vertical Rule: `vr`
 
-Vertical separators to complement horizontal rules
-
 ```typescript
-vr(3); // 3-line vertical separator
-vr(5, "┃"); // Custom character
+vr(3); /* 3-line vertical separator */
+vr(5, "┃"); /* Custom character */
 ```
 
 ```
@@ -520,33 +566,21 @@ vr(5, "┃"); // Custom character
 
 ### Margin: `margin`
 
-Add prefix to each line:
-
-**Functional style:**
-
 ```typescript
+/* Functional style */
 margin("[LOG]")("Error occurred", "Stack trace here");
-```
 
-**Fluent style:**
-
-```typescript
+/* Fluent style */
 text("Error occurred").margin("[LOG]");
 box("Status")("All systems nominal").margin("[INFO]");
-```
 
-**Predefined colored margins:**
-
-```typescript
+/* Predefined colored margins */
 margins.error("Connection failed");
 margins.warn("Deprecated API");
 margins.success("Build complete");
 margins.info("Starting server...");
-```
 
-**Chain with colors and styles:**
-
-```typescript
+/* Chain with colors and styles */
 box("Deploy")(text("Build successful"))
   .color(Color.Green)
   .style(Style.Bold)
@@ -556,8 +590,6 @@ box("Deploy")(text("Build successful"))
 ## Text Formatting & Layout
 
 ### Alignment: `center`/`leftAlign`/`rightAlign`
-
-Align text within a specified width
 
 ```typescript
 center("TITLE", 20);
@@ -571,7 +603,7 @@ Left side
           Right side
 ```
 
-Works with multiline text:
+Multiline text:
 
 ```typescript
 center("Line 1\nLine 2", 15);
@@ -583,8 +615,6 @@ center("Line 1\nLine 2", 15);
 ```
 
 ### Text Wrapping: `wrap`
-
-Wrap long text at word boundaries
 
 ```typescript
 wrap("This is a very long line that should be wrapped at word boundaries", 20);
@@ -598,8 +628,6 @@ boundaries
 ```
 
 ### Text Justification: `justify`/`justifyAll`
-
-Distribute spaces to fit exact width
 
 ```typescript
 justify("All the lines\nmaybe the last", 20);
@@ -618,11 +646,11 @@ maybe    the    last
 
 Elements like `box`, `table`, and `banner` support different `Border` options:
 
-**Single** (default):
+Single (default):
 
 ```typescript
 box("Title")("").border(Border.Single);
-// default style is Border.Single, so same as: box("Title")("")
+/* default style is Border.Single, so same as: box("Title")("") */
 ```
 
 ```
@@ -631,7 +659,7 @@ box("Title")("").border(Border.Single);
 └───────┘
 ```
 
-**Double**:
+Double:
 
 ```typescript
 banner("Welcome").border(Border.Double);
@@ -643,7 +671,7 @@ banner("Welcome").border(Border.Double);
 ╚═════════╝
 ```
 
-**Thick**:
+Thick:
 
 ```typescript
 table().border(Border.Thick)(headers, rows);
@@ -657,7 +685,7 @@ table().border(Border.Thick)(headers, rows);
 ┗━━━━━━━┻━━━━━━━━┛
 ```
 
-**Round**:
+Round:
 
 ```typescript
 box("Info")("").border(Border.Round);
@@ -669,7 +697,7 @@ box("Info")("").border(Border.Round);
 ╰──────╯
 ```
 
-**Custom**:
+Custom:
 
 ```typescript
 box("Hello hello")("World!").border(Border.Custom("+", "=", "|"));
