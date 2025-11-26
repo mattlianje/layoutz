@@ -4,6 +4,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Layoutz
 import Data.List (isInfixOf)
+import Data.IORef (newIORef, readIORef, writeIORef)
 
 -- Helper to strip ANSI codes for testing (re-export from Layoutz would be better, but this works)
 stripAnsiTest :: String -> String
@@ -29,6 +30,7 @@ tests = testGroup "Layoutz Tests"
   , colorTests
   , extendedColorTests
   , styleTests
+  , commandTests
   ]
 
 -- Basic element tests
@@ -285,4 +287,33 @@ styleTests = testGroup "Styles"
       
   , testCase "wrap preserves words" $
       "This is a" `isInfixOf` render (wrap 10 "This is a test") @?= True
+  ]
+
+-- Command execution tests
+commandTests :: TestTree
+commandTests = testGroup "Commands"
+  [ testCase "None produces Nothing" $ do
+      result <- executeCmd (None :: Cmd String)
+      result @?= Nothing
+      
+  , testCase "cmd executes IO without message" $ do
+      ref <- newIORef (0 :: Int)
+      result <- executeCmd (cmd $ writeIORef ref 42 :: Cmd String)
+      val <- readIORef ref
+      result @?= Nothing
+      val @?= 42
+      
+  , testCase "cmdMsg executes IO and returns message" $ do
+      result <- executeCmd (cmdMsg $ pure "hello" :: Cmd String)
+      result @?= Just "hello"
+      
+  , testCase "Batch executes all commands" $ do
+      ref <- newIORef (0 :: Int)
+      _ <- executeCmd (Batch [cmd $ writeIORef ref 1, cmd $ writeIORef ref 2] :: Cmd String)
+      val <- readIORef ref
+      val @?= 2  -- Last write wins
+      
+  , testCase "Batch returns first Just message" $ do
+      result <- executeCmd (Batch [Cmd (pure Nothing), cmdMsg (pure "first"), cmdMsg (pure "second")] :: Cmd String)
+      result @?= Just "first"
   ]

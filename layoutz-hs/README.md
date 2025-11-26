@@ -6,13 +6,35 @@
 
 **Simple, beautiful CLI output for Haskell 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards for your Haskell applications.
+Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
+
+Also in: [Scala](https://github.com/mattlianje/layoutz), [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts)
 
 ## Features
 - Zero dependencies, use `Layoutz.hs` like a header file
 - Rich text formatting: alignment, underlines, padding, margins
-- Lists, trees, tables, charts, banners...
-- Easily create new primitives (no component-library limitations).
+- Lists, trees, tables, charts, spinners...
+- ANSI colors and wide character support
+- Easily create new primitives (no component-library limitations)
+- [`LayoutzApp`](#interactive-apps) for Elm-style TUI's
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutzapp-demo.gif" height="300"><img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/game-demo.gif" height="300">
+<br>
+<sub><a href="TaskListDemo.hs">task list</a> • <a href="SimpleGame.hs">simple game</a></sub>
+</p>
+
+## Table of Contents
+- [Installation](#installation)
+- [Quickstart](#quickstart)
+- [Why layoutz?](#why-layoutz)
+- [Core Concepts](#core-concepts)
+- [Elements](#elements)
+- [Border Styles](#border-styles)
+- [Colors](#colors-ansi-support)
+- [Styles](#styles-ansi-support)
+- [Custom Components](#custom-components)
+- [Interactive Apps](#interactive-apps)
 
 ## Installation
 
@@ -28,40 +50,70 @@ import Layoutz
 
 ## Quickstart
 
-Beautiful, compositional text layouts:
+**(1/2) Static rendering** - Beautiful, compositional strings:
 
 ```haskell
 import Layoutz
 
 demo = layout
-  [ center $ row ["Layoutz", underline' "ˆ" $ text "DEMO"]
+  [ center $ row 
+      [ withStyle StyleBold $ text "Layoutz"
+      , withColor ColorCyan $ underline' "ˆ" $ text "DEMO"
+      ]
   , br
   , row
     [ statusCard "Users" "1.2K"
     , withBorder BorderDouble $ statusCard "API" "UP"
-    , withBorder BorderThick $ statusCard "CPU" "23%"
-    , withBorder BorderRound $ table ["Name", "Role", "Status"] 
-        [ ["Alice", "Engineer", "Online"]
-        , ["Eve", "QA", "Away"]
+    , withColor ColorRed $ withBorder BorderThick $ statusCard "CPU" "23%"
+    , withStyle StyleReverse $ withBorder BorderRound $ table ["Name", "Role", "Skills"] 
+	[ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
+        , ["Eve", "QA", "Testing"]
         ]
-    , section "Pugilists" [kv [("Kazushi", "Sakuraba"), ("Jet", "Li")]]
     ]
   ]
 
 putStrLn $ render demo
 ```
 
-```
-                                Layoutz DEMO
-                                        ˆˆˆˆ
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/intro-demo.png" width="700">
+</p>
 
-┌─────────┐ ╔═══════╗ ┏━━━━━━━┓ ╭───────┬──────────┬────────╮ === Pugilists ===
-│ Users   │ ║ API   ║ ┃ CPU   ┃ │ Name  │ Role     │ Status │ Kazushi: Sakuraba
-│ 1.2K    │ ║ UP    ║ ┃ 23%   ┃ ├───────┼──────────┼────────┤ Jet:     Li
-└─────────┘ ╚═══════╝ ┗━━━━━━━┛ │ Alice │ Engineer │ Online │
-                                │ Eve   │ QA       │ Away   │
-                                ╰───────┴──────────┴────────╯
+
+**(2/2) Interactive apps** - Build Elm-style TUI's:
+
+```haskell
+import Layoutz
+
+data Msg = Inc | Dec
+
+counterApp :: LayoutzApp Int Msg
+counterApp = LayoutzApp
+  { appInit = (0, None)
+  , appUpdate = \msg count -> case msg of
+      Inc -> (count + 1, None)
+      Dec -> (count - 1, None)
+  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
+      CharKey '+' -> Just Inc
+      CharKey '-' -> Just Dec
+      _           -> Nothing
+  , appView = \count -> layout
+      [ section "Counter" [text $ "Count: " <> show count]
+      , ul ["Press '+' or '-'", "ESC to quit"]
+      ]
+  }
+
+main = runApp counterApp
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="400">
+</p>
+
+## Why layoutz?
+- We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between
+- **layoutz** is a tiny, declarative DSL for structured CLI output
+- On the side, it has a little Elm-style runtime + keyhandling DSL to animate your elements, much like a flipbook
+     - But you can just use **Layoutz** without any of the TUI stuff
 
 ## Core concepts
 - Every piece of content is an `Element`
@@ -392,6 +444,39 @@ pad 2 $ text "content"
         
 ```
 
+### Spinners: `spinner`
+Animated loading spinners for TUI apps:
+```haskell
+spinner "Loading..." frameNum SpinnerDots
+spinner "Processing" frameNum SpinnerLine
+spinner "Working" frameNum SpinnerClock
+spinner "Thinking" frameNum SpinnerBounce
+```
+
+Styles:
+- **`SpinnerDots`** - Braille dot spinner: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+- **`SpinnerLine`** - Classic line spinner: | / - \
+- **`SpinnerClock`** - Clock face spinner: 🕐 🕑 🕒 ...
+- **`SpinnerBounce`** - Bouncing dots: ⠁ ⠂ ⠄ ⠂
+
+Increment the frame number on each render to animate:
+```haskell
+-- In your app state, track a frame counter
+data AppState = AppState { spinnerFrame :: Int, ... }
+
+-- In your view function
+spinner "Loading" (spinnerFrame state) SpinnerDots
+
+-- In your update function (triggered by a tick or key press)
+state { spinnerFrame = spinnerFrame state + 1 }
+```
+
+With colors:
+```haskell
+withColor ColorGreen $ spinner "Success!" frame SpinnerDots
+withColor ColorYellow $ spinner "Warning" frame SpinnerLine
+```
+
 ### Centering: `center`
 Smart auto-centering and manual width:
 ```haskell
@@ -512,10 +597,10 @@ layout[
 Create beautiful gradients with extended colors:
 
 ```haskell
-let palette = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 18..231]
+let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
     redToBlue = tightRow $ map (\i -> withColor (ColorTrue i 100 (255 - i)) $ text "█") [0, 4..255]
     greenFade = tightRow $ map (\i -> withColor (ColorTrue 0 (255 - i) i) $ text "█") [0, 4..255]
-    rainbow = tightRow $ map colorBlock [0, 4..255]
+    rainbow   = tightRow $ map colorBlock [0, 4..255]
       where
         colorBlock i =
           let r = if i < 128 then i * 2 else 255
@@ -629,6 +714,110 @@ cabal repl
 ├───┼───┤
 │ 1 │ 2 │
 └───┴───┘
+```
+
+## Interactive Apps
+
+Build **Elm-style terminal applications** with the built-in TUI runtime.
+
+```haskell
+import Layoutz
+
+data Msg = Inc | Dec
+
+counterApp :: LayoutzApp Int Msg
+counterApp = LayoutzApp
+  { appInit = (0, None)
+  , appUpdate = \msg count -> case msg of
+      Inc -> (count + 1, None)
+      Dec -> (count - 1, None)
+  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
+      CharKey '+' -> Just Inc
+      CharKey '-' -> Just Dec
+      _           -> Nothing
+  , appView = \count -> layout
+      [ section "Counter" [text $ "Count: " <> show count]
+      , ul ["Press '+' or '-'", "ESC to quit"]
+      ]
+  }
+
+main = runApp counterApp
+```
+
+### How the Runtime Works
+
+The `runApp` function spawns three threads:
+- **Render thread** - Continuously renders `appView state` to terminal (~30fps)
+- **Input thread** - Reads keys, maps via `appSubscriptions`, calls `appUpdate`
+- **Command thread** - Executes `Cmd` side effects async, feeds results back
+
+All state flows through pure functions. Commands run without blocking the UI.
+
+Press **ESC**, **Ctrl+C**, or **Ctrl+D** to exit.
+
+### `LayoutzApp state msg`
+
+```haskell
+data LayoutzApp state msg = LayoutzApp
+  { appInit          :: (state, Cmd msg)                 -- Initial state + startup command
+  , appUpdate        :: msg -> state -> (state, Cmd msg) -- Pure state transitions
+  , appSubscriptions :: state -> Sub msg                 -- Event sources
+  , appView          :: state -> L                       -- Render to UI
+  }
+```
+
+### Subscriptions
+
+| Subscription | Description |
+|--------------|-------------|
+| `onKeyPress (Key -> Maybe msg)` | Keyboard input |
+| `onTick msg` | Periodic ticks (~100ms) for animations |
+| `batch [sub1, sub2, ...]` | Combine subscriptions |
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `None` | No effect |
+| `Cmd (IO (Maybe msg))` | Run IO, optionally produce message |
+| `Batch [cmd1, cmd2, ...]` | Multiple commands |
+| `cmd :: IO () -> Cmd msg` | Fire and forget |
+| `cmdMsg :: IO msg -> Cmd msg` | IO that returns a message |
+
+**Example: Logger with file I/O**
+```haskell
+import Layoutz
+
+data Msg = Log | Saved
+data State = State { count :: Int, status :: String }
+
+loggerApp :: LayoutzApp State Msg
+loggerApp = LayoutzApp
+  { appInit = (State 0 "Ready", None)
+  , appUpdate = \msg s -> case msg of
+      Log   -> (s { count = count s + 1 }, 
+                cmd $ appendFile "log.txt" ("Entry " <> show (count s) <> "\n"))
+      Saved -> (s { status = "Saved!" }, None)
+  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
+      CharKey 'l' -> Just Log
+      _           -> Nothing
+  , appView = \s -> layout
+      [ section "Logger" [text $ "Entries: " <> show (count s)]
+      , text (status s)
+      , ul ["'l' to log", "ESC to quit"]
+      ]
+  }
+
+main = runApp loggerApp
+```
+
+### Key Types
+
+```haskell
+CharKey Char       -- 'a', '1', ' '
+EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
+ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
+SpecialKey String  -- "Ctrl+C", etc.
 ```
 
 ## Inspiration
