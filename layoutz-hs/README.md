@@ -12,6 +12,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 
 ## Features
 - Zero dependencies, use `Layoutz.hs` like a header file
+- Easy porting to MicroHs
 - Rich text formatting: alignment, underlines, padding, margins
 - Lists, trees, tables, charts, spinners...
 - ANSI colors and wide character support
