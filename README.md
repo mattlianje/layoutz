@@ -5,7 +5,7 @@
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
+Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUIs.
 Easily create new primitives (no component-library limitations).
 
 Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
@@ -25,7 +25,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 - Lists, trees, tables, charts, progress bars, spinners...
 - Easy creation of custom elements
 - Thread-safe, purely functional rendering
-- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUI's
+- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUIs
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -125,7 +125,7 @@ println(demo.render)
 
 **(2/2) Interactive apps**
 
-Build Elm-style TUI's
+Build Elm-style TUIs
 
 ```scala
 import layoutz._
