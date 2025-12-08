@@ -1,0 +1,25 @@
+(lang dune 3.0)
+
+(name layoutz)
+
+(version 0.0.1)
+
+(generate_opam_files true)
+
+(source (github username/layoutz))
+
+(authors "Matthieu Court <matthieu.court@protonmail.com>")
+
+(maintainers "Matthieu Court <matthieu.court@protonmail.com>")
+
+(license Apache-2.0)
+
+(documentation https://github.com/username/layoutz)
+
+(package
+ (name layoutz)
+ (synopsis "Friendly, expressive print-layout DSL for OCaml")
+ (description "A zero-dependency layout library for creating structured terminal output with boxes, tables, trees, and more.")
+ (depends
+  (ocaml (>= 4.14))
+  (alcotest :with-test)))
