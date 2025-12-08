@@ -89,7 +89,7 @@ Beautiful + compositional strings
 import layoutz._
 
 val demo = layout(
-  underline("ˆ")("Test Dashboard").center,
+  underline("ˆ")("Test Dashboard").center(),
   row(
     statusCard("API", "LIVE").border(Border.Double),
     statusCard("DB", "99.9%"),
