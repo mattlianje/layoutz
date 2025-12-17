@@ -6,7 +6,7 @@
 
 (generate_opam_files true)
 
-(source (github username/layoutz))
+(source (github mattlianje/layoutz))
 
 (authors "Matthieu Court <matthieu.court@protonmail.com>")
 
@@ -14,7 +14,9 @@
 
 (license Apache-2.0)
 
-(documentation https://github.com/username/layoutz)
+(homepage "https://github.com/mattlianje/layoutz")
+
+(documentation "https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml")
 
 (package
  (name layoutz)
