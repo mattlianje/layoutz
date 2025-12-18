@@ -9,37 +9,33 @@ open Layoutz
 (* Use `s` for quick strings, or `text` - they're the same *)
 
 (* === Basic text === *)
-let _ = put_str_ln (s "Hello, Layoutz!")
+let _ = print (s "Hello, Layoutz!")
 
 (* === Horizontal rules === *)
-let _ = put_str_ln hr
-let _ = put_str_ln (hr' ~char:"=" ~width:30 ())
+let _ = print hr
+let _ = print (hr' ~char:"=" ~width:30 ())
 
 (* === Vertical stacking === *)
-let _ = put_str_ln (layout [ s "Line 1"; s "Line 2"; s "Line 3" ])
+let _ = print (layout [ s "Line 1"; s "Line 2"; s "Line 3" ])
 
 (* === Horizontal stacking === *)
-let _ = put_str_ln (row [ s "Left"; s "Middle"; s "Right" ])
-let _ = put_str_ln (row ~tight:true [ s "["; s "no"; s "gaps"; s "]" ])
+let _ = print (row [ s "Left"; s "Middle"; s "Right" ])
+let _ = print (row ~tight:true [ s "["; s "no"; s "gaps"; s "]" ])
 
 (* === Boxes === *)
-let _ = put_str_ln (box ~title:"Hello" [ s "World" ])
+let _ = print (box ~title:"Hello" [ s "World" ])
 
 let _ =
-  put_str_ln
-    (box ~title:"Status" [ s "CPU: 42%"; s "MEM: 8GB"; s "Uptime: 3 days" ])
+  print (box ~title:"Status" [ s "CPU: 42%"; s "MEM: 8GB"; s "Uptime: 3 days" ])
 
 (* Different border styles *)
-let _ = put_str_ln (box ~border:borderDouble ~title:"Double" [ s "Fancy!" ])
-
-let _ =
-  put_str_ln (box ~border:borderRound ~title:"Round" [ s "Smooth corners" ])
-
-let _ = put_str_ln (box ~border:borderThick ~title:"Thick" [ s "Bold borders" ])
+let _ = print (box ~title:"Double" [ s "Fancy!" ] |> borderDouble)
+let _ = print (box ~title:"Round" [ s "Smooth corners" ] |> borderRound)
+let _ = print (box ~title:"Thick" [ s "Bold borders" ] |> borderThick)
 
 (* === Tables === *)
 let _ =
-  put_str_ln
+  print
     (table
        ~headers:[ s "Name"; s "Age"; s "City" ]
        [
@@ -49,80 +45,78 @@ let _ =
        ])
 
 let _ =
-  put_str_ln
-    (table ~border:borderDouble
+  print
+    (table
        ~headers:[ s "Language"; s "Typing"; s "Paradigm" ]
        [
          [ s "OCaml"; s "Static"; s "Functional" ];
          [ s "Python"; s "Dynamic"; s "Multi" ];
          [ s "Rust"; s "Static"; s "Systems" ];
-       ])
+       ]
+    |> borderDouble)
 
 (* === Colors and styles === *)
-let _ = put_str_ln (s "Error!" |> fg colorRed)
-let _ = put_str_ln (s "Success" |> fg colorGreen |> style styleBold)
-let _ = put_str_ln (s "Warning" |> fg colorYellow |> bg colorBlack)
+let _ = print (s "Error!" |> fg colorRed)
+let _ = print (s "Success" |> fg colorGreen |> styleBold)
+let _ = print (s "Warning" |> fg colorYellow |> bg colorBlack)
 
 (* Compose styles with ++ *)
 let fancy = styleBold ++ styleItalic ++ styleUnderline
-let _ = put_str_ln (s "Fancy text" |> style fancy)
+let _ = print (s "Fancy text" |> fancy)
 
 (* === Lists === *)
 let _ =
-  put_str_ln
+  print
     (ul
        [
          li (s "First item");
          li (s "Second item");
-         lic ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "With children");
+         li ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "With children");
        ])
 
-let _ =
-  put_str_ln (ol [ li (s "Step one"); li (s "Step two"); li (s "Step three") ])
+let _ = print (ol [ li (s "Step one"); li (s "Step two"); li (s "Step three") ])
 
 (* === Trees === *)
 let _ =
-  put_str_ln
+  print
     (tree
        (node
-          ~children:
+          ~c:
             [
               node (s "src");
-              node ~children:[ node (s "test_main.ml") ] (s "test");
+              node ~c:[ node (s "test_main.ml") ] (s "test");
               node (s "README.md");
             ]
           (s "project")))
 
 (* === Key-value pairs === *)
-let _ =
-  put_str_ln (kv [ ("Name", "Alice"); ("Age", "30"); ("Location", "NYC") ])
+let _ = print (kv [ ("Name", "Alice"); ("Age", "30"); ("Location", "NYC") ])
 
 (* === Progress bars === *)
-let _ = put_str_ln (inline_bar ~label:"Loading" ~progress:0.65)
+let _ = print (inline_bar ~label:"Loading" ~progress:0.65)
 
 (* === Charts === *)
-let _ =
-  put_str_ln (chart [ ("OCaml", 85.0); ("Haskell", 72.0); ("Scala", 90.0) ])
+let _ = print (chart [ ("OCaml", 85.0); ("Haskell", 72.0); ("Scala", 90.0) ])
 
 (* === Sections === *)
 let _ =
-  put_str_ln
+  print
     (section ~title:"Status" [ s "All systems operational"; s "Uptime: 99.9%" ])
 
 (* === Alignment === *)
 (* Auto-center in layout - width computed from siblings *)
 let _ =
-  put_str_ln
+  print
     (layout
        [ s "A long title line here"; center (s "Auto centered!"); s "Footer" ])
 
 (* Or explicit width *)
-let _ = put_str_ln (center ~width:30 (s "Explicit width"))
-let _ = put_str_ln (right_align ~width:30 (s "Right"))
+let _ = print (center ~width:30 (s "Explicit width"))
+let _ = print (right_align ~width:30 (s "Right"))
 
 (* === Nested layouts === *)
 let _ =
-  put_str_ln
+  print
     (layout
        [
          s "=== Dashboard ===";
@@ -146,7 +140,7 @@ let _ =
 let dashboard =
   layout
     [
-      box ~border:borderDouble ~title:" System Monitor "
+      box ~title:" System Monitor "
         [
           row
             [
@@ -154,7 +148,8 @@ let dashboard =
               box ~title:"RAM" [ s "███████░░░ 70%" ];
               box ~title:"Disk" [ s "██░░░░░░░░ 20%" ];
             ];
-        ];
+        ]
+      |> borderDouble;
       br;
       table
         ~headers:[ s "Process"; s "PID"; s "CPU%"; s "MEM%" ]
@@ -165,7 +160,7 @@ let dashboard =
         ];
     ]
 
-let _ = put_str_ln dashboard
+let _ = print dashboard
 
 (* === README example === *)
 let status_card label value = box ~title:label [ s value ]
@@ -173,7 +168,7 @@ let status_card label value = box ~title:label [ s value ]
 let readme_example =
   layout
     [
-      s "System Dashboard" |> style styleBold |> center;
+      s "System Dashboard" |> styleBold |> center;
       hr;
       row
         [
@@ -181,11 +176,12 @@ let readme_example =
           status_card "DB" "99.9%";
           status_card "Cache" "READY" |> fg colorCyan;
         ];
-      box ~border:borderRound ~title:"Services"
+      box ~title:"Services"
         [
           ul [ li (s "Production"); li (s "Staging"); li (s "Development") ];
           inline_bar ~label:"Health" ~progress:0.94;
-        ];
+        ]
+      |> borderRound;
     ]
 
-let _ = put_str_ln readme_example
+let _ = print readme_example

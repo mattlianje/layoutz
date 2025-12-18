@@ -22,11 +22,42 @@ module type ELEMENT = sig
   val height : t -> int
 end
 
-(** Existential wrapper - holds any element that satisfies ELEMENT *)
+(** Border styles for borderable elements *)
+module Border = struct
+  type t =
+    | Normal
+    | Double
+    | Thick
+    | Round
+    | None
+
+  let chars = function
+    | Normal -> ("┌", "┐", "└", "┘", "─", "│")
+    | Double -> ("╔", "╗", "╚", "╝", "═", "║")
+    | Thick -> ("┏", "┓", "┗", "┛", "━", "┃")
+    | Round -> ("╭", "╮", "╰", "╯", "─", "│")
+    | None -> (" ", " ", " ", " ", " ", " ")
+end
+
+type border = Border.t
+
+(** The BORDERABLE signature - elements that have configurable borders *)
+module type BORDERABLE = sig
+  type t
+
+  val render : t -> string
+  val width : t -> int
+  val height : t -> int
+  val with_border : t -> Border.t -> t
+  val get_border : t -> Border.t
+end
+
+(** Core element type *)
 type element =
   | E : (module ELEMENT with type t = 'a) * 'a -> element
+  | B : (module BORDERABLE with type t = 'a) * 'a -> element
   | AutoCenter : element -> element
-(* marker for auto-centering in layouts *)
+  | Bordered : Border.t * element -> element
 
 (* ============================================================================
    Utility Functions
@@ -112,21 +143,50 @@ let repeat_str n s = String.concat "" (List.init n (fun _ -> s))
    Core Operations on Elements
    ============================================================================ *)
 
+(* Forward reference for bordered wrapper rendering *)
+let render_bordered_impl = ref (fun (_ : Border.t) (_ : string) -> "")
+
 let rec render_el = function
   | E ((module M), v) -> M.render v
-  | AutoCenter inner -> render_el inner (* fallback when not in layout *)
+  | B ((module M), v) -> M.render v
+  | AutoCenter inner -> render_el inner
+  | Bordered (border, inner) -> !render_bordered_impl border (render_el inner)
 
 let rec width_el = function
   | E ((module M), v) -> M.width v
+  | B ((module M), v) -> M.width v
   | AutoCenter inner -> width_el inner
+  | Bordered (_, inner) -> width_el inner + 4
 
 let rec height_el = function
   | E ((module M), v) -> M.height v
+  | B ((module M), v) -> M.height v
   | AutoCenter inner -> height_el inner
+  | Bordered (_, inner) -> height_el inner + 2
 
 (** Wrap any ELEMENT module + value into the universal element type *)
 let el (type a) (module M : ELEMENT with type t = a) (v : a) : element =
   E ((module M), v)
+
+(** Wrap any BORDERABLE module + value into the universal element type *)
+let bel (type a) (module M : BORDERABLE with type t = a) (v : a) : element =
+  B ((module M), v)
+
+(** Set border on any element - borderables get modified, others get wrapped *)
+let set_border border = function
+  | B ((module M), v) -> B ((module M), M.with_border v border)
+  | Bordered (_, inner) -> Bordered (border, inner)
+  | other -> Bordered (border, other)
+
+let borderNormal e = set_border Border.Normal e
+let borderDouble e = set_border Border.Double e
+let borderThick e = set_border Border.Thick e
+let borderRound e = set_border Border.Round e
+
+let borderNone = function
+  | B ((module M), v) -> B ((module M), M.with_border v Border.None)
+  | Bordered (_, inner) -> inner
+  | other -> other
 
 (* ============================================================================
    ANSI Colors and Styles
@@ -182,22 +242,23 @@ module Style = struct
 
   let none : t = []
   let codes (style : t) : string list = style
+
+  (* Style codes *)
+  let bold : t = [ "1" ]
+  let dim : t = [ "2" ]
+  let italic : t = [ "3" ]
+  let underline : t = [ "4" ]
+  let blink : t = [ "5" ]
+  let reverse : t = [ "7" ]
+  let hidden : t = [ "8" ]
+  let strikethrough : t = [ "9" ]
+
+  (** Compose two styles together *)
+  let compose (a : t) (b : t) : t = a @ b
 end
 
-(* Style values *)
-type style = Style.t
-
-let styleBold : style = [ "1" ]
-let styleDim : style = [ "2" ]
-let styleItalic : style = [ "3" ]
-let styleUnderline : style = [ "4" ]
-let styleBlink : style = [ "5" ]
-let styleReverse : style = [ "7" ]
-let styleHidden : style = [ "8" ]
-let styleStrikethrough : style = [ "9" ]
-
-(** Compose two styles together with ++ *)
-let ( ++ ) (a : style) (b : style) : style = a @ b
+(** Compose two element transformers with ++ *)
+let ( ++ ) f g x = g (f x)
 
 (** Styled element wrapper *)
 module Styled = struct
@@ -388,7 +449,7 @@ module Truncated = struct
       if target <= 0
       then String.sub ellipsis 0 (min max_w (String.length ellipsis))
       else
-        (* Simple byte truncation - works for ASCII, approximates for UTF-8 *)
+        (* Byte truncation - TODO check if this works for all UTF-8, ASCII should be fine *)
         let rec find_cut i vis =
           if i >= String.length line || vis >= target
           then i
@@ -468,7 +529,7 @@ module Justified = struct
 
   let justify_line width line =
     let words = String.split_on_char ' ' line in
-    let words = List.filter (fun w -> w <> "") words in
+    let words = List.filter (fun w -> String.length w > 0) words in
     match words with
     | [] -> String.make width ' '
     | [ word ] -> pad_right width word
@@ -859,35 +920,10 @@ module HStack = struct
 end
 
 (* ============================================================================
-   Box / Container Elements
+   Borderable Elements (Box, Table, Banner)
    ============================================================================ *)
 
-module Border = struct
-  type t =
-    | Normal
-    | Double
-    | Thick
-    | Round
-    | None
-
-  let chars = function
-    | Normal -> ("┌", "┐", "└", "┘", "─", "│")
-    | Double -> ("╔", "╗", "╚", "╝", "═", "║")
-    | Thick -> ("┏", "┓", "┗", "┛", "━", "┃")
-    | Round -> ("╭", "╮", "╰", "╯", "─", "│")
-    | None -> (" ", " ", " ", " ", " ", " ")
-end
-
-(* Border values *)
-type border = Border.t
-
-let borderNormal = Border.Normal
-let borderDouble = Border.Double
-let borderThick = Border.Thick
-let borderRound = Border.Round
-let borderNone = Border.None
-
-(** Banner - decorative banner with border *)
+(** Banner - decorative banner with border (implements BORDERABLE) *)
 module Banner = struct
   type t = {
     content: element;
@@ -895,6 +931,8 @@ module Banner = struct
   }
 
   let create ?(border = Border.Double) content = { content; border }
+  let with_border t b = { t with border = b }
+  let get_border t = t.border
 
   let render t =
     let content_str = render_el t.content in
@@ -903,7 +941,6 @@ module Banner = struct
       List.fold_left (fun acc l -> max acc (visible_length l)) 0 content_lines
     in
     let inner_width = max_width + 4 in
-    (* 2 padding each side *)
     let tl, tr, bl, br, h, v = Border.chars t.border in
     let top = tl ^ repeat_str inner_width h ^ tr in
     let bot = bl ^ repeat_str inner_width h ^ br in
@@ -915,11 +952,11 @@ module Banner = struct
     in
     unlines ([ top; empty_line ] @ content_rendered @ [ empty_line; bot ])
 
-  let width t = width_el t.content + 8 (* 2 border + 2 padding each side *)
-  let height t = height_el t.content + 4 (* 2 border + 2 padding lines *)
+  let width t = width_el t.content + 8
+  let height t = height_el t.content + 4
 end
 
-(** Box - bordered container *)
+(** Box - bordered container (implements BORDERABLE) *)
 module Box = struct
   type t = {
     title: string;
@@ -929,6 +966,9 @@ module Box = struct
 
   let create ?(border = Border.Normal) ~title elements =
     { title; elements; border }
+
+  let with_border t b = { t with border = b }
+  let get_border t = t.border
 
   let render t =
     let content = String.concat "\n" (List.map render_el t.elements) in
@@ -972,7 +1012,7 @@ module Box = struct
     List.length content_lines + 2
 end
 
-(** Table - bordered table with element cells *)
+(** Table - bordered table with element cells (implements BORDERABLE) *)
 module Table = struct
   type t = {
     headers: element list;
@@ -981,6 +1021,8 @@ module Table = struct
   }
 
   let create ?(border = Border.Normal) ~headers rows = { headers; rows; border }
+  let with_border t b = { t with border = b }
+  let get_border t = t.border
 
   let render t =
     let num_cols = List.length t.headers in
@@ -1093,7 +1135,36 @@ module Table = struct
       @ [ bot_border ])
 
   let width t =
-    let col_widths = List.map width_el t.headers in
+    (* Must match render's column width calculation exactly *)
+    let num_cols = List.length t.headers in
+    let normalize_row row =
+      let len = List.length row in
+      if len >= num_cols
+      then List.filteri (fun i _ -> i < num_cols) row
+      else row @ List.init (num_cols - len) (fun _ -> el (module Text) "")
+    in
+    let header_strs = List.map render_el t.headers in
+    let rendered_rows =
+      List.map (fun row -> List.map render_el (normalize_row row)) t.rows
+    in
+    let col_widths =
+      let header_widths = List.map visible_length header_strs in
+      let row_widths =
+        List.map
+          (fun row ->
+            List.map
+              (fun cell ->
+                List.fold_left
+                  (fun acc l -> max acc (visible_length l))
+                  0 (lines cell))
+              row)
+          rendered_rows
+      in
+      List.mapi
+        (fun i hw ->
+          List.fold_left (fun acc row -> max acc (List.nth row i)) hw row_widths)
+        header_widths
+    in
     let total = List.fold_left ( + ) 0 col_widths in
     total + (List.length col_widths * 3) + 1
 
@@ -1106,6 +1177,24 @@ module Table = struct
     in
     3 + List.fold_left ( + ) 0 row_heights
 end
+
+(* Wire up the forward-declared bordered wrapper implementation *)
+let () =
+  render_bordered_impl :=
+    fun border content_str ->
+      let content_lines = lines content_str in
+      let max_width =
+        List.fold_left (fun acc l -> max acc (visible_length l)) 0 content_lines
+      in
+      let tl, tr, bl, br, h, v = Border.chars border in
+      let top = tl ^ repeat_str (max_width + 2) h ^ tr in
+      let bot = bl ^ repeat_str (max_width + 2) h ^ br in
+      let body =
+        List.map
+          (fun line -> v ^ " " ^ pad_right max_width line ^ " " ^ v)
+          content_lines
+      in
+      unlines ([ top ] @ body @ [ bot ])
 
 type list_item = {
   content: element;
@@ -1446,15 +1535,15 @@ let columns ?spacing elements =
   | Some sp -> el (module Columns) (Columns.create ~spacing:sp elements)
   | None -> el (module Columns) (Columns.create elements)
 
-(** Status card - label: content *)
+(** Status card - bordered box with label and content inside *)
 let statusCard ~label ~content =
-  el (module StatusCard) (StatusCard.create ~label ~content)
+  bel
+    (module Box)
+    { Box.title = ""; elements = [ label; content ]; border = Border.Normal }
 
 (** Banner with decorative border *)
-let banner ?border content =
-  match border with
-  | Some b -> el (module Banner) (Banner.create ~border:b content)
-  | None -> el (module Banner) (Banner.create content)
+let banner content =
+  bel (module Banner) { Banner.content; border = Border.Double }
 
 (** Key-value pairs *)
 let kv pairs = el (module KeyValue) (KeyValue.create pairs)
@@ -1481,19 +1570,15 @@ let row ?(tight = false) elements =
 let tightRow elements = el (module HStack) (HStack.create ~tight:true elements)
 
 (** Bordered box *)
-let box ?(border = Border.Normal) ~title elements =
-  el (module Box) (Box.create ~border ~title elements)
+let box ~title elements =
+  bel (module Box) { Box.title; elements; border = Border.Normal }
 
 (** Table with element headers and rows *)
-let table ?(border = Border.Normal) ~headers rows =
-  el (module Table) (Table.create ~border ~headers rows)
+let table ~headers rows =
+  bel (module Table) { Table.headers; rows; border = Border.Normal }
 
-(** List item - simple, no children *)
-let li item : list_item = { content = item; children = [] }
-
-(** List item with nested children - short label ~c for "children" *)
-let lic ?(c : list_item list = []) item : list_item =
-  { content = item; children = c }
+(** List item - optionally with nested children via ~c *)
+let li ?(c = []) item : list_item = { content = item; children = c }
 
 (** Unordered list - takes elements or li items *)
 let ul ?(bullet = "•") items = el (module UList) (UList.create ~bullet items)
@@ -1502,7 +1587,7 @@ let ul ?(bullet = "•") items = el (module UList) (UList.create ~bullet items)
 let ol ?(start = 1) items = el (module OList) (OList.create ~start items)
 
 (** Tree node constructor *)
-let node ?(children = []) label : tree_node = { label; branches = children }
+let node ?(c = []) label : tree_node = { label; branches = c }
 
 (** Tree element *)
 let tree root = el (module Tree) (Tree.create root)
@@ -1512,9 +1597,19 @@ let withStyle ?(fg = Color.None) ?(bg = Color.None) ?(style = Style.none) inner
     =
   el (module Styled) (Styled.create ~fg ~bg ~style inner)
 
-let style st e = withStyle ~style:st e
 let fg color e = withStyle ~fg:color e
 let bg color e = withStyle ~bg:color e
+
+(** Style functions - pipe-friendly *)
+let styleBold e = withStyle ~style:Style.bold e
+
+let styleDim e = withStyle ~style:Style.dim e
+let styleItalic e = withStyle ~style:Style.italic e
+let styleUnderline e = withStyle ~style:Style.underline e
+let styleBlink e = withStyle ~style:Style.blink e
+let styleReverse e = withStyle ~style:Style.reverse e
+let styleHidden e = withStyle ~style:Style.hidden e
+let styleStrikethrough e = withStyle ~style:Style.strikethrough e
 
 (** Render element to string *)
 let render = render_el
@@ -1526,4 +1621,4 @@ let width = width_el
 let height = height_el
 
 (** Print element to stdout *)
-let put_str_ln element = print_endline (render element)
+let print element = print_endline (render element)

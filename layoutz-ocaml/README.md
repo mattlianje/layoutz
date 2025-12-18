@@ -1,4 +1,4 @@
-# layoutz-ocaml
+# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="40"> layoutz-ocaml
 
 **Simple, beautiful CLI output for OCaml**
 
@@ -39,7 +39,7 @@ let status_card label value = box ~title:label [ s value ]
 let demo =
   layout
     [
-      s "Dashboard" |> style styleBold |> center;
+      s "Dashboard" |> styleBold |> center;
       hr;
       row
         [
@@ -47,14 +47,15 @@ let demo =
           status_card "DB" "99.9%";
           status_card "Cache" "READY" |> fg colorCyan;
         ];
-      box ~border:borderRound ~title:"Services"
+      (box ~title:"Services"
         [
           ul [ li (s "Production"); li (s "Staging") ];
           inline_bar ~label:"Health" ~progress:0.94;
-        ];
+        ]
+      |> borderRound);
     ]
 
-let () = put_str_ln demo
+let () = print demo
 ```
 ```
               Dashboard
@@ -83,7 +84,7 @@ let () = put_str_ln demo
 - Every piece of content is an `element`
 - Elements are **immutable** and **composable** - build complex layouts by combining simple ones
 - A `layout` arranges elements **vertically**, a `row` arranges them **horizontally**
-- Call `render` to get a string, or `put_str_ln` to print directly
+- Call `render` to get a string, or `print` to print directly
 - The power comes from **uniform composition** - everything is an element, everything combines
 
 ## Elements
@@ -140,8 +141,8 @@ hr' ~char:"=" ~width:20 ()
 
 ```ocaml
 box ~title:"Status" [ s "All systems go" ]
-box ~border:borderDouble ~title:"Fancy" [ s "Double border" ]
-box ~border:borderRound ~title:"Smooth" [ s "Rounded corners" ]
+box ~title:"Fancy" [ s "Double border" ] |> borderDouble
+box ~title:"Smooth" [ s "Rounded corners" ] |> borderRound
 ```
 ```
 ┌──Status───────┐
@@ -155,7 +156,13 @@ box ~border:borderRound ~title:"Smooth" [ s "Rounded corners" ]
 ╰─────────────────╯
 ```
 
-Border styles: `borderNormal`, `borderDouble`, `borderThick`, `borderRound`, `borderNone`
+Pipe any element through `borderRound`, `borderDouble`, `borderThick`, `borderNormal`, `borderNone`:
+
+```ocaml
+s "Hello" |> borderRound
+box ~title:"X" [ s "content" ] |> borderDouble
+table ~headers:[...] [...] |> borderThick
+```
 
 ### Table: `table`
 
@@ -203,7 +210,7 @@ ol [ li (s "Step one"); li (s "Step two"); li (s "Step three") ]
 
 ```ocaml
 ul [
-  lic ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "Item 1");
+  li ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "Item 1");
   li (s "Item 2")
 ]
 ```
@@ -218,9 +225,7 @@ ul [
 
 ```ocaml
 tree
-  (node
-     ~children:[ node (s "src"); node (s "test"); node (s "README.md") ]
-     (s "project"))
+  (node ~c:[ node (s "src"); node (s "test"); node (s "README.md") ] (s "project"))
 ```
 ```
 project
@@ -290,15 +295,12 @@ Pipe-friendly - compose with `|>`:
 s "error" |> fg colorRed
 s "success" |> fg colorGreen
 s "highlighted" |> bg colorBlue
-s "important" |> style styleBold
-s "emphasis" |> style styleItalic
+s "important" |> styleBold
+s "emphasis" |> styleItalic
 
 (* Combine them *)
-s "critical" |> fg colorRed |> style styleBold
-s "WARNING" |> fg colorBlack |> bg colorYellow |> style styleBold
-
-(* Or use withStyle for full control *)
-withStyle ~fg:colorRed ~bg:colorWhite ~style:styleBold (s "fancy")
+s "critical" |> fg colorRed |> styleBold
+s "WARNING" |> fg colorBlack |> bg colorYellow |> styleBold
 ```
 
 ### Available Colors
@@ -314,15 +316,14 @@ withStyle ~fg:colorRed ~bg:colorWhite ~style:styleBold (s "fancy")
 
 ### Composing Styles
 
-Use `++` to combine multiple styles:
+Use `++` to combine styles:
 
 ```ocaml
 let fancy = styleBold ++ styleItalic
-let warning = styleBold ++ styleUnderline
+let warning = styleBold ++ styleUnderline ++ fg colorRed
 
-s "important" |> style fancy
-s "alert" |> style (styleBold ++ styleReverse)
-s "header" |> style (styleBold ++ styleItalic ++ styleUnderline) |> fg colorCyan
+s "important" |> fancy
+s "alert" |> warning
 ```
 
 ## Custom Elements
@@ -330,19 +331,19 @@ s "header" |> style (styleBold ++ styleItalic ++ styleUnderline) |> fg colorCyan
 Create your own by implementing the `ELEMENT` signature:
 
 ```ocaml
-module Square : ELEMENT = struct
+module Square : ELEMENT with type t = int = struct
   type t = int
-  let create size = size
   let render size =
-    let top = "┌" ^ String.make size '─' ^ "┐" in
-    let mid = "│" ^ String.make size ' ' ^ "│" in
-    let bot = "└" ^ String.make size '─' ^ "┘" in
+    let h = String.concat "" (List.init (size * 2) (fun _ -> "─")) in
+    let top = "┌" ^ h ^ "┐" in
+    let mid = "│" ^ String.make (size * 2) ' ' ^ "│" in
+    let bot = "└" ^ h ^ "┘" in
     String.concat "\n" ([top] @ List.init size (fun _ -> mid) @ [bot])
-  let width size = size + 2
+  let width size = (size * 2) + 2
   let height size = size + 2
 end
 
-let square size = el (module Square) (Square.create size)
+let square size = el (module Square) size
 ```
 
 Then use it like any built-in:
@@ -351,15 +352,15 @@ Then use it like any built-in:
 row [ square 3; square 5; square 7 ]
 ```
 ```
-┌───┐ ┌─────┐ ┌───────┐
-│   │ │     │ │       │
-│   │ │     │ │       │
-│   │ │     │ │       │
-└───┘ │     │ │       │
-      │     │ │       │
-      └─────┘ │       │
-              │       │
-              └───────┘
+┌──────┐ ┌──────────┐ ┌──────────────┐
+│      │ │          │ │              │
+│      │ │          │ │              │
+│      │ │          │ │              │
+└──────┘ │          │ │              │
+         │          │ │              │
+         └──────────┘ │              │
+                      │              │
+                      └──────────────┘
 ```
 
 ## License

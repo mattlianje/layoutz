@@ -47,13 +47,13 @@ let test_box_contains_title () =
   check bool "box contains title" true (String.length output > 20)
 
 let test_double_border () =
-  let output = render (box ~border:Border.Double ~title:"" [ text "X" ]) in
+  let output = render (box ~title:"" [ text "X" ] |> borderDouble) in
   (* Check for UTF-8 sequence of ╔ *)
   check bool "double border starts with ╔" true
     (String.length output >= 3 && String.sub output 0 3 = "\xe2\x95\x94")
 
 let test_round_border () =
-  let output = render (box ~border:Border.Round ~title:"" [ text "X" ]) in
+  let output = render (box ~title:"" [ text "X" ] |> borderRound) in
   (* Check for UTF-8 sequence of ╭ *)
   check bool "round border starts with ╭" true
     (String.length output >= 3 && String.sub output 0 3 = "\xe2\x95\xad")
@@ -104,7 +104,7 @@ let test_table_basic () =
 
 let test_table_double_border () =
   let output =
-    render (table ~border:Border.Double ~headers:[ s "X" ] [ [ s "Y" ] ])
+    render (table ~headers:[ s "X" ] [ [ s "Y" ] ] |> borderDouble)
   in
   check bool "double table starts with ╔" true (String.sub output 0 3 = "╔")
 
@@ -129,7 +129,7 @@ let test_table_content () =
   check bool "table contains Alice" true contains_alice
 
 let test_styled_text () =
-  let output = render (s "Hello" |> style styleBold) in
+  let output = render (s "Hello" |> styleBold) in
   check bool "bold has ANSI codes" true (String.length output > 5);
   check bool "bold starts with escape" true (output.[0] = '\027')
 
@@ -155,7 +155,7 @@ let test_colorRGB () =
 
 let test_combined_styles () =
   let output =
-    render (s "Fancy" |> fg colorRed |> bg colorWhite |> style styleBold)
+    render (s "Fancy" |> fg colorRed |> bg colorWhite |> styleBold)
   in
   check bool "combined styles has ANSI codes" true (String.length output > 10);
   check bool "combined styles starts with escape" true (output.[0] = '\027')
@@ -236,8 +236,8 @@ let style_tests =
   ]
 
 let test_style_compose () =
-  let combined = styleBold ++ styleItalic in
-  let output = render (s "fancy" |> style combined) in
+  let boldItalic = styleBold ++ styleItalic in
+  let output = render (s "fancy" |> boldItalic) in
   check bool "style compose has ANSI" true (output.[0] = '\027');
   (* Should have both bold (1) and italic (3) codes *)
   check bool "contains bold code" true (String.length output > 10)
@@ -280,7 +280,7 @@ let test_nested_list () =
     render
       (ul
          [
-           lic ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "Item 1");
+           li ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "Item 1");
            li (s "Item 2");
          ])
   in
@@ -293,8 +293,7 @@ let test_nested_mixed_lists () =
     render
       (ol
          [
-           lic ~c:[ li (s "Sub A"); li (s "Sub B") ] (s "First");
-           li (s "Second");
+           li ~c:[ li (s "Sub A"); li (s "Sub B") ] (s "First"); li (s "Second");
          ])
   in
   check bool "mixed nested list renders" true (String.length output > 20)
@@ -320,9 +319,7 @@ let list_tests =
 
 let test_tree_basic () =
   let output =
-    render
-      (tree
-         (node ~children:[ node (s "child1"); node (s "child2") ] (s "root")))
+    render (tree (node ~c:[ node (s "child1"); node (s "child2") ] (s "root")))
   in
   let output_lines = lines output in
   check int "tree has 3 lines" 3 (List.length output_lines);
@@ -332,17 +329,14 @@ let test_tree_basic () =
 let test_tree_nested () =
   let output =
     render
-      (tree
-         (node
-            ~children:[ node ~children:[ node (s "deep") ] (s "child") ]
-            (s "root")))
+      (tree (node ~c:[ node ~c:[ node (s "deep") ] (s "child") ] (s "root")))
   in
   let output_lines = lines output in
   check int "nested tree has 3 lines" 3 (List.length output_lines)
 
 let test_tree_connectors () =
   let output =
-    render (tree (node ~children:[ node (s "a"); node (s "b") ] (s "root")))
+    render (tree (node ~c:[ node (s "a"); node (s "b") ] (s "root")))
   in
   check bool "tree has branch connector" true (String.length output > 10)
 
