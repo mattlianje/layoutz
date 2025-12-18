@@ -1,4 +1,4 @@
-# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="40"> layoutz-ocaml
+# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="40"> layoutz
 
 **Simple, beautiful CLI output for OCaml**
 
@@ -362,7 +362,3 @@ row [ square 3; square 5; square 7 ]
                       │              │
                       └──────────────┘
 ```
-
-## License
-
-Apache-2.0
