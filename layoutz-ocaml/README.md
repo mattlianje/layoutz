@@ -18,17 +18,6 @@ Part of [layoutz](https://github.com/mattlianje/layoutz)
 - Easy creation of custom elements
 - Thread-safe, purely functional rendering
 
-## Install
-
-```bash
-opam install layoutz
-```
-
-Or add to dune-project:
-```
-(depends layoutz)
-```
-
 ## Quickstart
 
 ```ocaml
