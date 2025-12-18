@@ -1,0 +1,15 @@
+version = 0.28.1
+profile = conventional
+margin = 80
+parse-docstrings = true
+break-cases = toplevel
+break-infix = fit-or-vertical
+break-sequences = false
+cases-exp-indent = 2
+field-space = tight-decl
+if-then-else = keyword-first
+indicate-nested-or-patterns = space
+let-and = sparse
+module-item-spacing = compact
+sequence-style = terminator
+type-decl = sparse

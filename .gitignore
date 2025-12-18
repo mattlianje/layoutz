@@ -15,3 +15,8 @@ layoutz-hs/dist-newstyle/
 
 layoutz-ts/node_modules/
 layoutz-ts/dist/
+
+layoutz-ocaml/_build/
+layoutz-ocaml/*.install
+layoutz-ocaml/.merlin
+layoutz-ocaml/_opam/
