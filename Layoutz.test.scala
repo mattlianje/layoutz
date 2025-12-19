@@ -440,6 +440,7 @@ Third line"""
     assertEquals(br(0).render, "")
     assertEquals(br(1).render, "\n")
   }
+
   test("hr fluent API") {
     assertEquals(hr.render, "─" * 50)
     assertEquals(hr.width(15).render, "─" * 15)
@@ -1200,99 +1201,94 @@ Longer line 2
     def writeLine(text: String): Unit = outputs += text + "\n"
     def flush(): Unit = outputs += "[FLUSH]"
 
-    def readInput(): Int = {
+    def readInput(): Int =
       if (inputQueue.nonEmpty) inputQueue.remove(0)
       else throw new RuntimeException("No input available")
-    }
 
-    def readInputNonBlocking(): Option[Int] = {
+    def readInputNonBlocking(): Option[Int] =
       if (inputQueue.nonEmpty) Some(inputQueue.remove(0))
       else None
-    }
 
     def close(): Unit = outputs += "[CLOSED]"
+    def terminalWidth(): Int = 80
 
     // Test helpers
-    def queueInput(chars: String): Unit = {
+    def queueInput(chars: String): Unit =
       inputQueue ++= chars.map(_.toInt)
-    }
 
-    def queueInput(code: Int): Unit = {
+    def queueInput(code: Int): Unit =
       inputQueue += code
-    }
 
     def getOutput: String = outputs.mkString("")
     def clearOutput(): Unit = outputs.clear()
   }
 
-  test("runtime configuration") {
-    val defaultConfig = RuntimeConfig()
-    assertEquals(defaultConfig.tickIntervalMs, 100L)
-    assertEquals(defaultConfig.renderIntervalMs, 50L)
-    assertEquals(defaultConfig.quitKey, 17)
-    assertEquals(defaultConfig.showQuitMessage, true)
+  test("run method accepts named parameters") {
+    // Verify the run method signature accepts all configuration options
+    // This is a compile-time check - if it compiles, the API is correct
+    object TestApp extends LayoutzApp[Unit, Unit] {
+      def init = ((), Cmd.none)
+      def update(msg: Unit, state: Unit) = ((), Cmd.none)
+      def subscriptions(state: Unit) = Sub.none
+      def view(state: Unit) = Text("test")
+    }
 
-    val customConfig = RuntimeConfig(
-      tickIntervalMs = 200,
-      renderIntervalMs = 30,
-      quitKey = 27,
-      showQuitMessage = false
-    )
-    assertEquals(customConfig.tickIntervalMs, 200L)
-    assertEquals(customConfig.quitKey, 27)
-    assertEquals(customConfig.showQuitMessage, false)
+    // These should compile - verifies all named params are available
+    // We don't actually run them (would need a terminal)
+    val runMethod = TestApp.run _
+    assert(runMethod != null)
   }
 
   test("key parsing") {
-    val parser = DefaultKeyParser
+    val parser = KeyParser
     val mockTerminal = new MockTerminal()
 
     // Test regular characters - these should definitely work
-    assertEquals(parser.parseKey(65, mockTerminal), CharKey('A'))
-    assertEquals(parser.parseKey(97, mockTerminal), CharKey('a'))
+    assertEquals(KeyParser.parse(65, mockTerminal), CharKey('A'))
+    assertEquals(KeyParser.parse(97, mockTerminal), CharKey('a'))
     assertEquals(
-      parser.parseKey(43, mockTerminal),
+      KeyParser.parse(43, mockTerminal),
       CharKey('+')
     ) // Plus sign - ASCII 43
     assertEquals(
-      parser.parseKey(45, mockTerminal),
+      KeyParser.parse(45, mockTerminal),
       CharKey('-')
     ) // Minus sign - ASCII 45
 
     // Test special keys
-    assertEquals(parser.parseKey(10, mockTerminal), EnterKey)
-    assertEquals(parser.parseKey(13, mockTerminal), EnterKey)
-    assertEquals(parser.parseKey(9, mockTerminal), TabKey)
-    assertEquals(parser.parseKey(127, mockTerminal), BackspaceKey)
+    assertEquals(KeyParser.parse(10, mockTerminal), EnterKey)
+    assertEquals(KeyParser.parse(13, mockTerminal), EnterKey)
+    assertEquals(KeyParser.parse(9, mockTerminal), TabKey)
+    assertEquals(KeyParser.parse(127, mockTerminal), BackspaceKey)
 
     // Test control characters
-    assertEquals(parser.parseKey(1, mockTerminal), SpecialKey("Ctrl+A"))
+    assertEquals(KeyParser.parse(1, mockTerminal), SpecialKey("Ctrl+A"))
 
     // Test arrow keys with mock terminal (fallback path)
     mockTerminal.queueInput("[A") // ESC sequence for up arrow
-    assertEquals(parser.parseKey(27, mockTerminal), ArrowUpKey)
+    assertEquals(KeyParser.parse(27, mockTerminal), ArrowUpKey)
 
     mockTerminal.queueInput("[B") // ESC sequence for down arrow
-    assertEquals(parser.parseKey(27, mockTerminal), ArrowDownKey)
+    assertEquals(KeyParser.parse(27, mockTerminal), ArrowDownKey)
 
     mockTerminal.queueInput("[C") // ESC sequence for right arrow
-    assertEquals(parser.parseKey(27, mockTerminal), ArrowRightKey)
+    assertEquals(KeyParser.parse(27, mockTerminal), ArrowRightKey)
 
     mockTerminal.queueInput("[D") // ESC sequence for left arrow
-    assertEquals(parser.parseKey(27, mockTerminal), ArrowLeftKey)
+    assertEquals(KeyParser.parse(27, mockTerminal), ArrowLeftKey)
   }
 
   test("counter app keys work") {
-    val parser = DefaultKeyParser
+    val parser = KeyParser
     val mockTerminal = new MockTerminal()
 
     // Keys coutner app uses
-    assertEquals(parser.parseKey(43, mockTerminal), CharKey('+'))
-    assertEquals(parser.parseKey(45, mockTerminal), CharKey('-'))
+    assertEquals(KeyParser.parse(43, mockTerminal), CharKey('+'))
+    assertEquals(KeyParser.parse(45, mockTerminal), CharKey('-'))
 
     // Verify they match what the counter app expects
-    val plusResult = parser.parseKey(43, mockTerminal)
-    val minusResult = parser.parseKey(45, mockTerminal)
+    val plusResult = KeyParser.parse(43, mockTerminal)
+    val minusResult = KeyParser.parse(45, mockTerminal)
 
     assert(
       plusResult == CharKey('+'),
@@ -1316,16 +1312,16 @@ Longer line 2
       case _            => None
     }
 
-    val parser = DefaultKeyParser
+    val parser = KeyParser
     val mockTerminal = new MockTerminal()
 
     // Test that pressing + gives increment message
-    val plusKey = parser.parseKey(43, mockTerminal) // ASCII 43 = '+'
+    val plusKey = KeyParser.parse(43, mockTerminal) // ASCII 43 = '+'
     val plusMsg = onKey(plusKey)
     assertEquals(plusMsg, Some(Inc))
 
     // Test that pressing - gives decrement message
-    val minusKey = parser.parseKey(45, mockTerminal) // ASCII 45 = '-'
+    val minusKey = KeyParser.parse(45, mockTerminal) // ASCII 45 = '-'
     val minusMsg = onKey(minusKey)
     assertEquals(minusMsg, Some(Dec))
   }
@@ -1409,8 +1405,8 @@ Longer line 2
     assert(rendered.contains("Message: initial"))
   }
 
-  test("jline terminal creation") {
-    JLineTerminal.create() match {
+  test("stty terminal creation") {
+    SttyTerminal.create() match {
       case Right(_)    =>
       case Left(error) => assert(error.isInstanceOf[TerminalError])
     }
@@ -1444,9 +1440,9 @@ Longer line 2
     mockTerminal.queueInput("++-")
     mockTerminal.queueInput(17)
 
-    val parser = DefaultKeyParser
-    assertEquals(parser.parseKey(43, mockTerminal), CharKey('+'))
-    assertEquals(parser.parseKey(45, mockTerminal), CharKey('-'))
+    val parser = KeyParser
+    assertEquals(KeyParser.parse(43, mockTerminal), CharKey('+'))
+    assertEquals(KeyParser.parse(45, mockTerminal), CharKey('-'))
 
     val app = TestCounter
     // Test subscriptions exist (can't easily test internal handler without exposing it)
@@ -1457,10 +1453,19 @@ Longer line 2
     val (afterIncrement, _) = app.update(Increment, initialState)
     assertEquals(afterIncrement.count, 1)
 
-    val config = RuntimeConfig(tickIntervalMs = 50, renderIntervalMs = 10)
+    val config = RuntimeConfig(
+      tickIntervalMs = 50,
+      renderIntervalMs = 10,
+      quitKey = 17,
+      showQuitMessage = false,
+      quitMessage = "",
+      clearOnStart = false,
+      clearOnExit = false,
+      alignment = Alignment.Left
+    )
 
     try {
-      val runtimeResult = LayoutzRuntime.run(app, config, mockTerminal)
+      val runtimeResult = LayoutzRuntime.run(app, config, Some(mockTerminal))
       runtimeResult match {
         case Right(_)    => assert(true)
         case Left(error) => assert(error.isInstanceOf[RuntimeError])

@@ -258,4 +258,5 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
       )
     )
   }
+
 }

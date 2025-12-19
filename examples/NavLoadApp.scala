@@ -278,7 +278,7 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
       case ConfirmNewTask
           if state.addingTask && state.newTaskName.trim.nonEmpty && state.newTaskDuration.trim.nonEmpty =>
         val duration =
-          try { state.newTaskDuration.toInt * 1000 }
+          try state.newTaskDuration.toInt * 1000
           catch { case _: NumberFormatException => 3000 }
         (
           state.copy(
@@ -375,7 +375,7 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
 
       val progressBar = inlineBar("Progress", state.progress)
       val timeElapsed = state.elapsedTime / 1000.0
-      val timeText = f"Elapsed: ${timeElapsed}%.1f seconds"
+      val timeText = f"Elapsed: $timeElapsed%.1f seconds"
 
       layout(
         currentSpinner,
@@ -418,4 +418,5 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
       )
     )
   }
+
 }

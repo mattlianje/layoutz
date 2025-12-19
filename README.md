@@ -18,6 +18,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 </p>
 
 ## Features
+- **Zero dependencies** - pure Scala, works on JVM and Native
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
@@ -54,6 +55,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
   - [LayoutzApp Architecture](#layoutzappstate-message)
   - [Subscriptions & Commands](#subscriptions)
 - [Examples](#examples)
+  - [Self-terminating loading bar](#self-terminating-loading-bar)
   - [File viewer](#file-viewer)
   - [Stopwatch timer](#stopwatch-timer)
   - [Custom side effects](#custom-side-effects)
@@ -65,7 +67,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 - [Inspiration](#inspiration)
 
 ## Installation
-**layoutz** is on MavenCentral and cross-built for Scala, 2.12, 2.13, 3.x
+**layoutz** is on MavenCentral and cross-built for Scala 2.13 and 3.x (JVM and Native)
 ```scala
 "xyz.matthieucourt" %% "layoutz" % "0.5.0"
 ```
@@ -153,7 +155,7 @@ object CounterApp extends LayoutzApp[Int, String] {
   )
 }
 
-CounterApp.run() /* call .run to start your app */
+CounterApp.run
 ```
 <p align="center">
   <img src="pix/counter-demo.gif" width="500">
@@ -950,7 +952,17 @@ trait LayoutzApp[State, Message] {
 }
 ```
 
-The `.run()` method handles the event loop, terminal management, and threading automatically.
+The `.run` method handles the event loop, terminal management, and threading automatically.
+
+You can customize runtime behavior with named parameters:
+```scala
+app.run(
+  clearOnStart = false,  // Don't clear screen on startup (default: true)
+  clearOnExit = false,   // Keep output visible after exit (default: true)
+  showQuitMessage = true, // Show "Press Ctrl+Q to quit" (default: false)
+  alignment = Alignment.Center // Center app in terminal (default: Left)
+)
+```
 
 The **layoutz** runtime spawns three daemon threads:
 - **Render thread** - Continuously renders your `view` to the terminal (~50ms intervals)
@@ -997,21 +1009,21 @@ def subscriptions(state: State) = Sub.batch(
 ```
 
 ### Commands
-**Layoutz** comes with some helpers to make common one-shot side effects like http requests and file I/O. Use `Cmd.perform` as your escape
-hatch for custom side effects:
+**Layoutz** comes with some helpers for common side effects. Use `Cmd.task` for custom async operations:
 
 | Command | Result Type | Description |
 |---------|-------------|-------------|
 | `Cmd.none` | - | No command to execute (default) |
+| `Cmd.exit` | - | Exit the application (self-terminating apps) |
 | `Cmd.batch(cmd1, cmd2, ...)` | - | Execute multiple commands |
+| `Cmd.task(expr)(toMsg)` | `Either[String, A]` | Run any async task with error handling |
+| `Cmd.fire(effect)` | - | Fire and forget, no message back |
 | `Cmd.file.read(path, onResult)` | `Either[String, String]` | Read file contents |
 | `Cmd.file.write(path, content, onResult)` | `Either[String, Unit]` | Write to file |
 | `Cmd.file.ls(path, onResult)` | `Either[String, List[String]]` | List directory contents |
 | `Cmd.file.cwd(onResult)` | `Either[String, String]` | Get current working directory |
 | `Cmd.http.get(url, onResult, headers)` | `Either[String, String]` | HTTP GET request |
 | `Cmd.http.post(url, body, onResult, headers)` | `Either[String, String]` | HTTP POST request |
-| `Cmd.http.bearerAuth(token)` | `Map[String, String]` | Create Bearer auth header |
-| `Cmd.perform(task, onResult)` | `Either[String, String]` | Custom async command |
 
 **Note:** With the implicit conversion, you can return just the state instead of `(state, Cmd.none)`:
 ```scala
@@ -1025,6 +1037,48 @@ def update(msg: Msg, state: State) = msg match {
 ## Examples
 
 Small interactive TUI apps using built-in `Cmd` and `Sub` features.
+
+### Self-terminating loading bar
+
+<details>
+<summary>Auto-exit when tasks complete using `Cmd.exit`</summary>
+
+```scala
+import layoutz._
+
+case class State(progress: Double, done: Boolean)
+sealed trait Msg
+case object Tick extends Msg
+
+object LoadingApp extends LayoutzApp[State, Msg] {
+  def init = (State(0, false), Cmd.none)
+
+  def update(msg: Msg, state: State) = msg match {
+    case Tick =>
+      if (state.done) (state, Cmd.exit)  // Exit on tick after done (ensures 100% renders)
+      else {
+        val next = state.progress + 0.02
+        if (next >= 1.0) (State(1.0, true), Cmd.none)  // Mark done, exit next tick
+        else (state.copy(progress = next), Cmd.none)
+      }
+  }
+
+  def subscriptions(state: State) = Sub.time.every(50, Tick)
+
+  def view(state: State) = layout(
+    inlineBar("Loading", state.progress),
+    f"${state.progress * 100}%.0f%% complete"
+  )
+}
+
+// Keep output visible after exit
+LoadingApp.run(clearOnExit = false, showQuitMessage = false)
+println("Done!")
+```
+
+See [LoadingApp.scala](examples/LoadingApp.scala) for a multi-task version.
+
+</details>
 
 ### File viewer
 
@@ -1068,7 +1122,7 @@ object FileViewer extends LayoutzApp[FileState, Msg] {
   }
 }
 
-FileViewer.run()
+FileViewer.run
 ```
 </details>
 
@@ -1135,14 +1189,14 @@ object StopwatchApp extends LayoutzApp[TimerState, Msg] {
   }
 }
 
-StopwatchApp.run()
+StopwatchApp.run
 ```
 </details>
 
 ### Custom side effects
 
 <details>
-<summary>Using `Cmd.perform` for side effects</summary>
+<summary>Using `Cmd.task` for async operations</summary>
 
 ```scala
 import layoutz._
@@ -1155,37 +1209,29 @@ case class TaskDone(result: Either[String, String]) extends Msg
 
 object SideEffectApp extends LayoutzApp[TaskState, Msg] {
   def init = (TaskState(), Cmd.none)
-  
+
   def update(msg: Msg, state: TaskState) = msg match {
     case RunTask =>
       (state.copy(status = "running..."),
-       Cmd.perform(
-         () => {
-           println("Firing missile...")
-           Thread.sleep(500)
-           if (scala.util.Random.nextDouble() < 0.3) {
-             println("Missile failed to launch")
-             Left("Launch failure")
-           } else {
-             println("Impact confirmed")
-             Right("completed")
-           }
-         },
-         TaskDone
-       ))
-    
-    case TaskDone(Right(_)) => 
+       Cmd.task {
+         Thread.sleep(500)
+         if (scala.util.Random.nextDouble() < 0.3)
+           throw new Exception("Launch failure")
+         "completed"
+       }(TaskDone))
+
+    case TaskDone(Right(_)) =>
       state.copy(status = "success", count = state.count + 1)
-    
+
     case TaskDone(Left(err)) =>
       state.copy(status = s"error: $err")
   }
-  
+
   def subscriptions(state: TaskState) = Sub.onKeyPress {
     case CharKey('r') => Some(RunTask)
     case _ => None
   }
-  
+
   def view(state: TaskState) = layout(
     section("Side Effect Demo")(
       kv("Status" -> state.status, "Count" -> state.count.toString)
@@ -1194,7 +1240,12 @@ object SideEffectApp extends LayoutzApp[TaskState, Msg] {
   )
 }
 
-SideEffectApp.run()
+SideEffectApp.run
+```
+
+Use `Cmd.fire` for fire-and-forget effects (logging, analytics, etc.):
+```scala
+Cmd.fire(println("User clicked button"))
 ```
 </details>
 
@@ -1241,7 +1292,7 @@ object ApiPoller extends LayoutzApp[ApiState, Msg] {
   }
 }
 
-ApiPoller.run()
+ApiPoller.run
 ```
 </details>
 
@@ -1298,7 +1349,7 @@ object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
   )
 }
 
-MultiMonitor.run()
+MultiMonitor.run
 ```
 </details>
 
@@ -1346,7 +1397,7 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
   }
 }
 
-HttpFetcher.run()
+HttpFetcher.run
 ```
 </details>
 
@@ -1465,7 +1516,7 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
   }
 }
 
-TaskApp.run()
+TaskApp.run
 ```
 </details>
 

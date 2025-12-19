@@ -1,7 +1,6 @@
-//> using dep "org.scalameta::munit:1.1.1"
-//> using dep "org.jline:jline-terminal:3.30.5"
-//> using dep "org.jline:jline-reader:3.30.5"
+//> using dep "org.scalameta::munit:1.2.1"
 //> using scala 2.12 2.13 3.5
+//> using platform jvm native
 
 //> using publish.name "layoutz"
 //> using publish.organization "xyz.matthieucourt"

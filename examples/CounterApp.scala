@@ -26,4 +26,5 @@ object CounterApp extends LayoutzApp[Int, String] {
     ul("Press `+` or `-` to change counter"),
     ul("Press Ctrl+Q to quit")
   )
+
 }

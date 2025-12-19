@@ -68,7 +68,7 @@ object ReadmeDemo {
     */
   println(d.render)
 
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit =
     println(d.render)
-  }
+
 }
