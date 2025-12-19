@@ -1611,4 +1611,60 @@ Longer line 2
     assert(styled.render.contains("\u001b[1m"))
   }
 
+  test("plot renders braille characters") {
+    val points = (0 to 10).map(x => (x.toDouble, x.toDouble))
+    val p = plot(20, 5)(Series(points))
+    val rendered = p.render
+    assert(rendered.exists(c => c >= '\u2800' && c <= '\u28FF'))
+    assert(rendered.contains("┤"))
+    assert(rendered.contains("└"))
+  }
+
+  test("plot with sine wave") {
+    val sinPoints = (0 to 360 by 10).map(x => (x.toDouble, math.sin(x.toRadians)))
+    val p = plot(30, 8)(Series(sinPoints))
+    val rendered = p.render
+    assert(rendered.contains("1"))
+    assert(rendered.contains("-1"))
+    assert(rendered.contains("0"))
+    assert(rendered.contains("360"))
+  }
+
+  test("multi-series plot with legend") {
+    val sin = Series((0 to 90 by 10).map(x => (x.toDouble, math.sin(x.toRadians))), "sin")
+    val cos = Series((0 to 90 by 10).map(x => (x.toDouble, math.cos(x.toRadians))), "cos")
+    val p = plot(30, 6)(sin, cos)
+    val rendered = p.render
+    assert(rendered.exists(c => c >= '\u2800' && c <= '\u28FF'))
+    assert(rendered.contains("sin"))
+    assert(rendered.contains("cos"))
+  }
+
+  test("plot without axes") {
+    val points = Seq((0.0, 0.0), (1.0, 1.0), (2.0, 0.5))
+    val p = plot(10, 5, showAxes = false)(Series(points))
+    val rendered = p.render
+    assert(!rendered.contains("┤"))
+    assert(!rendered.contains("└"))
+    assert(rendered.exists(c => c >= '\u2800' && c <= '\u28FF'))
+  }
+
+  test("plot empty data") {
+    val p = plot(10, 5)()
+    assertEquals(p.render, "No data")
+  }
+
+  test("plot with colored series") {
+    val sin = Series((0 to 90 by 1).map(x => (x.toDouble, math.sin(x.toRadians))), "sin")
+      .color(Color.Red)
+    val cos = Series((0 to 90 by 1).map(x => (x.toDouble, math.cos(x.toRadians))), "cos")
+      .color(Color.Blue)
+    val p = plot(30, 6)(sin, cos)
+    val rendered = p.render
+    assert(rendered.contains("\u001b[31m"))
+    assert(rendered.contains("\u001b[34m"))
+    assert(rendered.contains("sin"))
+    assert(rendered.contains("cos"))
+  }
+
 }

@@ -1135,6 +1135,192 @@ package object layoutz {
 
   }
 
+  /** A data series for plotting */
+  final case class Series(
+      points: Seq[(Double, Double)],
+      label: String = "",
+      seriesColor: Color = Color.NoColor
+  ) {
+    def color(c: Color): Series = copy(seriesColor = c)
+  }
+
+  /** Plot element using braille characters for high-resolution function graphing */
+  final case class Plot(
+      series: Seq[Series],
+      plotWidth: Int = 60,
+      plotHeight: Int = 20,
+      showAxes: Boolean = true,
+      showOrigin: Boolean = true
+  ) extends Element {
+
+    // Braille dot positions: each char is 2x4 dots
+    // ┌───┬───┐
+    // │ 1 │ 4 │  bits: 0x01, 0x08
+    // │ 2 │ 5 │  bits: 0x02, 0x10
+    // │ 3 │ 6 │  bits: 0x04, 0x20
+    // │ 7 │ 8 │  bits: 0x40, 0x80
+    // └───┴───┘
+    private val dotBits: Array[Array[Int]] = Array(
+      Array(0x01, 0x08),
+      Array(0x02, 0x10),
+      Array(0x04, 0x20),
+      Array(0x40, 0x80)
+    )
+
+    def render: String = {
+      if (series.isEmpty || series.forall(_.points.isEmpty)) return "No data"
+
+      val allPoints = series.flatMap(_.points)
+      val xMin = allPoints.map(_._1).min
+      val xMax = allPoints.map(_._1).max
+      val yMin = allPoints.map(_._2).min
+      val yMax = allPoints.map(_._2).max
+
+      val pixelWidth = plotWidth * 2
+      val pixelHeight = plotHeight * 4
+      val xRange = if (xMax == xMin) 1.0 else xMax - xMin
+      val yRange = if (yMax == yMin) 1.0 else yMax - yMin
+
+      val grid = Array.fill(plotHeight, plotWidth)(0)
+      val seriesGrid = Array.fill(plotHeight, plotWidth)(-1)
+      val dotCount = Array.fill(plotHeight, plotWidth, series.length)(0)
+
+      for {
+        (s, seriesIdx) <- series.zipWithIndex
+        (x, y) <- s.points
+      } {
+        val px = ((x - xMin) / xRange * (pixelWidth - 1)).toInt.max(0).min(pixelWidth - 1)
+        val py =
+          ((yMax - y) / yRange * (pixelHeight - 1)).toInt.max(0).min(pixelHeight - 1) // Y inverted
+        val cellX = px / 2
+        val cellY = py / 4
+        val dotX = px % 2
+        val dotY = py % 4
+        grid(cellY)(cellX) |= dotBits(dotY)(dotX)
+        dotCount(cellY)(cellX)(seriesIdx) += 1
+      }
+
+      // Origin axes at x=0, y=0
+      if (showOrigin) {
+        if (yMin < 0 && yMax > 0) {
+          val py = ((yMax - 0) / yRange * (pixelHeight - 1)).toInt
+          val cellY = py / 4
+          val dotY = py % 4
+          if (cellY >= 0 && cellY < plotHeight) {
+            for (px <- 0 until pixelWidth) {
+              val cellX = px / 2
+              val dotX = px % 2
+              grid(cellY)(cellX) |= dotBits(dotY)(dotX)
+            }
+          }
+        }
+        if (xMin < 0 && xMax > 0) {
+          val px = ((0 - xMin) / xRange * (pixelWidth - 1)).toInt
+          val cellX = px / 2
+          val dotX = px % 2
+          if (cellX >= 0 && cellX < plotWidth) {
+            for (py <- 0 until pixelHeight) {
+              val cellY = py / 4
+              val dotY = py % 4
+              grid(cellY)(cellX) |= dotBits(dotY)(dotX)
+            }
+          }
+        }
+      }
+
+      // Dominant series per cell (most dots wins)
+      for {
+        y <- 0 until plotHeight
+        x <- 0 until plotWidth
+      } {
+        val counts = dotCount(y)(x)
+        if (counts.exists(_ > 0)) {
+          seriesGrid(y)(x) = counts.zipWithIndex.maxBy(_._1)._2
+        }
+      }
+
+      // Braille: U+2800 + bits
+      val plotLines = grid.zip(seriesGrid).map { case (row, seriesIndices) =>
+        row.zip(seriesIndices).map { case (bits, seriesIdx) =>
+          val ch = (0x2800 + bits).toChar.toString
+          if (seriesIdx < 0) ch
+          else {
+            val s = series(seriesIdx)
+            if (s.seriesColor == Color.NoColor) ch else wrapAnsi(s.seriesColor, ch)
+          }
+        }.mkString
+      }
+
+      if (showAxes) {
+        // Format axis labels
+        val yMaxStr = formatNum(yMax)
+        val yMinStr = formatNum(yMin)
+        val xMinStr = formatNum(xMin)
+        val xMaxStr = formatNum(xMax)
+        val labelWidth = math.max(yMaxStr.length, yMinStr.length)
+
+        // Build output with Y-axis
+        val lines = new scala.collection.mutable.ArrayBuffer[String]()
+
+        // Top Y label
+        lines += (" " * labelWidth + " ┤" + plotLines.head)
+
+        // Middle lines
+        for (i <- 1 until plotLines.length - 1)
+          lines += (" " * labelWidth + " │" + plotLines(i))
+
+        // Bottom Y label
+        lines += (" " * labelWidth + " ┤" + plotLines.last)
+
+        // X-axis
+        val axisLine = " " * labelWidth + " └" + "─" * plotWidth
+        lines += axisLine
+
+        // X-axis labels
+        val xLabelLine = " " * (labelWidth + 2) + xMinStr +
+          " " * (plotWidth - xMinStr.length - xMaxStr.length) + xMaxStr
+        lines += xLabelLine
+
+        // Y-axis labels (positioned at top and bottom)
+        if (lines.nonEmpty) {
+          lines(0) = yMaxStr.reverse.padTo(labelWidth, ' ').reverse + lines(0).drop(labelWidth)
+          lines(plotLines.length - 1) = yMinStr.reverse.padTo(labelWidth, ' ').reverse +
+            lines(plotLines.length - 1).drop(labelWidth)
+        }
+
+        // Legend for multi-series (with colors)
+        val labelsWithContent = series.filter(_.label.nonEmpty)
+        if (labelsWithContent.length > 1) {
+          val legend = labelsWithContent.map { s =>
+            val marker = if (s.seriesColor == Color.NoColor) "─" else wrapAnsi(s.seriesColor, "─")
+            s"$marker ${s.label}"
+          }.mkString("  ")
+          lines += (" " * (labelWidth + 2) + legend)
+        }
+
+        lines.mkString("\n")
+      } else {
+        plotLines.mkString("\n")
+      }
+    }
+
+    private def formatNum(d: Double): String = {
+      val v = if (d == 0.0) 0.0 else d // Normalize -0.0 to 0.0
+      if (v == v.toLong) v.toLong.toString
+      else f"$v%.1f"
+    }
+
+  }
+
+  /** Factory for plot */
+  def plot(
+      width: Int = 60,
+      height: Int = 20,
+      showAxes: Boolean = true,
+      showOrigin: Boolean = true
+  )(series: Series*): Plot =
+    Plot(series, width, height, showAxes, showOrigin)
+
   /** Banner - decorative text in a box */
   final case class Banner(content: Element, borderStyle: Border = Border.Double)
       extends Element {

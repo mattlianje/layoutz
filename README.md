@@ -23,7 +23,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 - Effortless composition of elements
 - Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
 - ANSI colors and wide character support
-- Lists, trees, tables, charts, progress bars, spinners...
+- Lists, trees, tables, charts, plots, progress bars, spinners...
 - Easy creation of custom elements
 - Thread-safe, purely functional rendering
 - [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUIs
@@ -46,7 +46,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
   - [Lists, Tables & Trees](#ordered-lists-ol)
   - [Boxes, Cards & Borders](#box-box)
   - [Progress Bars & Spinners](#progress-bar-inlinebar)
-  - [Charts & Formatting](#chart-chart)
+  - [Charts & Plots](#chart-chart)
   - [Colors & Styles](#colors-color)
   - [Custom Elements](#create-your-custom-elements)
 - [Text Formatting & Layout](#text-formatting--layout)
@@ -616,7 +616,6 @@ Web            │████████████████ 10.0
 Mobile         │████████████████████████████████ 20.0
 API            │███████████████████████████ 15.0
 ```
-
 
 ### Text Input: `textInput`
 ```scala
