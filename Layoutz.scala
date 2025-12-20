@@ -53,11 +53,61 @@ package object layoutz {
 
     /* Content */
     val BULLET = "•"; val SPACE = " "; val BAR_FILLED = "█"; val BAR_EMPTY = "─"
+    val BULLET_STYLES = Array("•", "◦", "▪")
 
     /* Tree */
     val TREE_BRANCH = "├──"; val TREE_LAST_BRANCH = "└──";
     val TREE_VERTICAL = "│"
     val TREE_INDENT = " " * Dimensions.TREE_INDENTATION
+
+    /* Vertical block characters: 1/8 to 8/8 fill */
+    val BLOCK_CHARS = Array(' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+
+    /*
+     * Braille dot positions: each char is 2x4 dots
+     * ┌───┬───┐
+     * │ 1 │ 4 │  bits: 0x01, 0x08
+     * │ 2 │ 5 │  bits: 0x02, 0x10
+     * │ 3 │ 6 │  bits: 0x04, 0x20
+     * │ 7 │ 8 │  bits: 0x40, 0x80
+     * └───┴───┘
+     */
+    val BRAILLE_DOTS: Array[Array[Int]] = Array(
+      Array(0x01, 0x08),
+      Array(0x02, 0x10),
+      Array(0x04, 0x20),
+      Array(0x40, 0x80)
+    )
+  }
+
+  private object Palette {
+    val DEFAULT_COLORS: Array[Color] = Array(
+      Color.Blue,
+      Color.Green,
+      Color.Red,
+      Color.Yellow,
+      Color.Magenta,
+      Color.Cyan
+    )
+  }
+
+  private object Unicode {
+    val ANSI_ESCAPE_REGEX = "\u001b\\[[0-9;]*m".r
+
+    /* Character width ranges for terminal display */
+    val ASCII_FAST_PATH_END = 0x0300
+    val COMBINING_DIACRITICAL = (0x0300, 0x0370)
+    val HANGUL_JAMO = (0x1100, 0x1200)
+    val CJK_MAIN = (0x2e80, 0x9fff)
+    val HANGUL_SYLLABLES = (0xac00, 0xd7a4)
+    val CJK_COMPAT_IDEOGRAPHS = (0xf900, 0xfb00)
+    val VERTICAL_FORMS = (0xfe10, 0xfe20)
+    val CJK_COMPAT_FORMS = (0xfe30, 0xfe70)
+    val FULLWIDTH_FORMS = (0xff00, 0xff61)
+    val FULLWIDTH_SYMBOLS = (0xffe0, 0xffe7)
+    val EMOJI_START = 0x1f000
+    val SUPPLEMENTARY_IDEOGRAPHS = (0x20000, 0x2ffff)
+    val TERTIARY_IDEOGRAPHS = (0x30000, 0x3ffff)
   }
 
   /** Core layout element */
@@ -113,35 +163,25 @@ package object layoutz {
 
   }
 
-  private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
-
-  /** Strip ANSI escape sequences to get visual width */
   private def stripAnsiCodes(text: String): String =
-    AnsiEscapeRegex.replaceAllIn(text, "")
+    Unicode.ANSI_ESCAPE_REGEX.replaceAllIn(text, "")
 
-  /** Returns width of a character in a monospace terminal: 0 for combining characters, 1 for
-    * regular characters, 2 for East Asian wide and emoji.
-    */
   private def charWidth(c: Char): Int = {
-    val codePoint = c.toInt
-    if (codePoint < 0x0300) 1 // Fast path for ASCII and common Latin
-    else if (codePoint >= 0x0300 && codePoint < 0x0370)
-      0 // Combining diacriticals
-    else if (codePoint >= 0x1100 && codePoint < 0x1200) 2 // Hangul Jamo
-    else if (codePoint >= 0x2e80 && codePoint < 0x9fff) 2 // CJK
-    else if (codePoint >= 0xac00 && codePoint < 0xd7a4) 2 // Hangul Syllables
-    else if (codePoint >= 0xf900 && codePoint < 0xfb00)
-      2 // CJK Compatibility Ideographs
-    else if (codePoint >= 0xfe10 && codePoint < 0xfe20) 2 // Vertical forms
-    else if (codePoint >= 0xfe30 && codePoint < 0xfe70)
-      2 // CJK Compatibility Forms
-    else if (codePoint >= 0xff00 && codePoint < 0xff61) 2 // Fullwidth Forms
-    else if (codePoint >= 0xffe0 && codePoint < 0xffe7) 2 // Fullwidth symbols
-    else if (codePoint >= 0x1f000) 2 // Emoji, symbols, supplementary ideographs
-    else if (codePoint >= 0x20000 && codePoint < 0x2ffff)
-      2 // Supplementary ideographs
-    else if (codePoint >= 0x30000 && codePoint < 0x3ffff)
-      2 // Tertiary ideographs
+    import Unicode._
+    val cp = c.toInt
+    if (cp < ASCII_FAST_PATH_END) 1
+    else if (cp >= COMBINING_DIACRITICAL._1 && cp < COMBINING_DIACRITICAL._2) 0
+    else if (cp >= HANGUL_JAMO._1 && cp < HANGUL_JAMO._2) 2
+    else if (cp >= CJK_MAIN._1 && cp < CJK_MAIN._2) 2
+    else if (cp >= HANGUL_SYLLABLES._1 && cp < HANGUL_SYLLABLES._2) 2
+    else if (cp >= CJK_COMPAT_IDEOGRAPHS._1 && cp < CJK_COMPAT_IDEOGRAPHS._2) 2
+    else if (cp >= VERTICAL_FORMS._1 && cp < VERTICAL_FORMS._2) 2
+    else if (cp >= CJK_COMPAT_FORMS._1 && cp < CJK_COMPAT_FORMS._2) 2
+    else if (cp >= FULLWIDTH_FORMS._1 && cp < FULLWIDTH_FORMS._2) 2
+    else if (cp >= FULLWIDTH_SYMBOLS._1 && cp < FULLWIDTH_SYMBOLS._2) 2
+    else if (cp >= EMOJI_START) 2
+    else if (cp >= SUPPLEMENTARY_IDEOGRAPHS._1 && cp < SUPPLEMENTARY_IDEOGRAPHS._2) 2
+    else if (cp >= TERTIARY_IDEOGRAPHS._1 && cp < TERTIARY_IDEOGRAPHS._2) 2
     else 1
   }
 
@@ -412,11 +452,8 @@ package object layoutz {
 
   }
 
-  /** Unordered list with bullet points - supports automatic nesting */
   final case class UnorderedList(items: Seq[Element], bullet: String = "•")
       extends Element {
-
-    private val bulletStyles = Array("•", "◦", "▪")
 
     def render: String = renderAtLevel(0)
 
@@ -425,7 +462,7 @@ package object layoutz {
 
       val currentBullet = if (bullet == "•") {
         /* Auto bullet - use level-appropriate style */
-        bulletStyles(level % bulletStyles.length)
+        Glyphs.BULLET_STYLES(level % Glyphs.BULLET_STYLES.length)
       } else {
         /* Custom bullet - use as specified */
         bullet
@@ -1051,26 +1088,27 @@ package object layoutz {
     }
 
     case object Clock extends SpinnerStyle {
-
-      val frames = Array(
-        "🕐",
-        "🕑",
-        "🕒",
-        "🕓",
-        "🕔",
-        "🕕",
-        "🕖",
-        "🕗",
-        "🕘",
-        "🕙",
-        "🕚",
-        "🕛"
-      )
-
+      val frames = Array("🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛")
     }
 
     case object Bounce extends SpinnerStyle {
       val frames = Array("⠁", "⠂", "⠄", "⠂")
+    }
+
+    case object Earth extends SpinnerStyle {
+      val frames = Array("🌍", "🌎", "🌏")
+    }
+
+    case object Moon extends SpinnerStyle {
+      val frames = Array("🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘")
+    }
+
+    case object Grow extends SpinnerStyle {
+      val frames = Array("▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎")
+    }
+
+    case object Arrow extends SpinnerStyle {
+      val frames = Array("←", "↖", "↑", "↗", "→", "↘", "↓", "↙")
     }
 
   }
@@ -1135,7 +1173,6 @@ package object layoutz {
 
   }
 
-  /** A data series for plotting */
   final case class Series(
       points: Seq[(Double, Double)],
       label: String = "",
@@ -1144,7 +1181,6 @@ package object layoutz {
     def color(c: Color): Series = copy(seriesColor = c)
   }
 
-  /** Plot element using braille characters for high-resolution function graphing */
   final case class Plot(
       series: Seq[Series],
       plotWidth: Int = 60,
@@ -1152,20 +1188,6 @@ package object layoutz {
       showAxes: Boolean = true,
       showOrigin: Boolean = true
   ) extends Element {
-
-    // Braille dot positions: each char is 2x4 dots
-    // ┌───┬───┐
-    // │ 1 │ 4 │  bits: 0x01, 0x08
-    // │ 2 │ 5 │  bits: 0x02, 0x10
-    // │ 3 │ 6 │  bits: 0x04, 0x20
-    // │ 7 │ 8 │  bits: 0x40, 0x80
-    // └───┴───┘
-    private val dotBits: Array[Array[Int]] = Array(
-      Array(0x01, 0x08),
-      Array(0x02, 0x10),
-      Array(0x04, 0x20),
-      Array(0x40, 0x80)
-    )
 
     def render: String = {
       if (series.isEmpty || series.forall(_.points.isEmpty)) return "No data"
@@ -1196,11 +1218,11 @@ package object layoutz {
         val cellY = py / 4
         val dotX = px % 2
         val dotY = py % 4
-        grid(cellY)(cellX) |= dotBits(dotY)(dotX)
+        grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
         dotCount(cellY)(cellX)(seriesIdx) += 1
       }
 
-      // Origin axes at x=0, y=0
+      /* Origin axes at x=0, y=0 */
       if (showOrigin) {
         if (yMin < 0 && yMax > 0) {
           val py = ((yMax - 0) / yRange * (pixelHeight - 1)).toInt
@@ -1210,7 +1232,7 @@ package object layoutz {
             for (px <- 0 until pixelWidth) {
               val cellX = px / 2
               val dotX = px % 2
-              grid(cellY)(cellX) |= dotBits(dotY)(dotX)
+              grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
             }
           }
         }
@@ -1222,13 +1244,13 @@ package object layoutz {
             for (py <- 0 until pixelHeight) {
               val cellY = py / 4
               val dotY = py % 4
-              grid(cellY)(cellX) |= dotBits(dotY)(dotX)
+              grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
             }
           }
         }
       }
 
-      // Dominant series per cell (most dots wins)
+      /* Dominant series per cell (most dots wins) */
       for {
         y <- 0 until plotHeight
         x <- 0 until plotWidth
@@ -1239,7 +1261,7 @@ package object layoutz {
         }
       }
 
-      // Braille: U+2800 + bits
+      /* Braille: U+2800 + bits */
       val plotLines = grid.zip(seriesGrid).map { case (row, seriesIndices) =>
         row.zip(seriesIndices).map { case (bits, seriesIdx) =>
           val ch = (0x2800 + bits).toChar.toString
@@ -1252,43 +1274,31 @@ package object layoutz {
       }
 
       if (showAxes) {
-        // Format axis labels
         val yMaxStr = formatNum(yMax)
         val yMinStr = formatNum(yMin)
         val xMinStr = formatNum(xMin)
         val xMaxStr = formatNum(xMax)
         val labelWidth = math.max(yMaxStr.length, yMinStr.length)
 
-        // Build output with Y-axis
         val lines = new scala.collection.mutable.ArrayBuffer[String]()
-
-        // Top Y label
         lines += (" " * labelWidth + " ┤" + plotLines.head)
-
-        // Middle lines
         for (i <- 1 until plotLines.length - 1)
           lines += (" " * labelWidth + " │" + plotLines(i))
-
-        // Bottom Y label
         lines += (" " * labelWidth + " ┤" + plotLines.last)
 
-        // X-axis
         val axisLine = " " * labelWidth + " └" + "─" * plotWidth
         lines += axisLine
 
-        // X-axis labels
         val xLabelLine = " " * (labelWidth + 2) + xMinStr +
           " " * (plotWidth - xMinStr.length - xMaxStr.length) + xMaxStr
         lines += xLabelLine
 
-        // Y-axis labels (positioned at top and bottom)
         if (lines.nonEmpty) {
           lines(0) = yMaxStr.reverse.padTo(labelWidth, ' ').reverse + lines(0).drop(labelWidth)
           lines(plotLines.length - 1) = yMinStr.reverse.padTo(labelWidth, ' ').reverse +
             lines(plotLines.length - 1).drop(labelWidth)
         }
 
-        // Legend for multi-series (with colors)
         val labelsWithContent = series.filter(_.label.nonEmpty)
         if (labelsWithContent.length > 1) {
           val legend = labelsWithContent.map { s =>
@@ -1320,6 +1330,302 @@ package object layoutz {
       showOrigin: Boolean = true
   )(series: Series*): Plot =
     Plot(series, width, height, showAxes, showOrigin)
+
+  final case class Slice(
+      value: Double,
+      label: String = "",
+      sliceColor: Option[Color] = None
+  ) {
+    def color(c: Color): Slice = copy(sliceColor = Some(c))
+  }
+
+  final case class Pie(
+      slices: Seq[Slice],
+      pieWidth: Int = 40,
+      pieHeight: Int = 12,
+      showLegend: Boolean = true
+  ) extends Element {
+
+    def render: String = {
+      if (slices.isEmpty || slices.forall(_.value <= 0)) return "No data"
+
+      val total = slices.map(_.value).sum
+      val pixelWidth = pieWidth * 2
+      val pixelHeight = pieHeight * 4
+
+      val centerX = pixelWidth / 2.0
+      val centerY = pixelHeight / 2.0
+      val radius = math.min(centerX, centerY * 1.5) - 1
+
+      val coloredSlices = slices.zipWithIndex.map { case (s, i) =>
+        (s, s.sliceColor.getOrElse(Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)))
+      }
+
+      val angleRanges = {
+        var cumulative = 0.0
+        coloredSlices.map { case (s, c) =>
+          val startAngle = cumulative
+          val endAngle = cumulative + (s.value / total) * 2 * math.Pi
+          cumulative = endAngle
+          (startAngle, endAngle, c)
+        }
+      }
+
+      val grid = Array.fill(pieHeight, pieWidth)(0)
+      val sliceCount = Array.fill(pieHeight, pieWidth, slices.length)(0)
+
+      /* Fill pie, scale dy for terminal aspect ratio */
+      for {
+        py <- 0 until pixelHeight
+        px <- 0 until pixelWidth
+      } {
+        val dx = px - centerX
+        val dy = (py - centerY) * 1.5
+        val dist = math.sqrt(dx * dx + dy * dy)
+
+        if (dist <= radius) {
+          var angle = math.atan2(dy, dx)
+          if (angle < 0) angle += 2 * math.Pi
+
+          val sliceIdx = angleRanges.indexWhere { case (start, end, _) =>
+            angle >= start && angle < end
+          }
+
+          val cellX = px / 2
+          val cellY = py / 4
+          val dotX = px % 2
+          val dotY = py % 4
+          grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
+          if (sliceIdx >= 0) sliceCount(cellY)(cellX)(sliceIdx) += 1
+        }
+      }
+
+      /* Dominant slice per cell */
+      val colorGrid = Array.tabulate(pieHeight, pieWidth) { (y, x) =>
+        val counts = sliceCount(y)(x)
+        if (counts.exists(_ > 0)) {
+          val maxIdx = counts.zipWithIndex.maxBy(_._1)._2
+          coloredSlices(maxIdx)._2
+        } else Color.NoColor
+      }
+
+      /* Braille: U+2800 + bits */
+      val pieLines = grid.zip(colorGrid).map { case (row, colors) =>
+        row.zip(colors).map { case (bits, c) =>
+          val ch = (0x2800 + bits).toChar.toString
+          if (c == Color.NoColor) ch else wrapAnsi(c, ch)
+        }.mkString
+      }
+
+      if (showLegend && slices.exists(_.label.nonEmpty)) {
+        val legend = coloredSlices.filter(_._1.label.nonEmpty).map { case (s, c) =>
+          val pct = (s.value / total * 100).toInt
+          val marker = wrapAnsi(c, "●")
+          s"$marker ${s.label} ($pct%)"
+        }
+        (pieLines ++ ("" +: legend)).mkString("\n")
+      } else {
+        pieLines.mkString("\n")
+      }
+    }
+  }
+
+  def pie(width: Int = 40, height: Int = 12, showLegend: Boolean = true)(slices: Slice*): Pie =
+    Pie(slices, width, height, showLegend)
+
+  final case class Bar(
+      value: Double,
+      label: String = "",
+      barColor: Option[Color] = None
+  ) {
+    def color(c: Color): Bar = copy(barColor = Some(c))
+  }
+
+  final case class BarChart(
+      bars: Seq[Bar],
+      chartWidth: Int = 40,
+      chartHeight: Int = 10,
+      showLabels: Boolean = true,
+      showAxis: Boolean = true
+  ) extends Element {
+
+    def render: String = {
+      if (bars.isEmpty) return "No data"
+
+      val maxVal = bars.map(_.value).max
+      if (maxVal <= 0) return "No data"
+
+      val numBars = bars.length
+      val axisWidth = if (showAxis) maxVal.toInt.toString.length + 2 else 0
+      val availableWidth = chartWidth - axisWidth
+      val barWidth = math.max(1, (availableWidth - numBars + 1) / numBars)
+
+      val coloredBars = bars.zipWithIndex.map { case (b, i) =>
+        (b, b.barColor.getOrElse(Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)))
+      }
+
+      val rows = (0 until chartHeight).map { row =>
+        val threshold = (chartHeight - row - 1).toDouble / chartHeight
+        val nextThreshold = (chartHeight - row).toDouble / chartHeight
+
+        val axisLabel = if (showAxis) {
+          if (row == 0) f"$maxVal%.0f".padTo(axisWidth - 1, ' ') + "┤"
+          else if (row == chartHeight - 1) "0".padTo(axisWidth - 1, ' ') + "┤"
+          else " " * (axisWidth - 1) + "│"
+        } else ""
+
+        val barsStr = coloredBars.zipWithIndex.map { case ((b, c), i) =>
+          val normalized = b.value / maxVal
+          val barStr = if (normalized >= nextThreshold) {
+            "█" * barWidth
+          } else if (normalized > threshold) {
+            val frac = (normalized - threshold) / (1.0 / chartHeight)
+            val blockIdx = math.min(8, math.max(1, (frac * 8).toInt))
+            Glyphs.BLOCK_CHARS(blockIdx).toString * barWidth
+          } else {
+            " " * barWidth
+          }
+          val sep = if (i < numBars - 1) " " else ""
+          wrapAnsi(c, barStr) + sep
+        }.mkString
+
+        axisLabel + barsStr
+      }
+
+      val labelRow = if (showLabels && bars.exists(_.label.nonEmpty)) {
+        val prefix = if (showAxis) " " * axisWidth else ""
+        Some(prefix + coloredBars.map { case (b, _) =>
+          val lbl = b.label.take(barWidth)
+          val pad = barWidth - lbl.length
+          val left = pad / 2
+          val right = pad - left
+          " " * left + lbl + " " * right
+        }.mkString(" "))
+      } else None
+
+      (rows ++ labelRow).mkString("\n")
+    }
+  }
+
+  def bar(width: Int = 40, height: Int = 10, showLabels: Boolean = true)(bars: Bar*): BarChart =
+    BarChart(bars, width, height, showLabels)
+
+  final case class StackedBar(
+      segments: Seq[Bar],
+      label: String = ""
+  )
+
+  final case class StackedBarChart(
+      bars: Seq[StackedBar],
+      chartWidth: Int = 40,
+      chartHeight: Int = 10,
+      showLabels: Boolean = true,
+      showLegend: Boolean = true,
+      showAxis: Boolean = true
+  ) extends Element {
+
+    def render: String = {
+      if (bars.isEmpty) return "No data"
+
+      val maxVal = bars.map(_.segments.map(_.value).sum).max
+      if (maxVal <= 0) return "No data"
+
+      val numBars = bars.length
+      val axisWidth = if (showAxis) maxVal.toInt.toString.length + 2 else 0
+      val availableWidth = chartWidth - axisWidth
+      val barWidth = math.max(1, (availableWidth - numBars + 1) / numBars)
+
+      val allSegments = bars.flatMap(_.segments).filter(_.label.nonEmpty)
+      val uniqueLabels = allSegments.map(_.label).distinct
+      val labelColors = uniqueLabels.zipWithIndex.map { case (lbl, i) =>
+        lbl -> Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)
+      }.toMap
+
+      val totalPixelHeight = chartHeight * 8
+      val barSegments = bars.map { stackedBar =>
+        var cumulative = 0.0
+        stackedBar.segments.map { seg =>
+          val start = (cumulative / maxVal * totalPixelHeight).toInt
+          cumulative += seg.value
+          val end = (cumulative / maxVal * totalPixelHeight).toInt
+          val c = seg.barColor.getOrElse(
+            if (seg.label.nonEmpty) labelColors.getOrElse(seg.label, Color.Blue)
+            else Color.Blue
+          )
+          (start, end, c)
+        }
+      }
+
+      val rows = (0 until chartHeight).map { row =>
+        val rowPixelBottom = (chartHeight - row - 1) * 8
+        val rowPixelTop = (chartHeight - row) * 8
+
+        val axisLabel = if (showAxis) {
+          if (row == 0) f"$maxVal%.0f".padTo(axisWidth - 1, ' ') + "┤"
+          else if (row == chartHeight - 1) "0".padTo(axisWidth - 1, ' ') + "┤"
+          else " " * (axisWidth - 1) + "│"
+        } else ""
+
+        val barsStr = barSegments.zipWithIndex.map { case (segs, i) =>
+          var filledEighths = 0
+          var topColor: Color = Color.NoColor
+
+          for (eighth <- 0 until 8) {
+            val pixelY = rowPixelBottom + eighth
+            segs.find { case (start, end, _) => pixelY >= start && pixelY < end } match {
+              case Some((_, _, c)) =>
+                filledEighths += 1
+                topColor = c
+              case None =>
+            }
+          }
+
+          val barStr = if (filledEighths == 0) {
+            " " * barWidth
+          } else if (filledEighths == 8) {
+            wrapAnsi(topColor, "█" * barWidth)
+          } else {
+            wrapAnsi(topColor, Glyphs.BLOCK_CHARS(filledEighths).toString * barWidth)
+          }
+
+          val sep = if (i < numBars - 1) " " else ""
+          barStr + sep
+        }.mkString
+
+        axisLabel + barsStr
+      }
+
+      val labelRow = if (showLabels && bars.exists(_.label.nonEmpty)) {
+        val prefix = if (showAxis) " " * axisWidth else ""
+        Some(prefix + bars.map { b =>
+          val lbl = b.label.take(barWidth)
+          val pad = barWidth - lbl.length
+          val left = pad / 2
+          val right = pad - left
+          " " * left + lbl + " " * right
+        }.mkString(" "))
+      } else None
+
+      val legend = if (showLegend && uniqueLabels.nonEmpty) {
+        Some(uniqueLabels.map { lbl =>
+          val c = labelColors(lbl)
+          s"${wrapAnsi(c, "█")} $lbl"
+        }.mkString("  "))
+      } else None
+
+      (rows ++ labelRow ++ Seq("") ++ legend).mkString("\n")
+    }
+  }
+
+  def stackedBar(
+      width: Int = 40,
+      height: Int = 10,
+      showLabels: Boolean = true,
+      showLegend: Boolean = true
+  )(
+      bars: StackedBar*
+  ): StackedBarChart =
+    StackedBarChart(bars, width, height, showLabels, showLegend)
 
   /** Banner - decorative text in a box */
   final case class Banner(content: Element, borderStyle: Border = Border.Double)
@@ -1936,7 +2242,7 @@ package object layoutz {
   def hr: HorizontalRuleBuilder = HorizontalRuleBuilder()
 
   /* ===========================================================================
-   * Interactive Elements
+   * INTERACTIVE ELEMENTS
    */
 
   object input {
@@ -2044,7 +2350,7 @@ package object layoutz {
   def banner(): Banner = Banner(Text(""), Border.Double)
 
   /* ===========================================================================
-   * Text Formatting
+   * TEXT FORMATTING
    */
 
   /** Add underline to an element with custom character */
@@ -2067,7 +2373,7 @@ package object layoutz {
     UnorderedList(items, bullet)
 
   /* ===========================================================================
-   * Alignment
+   * ALIGNMENT
    */
 
   /** Center-align element within specified width */
@@ -2100,7 +2406,7 @@ package object layoutz {
     )
 
   /* ===========================================================================
-   * Margins
+   * MARGINS
    */
 
   /** Add a prefix margin to elements */
@@ -2111,7 +2417,7 @@ package object layoutz {
     Margin(prefix, elements, Some(color))
 
   /* ===========================================================================
-   * Implicits
+   * IMPLICITS
    */
 
   /** Automatic conversion from String to Text element. Allows using strings directly wherever
@@ -2136,7 +2442,7 @@ package object layoutz {
     strings.map(Text(_))
 
   /* ===========================================================================
-   * Runtime
+   * RUNTIME
    */
 
   sealed trait Key
@@ -2154,7 +2460,7 @@ package object layoutz {
   case object ArrowRightKey extends Key
 
   /* ===========================================================================
-   * Commands & Subscriptions
+   * COMMANDS & SUBSCRIPTIONS
    */
 
   /** Commands represent side effects to execute. Commands don't execute immediately, but are

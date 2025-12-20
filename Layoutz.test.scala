@@ -1667,4 +1667,74 @@ Longer line 2
     assert(rendered.contains("cos"))
   }
 
+  test("pie chart renders braille") {
+    val p = pie(20, 10)(Slice(30, "A"), Slice(50, "B"), Slice(20, "C"))
+    val rendered = p.render
+    assert(rendered.exists(c => c >= '\u2800' && c <= '\u28FF'))
+    assert(rendered.contains("A"))
+    assert(rendered.contains("B"))
+    assert(rendered.contains("C"))
+  }
+
+  test("pie chart with custom colors") {
+    val p = pie(20, 10)(
+      Slice(50, "Red").color(Color.Red),
+      Slice(50, "Blue").color(Color.Blue)
+    )
+    val rendered = p.render
+    assert(rendered.contains("\u001b[31m"))
+    assert(rendered.contains("\u001b[34m"))
+  }
+
+  test("pie chart empty data") {
+    val p = pie(10, 5)()
+    assertEquals(p.render, "No data")
+  }
+
+  test("bar chart renders blocks") {
+    val b = bar(20, 5)(
+      Bar(10, "A"),
+      Bar(20, "B"),
+      Bar(15, "C")
+    )
+    val rendered = b.render
+    assert(rendered.contains("█"))
+    assert(rendered.contains("A"))
+    assert(rendered.contains("B"))
+    assert(rendered.contains("C"))
+  }
+
+  test("bar chart with custom colors") {
+    val b = bar(20, 5)(
+      Bar(10, "X").color(Color.Red),
+      Bar(20, "Y").color(Color.Green)
+    )
+    val rendered = b.render
+    assert(rendered.contains("\u001b[31m"))
+    assert(rendered.contains("\u001b[32m"))
+  }
+
+  test("bar chart empty data") {
+    val b = bar(10, 5)()
+    assertEquals(b.render, "No data")
+  }
+
+  test("stacked bar chart") {
+    val s = stackedBar(30, 8)(
+      StackedBar(Seq(Bar(5, "Q1"), Bar(3, "Q2")), "2023"),
+      StackedBar(Seq(Bar(7, "Q1"), Bar(4, "Q2")), "2024")
+    )
+    val rendered = s.render
+    assert(rendered.contains("█"))
+    assert(rendered.contains("2023"))
+    assert(rendered.contains("2024"))
+    assert(rendered.contains("Q1"))
+    assert(rendered.contains("Q2"))
+  }
+
+  test("stacked bar chart empty data") {
+    val s = stackedBar(10, 5)()
+    assertEquals(s.render, "No data")
+  }
+
 }
