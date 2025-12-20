@@ -12,8 +12,11 @@
 
 package object layoutz {
 
+  import scala.concurrent.{Future, ExecutionContext}
   import scala.language.implicitConversions
+  import scala.io.Source
   import scala.util.Try
+  import java.io.{PrintWriter, File}
 
   type Width = Int
   type Height = Int
@@ -116,22 +119,11 @@ package object layoutz {
 
     final def width: Width = {
       val rendered = render
-      if (rendered.isEmpty) return 0
-
-      var maxWidth = 0
-      var start = 0
-      var i = 0
-      while (i <= rendered.length) {
-        if (i == rendered.length || rendered.charAt(i) == '\n') {
-          if (i > start) {
-            val lineWidth = realLength(rendered.substring(start, i))
-            if (lineWidth > maxWidth) maxWidth = lineWidth
-          }
-          start = i + 1
-        }
-        i += 1
+      if (rendered.isEmpty) 0
+      else {
+        val lines = rendered.split('\n')
+        if (lines.isEmpty) 0 else lines.map(realLength).max
       }
-      maxWidth
     }
 
     final def height: Height = {
@@ -314,7 +306,6 @@ package object layoutz {
 
       style match {
         case combined: CombinedStyle =>
-          // Flatten and apply all styles by nesting them
           val styles = combined.flatten
           lines
             .map { line =>
@@ -421,33 +412,27 @@ package object layoutz {
     private def renderAtLevel(level: Int): String = {
       if (items.isEmpty) return ""
 
-      var itemNumber = 0 /* Track numbering for non-nested items only */
-
-      items
-        .map { item =>
-          item match {
-            case nestedList: OrderedList =>
-              /* Nested list - render with increased level, don't increment numbering */
-              nestedList.renderAtLevel(level + 1)
-            case other =>
-              /* Regular item - render with current level numbering */
-              val number = getNumbering(itemNumber, level)
-              itemNumber += 1 /* Only increment for actual items */
-              val content = other.render
-              val lines = content.split('\n')
-              val indent = "  " * level /* 2 spaces per level */
-
-              if (lines.length == 1) {
-                s"$indent$number. ${lines.head}"
-              } else {
-                val firstLine = s"$indent$number. ${lines.head}"
-                val lineIndent = indent + " " * (number.length + 2)
-                val remainingLines = lines.tail.map(line => s"$lineIndent$line")
-                (firstLine +: remainingLines).mkString("\n")
-              }
-          }
+      val indent = "  " * level
+      val (_, rendered) = items.foldLeft((0, Seq.empty[String])) { case ((num, acc), item) =>
+        item match {
+          case nestedList: OrderedList =>
+            (num, acc :+ nestedList.renderAtLevel(level + 1))
+          case other =>
+            val number = getNumbering(num, level)
+            val content = other.render
+            val lines = content.split('\n')
+            val result = if (lines.length == 1) {
+              s"$indent$number. ${lines.head}"
+            } else {
+              val lineIndent = indent + " " * (number.length + 2)
+              (s"$indent$number. ${lines.head}" +: lines.tail.map(l => s"$lineIndent$l")).mkString(
+                "\n"
+              )
+            }
+            (num + 1, acc :+ result)
         }
-        .mkString("\n")
+      }
+      rendered.mkString("\n")
     }
 
   }
@@ -586,35 +571,17 @@ package object layoutz {
     }
 
     private def wrapLine(line: String): Seq[String] =
-      if (line.length <= maxWidth) {
-        Seq(line)
-      } else {
-        val words = line.split(" ", -1) // -1 to preserve trailing empty strings
-        val result = scala.collection.mutable.ArrayBuffer[String]()
-        var currentLine = ""
-
-        for (word <- words) {
-          val testLine =
-            if (currentLine.isEmpty) word else currentLine + " " + word
-
-          if (testLine.length <= maxWidth) {
-            currentLine = testLine
-          } else {
-            if (currentLine.nonEmpty) {
-              result += currentLine
-              currentLine = word
-            } else {
-              result += word
-              currentLine = ""
-            }
-          }
+      if (line.length <= maxWidth) Seq(line)
+      else {
+        val words = line.split(" ", -1)
+        val (current, lines) = words.foldLeft(("", Seq.empty[String])) { case ((cur, acc), word) =>
+          val test = if (cur.isEmpty) word else cur + " " + word
+          if (test.length <= maxWidth) (test, acc)
+          else if (cur.nonEmpty) (word, acc :+ cur)
+          else ("", acc :+ word)
         }
-
-        if (currentLine.nonEmpty) {
-          result += currentLine
-        }
-
-        if (result.isEmpty) Seq("") else result.toSeq
+        val result = if (current.nonEmpty) lines :+ current else lines
+        if (result.isEmpty) Seq("") else result
       }
 
   }
@@ -647,35 +614,17 @@ package object layoutz {
     }
 
     private def wrapLine(line: String): Seq[String] =
-      if (line.length <= targetWidth) {
-        Seq(line)
-      } else {
+      if (line.length <= targetWidth) Seq(line)
+      else {
         val words = line.split(" ", -1)
-        val result = scala.collection.mutable.ArrayBuffer[String]()
-        var currentLine = ""
-
-        for (word <- words) {
-          val testLine =
-            if (currentLine.isEmpty) word else currentLine + " " + word
-
-          if (testLine.length <= targetWidth) {
-            currentLine = testLine
-          } else {
-            if (currentLine.nonEmpty) {
-              result += currentLine
-              currentLine = word
-            } else {
-              result += word
-              currentLine = ""
-            }
-          }
+        val (current, lines) = words.foldLeft(("", Seq.empty[String])) { case ((cur, acc), word) =>
+          val test = if (cur.isEmpty) word else cur + " " + word
+          if (test.length <= targetWidth) (test, acc)
+          else if (cur.nonEmpty) (word, acc :+ cur)
+          else ("", acc :+ word)
         }
-
-        if (currentLine.nonEmpty) {
-          result += currentLine
-        }
-
-        if (result.isEmpty) Seq("") else result.toSeq
+        val result = if (current.nonEmpty) lines :+ current else lines
+        if (result.isEmpty) Seq("") else result
       }
 
     private def justifyLine(line: String, width: Int): String = {
@@ -777,7 +726,6 @@ package object layoutz {
     def render: String = {
       val expectedColumnCount = headers.length
 
-      // Normalize rows to have consistent column count
       val normalizedRows = rows.map(normalizeRowLength(_, expectedColumnCount))
 
       val headerLines = headers.map(_.render.split('\n'))
@@ -815,10 +763,8 @@ package object layoutz {
       if (row.length == expectedColumnCount) {
         row
       } else if (row.length > expectedColumnCount) {
-        // Truncate if too long
         row.take(expectedColumnCount)
       } else {
-        // Pad with empty strings if too short
         val paddingNeeded = expectedColumnCount - row.length
         row ++ Seq.fill(paddingNeeded)(Text(""))
       }
@@ -1153,7 +1099,6 @@ package object layoutz {
 
       data
         .map { case (labelElement, value) =>
-          // Flattens multiline labels to single line for chart display
           val label = flattenToSingleLine(labelElement)
           val barLength = (value * scale).toInt
           val bar = "█" * barLength
@@ -1279,36 +1224,26 @@ package object layoutz {
         val xMinStr = formatNum(xMin)
         val xMaxStr = formatNum(xMax)
         val labelWidth = math.max(yMaxStr.length, yMinStr.length)
+        val pad = " " * labelWidth
 
-        val lines = new scala.collection.mutable.ArrayBuffer[String]()
-        lines += (" " * labelWidth + " ┤" + plotLines.head)
-        for (i <- 1 until plotLines.length - 1)
-          lines += (" " * labelWidth + " │" + plotLines(i))
-        lines += (" " * labelWidth + " ┤" + plotLines.last)
-
-        val axisLine = " " * labelWidth + " └" + "─" * plotWidth
-        lines += axisLine
-
+        val firstLine = yMaxStr.reverse.padTo(labelWidth, ' ').reverse + " ┤" + plotLines.head
+        val middleLines = plotLines.slice(1, plotLines.length - 1).map(l => pad + " │" + l)
+        val lastPlotLine = yMinStr.reverse.padTo(labelWidth, ' ').reverse + " ┤" + plotLines.last
+        val axisLine = pad + " └" + "─" * plotWidth
         val xLabelLine = " " * (labelWidth + 2) + xMinStr +
           " " * (plotWidth - xMinStr.length - xMaxStr.length) + xMaxStr
-        lines += xLabelLine
-
-        if (lines.nonEmpty) {
-          lines(0) = yMaxStr.reverse.padTo(labelWidth, ' ').reverse + lines(0).drop(labelWidth)
-          lines(plotLines.length - 1) = yMinStr.reverse.padTo(labelWidth, ' ').reverse +
-            lines(plotLines.length - 1).drop(labelWidth)
-        }
 
         val labelsWithContent = series.filter(_.label.nonEmpty)
-        if (labelsWithContent.length > 1) {
-          val legend = labelsWithContent.map { s =>
+        val legend = if (labelsWithContent.length > 1) {
+          val legendStr = labelsWithContent.map { s =>
             val marker = if (s.seriesColor == Color.NoColor) "─" else wrapAnsi(s.seriesColor, "─")
             s"$marker ${s.label}"
           }.mkString("  ")
-          lines += (" " * (labelWidth + 2) + legend)
-        }
+          Seq(" " * (labelWidth + 2) + legendStr)
+        } else Seq.empty
 
-        lines.mkString("\n")
+        (Seq(firstLine) ++ middleLines ++ Seq(lastPlotLine, axisLine, xLabelLine) ++ legend)
+          .mkString("\n")
       } else {
         plotLines.mkString("\n")
       }
@@ -1362,12 +1297,10 @@ package object layoutz {
       }
 
       val angleRanges = {
-        var cumulative = 0.0
-        coloredSlices.map { case (s, c) =>
-          val startAngle = cumulative
-          val endAngle = cumulative + (s.value / total) * 2 * math.Pi
-          cumulative = endAngle
-          (startAngle, endAngle, c)
+        val angles = coloredSlices.map { case (s, _) => (s.value / total) * 2 * math.Pi }
+        val cumulative = angles.scanLeft(0.0)(_ + _)
+        coloredSlices.zip(cumulative.zip(cumulative.tail)).map {
+          case ((_, c), (start, end)) => (start, end, c)
         }
       }
 
@@ -1543,16 +1476,17 @@ package object layoutz {
 
       val totalPixelHeight = chartHeight * 8
       val barSegments = bars.map { stackedBar =>
-        var cumulative = 0.0
-        stackedBar.segments.map { seg =>
-          val start = (cumulative / maxVal * totalPixelHeight).toInt
-          cumulative += seg.value
-          val end = (cumulative / maxVal * totalPixelHeight).toInt
-          val c = seg.barColor.getOrElse(
-            if (seg.label.nonEmpty) labelColors.getOrElse(seg.label, Color.Blue)
-            else Color.Blue
-          )
-          (start, end, c)
+        val values = stackedBar.segments.map(_.value)
+        val cumulative = values.scanLeft(0.0)(_ + _)
+        stackedBar.segments.zip(cumulative.zip(cumulative.tail)).map {
+          case (seg, (startVal, endVal)) =>
+            val start = (startVal / maxVal * totalPixelHeight).toInt
+            val end = (endVal / maxVal * totalPixelHeight).toInt
+            val c = seg.barColor.getOrElse(
+              if (seg.label.nonEmpty) labelColors.getOrElse(seg.label, Color.Blue)
+              else Color.Blue
+            )
+            (start, end, c)
         }
       }
 
@@ -2199,7 +2133,7 @@ package object layoutz {
             val truncateAt = maxWidth - ellipsis.length
             if (truncateAt <= 0) ellipsis.take(maxWidth)
             else {
-              // Handle ANSI codes properly when truncating
+              /* ANSI escapes would break mid-truncation, strip first */
               val stripped = stripAnsiCodes(line)
               stripped.take(truncateAt) + ellipsis
             }
@@ -2511,7 +2445,7 @@ package object layoutz {
     }
 
     def task[A, Msg](run: => A)(toMsg: Either[String, A] => Msg): Cmd[Msg] =
-      CmdTask(() => scala.util.Try(run).toEither.left.map(_.getMessage), toMsg)
+      CmdTask(() => Try(run).toEither.left.map(_.getMessage), toMsg)
 
     def fire(effect: => Unit): Cmd[Nothing] = CmdFire(() => effect)
   }
@@ -2844,7 +2778,7 @@ package object layoutz {
 
       /* Command executors */
       private def execFileRead(path: String): Either[String, String] =
-        Try(scala.io.Source.fromFile(path).mkString).toEither.left.map(e =>
+        Try(Source.fromFile(path).mkString).toEither.left.map(e =>
           s"Read failed: ${e.getMessage}"
         )
 
@@ -2899,7 +2833,6 @@ package object layoutz {
       }
 
       private def processCommand(cmd: Cmd[Message]): Unit = {
-        import scala.concurrent.{Future, ExecutionContext}
         implicit val ec: ExecutionContext = ExecutionContext.global
 
         cmd match {
@@ -3051,7 +2984,7 @@ package object layoutz {
                     lastModifiedTimes(path) = currentModified
                     /* Not firing on first check */
                     if (lastModified > 0) {
-                      val content = scala.io.Source.fromFile(path).mkString
+                      val content = Source.fromFile(path).mkString
                       updateState(onChange(Right(content)))
                     }
                   }
