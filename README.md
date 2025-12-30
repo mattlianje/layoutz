@@ -47,6 +47,11 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
   - [Boxes, Cards & Borders](#box-box)
   - [Progress Bars & Spinners](#progress-bar-inlinebar)
   - [Charts & Plots](#chart-chart)
+    - [Horizontal Charts](#chart-chart)
+    - [Terminal Plots](#terminal-plots-plot)
+    - [Pie Charts](#pie-charts-pie)
+    - [Bar Charts](#bar-charts-bar)
+    - [Stacked Bar Charts](#stacked-bar-charts-stackedbar)
   - [Colors & Styles](#colors-color)
   - [Custom Elements](#create-your-custom-elements)
 - [Text Formatting & Layout](#text-formatting--layout)
@@ -91,39 +96,24 @@ Beautiful + compositional strings
 import layoutz._
 
 val demo = layout(
-  underline("ˆ")("Test Dashboard").center(),
+  underlineColored("═", Color.BrightCyan)("ダッシュボード").center(),
   row(
-    statusCard("API", "LIVE").border(Border.Double),
-    statusCard("DB", "99.9%"),
-    statusCard("Cache", "READY").border(Border.Thick)
+    statusCard("API", "LIVE").border(Border.Round).color(Color.Green),
+    statusCard("DB", "99.9%").border(Border.Double).color(Color.BrightMagenta),
+    statusCard("Condition", "🌸🌍").border(Border.Thick).color(Color.Cyan)
   ),
   box("Services")(
-    ul("Production", "Staging", 
-       ul("test-api", 
-          ul("more nest")
-         )
-      ),
-    inlineBar("Health", 0.94)
-  ).border(Border.Round)
+    ul("Production", "Staging", ul("test-api")),
+    inlineBar("Health", 0.72)
+  ).border(Border.Round).color(Color.BrightYellow),
+  "xyz.matthieucourt".style(Style.Dim)
 )
 
 println(demo.render)
 ```
-```
-            Test Dashboard
-            ˆˆˆˆˆˆˆˆˆˆˆˆˆˆ
-╔════════╗ ┌─────────┐ ┏━━━━━━━━━┓
-║ API    ║ │ DB      │ ┃ Cache   ┃
-║ LIVE   ║ │ 99.9%   │ ┃ READY   ┃
-╚════════╝ └─────────┘ ┗━━━━━━━━━┛
-╭─────────────Services──────────────╮
-│ • Production                      │
-│ • Staging                         │
-│   ◦ test-api                      │
-│     ▪ more nest                   │
-│ Health [██████████████████──] 94% │
-╰───────────────────────────────────╯
-```
+<p align="center">
+  <img src="pix/main-demo.png" width="500">
+</p>
 
 **(2/2) Interactive apps**
 
@@ -456,7 +446,7 @@ val rainbow = tightRow((0 to 255 by 8).map { i =>
   "█".color(Color.True(r, g, b))
 }: _*)
 
-layout(palette, redToBlue, greenFade, rainbow).putStrLn
+layout(palette, redToBlue, greenFade, rainbow)
 ```
 
 <p align="center">
@@ -616,6 +606,157 @@ Web            │████████████████ 10.0
 Mobile         │████████████████████████████████ 20.0
 API            │███████████████████████████ 15.0
 ```
+
+### Terminal Plots: `plot`
+
+```scala
+/* Simple sine wave */
+val sinePoints = (0 to 100).map(i => (i.toDouble, math.sin(i * 0.1) * 10))
+plot(width = 40, height = 10)(
+  Series(sinePoints, "sine").color(Color.Cyan)
+)
+```
+<p align="center">
+  <img src="pix/chart-function-1.png" width="500">
+</p>
+
+**Multiple series with legend:**
+```scala
+val sin = (0 to 50).map(i => (i.toDouble, math.sin(i * 0.15) * 5))
+val cos = (0 to 50).map(i => (i.toDouble, math.cos(i * 0.15) * 5))
+
+plot(width = 50, height = 12)(
+  Series(sin, "sin(x)").color(Color.BrightCyan),
+  Series(cos, "cos(x)").color(Color.BrightMagenta)
+)
+```
+
+<p align="center">
+  <img src="pix/chart-function-2.png" width="500">
+</p>
+
+Shows both curves in different colors with an auto-generated legend.
+
+`width`/`height` set dimensions. `showAxes` toggles axis labels. `showOrigin` draws x=0/y=0 lines.
+
+### Pie Charts: `pie`
+
+```scala
+pie()(
+  Slice(50, "Liquor"),
+  Slice(20, "Protein"),
+  Slice(10, "Water"),
+  Slice(20, "Fun")
+)
+```
+<p align="center">
+  <img src="pix/chart-pie.png" width="500">
+</p>
+
+Slices are automatically colored from the default palette, with a legend showing percentages.
+
+Use `width` and `height` for larger/smaller charts. Intuitively,
+largely dimensions render smoother curves
+
+### Bar Charts: `bar`
+
+```scala
+bar(width = 40, height = 10)(
+  Bar(85, "Mon"),
+  Bar(120, "Tue"),
+  Bar(95, "Wed"),
+  Bar(70, "Thu"),
+  Bar(110, "Fri")
+)
+```
+<p align="center">
+  <img src="pix/chart-bar.png" width="500">
+</p>
+
+**Custom colors:**
+```scala
+bar()(
+  Bar(100, "Sales").color(Color.Magenta),
+  Bar(80, "Costs").color(Color.BrightRed),
+  Bar(20, "Profit").color(Color.Cyan)
+)
+```
+<p align="center">
+  <img src="pix/chart-bar-custom.png" width="500">
+</p>
+
+### Stacked Bar Charts: `stackedBar`
+
+```scala
+stackedBar(width = 40, height = 10)(
+  StackedBar(Seq(Bar(30, "Q1"), Bar(20, "Q2"), Bar(25, "Q3")), "2022"),
+  StackedBar(Seq(Bar(35, "Q1"), Bar(25, "Q2"), Bar(30, "Q3")), "2023"),
+  StackedBar(Seq(Bar(40, "Q1"), Bar(30, "Q2"), Bar(35, "Q3")), "2024")
+)
+```
+<p align="center">
+  <img src="pix/chart-bar-stacked.png" width="500">
+</p>
+
+Segments with the same label share colors automatically.
+
+### Sparklines: `sparkline`
+
+Tiny inline charts using block characters:
+
+```scala
+sparkline(Seq(1, 4, 2, 8, 5, 7, 3, 6))
+sparkline(Seq(10, 20, 15, 30, 25, 40, 35)).color(Color.Cyan)
+```
+<p align="center">
+  <img src="pix/chart-sparkline.png" width="500">
+</p>
+
+### Box Plots: `boxPlot`
+
+Visualize data distribution with box and whisker plots:
+
+```scala
+boxPlot(height = 12)(
+  BoxData("A", min = 10, q1 = 25, median = 50, q3 = 75, max = 90).color(Color.Cyan),
+  BoxData("B", min = 20, q1 = 40, median = 55, q3 = 70, max = 85).color(Color.Magenta),
+  BoxData("C", min = 5, q1 = 30, median = 45, q3 = 60, max = 95).color(Color.Yellow)
+)
+```
+<p align="center">
+  <img src="pix/chart-boxplot.png" width="500">
+</p>
+
+### Heatmaps: `heatmap`
+
+2D grid with color intensity:
+
+```scala
+heatmap(Seq(
+  Seq(1.0, 2.0, 3.0),
+  Seq(4.0, 5.0, 6.0),
+  Seq(7.0, 8.0, 9.0)
+))
+
+// With labels and settings
+Heatmap(
+  HeatmapData(
+    rows = Seq(
+      Seq(12.0, 15.0, 22.0, 28.0, 30.0, 25.0, 18.0),
+      Seq(14.0, 18.0, 25.0, 32.0, 35.0, 28.0, 20.0),
+      Seq(10.0, 13.0, 20.0, 26.0, 28.0, 22.0, 15.0)
+    ),
+    rowLabels = Seq("Mon", "Tue", "Wed"),
+    colLabels = Seq("6am", "9am", "12pm", "3pm", "6pm", "9pm", "12am")
+  ),
+  cellWidth = 5
+)
+```
+<p align="center">
+  <img src="pix/chart-heatmap" width="500">
+</p>
+
+Options: `cellWidth`, `cellHeight`, `showLegend`.
 
 ### Text Input: `textInput`
 ```scala

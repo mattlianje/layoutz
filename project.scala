@@ -1,4 +1,4 @@
-//> using dep "org.scalameta::munit:1.2.1"
+//> using test.dep "com.lihaoyi::utest:0.8.4"
 //> using scala 2.12 2.13 3.5
 //> using platform jvm native
 

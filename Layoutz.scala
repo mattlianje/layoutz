@@ -63,7 +63,7 @@ package object layoutz {
     val TREE_VERTICAL = "│"
     val TREE_INDENT = " " * Dimensions.TREE_INDENTATION
 
-    /* Vertical block characters: 1/8 to 8/8 fill */
+    /* Vertical block 1/8 to 8/8 */
     val BLOCK_CHARS = Array(' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
 
     /*
@@ -1402,9 +1402,11 @@ package object layoutz {
         val nextThreshold = (chartHeight - row).toDouble / chartHeight
 
         val axisLabel = if (showAxis) {
-          if (row == 0) f"$maxVal%.0f".padTo(axisWidth - 1, ' ') + "┤"
-          else if (row == chartHeight - 1) "0".padTo(axisWidth - 1, ' ') + "┤"
-          else " " * (axisWidth - 1) + "│"
+          /* Show tick value at each row */
+          val tickValue = maxVal * (chartHeight - row).toDouble / chartHeight
+          val tickStr =
+            if (tickValue == tickValue.toLong) tickValue.toLong.toString else f"$tickValue%.0f"
+          tickStr.reverse.padTo(axisWidth - 1, ' ').reverse + "┤"
         } else ""
 
         val barsStr = coloredBars.zipWithIndex.map { case ((b, c), i) =>
@@ -1495,9 +1497,11 @@ package object layoutz {
         val rowPixelTop = (chartHeight - row) * 8
 
         val axisLabel = if (showAxis) {
-          if (row == 0) f"$maxVal%.0f".padTo(axisWidth - 1, ' ') + "┤"
-          else if (row == chartHeight - 1) "0".padTo(axisWidth - 1, ' ') + "┤"
-          else " " * (axisWidth - 1) + "│"
+          /* Show tick value at each row */
+          val tickValue = maxVal * (chartHeight - row).toDouble / chartHeight
+          val tickStr =
+            if (tickValue == tickValue.toLong) tickValue.toLong.toString else f"$tickValue%.0f"
+          tickStr.reverse.padTo(axisWidth - 1, ' ').reverse + "┤"
         } else ""
 
         val barsStr = barSegments.zipWithIndex.map { case (segs, i) =>
@@ -1560,6 +1564,178 @@ package object layoutz {
       bars: StackedBar*
   ): StackedBarChart =
     StackedBarChart(bars, width, height, showLabels, showLegend)
+
+  final case class Sparkline(values: Seq[Double], sparkColor: Color = Color.NoColor)
+      extends Element {
+    def render: String = {
+      if (values.isEmpty) return ""
+      val (lo, hi) = (values.min, values.max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      val result = values.map { v =>
+        Glyphs.BLOCK_CHARS(math.min(7, ((v - lo) / range * 8).toInt) + 1)
+      }.mkString
+      if (sparkColor == Color.NoColor) result else wrapAnsi(sparkColor, result)
+    }
+  }
+
+  def sparkline(values: Seq[Double]): Sparkline = Sparkline(values)
+
+  final case class BoxData(
+      label: String,
+      min: Double,
+      q1: Double,
+      median: Double,
+      q3: Double,
+      max: Double,
+      boxColor: Option[Color] = None
+  ) {
+    def color(c: Color): BoxData = copy(boxColor = Some(c))
+  }
+
+  final case class BoxPlot(boxes: Seq[BoxData], plotHeight: Int = 15, showLabels: Boolean = true)
+      extends Element {
+    def render: String = {
+      if (boxes.isEmpty) return "No data"
+
+      val (lo, hi) = (boxes.map(_.min).min, boxes.map(_.max).max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      def scale(v: Double): Int = ((v - lo) / range * (plotHeight - 1)).toInt
+
+      val boxWidth = 5
+      val spacing = 2
+      val colored = boxes.zipWithIndex.map { case (b, i) =>
+        (b, b.boxColor.getOrElse(Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)))
+      }
+
+      val rows = (0 until plotHeight).reverse.map { row =>
+        colored.map { case (b, c) =>
+          val (rMin, rQ1, rMed, rQ3, rMax) =
+            (scale(b.min), scale(b.q1), scale(b.median), scale(b.q3), scale(b.max))
+          val cell =
+            if (row == rMax) " ─┬─ "
+            else if (row == rMin) " ─┴─ "
+            else if (row > rQ3 && row < rMax) "  │  "
+            else if (row > rMin && row < rQ1) "  │  "
+            else if (row == rQ3) "┌───┐"
+            else if (row == rQ1) "└───┘"
+            else if (row > rQ1 && row < rQ3) { if (row == rMed) "├───┤" else "│   │" }
+            else "     "
+          if (c == Color.NoColor) cell else wrapAnsi(c, cell)
+        }.mkString(" " * spacing)
+      }
+
+      val (lblTop, lblBot) = (f"$hi%.0f", f"$lo%.0f")
+      val lblW = math.max(lblTop.length, lblBot.length)
+
+      val labelRow = if (showLabels) Some(colored.map { case (b, _) =>
+        val lbl = b.label.take(boxWidth)
+        val pad = boxWidth - lbl.length
+        " " * (pad / 2) + lbl + " " * (pad - pad / 2)
+      }.mkString(" " * spacing))
+      else None
+
+      val axisRows = rows.zipWithIndex.map { case (row, i) =>
+        val axis = if (i == 0) lblTop else if (i == plotHeight - 1) lblBot else " " * lblW
+        axis.reverse.padTo(lblW, ' ').reverse + " │" + row
+      }
+
+      (axisRows ++ labelRow).mkString("\n")
+    }
+  }
+
+  def boxPlot(height: Int = 15)(boxes: BoxData*): BoxPlot = BoxPlot(boxes, height)
+
+  final case class Histogram(
+      data: Seq[Double],
+      bins: Int = 10,
+      histWidth: Int = 40,
+      histHeight: Int = 10
+  ) extends Element {
+    def render: String = {
+      if (data.isEmpty) return "No data"
+
+      val (lo, hi) = (data.min, data.max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      val binW = range / bins
+      val counts = (0 until bins).map { b =>
+        data.count { v =>
+          val idx = math.min(bins - 1, ((v - lo) / binW).toInt)
+          idx == b
+        }
+      }
+      val maxCount = counts.max.toDouble
+      val barW = math.max(1, histWidth / bins)
+
+      val rows = (0 until histHeight).reverse.map { row =>
+        val thresh = ((row + 1).toDouble / histHeight) * maxCount
+        counts.map(c => if (c >= thresh) "█" * barW else " " * barW).mkString
+      }
+
+      val w = barW * bins
+      val axis = "─" * w
+      val loS = f"$lo%.1f"
+      val hiS = f"$hi%.1f"
+      val labels = loS + " " * (w - loS.length - hiS.length).max(1) + hiS
+      (rows :+ axis :+ labels).mkString("\n")
+    }
+  }
+
+  def histogram(data: Seq[Double], bins: Int = 10): Histogram = Histogram(data, bins)
+
+  final case class HeatmapData(
+      rows: Seq[Seq[Double]],
+      rowLabels: Seq[String] = Seq.empty,
+      colLabels: Seq[String] = Seq.empty
+  )
+
+  final case class Heatmap(
+      data: HeatmapData,
+      cellWidth: Int = 2,
+      cellHeight: Int = 1,
+      showLegend: Boolean = true
+  ) extends Element {
+    private def colorCode(n: Double): Int = {
+      val t = math.max(0.0, math.min(1.0, n))
+      if (t < 0.25) (21 + (51 - 21) * t / 0.25).toInt
+      else if (t < 0.5) (51 + (46 - 51) * (t - 0.25) / 0.25).toInt
+      else if (t < 0.75) (46 + (226 - 46) * (t - 0.5) / 0.25).toInt
+      else (226 + (196 - 226) * (t - 0.75) / 0.25).toInt
+    }
+    private def bg(code: Int): String = s"\u001b[48;5;${code}m"
+    private val rst = "\u001b[0m"
+
+    def render: String = {
+      val rows = data.rows
+      if (rows.isEmpty) return "No data"
+
+      val all = rows.flatten
+      val (lo, hi) = (all.min, all.max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      val (nCols, nRows) = (rows.map(_.length).max, rows.length)
+
+      val yLbls = if (data.rowLabels.nonEmpty) data.rowLabels else (0 until nRows).map(_.toString)
+      val yW = yLbls.map(_.length).max + 1
+      val xLbls = if (data.colLabels.nonEmpty) data.colLabels else (0 until nCols).map(_.toString)
+
+      val header =
+        " " * yW + xLbls.map(l => l.take(cellWidth).reverse.padTo(cellWidth, ' ').reverse).mkString
+      val heatRows = rows.zipWithIndex.flatMap { case (row, ri) =>
+        val yLbl = if (ri < yLbls.length) yLbls(ri).padTo(yW, ' ') else " " * yW
+        val cells =
+          row.map(v => s"${bg(colorCode((v - lo) / range))}${" " * cellWidth}$rst").mkString
+        (0 until cellHeight).map(h => if (h == 0) yLbl + cells else " " * yW + cells)
+      }
+      val legend = if (showLegend) {
+        val bar = (0 until 20).map(i => s"${bg(colorCode(i / 19.0))} $rst").mkString
+        Seq("", f"$lo%.1f $bar $hi%.1f")
+      } else Seq.empty
+
+      (Seq(header) ++ heatRows ++ legend).mkString("\n")
+    }
+  }
+
+  def heatmap(rows: Seq[Seq[Double]]): Heatmap = Heatmap(HeatmapData(rows))
+  def heatmap(data: HeatmapData): Heatmap = Heatmap(data)
 
   /** Banner - decorative text in a box */
   final case class Banner(content: Element, borderStyle: Border = Border.Double)
