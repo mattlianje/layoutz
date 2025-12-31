@@ -695,7 +695,7 @@ stackedBar(width = 40, height = 10)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-bar-stacked.png" width="500">
+  <img src="pix/chart-stacked.png" width="500">
 </p>
 
 Segments with the same label share colors automatically.
@@ -753,7 +753,7 @@ Heatmap(
 )
 ```
 <p align="center">
-  <img src="pix/chart-heatmap" width="500">
+  <img src="pix/chart-heatmap.png" width="500">
 </p>
 
 Options: `cellWidth`, `cellHeight`, `showLegend`.
