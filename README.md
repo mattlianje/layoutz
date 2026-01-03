@@ -92,6 +92,10 @@ There are two usage paths with this little package:
 **(1/2) Static rendering**
 
 Beautiful + compositional strings
+
+<details>
+<summary>example</summary>
+
 ```scala
 import layoutz._
 
@@ -107,7 +111,36 @@ case class TypeError(
 )
 
 /* Bridge to layoutz with tiny pure functions using `Element`s */
-def typeError(e: TypeError): Element = ???
+def typeError(e: TypeError): Element = {
+  val ln = e.line.toString
+  val bar = "│".color(Color.Cyan)
+  layout(
+    rowTight(
+      "── TYPE MISMATCH ".color(Color.Cyan),
+      s"${e.file}:${e.line}".style(Style.Dim),
+      " ────────".color(Color.Cyan)
+    ),
+    rowTight(ln.color(Color.Cyan), space, bar, space, e.prefix, e.bad),
+    rowTight(
+      space(ln.length + 1),
+      bar,
+      space,
+      space(e.prefix.length),
+      ("^" * e.bad.length + " ").color(Color.Red),
+      "expected ",
+      e.expected.color(Color.Green),
+      ", found ",
+      e.found.color(Color.Red)
+    ),
+    rowTight(
+      space(ln.length + 1),
+      bar,
+      space,
+      "hint: ".color(Color.Cyan),
+      e.hint
+    )
+  )
+}
 
 val demo = layout(
   underline("═", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
@@ -136,44 +169,6 @@ val demo = layout(
   "xyz.matthieucourt".style(Style.Dim)
 )
 println(demo.render)
-```
-
-<details>
-<summary>typeError helper</summary>
-
-```scala
-def typeError(e: TypeError): Element = {
-  val ln = e.line.toString
-  val bar = "│".color(Color.Cyan)
-  layout(
-    rowTight(
-      "── TYPE MISMATCH ".color(Color.Cyan),
-      s"${e.file}:${e.line}".style(Style.Dim),
-      " ────────".color(Color.Cyan)
-    ),
-    rowTight(ln.color(Color.Cyan), " ", bar, " ", e.prefix, e.bad),
-    rowTight(
-      space(ln.length),
-      " ",
-      bar,
-      " ",
-      space(e.prefix.length),
-      ("^" * e.bad.length + " ").color(Color.Red),
-      "expected ",
-      e.expected.color(Color.Green),
-      ", found ",
-      e.found.color(Color.Red)
-    ),
-    rowTight(
-      space(ln.length),
-      " ",
-      bar,
-      " ",
-      "hint: ".color(Color.Cyan),
-      e.hint
-    )
-  )
-}
 ```
 
 </details>
