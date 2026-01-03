@@ -172,7 +172,7 @@ val demo = layout(
 println(demo.render)
 ```
 <p align="center">
-  <img src="pix/main-demo-2.png" width="700">
+  <img src="pix/main-demo-2.png" width="600">
 </p>
 
 **(2/2) Interactive apps**
