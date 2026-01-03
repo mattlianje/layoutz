@@ -140,15 +140,16 @@ package object layoutz {
     final def wrap(width: Int): Wrapped = Wrapped(this, width)
     final def truncate(maxWidth: Int, ellipsis: String = "..."): Truncated =
       Truncated(this, maxWidth, ellipsis)
-    final def underline(): Underline = Underline(this, "─", None)
-    final def underline(char: String): Underline = Underline(this, char, None)
-    final def underlineColored(char: String, color: Color): Underline =
-      Underline(this, char, Some(color))
+    final def underline(char: Element = Text("─"), color: Color = Color.NoColor): Underline =
+      Underline(this, char.render, if (color == Color.NoColor) None else Some(color))
+    @deprecated("Use underline(char, color) instead", "0.6.0")
+    final def underlineColored(char: Element, color: Color): Underline =
+      underline(char, color)
     final def justify(width: Int): Justified = Justified(this, width)
     final def justifyAll(width: Int): Justified = Justified(this, width, justifyLastLine = true)
-    final def margin(prefix: String): Margin = Margin(prefix, Seq(this), None)
-    final def marginColored(prefix: String, color: Color): Margin =
-      Margin(prefix, Seq(this), Some(color))
+    final def margin(prefix: Element): Margin = Margin(prefix.render, Seq(this), None)
+    final def marginColored(prefix: Element, color: Color): Margin =
+      Margin(prefix.render, Seq(this), Some(color))
     final def color(c: Color): Colored = Colored(c, this)
     final def style(s: Style): Styled = Styled(s, this)
     final def putStrLn: Unit = println(render)
@@ -696,15 +697,16 @@ package object layoutz {
   }
 
   /** Structured key-value pairs */
-  final case class KeyValue(pairs: Seq[(String, String)]) extends Element {
+  final case class KeyValue(pairs: Seq[(Element, Element)]) extends Element {
 
     def render: String = {
       if (pairs.isEmpty) return ""
 
-      val maxKeyLength = pairs.map(p => realLength(p._1)).max
+      val renderedPairs = pairs.map { case (k, v) => (k.render, v.render) }
+      val maxKeyLength = renderedPairs.map(p => realLength(p._1)).max
       val alignmentPosition = maxKeyLength + 2
 
-      pairs
+      renderedPairs
         .map { case (key, value) =>
           val keyWithColon = s"$key:"
           val spacesNeeded = alignmentPosition - realLength(keyWithColon)
@@ -2007,6 +2009,10 @@ package object layoutz {
 
   }
 
+  final case class RowTight(elements: Seq[Element]) extends Element {
+    def render: String = elements.map(_.render).mkString
+  }
+
   /** Tree structure GADT for hierarchical data visualization. Supports both branch nodes (with
     * children) and leaf nodes (terminals).
     */
@@ -2158,7 +2164,16 @@ package object layoutz {
     * @return
     *   a KeyValue element with aligned key-value pairs
     */
-  def kv(pairs: (String, String)*): KeyValue = KeyValue(pairs)
+  def kv(pairs: (Element, Element)*): KeyValue = KeyValue(pairs)
+
+  implicit def stringPairToElementPair(p: (String, String)): (Element, Element) =
+    (Text(p._1), Text(p._2))
+
+  implicit def stringElementPairToElementPair(p: (String, Element)): (Element, Element) =
+    (Text(p._1), p._2)
+
+  implicit def elementStringPairToElementPair(p: (Element, String)): (Element, Element) =
+    (p._1, Text(p._2))
 
   /** Create a table.
     *
@@ -2217,6 +2232,9 @@ package object layoutz {
     */
   def row(elements: Element*): Row = Row(elements)
 
+  /** Row without spacing between elements */
+  def rowTight(elements: Element*): RowTight = RowTight(elements)
+
   /** Tight row - concatenates elements horizontally without spacing */
   def tightRow(elements: Element*): Element = new Element {
     def render: String = {
@@ -2265,8 +2283,8 @@ package object layoutz {
   /** Single space */
   def space: Element = Text(" ")
 
-  /** Multiple spaces */
-  def space(n: Int): Element =
+  /** Spaces (default: 1) */
+  def space(n: Int = 1): Element =
     if (n <= 0) Text("")
     else Text(" " * n)
 
@@ -2463,12 +2481,16 @@ package object layoutz {
    * TEXT FORMATTING
    */
 
-  /** Add underline to an element with custom character */
-  def underline(char: String = "─")(element: Element): Underline =
-    Underline(element, char, None)
+  /** Add underline to an element */
+  def underline(
+      char: Element = Text("─"),
+      color: Color = Color.NoColor
+  )(element: Element): Underline =
+    Underline(element, char.render, if (color == Color.NoColor) None else Some(color))
 
-  def underlineColored(char: String, color: Color)(element: Element): Underline =
-    Underline(element, char, Some(color))
+  @deprecated("Use underline(char, color) instead", "0.6.0")
+  def underlineColored(char: Element, color: Color)(element: Element): Underline =
+    underline(char, color)(element)
 
   def style(s: Style)(element: Element): Styled = Styled(s, element)
 
@@ -2520,11 +2542,11 @@ package object layoutz {
    */
 
   /** Add a prefix margin to elements */
-  def margin(prefix: String)(elements: Element*): Margin =
-    Margin(prefix, elements, None)
+  def margin(prefix: Element)(elements: Element*): Margin =
+    Margin(prefix.render, elements, None)
 
-  def marginColor(prefix: String, color: Color)(elements: Element*): Margin =
-    Margin(prefix, elements, Some(color))
+  def marginColor(prefix: Element, color: Color)(elements: Element*): Margin =
+    Margin(prefix.render, elements, Some(color))
 
   /* ===========================================================================
    * IMPLICITS

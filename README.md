@@ -95,24 +95,84 @@ Beautiful + compositional strings
 ```scala
 import layoutz._
 
+/* Model your domain as you normally do
+   lets take a compiler style type mismatch error for example */
+case class TypeError(
+    file: String,
+    line: Int,
+    prefix: String,
+    bad: String,
+    expected: String,
+    found: String,
+    hint: String
+)
+
+/* Modularize finnicky bits of string processing logic as pure functions
+   that reason about layoutz `Elements` */
+def typeError(e: TypeError): Element = {
+  val ln = e.line.toString
+  val bar = "│".color(Color.Cyan)
+  layout(
+    rowTight(
+      "── TYPE MISMATCH ".color(Color.Cyan),
+      s"${e.file}:${e.line}".style(Style.Dim),
+      " ────────".color(Color.Cyan)
+    ),
+    rowTight(ln.color(Color.Cyan), " ", bar, " ", e.prefix, e.bad),
+    rowTight(
+      space(ln.length),
+      " ",
+      bar,
+      " ",
+      space(e.prefix.length),
+      ("^" * e.bad.length + " ").color(Color.Red),
+      "expected ",
+      e.expected.color(Color.Green),
+      ", found ",
+      e.found.color(Color.Red)
+    ),
+    rowTight(
+      space(ln.length),
+      " ",
+      bar,
+      " ",
+      "hint: ".color(Color.Cyan),
+      e.hint
+    )
+  )
+}
+
+/* Compose, combine your functions and Elements */
 val demo = layout(
-  underlineColored("═", Color.BrightCyan)("ダッシュボード").center(),
+  underline("═", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
   row(
     statusCard("API", "LIVE").border(Border.Round).color(Color.Green),
     statusCard("DB", "99.9%").border(Border.Double).color(Color.BrightMagenta),
-    statusCard("Condition", "🌸🌍").border(Border.Thick).color(Color.Cyan)
-  ),
+    statusCard("Système", "OK").border(Border.Thick).color(Color.Cyan)
+  ).center(),
   box("Services")(
     ul("Production", "Staging", ul("test-api")),
     inlineBar("Health", 0.72)
-  ).border(Border.Round).color(Color.BrightYellow),
+  ).border(Border.Round).color(Color.BrightYellow).center(),
+  "",
+  typeError(
+    TypeError(
+      "Foo.scala",
+      42,
+      "val x: Int = ",
+      "getName()",
+      "Int",
+      "String",
+      "try `.toInt`"
+    )
+  ),
+  "",
   "xyz.matthieucourt".style(Style.Dim)
 )
-
 println(demo.render)
 ```
 <p align="center">
-  <img src="pix/main-demo.png" width="500">
+  <img src="pix/main-demo-2.png" width="500">
 </p>
 
 **(2/2) Interactive apps**
