@@ -95,6 +95,20 @@ Beautiful + compositional strings
 ```scala
 import layoutz._
 
+/* Model your domain as usual */
+case class TypeError(
+    file: String,
+    line: Int,
+    prefix: String,
+    bad: String,
+    expected: String,
+    found: String,
+    hint: String
+)
+
+/* Bridge to layoutz with tiny pure functions using `Element`s */
+def typeError(e: TypeError): Element = ???
+
 val demo = layout(
   underline("═", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
   row(
@@ -128,20 +142,6 @@ println(demo.render)
 <summary>typeError helper</summary>
 
 ```scala
-/* Model your domain as you normally do
-   lets take a compiler style type mismatch error for example */
-case class TypeError(
-    file: String,
-    line: Int,
-    prefix: String,
-    bad: String,
-    expected: String,
-    found: String,
-    hint: String
-)
-
-/* Modularize finnicky bits of string processing logic as pure functions
-   that reason about layoutz `Elements` */
 def typeError(e: TypeError): Element = {
   val ln = e.line.toString
   val bar = "│".color(Color.Cyan)
