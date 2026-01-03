@@ -95,6 +95,39 @@ Beautiful + compositional strings
 ```scala
 import layoutz._
 
+val demo = layout(
+  underline("═", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
+  row(
+    statusCard("API", "LIVE").border(Border.Round).color(Color.Green),
+    statusCard("DB", "99.9%").border(Border.Double).color(Color.BrightMagenta),
+    statusCard("Système", "OK").border(Border.Thick).color(Color.Cyan)
+  ).center(),
+  box("Services")(
+    ul("Production", "Staging", ul("test-api")),
+    inlineBar("Health", 0.72)
+  ).border(Border.Round).color(Color.BrightYellow).center(),
+  "",
+  typeError(
+    TypeError(
+      "Foo.scala",
+      42,
+      "val x: Int = ",
+      "getName()",
+      "Int",
+      "String",
+      "try `.toInt`"
+    )
+  ),
+  "",
+  "xyz.matthieucourt".style(Style.Dim)
+)
+println(demo.render)
+```
+
+<details>
+<summary>typeError helper</summary>
+
+```scala
 /* Model your domain as you normally do
    lets take a compiler style type mismatch error for example */
 case class TypeError(
@@ -141,36 +174,9 @@ def typeError(e: TypeError): Element = {
     )
   )
 }
-
-/* Compose, combine your functions and Elements */
-val demo = layout(
-  underline("═", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
-  row(
-    statusCard("API", "LIVE").border(Border.Round).color(Color.Green),
-    statusCard("DB", "99.9%").border(Border.Double).color(Color.BrightMagenta),
-    statusCard("Système", "OK").border(Border.Thick).color(Color.Cyan)
-  ).center(),
-  box("Services")(
-    ul("Production", "Staging", ul("test-api")),
-    inlineBar("Health", 0.72)
-  ).border(Border.Round).color(Color.BrightYellow).center(),
-  "",
-  typeError(
-    TypeError(
-      "Foo.scala",
-      42,
-      "val x: Int = ",
-      "getName()",
-      "Int",
-      "String",
-      "try `.toInt`"
-    )
-  ),
-  "",
-  "xyz.matthieucourt".style(Style.Dim)
-)
-println(demo.render)
 ```
+
+</details>
 <p align="center">
   <img src="pix/main-demo-2.png" width="600">
 </p>
