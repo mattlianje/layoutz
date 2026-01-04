@@ -173,7 +173,7 @@ println(demo.render)
 
 </details>
 <p align="center">
-  <img src="pix/main-demo-2.png" width="600">
+  <img src="pix/main-demo-2.png" width="550">
 </p>
 
 **(2/2) Interactive apps**
@@ -209,7 +209,7 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="500">
+  <img src="pix/counter-demo.gif" width="550">
 </p>
 
 ## Why layoutz?
