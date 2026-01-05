@@ -1,11 +1,12 @@
 /*
  * +==========================================================================+
- * |                               layoutz                                    |
+ * |                               Layoutz                                    |
  * |               Friendly, expressive print-layout & TUI DSL                |
- * |                           Version 0.0.4                                  |
+ * |                           Version 0.0.6                                  |
  * |              Compatible with Scala 2.12, 2.13, and 3                     |
+ * |                             (JVM, Native)                                |
  * |                                                                          |
- * | Copyright 2025 Matthieu Court (matthieu.court@protonmail.com)            |
+ * | Copyright 2025-2026 Matthieu Court (matthieu.court@protonmail.com)       |
  * | Apache License 2.0                                                       |
  * +==========================================================================+
  */

@@ -3,18 +3,26 @@
 GITHUB_USER="mattlianje"
 ARTIFACT_NAME="layoutz"
 SCALA_VERSIONS=("2.12" "2.13" "3")
-VERSION="0.5.0"
+PLATFORMS=("jvm" "native0.5")
+VERSION="0.6.0"
 BUNDLE_DIR="$HOME/maven-bundle"
 
-process_scala_version() {
+process_artifact() {
   local SCALA_VERSION=$1
-  local FULL_ARTIFACT_NAME="${ARTIFACT_NAME}_${SCALA_VERSION}"
+  local PLATFORM=$2
+
+  local FULL_ARTIFACT_NAME
+  if [ "$PLATFORM" = "jvm" ]; then
+    FULL_ARTIFACT_NAME="${ARTIFACT_NAME}_${SCALA_VERSION}"
+  else
+    FULL_ARTIFACT_NAME="${ARTIFACT_NAME}_${PLATFORM}_${SCALA_VERSION}"
+  fi
   local SOURCE_DIR="$HOME/.ivy2/local/xyz.matthieucourt/${FULL_ARTIFACT_NAME}/${VERSION}"
   local TARGET_PATH="xyz/matthieucourt/${FULL_ARTIFACT_NAME}/${VERSION}"
   local TEMP_DIR="$BUNDLE_DIR/temp-${FULL_ARTIFACT_NAME}-${VERSION}"
   local BUNDLE_FILE="$BUNDLE_DIR/bundle-${FULL_ARTIFACT_NAME}-${VERSION}.zip"
   
-  echo "Processing Scala ${SCALA_VERSION}..."
+  echo "Processing ${FULL_ARTIFACT_NAME} (Scala ${SCALA_VERSION}, ${PLATFORM})..."
   
   # Remove existing bundle and temp directory if they exist
   [ -f "$BUNDLE_FILE" ] && rm "$BUNDLE_FILE"
@@ -72,32 +80,34 @@ process_scala_version() {
 }
 
 main() {
-  echo "Creating Maven bundles for all Scala versions..."
+  echo "Creating Maven bundles for all Scala versions and platforms..."
   echo "Artifact: $ARTIFACT_NAME"
   echo "Version: $VERSION"
   echo "Scala versions: ${SCALA_VERSIONS[*]}"
+  echo "Platforms: ${PLATFORMS[*]}"
   echo ""
-  
+
   # Ensure bundle directory exists
   mkdir -p "$BUNDLE_DIR"
-  
+
   local success_count=0
-  local total_count=${#SCALA_VERSIONS[@]}
-  
-  for scala_version in "${SCALA_VERSIONS[@]}"; do
-    if process_scala_version "$scala_version"; then
-      ((success_count++))
-    fi
-    echo ""
+  local total_count=$((${#SCALA_VERSIONS[@]} * ${#PLATFORMS[@]}))
+
+  for platform in "${PLATFORMS[@]}"; do
+    for scala_version in "${SCALA_VERSIONS[@]}"; do
+      if process_artifact "$scala_version" "$platform"; then
+        ((success_count++))
+      fi
+      echo ""
+    done
   done
-  
+
   echo "Completed: $success_count/$total_count bundles created successfully"
-  
+
   if [ $success_count -eq $total_count ]; then
     echo "All bundles ready for Maven Central"
   else
     echo "Some bundles failed"
-    exit 1
   fi
 }
 
