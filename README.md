@@ -803,7 +803,7 @@ heatmap(Seq(
   Seq(7.0, 8.0, 9.0)
 ))
 
-// With labels and settings
+/* With labels and settings */
 Heatmap(
   HeatmapData(
     rows = Seq(
