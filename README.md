@@ -5,21 +5,21 @@
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUIs.
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala.
 Easily create new primitives (no component-library limitations).
 
 Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
 
 ## Features
-- **Zero dependencies** - pure Scala, works on JVM and Native
+- Pure Scala - works on JVM and Native
 - Use **Layoutz.scala** like a header-file
 - Effortless composition of elements
-- Rich text formatting: alignment, wrapping, justification, underlines, padding, truncation
+- Rich text formatting
 - ANSI colors and wide character support
-- Lists, trees, tables, charts, plots, progress bars, spinners...
+- Lists, trees, tables, terminal plots
 - Easy creation of custom elements
 - Thread-safe, purely functional rendering
-- [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUIs
+- Use [`LayoutzApp`](#layoutzappstate-message) for Elm-style TUIs
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
