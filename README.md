@@ -67,11 +67,11 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 ## Installation
 **layoutz** is on MavenCentral and cross-built for Scala 2.13 and 3.x (JVM and Native)
 ```scala
-"xyz.matthieucourt" %% "layoutz" % "0.5.0"
+"xyz.matthieucourt" %% "layoutz" % "0.6.0"
 ```
 Or try in REPL:
 ```bash
-scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.5.0
+scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.6.0
 ```
 
 All you need:
