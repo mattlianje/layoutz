@@ -94,7 +94,7 @@ There are two usage paths with this little package:
 Beautiful + compositional strings
 
 <details>
-<summary>example</summary>
+<summary>show code</summary>
 
 ```scala
 import layoutz._
