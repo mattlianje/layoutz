@@ -65,7 +65,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 - [Inspiration](#inspiration)
 
 ## Installation
-**layoutz** is on MavenCentral and cross-built for Scala 2.13 and 3.x (JVM and Native)
+**layoutz** is on MavenCentral and cross-built for Scala 2.12, 2.13 and 3.x (JVM and Native)
 ```scala
 "xyz.matthieucourt" %% "layoutz" % "0.6.0"
 ```
