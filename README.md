@@ -185,7 +185,7 @@ println(demo.render)
 
 </details>
 <p align="center">
-  <img src="pix/main-demo-3.png" width="550">
+  <img src="pix/main-demo-3.png" width="650">
 </p>
 
 **(2/2) Interactive apps**
