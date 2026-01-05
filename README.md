@@ -143,16 +143,29 @@ def typeError(e: TypeError): Element = {
 }
 
 val demo = layout(
-  underline("═", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
+  underline("─", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
   row(
     statusCard("API", "LIVE").border(Border.Round).color(Color.Green),
     statusCard("DB", "99.9%").border(Border.Double).color(Color.BrightMagenta),
     statusCard("Système", "OK").border(Border.Thick).color(Color.Cyan)
   ).center(),
-  box("Services")(
-    ul("Production", "Staging", ul("test-api")),
-    inlineBar("Health", 0.72)
-  ).border(Border.Round).color(Color.BrightYellow).center(),
+  "",
+  box("Composition")(
+    columns(
+      plot(width = 30, height = 8)(
+        Series((0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 3)), "sin").color(Color.Cyan),
+        Series((0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 3)), "cos").color(Color.Magenta)
+      ),
+      tree("src")(
+        tree("main")(
+          tree("App.scala")
+        ),
+        tree("test")(
+          tree("AppSpec.scala")
+        )
+      )
+    )
+  ).border(Border.Round).center(),
   "",
   typeError(
     TypeError(
@@ -164,16 +177,15 @@ val demo = layout(
       "String",
       "try `.toInt`"
     )
-  ),
-  "",
-  "xyz.matthieucourt".style(Style.Dim)
+  )
 )
+
 println(demo.render)
 ```
 
 </details>
 <p align="center">
-  <img src="pix/main-demo-2.png" width="550">
+  <img src="pix/main-demo-3.png" width="550">
 </p>
 
 **(2/2) Interactive apps**

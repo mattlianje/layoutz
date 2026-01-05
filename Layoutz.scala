@@ -101,6 +101,7 @@ package object layoutz {
     val ASCII_FAST_PATH_END = 0x0300
     val COMBINING_DIACRITICAL = (0x0300, 0x0370)
     val HANGUL_JAMO = (0x1100, 0x1200)
+    val GEOMETRIC_SHAPES = (0x25a0, 0x2600)
     val CJK_MAIN = (0x2e80, 0x9fff)
     val HANGUL_SYLLABLES = (0xac00, 0xd7a4)
     val CJK_COMPAT_IDEOGRAPHS = (0xf900, 0xfb00)
@@ -165,6 +166,7 @@ package object layoutz {
     if (cp < ASCII_FAST_PATH_END) 1
     else if (cp >= COMBINING_DIACRITICAL._1 && cp < COMBINING_DIACRITICAL._2) 0
     else if (cp >= HANGUL_JAMO._1 && cp < HANGUL_JAMO._2) 2
+    else if (cp >= GEOMETRIC_SHAPES._1 && cp < GEOMETRIC_SHAPES._2) 2
     else if (cp >= CJK_MAIN._1 && cp < CJK_MAIN._2) 2
     else if (cp >= HANGUL_SYLLABLES._1 && cp < HANGUL_SYLLABLES._2) 2
     else if (cp >= CJK_COMPAT_IDEOGRAPHS._1 && cp < CJK_COMPAT_IDEOGRAPHS._2) 2
@@ -1078,7 +1080,9 @@ package object layoutz {
             .zip(widths)
             .map { case (lines, width) =>
               val line = if (row < lines.length) lines(row) else ""
-              line.padTo(width, ' ')
+              val visualLen = realLength(line)
+              val padding = math.max(0, width - visualLen)
+              line + (" " * padding)
             }
             .mkString(" " * spacing)
         }
