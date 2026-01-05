@@ -67,4 +67,5 @@ object SimpleFormExample extends LayoutzApp[SimpleFormState, SimpleFormMsg] {
     br,
     section("Controls")("Tab to switch fields, Enter to submit")
   )
+
 }

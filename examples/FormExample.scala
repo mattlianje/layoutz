@@ -92,7 +92,7 @@ object FormExample extends LayoutzApp[FormState, FormMsg] {
       })
   }
 
-  def view(state: FormState) = {
+  def view(state: FormState) =
     if (state.submitted) {
       layout(
         section("✓ Form Submitted")(
@@ -143,5 +143,5 @@ object FormExample extends LayoutzApp[FormState, FormMsg] {
         )
       )
     }
-  }
+
 }

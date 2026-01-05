@@ -1,17 +1,23 @@
 /*
  * +==========================================================================+
- * |                               layoutz                                    |
+ * |                               Layoutz                                    |
  * |               Friendly, expressive print-layout & TUI DSL                |
- * |                           Version 0.0.4                                  |
+ * |                           Version 0.0.6                                  |
  * |              Compatible with Scala 2.12, 2.13, and 3                     |
+ * |                             (JVM, Native)                                |
  * |                                                                          |
- * | Copyright 2025 Matthieu Court (matthieu.court@protonmail.com)            |
+ * | Copyright 2025-2026 Matthieu Court (matthieu.court@protonmail.com)       |
  * | Apache License 2.0                                                       |
  * +==========================================================================+
  */
+
 package object layoutz {
+
+  import scala.concurrent.{Future, ExecutionContext}
   import scala.language.implicitConversions
+  import scala.io.Source
   import scala.util.Try
+  import java.io.{PrintWriter, File}
 
   type Width = Int
   type Height = Int
@@ -51,34 +57,75 @@ package object layoutz {
 
     /* Content */
     val BULLET = "•"; val SPACE = " "; val BAR_FILLED = "█"; val BAR_EMPTY = "─"
+    val BULLET_STYLES = Array("•", "◦", "▪")
 
     /* Tree */
     val TREE_BRANCH = "├──"; val TREE_LAST_BRANCH = "└──";
     val TREE_VERTICAL = "│"
     val TREE_INDENT = " " * Dimensions.TREE_INDENTATION
+
+    /* Vertical block 1/8 to 8/8 */
+    val BLOCK_CHARS = Array(' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█')
+
+    /*
+     * Braille dot positions: each char is 2x4 dots
+     * ┌───┬───┐
+     * │ 1 │ 4 │  bits: 0x01, 0x08
+     * │ 2 │ 5 │  bits: 0x02, 0x10
+     * │ 3 │ 6 │  bits: 0x04, 0x20
+     * │ 7 │ 8 │  bits: 0x40, 0x80
+     * └───┴───┘
+     */
+    val BRAILLE_DOTS: Array[Array[Int]] = Array(
+      Array(0x01, 0x08),
+      Array(0x02, 0x10),
+      Array(0x04, 0x20),
+      Array(0x40, 0x80)
+    )
+  }
+
+  private object Palette {
+    val DEFAULT_COLORS: Array[Color] = Array(
+      Color.Blue,
+      Color.Green,
+      Color.Red,
+      Color.Yellow,
+      Color.Magenta,
+      Color.Cyan
+    )
+  }
+
+  private object Unicode {
+    val ANSI_ESCAPE_REGEX = "\u001b\\[[0-9;]*m".r
+
+    /* Character width ranges for terminal display */
+    val ASCII_FAST_PATH_END = 0x0300
+    val COMBINING_DIACRITICAL = (0x0300, 0x0370)
+    val HANGUL_JAMO = (0x1100, 0x1200)
+    val GEOMETRIC_SHAPES = (0x25a0, 0x2600)
+    val CJK_MAIN = (0x2e80, 0x9fff)
+    val HANGUL_SYLLABLES = (0xac00, 0xd7a4)
+    val CJK_COMPAT_IDEOGRAPHS = (0xf900, 0xfb00)
+    val VERTICAL_FORMS = (0xfe10, 0xfe20)
+    val CJK_COMPAT_FORMS = (0xfe30, 0xfe70)
+    val FULLWIDTH_FORMS = (0xff00, 0xff61)
+    val FULLWIDTH_SYMBOLS = (0xffe0, 0xffe7)
+    val EMOJI_START = 0x1f000
+    val SUPPLEMENTARY_IDEOGRAPHS = (0x20000, 0x2ffff)
+    val TERTIARY_IDEOGRAPHS = (0x30000, 0x3ffff)
   }
 
   /** Core layout element */
   trait Element {
     def render: String
+
     final def width: Width = {
       val rendered = render
-      if (rendered.isEmpty) return 0
-
-      var maxWidth = 0
-      var start = 0
-      var i = 0
-      while (i <= rendered.length) {
-        if (i == rendered.length || rendered.charAt(i) == '\n') {
-          if (i > start) {
-            val lineWidth = realLength(rendered.substring(start, i))
-            if (lineWidth > maxWidth) maxWidth = lineWidth
-          }
-          start = i + 1
-        }
-        i += 1
+      if (rendered.isEmpty) 0
+      else {
+        val lines = rendered.split('\n')
+        if (lines.isEmpty) 0 else lines.map(realLength).max
       }
-      maxWidth
     }
 
     final def height: Height = {
@@ -87,109 +134,61 @@ package object layoutz {
       else rendered.count(_ == '\n') + 1
     }
 
-    /** Center this element within specified width */
     final def center(width: Int): Centered = Centered(this, width)
-
-    /** Auto-center this element within layout context (width determined by
-      * sibling elements)
-      */
     final def center(): AutoCentered = AutoCentered(this)
-
-    /** Left-align this element within specified width */
     final def leftAlign(width: Int): LeftAligned = LeftAligned(this, width)
-
-    /** Right-align this element within specified width */
     final def rightAlign(width: Int): RightAligned = RightAligned(this, width)
-
-    /** Add padding around this element */
     final def pad(padding: Int): Padded = Padded(this, padding)
-
-    /** Wrap this element's text at word boundaries within specified width */
     final def wrap(width: Int): Wrapped = Wrapped(this, width)
-
-    /** Truncate this element to specified width with optional ellipsis */
     final def truncate(maxWidth: Int, ellipsis: String = "..."): Truncated =
       Truncated(this, maxWidth, ellipsis)
-
-    /** Add underline to this element with default character */
-    final def underline(): Underline = Underline(this, "─", None)
-
-    /** Add underline to this element with custom character */
-    final def underline(char: String): Underline = Underline(this, char, None)
-
-    /** Add colored underline to this element */
-    final def underlineColored(char: String, color: Color): Underline =
-      Underline(this, char, Some(color))
-
-    /** Justify this element's text to exact width by distributing spaces */
+    final def underline(char: Element = Text("─"), color: Color = Color.NoColor): Underline =
+      Underline(this, char.render, if (color == Color.NoColor) None else Some(color))
+    @deprecated("Use underline(char, color) instead", "0.6.0")
+    final def underlineColored(char: Element, color: Color): Underline =
+      underline(char, color)
     final def justify(width: Int): Justified = Justified(this, width)
-
-    /** Justify all lines of this element including the last line */
-    final def justifyAll(width: Int): Justified =
-      Justified(this, width, justifyLastLine = true)
-
-    /** Add a prefix margin to this element */
-    final def margin(prefix: String): Margin = Margin(prefix, Seq(this), None)
-
-    /** Add a colored prefix margin to this element */
-    final def marginColored(prefix: String, color: Color): Margin =
-      Margin(prefix, Seq(this), Some(color))
-
-    /** Apply a color to this element */
+    final def justifyAll(width: Int): Justified = Justified(this, width, justifyLastLine = true)
+    final def margin(prefix: Element): Margin = Margin(prefix.render, Seq(this), None)
+    final def marginColored(prefix: Element, color: Color): Margin =
+      Margin(prefix.render, Seq(this), Some(color))
     final def color(c: Color): Colored = Colored(c, this)
-
-    /** Apply a style to this element */
     final def style(s: Style): Styled = Styled(s, this)
-
-    /** Print this element to stdout */
     final def putStrLn: Unit = println(render)
 
   }
 
-  private val AnsiEscapeRegex = "\u001b\\[[0-9;]*m".r
+  private def stripAnsiCodes(text: String): String =
+    Unicode.ANSI_ESCAPE_REGEX.replaceAllIn(text, "")
 
-  /** Strip ANSI escape sequences to get visual width */
-  private def stripAnsiCodes(text: String): String = {
-    AnsiEscapeRegex.replaceAllIn(text, "")
-  }
-
-  /** Returns width of a character in a monospace terminal: 0 for combining
-    * characters, 1 for regular characters, 2 for East Asian wide and emoji.
-    */
   private def charWidth(c: Char): Int = {
-    val codePoint = c.toInt
-    if (codePoint < 0x0300) 1 // Fast path for ASCII and common Latin
-    else if (codePoint >= 0x0300 && codePoint < 0x0370)
-      0 // Combining diacriticals
-    else if (codePoint >= 0x1100 && codePoint < 0x1200) 2 // Hangul Jamo
-    else if (codePoint >= 0x2e80 && codePoint < 0x9fff) 2 // CJK
-    else if (codePoint >= 0xac00 && codePoint < 0xd7a4) 2 // Hangul Syllables
-    else if (codePoint >= 0xf900 && codePoint < 0xfb00)
-      2 // CJK Compatibility Ideographs
-    else if (codePoint >= 0xfe10 && codePoint < 0xfe20) 2 // Vertical forms
-    else if (codePoint >= 0xfe30 && codePoint < 0xfe70)
-      2 // CJK Compatibility Forms
-    else if (codePoint >= 0xff00 && codePoint < 0xff61) 2 // Fullwidth Forms
-    else if (codePoint >= 0xffe0 && codePoint < 0xffe7) 2 // Fullwidth symbols
-    else if (codePoint >= 0x1f000) 2 // Emoji, symbols, supplementary ideographs
-    else if (codePoint >= 0x20000 && codePoint < 0x2ffff)
-      2 // Supplementary ideographs
-    else if (codePoint >= 0x30000 && codePoint < 0x3ffff)
-      2 // Tertiary ideographs
+    import Unicode._
+    val cp = c.toInt
+    if (cp < ASCII_FAST_PATH_END) 1
+    else if (cp >= COMBINING_DIACRITICAL._1 && cp < COMBINING_DIACRITICAL._2) 0
+    else if (cp >= HANGUL_JAMO._1 && cp < HANGUL_JAMO._2) 2
+    else if (cp >= GEOMETRIC_SHAPES._1 && cp < GEOMETRIC_SHAPES._2) 2
+    else if (cp >= CJK_MAIN._1 && cp < CJK_MAIN._2) 2
+    else if (cp >= HANGUL_SYLLABLES._1 && cp < HANGUL_SYLLABLES._2) 2
+    else if (cp >= CJK_COMPAT_IDEOGRAPHS._1 && cp < CJK_COMPAT_IDEOGRAPHS._2) 2
+    else if (cp >= VERTICAL_FORMS._1 && cp < VERTICAL_FORMS._2) 2
+    else if (cp >= CJK_COMPAT_FORMS._1 && cp < CJK_COMPAT_FORMS._2) 2
+    else if (cp >= FULLWIDTH_FORMS._1 && cp < FULLWIDTH_FORMS._2) 2
+    else if (cp >= FULLWIDTH_SYMBOLS._1 && cp < FULLWIDTH_SYMBOLS._2) 2
+    else if (cp >= EMOJI_START) 2
+    else if (cp >= SUPPLEMENTARY_IDEOGRAPHS._1 && cp < SUPPLEMENTARY_IDEOGRAPHS._2) 2
+    else if (cp >= TERTIARY_IDEOGRAPHS._1 && cp < TERTIARY_IDEOGRAPHS._2) 2
     else 1
   }
 
   /** Calculate real terminal width of string (handles ANSI, emoji, CJK) */
-  def realLength(text: String): Int = {
+  def realLength(text: String): Int =
     stripAnsiCodes(text).map(charWidth).sum
-  }
 
-  /** Flatten multiline elements to single line for components that need
-    * single-line content
+  /** Flatten multiline elements to single line for components that need single-line content
     */
-  private def flattenToSingleLine(element: Element): String = {
+  private def flattenToSingleLine(element: Element): String =
     element.render.split('\n').mkString(" ")
-  }
 
   /** ANSI color support with 16 standard terminal colors */
   sealed trait Color {
@@ -235,6 +234,7 @@ package object layoutz {
     final case class True(r: Int, g: Int, b: Int) extends Color {
       val code = s"38;2;$r;$g;$b"
     }
+
   }
 
   /** ANSI text styles (bold, italic, etc.) */
@@ -263,6 +263,7 @@ package object layoutz {
       }
       firstStyles ++ secondStyles
     }
+
   }
 
   object Style {
@@ -280,45 +281,46 @@ package object layoutz {
   }
 
   /** Wrap text with ANSI color codes */
-  private def wrapAnsi(color: Color, content: String): String = {
+  private def wrapAnsi(color: Color, content: String): String =
     if (color.code.isEmpty) content
     else "\u001b[" + color.code + "m" + content + "\u001b[0m"
-  }
 
   /** Wrap text with ANSI style codes */
-  private def wrapStyle(style: Style, content: String): String = {
+  private def wrapStyle(style: Style, content: String): String =
     if (style.code.isEmpty) content
     else "\u001b[" + style.code + "m" + content + "\u001b[0m"
-  }
 
   /** Element wrapper that applies color to its content */
   final case class Colored(color: Color, element: Element) extends Element {
+
     def render: String = {
       val rendered = element.render
       val lines = rendered.split('\n')
       lines.map(line => wrapAnsi(color, line)).mkString("\n")
     }
+
   }
 
   /** Element wrapper that applies style to its content */
   final case class Styled(style: Style, element: Element) extends Element {
+
     def render: String = {
       val rendered = element.render
       val lines = rendered.split('\n')
 
       style match {
         case combined: CombinedStyle =>
-          // Flatten and apply all styles by nesting them
           val styles = combined.flatten
           lines
             .map { line =>
-              styles.foldLeft(line) { (acc, s) => wrapStyle(s, acc) }
+              styles.foldLeft(line)((acc, s) => wrapStyle(s, acc))
             }
             .mkString("\n")
         case _ =>
           lines.map(line => wrapStyle(style, line)).mkString("\n")
       }
     }
+
   }
 
   final case class Text(content: String) extends Element {
@@ -335,6 +337,7 @@ package object layoutz {
       elements: Seq[Element],
       color: Option[Color] = None
   ) extends Element {
+
     def render: String = {
       val content =
         if (elements.length == 1) elements.head else Layout(elements)
@@ -348,6 +351,7 @@ package object layoutz {
 
       lines.map(line => s"$coloredPrefix $line").mkString("\n")
     }
+
   }
 
   /** Underline element that draws a line under any element */
@@ -356,6 +360,7 @@ package object layoutz {
       underlineChar: String = "─",
       color: Option[Color] = None
   ) extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -379,6 +384,7 @@ package object layoutz {
 
       content + "\n" + coloredUnderline
     }
+
   }
 
   /** Ordered list with numbered items - supports automatic nesting */
@@ -394,14 +400,13 @@ package object layoutz {
     private def toRomanNumeral(n: Int): String = {
       val mappings = Seq((10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i"))
 
-      def convert(num: Int, remaining: Seq[(Int, String)]): String = {
+      def convert(num: Int, remaining: Seq[(Int, String)]): String =
         if (num == 0 || remaining.isEmpty) ""
         else {
           val (value, symbol) = remaining.head
           if (num >= value) symbol + convert(num - value, remaining)
           else convert(num, remaining.tail)
         }
-      }
 
       convert(n, mappings)
     }
@@ -411,41 +416,33 @@ package object layoutz {
     private def renderAtLevel(level: Int): String = {
       if (items.isEmpty) return ""
 
-      var itemNumber = 0 /* Track numbering for non-nested items only */
-
-      items
-        .map { item =>
-          item match {
-            case nestedList: OrderedList =>
-              /* Nested list - render with increased level, don't increment numbering */
-              nestedList.renderAtLevel(level + 1)
-            case other =>
-              /* Regular item - render with current level numbering */
-              val number = getNumbering(itemNumber, level)
-              itemNumber += 1 /* Only increment for actual items */
-              val content = other.render
-              val lines = content.split('\n')
-              val indent = "  " * level /* 2 spaces per level */
-
-              if (lines.length == 1) {
-                s"$indent$number. ${lines.head}"
-              } else {
-                val firstLine = s"$indent$number. ${lines.head}"
-                val lineIndent = indent + " " * (number.length + 2)
-                val remainingLines = lines.tail.map(line => s"$lineIndent$line")
-                (firstLine +: remainingLines).mkString("\n")
-              }
-          }
+      val indent = "  " * level
+      val (_, rendered) = items.foldLeft((0, Seq.empty[String])) { case ((num, acc), item) =>
+        item match {
+          case nestedList: OrderedList =>
+            (num, acc :+ nestedList.renderAtLevel(level + 1))
+          case other =>
+            val number = getNumbering(num, level)
+            val content = other.render
+            val lines = content.split('\n')
+            val result = if (lines.length == 1) {
+              s"$indent$number. ${lines.head}"
+            } else {
+              val lineIndent = indent + " " * (number.length + 2)
+              (s"$indent$number. ${lines.head}" +: lines.tail.map(l => s"$lineIndent$l")).mkString(
+                "\n"
+              )
+            }
+            (num + 1, acc :+ result)
         }
-        .mkString("\n")
+      }
+      rendered.mkString("\n")
     }
+
   }
 
-  /** Unordered list with bullet points - supports automatic nesting */
   final case class UnorderedList(items: Seq[Element], bullet: String = "•")
       extends Element {
-
-    private val bulletStyles = Array("•", "◦", "▪")
 
     def render: String = renderAtLevel(0)
 
@@ -454,7 +451,7 @@ package object layoutz {
 
       val currentBullet = if (bullet == "•") {
         /* Auto bullet - use level-appropriate style */
-        bulletStyles(level % bulletStyles.length)
+        Glyphs.BULLET_STYLES(level % Glyphs.BULLET_STYLES.length)
       } else {
         /* Custom bullet - use as specified */
         bullet
@@ -484,11 +481,13 @@ package object layoutz {
         }
         .mkString("\n")
     }
+
   }
 
   /** Center-align element within specified width */
   final case class Centered(element: Element, targetWidth: Int)
       extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -513,6 +512,7 @@ package object layoutz {
           .mkString("\n")
       }
     }
+
   }
 
   /** Auto-center element based on layout context */
@@ -523,6 +523,7 @@ package object layoutz {
   /** Left-align element within specified width */
   final case class LeftAligned(element: Element, targetWidth: Int)
       extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -538,11 +539,13 @@ package object layoutz {
         }
         .mkString("\n")
     }
+
   }
 
   /** Right-align element within specified width */
   final case class RightAligned(element: Element, targetWidth: Int)
       extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -558,10 +561,12 @@ package object layoutz {
         }
         .mkString("\n")
     }
+
   }
 
   /** Text wrapping element that breaks long lines at word boundaries */
   final case class Wrapped(element: Element, maxWidth: Int) extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -569,48 +574,31 @@ package object layoutz {
       lines.flatMap(wrapLine).mkString("\n")
     }
 
-    private def wrapLine(line: String): Seq[String] = {
-      if (line.length <= maxWidth) {
-        Seq(line)
-      } else {
-        val words = line.split(" ", -1) // -1 to preserve trailing empty strings
-        val result = scala.collection.mutable.ArrayBuffer[String]()
-        var currentLine = ""
-
-        for (word <- words) {
-          val testLine =
-            if (currentLine.isEmpty) word else currentLine + " " + word
-
-          if (testLine.length <= maxWidth) {
-            currentLine = testLine
-          } else {
-            if (currentLine.nonEmpty) {
-              result += currentLine
-              currentLine = word
-            } else {
-              result += word
-              currentLine = ""
-            }
-          }
+    private def wrapLine(line: String): Seq[String] =
+      if (line.length <= maxWidth) Seq(line)
+      else {
+        val words = line.split(" ", -1)
+        val (current, lines) = words.foldLeft(("", Seq.empty[String])) { case ((cur, acc), word) =>
+          val test = if (cur.isEmpty) word else cur + " " + word
+          if (test.length <= maxWidth) (test, acc)
+          else if (cur.nonEmpty) (word, acc :+ cur)
+          else ("", acc :+ word)
         }
-
-        if (currentLine.nonEmpty) {
-          result += currentLine
-        }
-
-        if (result.isEmpty) Seq("") else result.toSeq
+        val result = if (current.nonEmpty) lines :+ current else lines
+        if (result.isEmpty) Seq("") else result
       }
-    }
+
   }
 
-  /** Text justification - wraps and makes each line fit exactly the target
-    * width by distributing spaces
+  /** Text justification - wraps and makes each line fit exactly the target width by distributing
+    * spaces
     */
   final case class Justified(
       element: Element,
       targetWidth: Int,
       justifyLastLine: Boolean = false
   ) extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -629,38 +617,19 @@ package object layoutz {
         .mkString("\n")
     }
 
-    private def wrapLine(line: String): Seq[String] = {
-      if (line.length <= targetWidth) {
-        Seq(line)
-      } else {
+    private def wrapLine(line: String): Seq[String] =
+      if (line.length <= targetWidth) Seq(line)
+      else {
         val words = line.split(" ", -1)
-        val result = scala.collection.mutable.ArrayBuffer[String]()
-        var currentLine = ""
-
-        for (word <- words) {
-          val testLine =
-            if (currentLine.isEmpty) word else currentLine + " " + word
-
-          if (testLine.length <= targetWidth) {
-            currentLine = testLine
-          } else {
-            if (currentLine.nonEmpty) {
-              result += currentLine
-              currentLine = word
-            } else {
-              result += word
-              currentLine = ""
-            }
-          }
+        val (current, lines) = words.foldLeft(("", Seq.empty[String])) { case ((cur, acc), word) =>
+          val test = if (cur.isEmpty) word else cur + " " + word
+          if (test.length <= targetWidth) (test, acc)
+          else if (cur.nonEmpty) (word, acc :+ cur)
+          else ("", acc :+ word)
         }
-
-        if (currentLine.nonEmpty) {
-          result += currentLine
-        }
-
-        if (result.isEmpty) Seq("") else result.toSeq
+        val result = if (current.nonEmpty) lines :+ current else lines
+        if (result.isEmpty) Seq("") else result
       }
-    }
 
     private def justifyLine(line: String, width: Int): String = {
       val trimmedLine = line.trim
@@ -697,16 +666,19 @@ package object layoutz {
 
       result.toString
     }
+
   }
 
   final case class HorizontalRule(
       char: String = "─",
       ruleWidth: Option[Int] = None
   ) extends Element {
+
     def render: String = {
       val actualWidth = ruleWidth.getOrElse(Dimensions.DEFAULT_RULE_WIDTH)
       char * actualWidth
     }
+
   }
 
   /** Fluent horizontal rule builder */
@@ -724,17 +696,20 @@ package object layoutz {
       val actualWidth = ruleWidth.getOrElse(Dimensions.DEFAULT_RULE_WIDTH)
       char * actualWidth
     }
+
   }
 
   /** Structured key-value pairs */
-  final case class KeyValue(pairs: Seq[(String, String)]) extends Element {
+  final case class KeyValue(pairs: Seq[(Element, Element)]) extends Element {
+
     def render: String = {
       if (pairs.isEmpty) return ""
 
-      val maxKeyLength = pairs.map(p => realLength(p._1)).max
+      val renderedPairs = pairs.map { case (k, v) => (k.render, v.render) }
+      val maxKeyLength = renderedPairs.map(p => realLength(p._1)).max
       val alignmentPosition = maxKeyLength + 2
 
-      pairs
+      renderedPairs
         .map { case (key, value) =>
           val keyWithColon = s"$key:"
           val spacesNeeded = alignmentPosition - realLength(keyWithColon)
@@ -743,6 +718,7 @@ package object layoutz {
         }
         .mkString("\n")
     }
+
   }
 
   /** Tabular data with headers and borders */
@@ -755,7 +731,6 @@ package object layoutz {
     def render: String = {
       val expectedColumnCount = headers.length
 
-      // Normalize rows to have consistent column count
       val normalizedRows = rows.map(normalizeRowLength(_, expectedColumnCount))
 
       val headerLines = headers.map(_.render.split('\n'))
@@ -783,24 +758,21 @@ package object layoutz {
       ) ++ dataRows :+ borders.bottom).mkString("\n")
     }
 
-    /** Normalize row length to match expected column count. Truncates if too
-      * long, pads with empty strings if too short.
+    /** Normalize row length to match expected column count. Truncates if too long, pads with empty
+      * strings if too short.
       */
     private def normalizeRowLength(
         row: Seq[Element],
         expectedColumnCount: Int
-    ): Seq[Element] = {
+    ): Seq[Element] =
       if (row.length == expectedColumnCount) {
         row
       } else if (row.length > expectedColumnCount) {
-        // Truncate if too long
         row.take(expectedColumnCount)
       } else {
-        // Pad with empty strings if too short
         val paddingNeeded = expectedColumnCount - row.length
         row ++ Seq.fill(paddingNeeded)(Text(""))
       }
-    }
 
     private def calculateColumnWidths(
         allRowLines: Seq[Seq[Array[String]]]
@@ -820,6 +792,7 @@ package object layoutz {
     )
 
     private object TableBorders {
+
       def apply(widths: Seq[Int], style: Border): TableBorders = {
         val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
           style.chars
@@ -855,6 +828,7 @@ package object layoutz {
           )
         )
       }
+
     }
 
     private def buildMultilineTableRows(
@@ -881,10 +855,12 @@ package object layoutz {
           )
       }
     }
+
   }
 
   /** Horizontal progress indicator */
   final case class InlineBar(label: Element, progress: Double) extends Element {
+
     def render: String = {
       val clampedProgress = math.max(0.0, math.min(1.0, progress))
       val filledSegments =
@@ -897,6 +873,7 @@ package object layoutz {
 
       s"${flattenToSingleLine(label)} [$bar] $percentage%"
     }
+
   }
 
   /** Dashboard status card */
@@ -942,6 +919,7 @@ package object layoutz {
       (Seq(topBorder) ++ labelCardLines ++ contentCardLines :+ bottomBorder)
         .mkString("\n")
     }
+
   }
 
   /** Text input field with label and current value */
@@ -951,12 +929,14 @@ package object layoutz {
       placeholder: String = "",
       active: Boolean = false
   ) extends Element {
+
     def render: String = {
       val displayValue = Option(value).filter(_.nonEmpty).getOrElse(placeholder)
       val cursor = if (active) "█" else ""
       val activeMarker = if (active) ">" else " "
       s"$activeMarker $label: $displayValue$cursor"
     }
+
   }
 
   /** Single choice selector - pick one option from a list */
@@ -966,6 +946,7 @@ package object layoutz {
       selected: Int = 0,
       active: Boolean = false
   ) extends Element {
+
     def render: String = {
       val header = if (active) s"> $label" else s"  $label"
       val optionLines = options.zipWithIndex.map { case (opt, idx) =>
@@ -977,6 +958,7 @@ package object layoutz {
       }
       (header +: optionLines).mkString("\n")
     }
+
   }
 
   /** Multi choice selector - pick multiple options from a list */
@@ -987,6 +969,7 @@ package object layoutz {
       cursor: Int = 0,
       active: Boolean = false
   ) extends Element {
+
     def render: String = {
       val header =
         if (active) s"> $label (space to toggle, enter to confirm)"
@@ -1000,6 +983,7 @@ package object layoutz {
       }
       (header +: optionLines).mkString("\n")
     }
+
   }
 
   /** Form builder helper - combines multiple inputs with validation */
@@ -1010,6 +994,7 @@ package object layoutz {
       showErrors: Boolean = false,
       errorMessage: Option[String] = None
   ) extends Element {
+
     def render: String = {
       val titleLine = s"=== $title ==="
       val fieldLines = fields.map(_.render)
@@ -1019,6 +1004,7 @@ package object layoutz {
 
       (titleLine +: fieldLines ++: errorLines).mkString("\n")
     }
+
   }
 
   /** Animated spinner for loading states */
@@ -1027,6 +1013,7 @@ package object layoutz {
       frame: Int = 0,
       style: SpinnerStyle = SpinnerStyle.Dots
   ) extends Element {
+
     def render: String = {
       val spinChar = style.frames(frame % style.frames.length)
       Option(label)
@@ -1042,36 +1029,45 @@ package object layoutz {
   }
 
   object SpinnerStyle {
+
     case object Dots extends SpinnerStyle {
       val frames = Array("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
     }
+
     case object Line extends SpinnerStyle {
       val frames = Array("|", "/", "-", "\\")
     }
+
     case object Clock extends SpinnerStyle {
-      val frames = Array(
-        "🕐",
-        "🕑",
-        "🕒",
-        "🕓",
-        "🕔",
-        "🕕",
-        "🕖",
-        "🕗",
-        "🕘",
-        "🕙",
-        "🕚",
-        "🕛"
-      )
+      val frames = Array("🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛")
     }
+
     case object Bounce extends SpinnerStyle {
       val frames = Array("⠁", "⠂", "⠄", "⠂")
     }
+
+    case object Earth extends SpinnerStyle {
+      val frames = Array("🌍", "🌎", "🌏")
+    }
+
+    case object Moon extends SpinnerStyle {
+      val frames = Array("🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘")
+    }
+
+    case object Grow extends SpinnerStyle {
+      val frames = Array("▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎")
+    }
+
+    case object Arrow extends SpinnerStyle {
+      val frames = Array("←", "↖", "↑", "↗", "→", "↘", "↓", "↙")
+    }
+
   }
 
   /** Simple column layout */
   final case class Columns(elements: Seq[Element], spacing: Int = 2)
       extends Element {
+
     def render: String = {
       if (elements.isEmpty) return ""
 
@@ -1085,12 +1081,15 @@ package object layoutz {
             .zip(widths)
             .map { case (lines, width) =>
               val line = if (row < lines.length) lines(row) else ""
-              line.padTo(width, ' ')
+              val visualLen = realLength(line)
+              val padding = math.max(0, width - visualLen)
+              line + (" " * padding)
             }
             .mkString(" " * spacing)
         }
         .mkString("\n")
     }
+
   }
 
   /** Horizontal bar chart */
@@ -1098,6 +1097,7 @@ package object layoutz {
       data: Seq[(Element, Double)],
       maxWidth: Int = Dimensions.DEFAULT_CHART_WIDTH
   ) extends Element {
+
     def render: String = {
       if (data.isEmpty) return "No data"
 
@@ -1106,7 +1106,6 @@ package object layoutz {
 
       data
         .map { case (labelElement, value) =>
-          // Flattens multiline labels to single line for chart display
           val label = flattenToSingleLine(labelElement)
           val barLength = (value * scale).toInt
           val bar = "█" * barLength
@@ -1123,7 +1122,627 @@ package object layoutz {
         }
         .mkString("\n")
     }
+
   }
+
+  final case class Series(
+      points: Seq[(Double, Double)],
+      label: String = "",
+      seriesColor: Color = Color.NoColor
+  ) {
+    def color(c: Color): Series = copy(seriesColor = c)
+  }
+
+  final case class Plot(
+      series: Seq[Series],
+      plotWidth: Int = 60,
+      plotHeight: Int = 20,
+      showAxes: Boolean = true,
+      showOrigin: Boolean = true
+  ) extends Element {
+
+    def render: String = {
+      if (series.isEmpty || series.forall(_.points.isEmpty)) return "No data"
+
+      val allPoints = series.flatMap(_.points)
+      val xMin = allPoints.map(_._1).min
+      val xMax = allPoints.map(_._1).max
+      val yMin = allPoints.map(_._2).min
+      val yMax = allPoints.map(_._2).max
+
+      val pixelWidth = plotWidth * 2
+      val pixelHeight = plotHeight * 4
+      val xRange = if (xMax == xMin) 1.0 else xMax - xMin
+      val yRange = if (yMax == yMin) 1.0 else yMax - yMin
+
+      val grid = Array.fill(plotHeight, plotWidth)(0)
+      val seriesGrid = Array.fill(plotHeight, plotWidth)(-1)
+      val dotCount = Array.fill(plotHeight, plotWidth, series.length)(0)
+
+      for {
+        (s, seriesIdx) <- series.zipWithIndex
+        (x, y) <- s.points
+      } {
+        val px = ((x - xMin) / xRange * (pixelWidth - 1)).toInt.max(0).min(pixelWidth - 1)
+        val py =
+          ((yMax - y) / yRange * (pixelHeight - 1)).toInt.max(0).min(pixelHeight - 1) // Y inverted
+        val cellX = px / 2
+        val cellY = py / 4
+        val dotX = px % 2
+        val dotY = py % 4
+        grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
+        dotCount(cellY)(cellX)(seriesIdx) += 1
+      }
+
+      /* Origin axes at x=0, y=0 */
+      if (showOrigin) {
+        if (yMin < 0 && yMax > 0) {
+          val py = ((yMax - 0) / yRange * (pixelHeight - 1)).toInt
+          val cellY = py / 4
+          val dotY = py % 4
+          if (cellY >= 0 && cellY < plotHeight) {
+            for (px <- 0 until pixelWidth) {
+              val cellX = px / 2
+              val dotX = px % 2
+              grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
+            }
+          }
+        }
+        if (xMin < 0 && xMax > 0) {
+          val px = ((0 - xMin) / xRange * (pixelWidth - 1)).toInt
+          val cellX = px / 2
+          val dotX = px % 2
+          if (cellX >= 0 && cellX < plotWidth) {
+            for (py <- 0 until pixelHeight) {
+              val cellY = py / 4
+              val dotY = py % 4
+              grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
+            }
+          }
+        }
+      }
+
+      /* Dominant series per cell (most dots wins) */
+      for {
+        y <- 0 until plotHeight
+        x <- 0 until plotWidth
+      } {
+        val counts = dotCount(y)(x)
+        if (counts.exists(_ > 0)) {
+          seriesGrid(y)(x) = counts.zipWithIndex.maxBy(_._1)._2
+        }
+      }
+
+      /* Braille: U+2800 + bits */
+      val plotLines = grid.zip(seriesGrid).map { case (row, seriesIndices) =>
+        row.zip(seriesIndices).map { case (bits, seriesIdx) =>
+          val ch = (0x2800 + bits).toChar.toString
+          if (seriesIdx < 0) ch
+          else {
+            val s = series(seriesIdx)
+            if (s.seriesColor == Color.NoColor) ch else wrapAnsi(s.seriesColor, ch)
+          }
+        }.mkString
+      }
+
+      if (showAxes) {
+        val yMaxStr = formatNum(yMax)
+        val yMinStr = formatNum(yMin)
+        val xMinStr = formatNum(xMin)
+        val xMaxStr = formatNum(xMax)
+        val labelWidth = math.max(yMaxStr.length, yMinStr.length)
+        val pad = " " * labelWidth
+
+        val firstLine = yMaxStr.reverse.padTo(labelWidth, ' ').reverse + " ┤" + plotLines.head
+        val middleLines = plotLines.slice(1, plotLines.length - 1).map(l => pad + " │" + l)
+        val lastPlotLine = yMinStr.reverse.padTo(labelWidth, ' ').reverse + " ┤" + plotLines.last
+        val axisLine = pad + " └" + "─" * plotWidth
+        val xLabelLine = " " * (labelWidth + 2) + xMinStr +
+          " " * (plotWidth - xMinStr.length - xMaxStr.length) + xMaxStr
+
+        val labelsWithContent = series.filter(_.label.nonEmpty)
+        val legend = if (labelsWithContent.length > 1) {
+          val legendStr = labelsWithContent.map { s =>
+            val marker = if (s.seriesColor == Color.NoColor) "─" else wrapAnsi(s.seriesColor, "─")
+            s"$marker ${s.label}"
+          }.mkString("  ")
+          Seq(" " * (labelWidth + 2) + legendStr)
+        } else Seq.empty
+
+        (Seq(firstLine) ++ middleLines ++ Seq(lastPlotLine, axisLine, xLabelLine) ++ legend)
+          .mkString("\n")
+      } else {
+        plotLines.mkString("\n")
+      }
+    }
+
+    private def formatNum(d: Double): String = {
+      val v = if (d == 0.0) 0.0 else d // Normalize -0.0 to 0.0
+      if (v == v.toLong) v.toLong.toString
+      else f"$v%.1f"
+    }
+
+  }
+
+  /** Factory for plot */
+  def plot(
+      width: Int = 60,
+      height: Int = 20,
+      showAxes: Boolean = true,
+      showOrigin: Boolean = true
+  )(series: Series*): Plot =
+    Plot(series, width, height, showAxes, showOrigin)
+
+  final case class Slice(
+      value: Double,
+      label: String = "",
+      sliceColor: Option[Color] = None
+  ) {
+    def color(c: Color): Slice = copy(sliceColor = Some(c))
+  }
+
+  final case class Pie(
+      slices: Seq[Slice],
+      pieWidth: Int = 40,
+      pieHeight: Int = 12,
+      showLegend: Boolean = true
+  ) extends Element {
+
+    def render: String = {
+      if (slices.isEmpty || slices.forall(_.value <= 0)) return "No data"
+
+      val total = slices.map(_.value).sum
+      val pixelWidth = pieWidth * 2
+      val pixelHeight = pieHeight * 4
+
+      val centerX = pixelWidth / 2.0
+      val centerY = pixelHeight / 2.0
+      val radius = math.min(centerX, centerY * 1.5) - 1
+
+      val coloredSlices = slices.zipWithIndex.map { case (s, i) =>
+        (s, s.sliceColor.getOrElse(Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)))
+      }
+
+      val angleRanges = {
+        val angles = coloredSlices.map { case (s, _) => (s.value / total) * 2 * math.Pi }
+        val cumulative = angles.scanLeft(0.0)(_ + _)
+        coloredSlices.zip(cumulative.zip(cumulative.tail)).map {
+          case ((_, c), (start, end)) => (start, end, c)
+        }
+      }
+
+      val grid = Array.fill(pieHeight, pieWidth)(0)
+      val sliceCount = Array.fill(pieHeight, pieWidth, slices.length)(0)
+
+      /* Fill pie, scale dy for terminal aspect ratio */
+      for {
+        py <- 0 until pixelHeight
+        px <- 0 until pixelWidth
+      } {
+        val dx = px - centerX
+        val dy = (py - centerY) * 1.5
+        val dist = math.sqrt(dx * dx + dy * dy)
+
+        if (dist <= radius) {
+          var angle = math.atan2(dy, dx)
+          if (angle < 0) angle += 2 * math.Pi
+
+          val sliceIdx = angleRanges.indexWhere { case (start, end, _) =>
+            angle >= start && angle < end
+          }
+
+          val cellX = px / 2
+          val cellY = py / 4
+          val dotX = px % 2
+          val dotY = py % 4
+          grid(cellY)(cellX) |= Glyphs.BRAILLE_DOTS(dotY)(dotX)
+          if (sliceIdx >= 0) sliceCount(cellY)(cellX)(sliceIdx) += 1
+        }
+      }
+
+      /* Dominant slice per cell */
+      val colorGrid = Array.tabulate(pieHeight, pieWidth) { (y, x) =>
+        val counts = sliceCount(y)(x)
+        if (counts.exists(_ > 0)) {
+          val maxIdx = counts.zipWithIndex.maxBy(_._1)._2
+          coloredSlices(maxIdx)._2
+        } else Color.NoColor
+      }
+
+      /* Braille: U+2800 + bits */
+      val pieLines = grid.zip(colorGrid).map { case (row, colors) =>
+        row.zip(colors).map { case (bits, c) =>
+          val ch = (0x2800 + bits).toChar.toString
+          if (c == Color.NoColor) ch else wrapAnsi(c, ch)
+        }.mkString
+      }
+
+      if (showLegend && slices.exists(_.label.nonEmpty)) {
+        val legend = coloredSlices.filter(_._1.label.nonEmpty).map { case (s, c) =>
+          val pct = (s.value / total * 100).toInt
+          val marker = wrapAnsi(c, "●")
+          s"$marker ${s.label} ($pct%)"
+        }
+        (pieLines ++ ("" +: legend)).mkString("\n")
+      } else {
+        pieLines.mkString("\n")
+      }
+    }
+  }
+
+  def pie(width: Int = 40, height: Int = 12, showLegend: Boolean = true)(slices: Slice*): Pie =
+    Pie(slices, width, height, showLegend)
+
+  final case class Bar(
+      value: Double,
+      label: String = "",
+      barColor: Option[Color] = None
+  ) {
+    def color(c: Color): Bar = copy(barColor = Some(c))
+  }
+
+  final case class BarChart(
+      bars: Seq[Bar],
+      chartWidth: Int = 40,
+      chartHeight: Int = 10,
+      showLabels: Boolean = true,
+      showAxis: Boolean = true
+  ) extends Element {
+
+    def render: String = {
+      if (bars.isEmpty) return "No data"
+
+      val maxVal = bars.map(_.value).max
+      if (maxVal <= 0) return "No data"
+
+      val numBars = bars.length
+      val axisWidth = if (showAxis) maxVal.toInt.toString.length + 2 else 0
+      val availableWidth = chartWidth - axisWidth
+      val barWidth = math.max(1, (availableWidth - numBars + 1) / numBars)
+
+      val coloredBars = bars.zipWithIndex.map { case (b, i) =>
+        (b, b.barColor.getOrElse(Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)))
+      }
+
+      val rows = (0 until chartHeight).map { row =>
+        val threshold = (chartHeight - row - 1).toDouble / chartHeight
+        val nextThreshold = (chartHeight - row).toDouble / chartHeight
+
+        val axisLabel = if (showAxis) {
+          /* Show tick value at each row */
+          val tickValue = maxVal * (chartHeight - row).toDouble / chartHeight
+          val tickStr =
+            if (tickValue == tickValue.toLong) tickValue.toLong.toString else f"$tickValue%.0f"
+          tickStr.reverse.padTo(axisWidth - 1, ' ').reverse + "┤"
+        } else ""
+
+        val barsStr = coloredBars.zipWithIndex.map { case ((b, c), i) =>
+          val normalized = b.value / maxVal
+          val barStr = if (normalized >= nextThreshold) {
+            "█" * barWidth
+          } else if (normalized > threshold) {
+            val frac = (normalized - threshold) / (1.0 / chartHeight)
+            val blockIdx = math.min(8, math.max(1, (frac * 8).toInt))
+            Glyphs.BLOCK_CHARS(blockIdx).toString * barWidth
+          } else {
+            " " * barWidth
+          }
+          val sep = if (i < numBars - 1) " " else ""
+          wrapAnsi(c, barStr) + sep
+        }.mkString
+
+        axisLabel + barsStr
+      }
+
+      val labelRow = if (showLabels && bars.exists(_.label.nonEmpty)) {
+        val prefix = if (showAxis) " " * axisWidth else ""
+        Some(prefix + coloredBars.map { case (b, _) =>
+          val lbl = b.label.take(barWidth)
+          val pad = barWidth - lbl.length
+          val left = pad / 2
+          val right = pad - left
+          " " * left + lbl + " " * right
+        }.mkString(" "))
+      } else None
+
+      (rows ++ labelRow).mkString("\n")
+    }
+  }
+
+  def bar(width: Int = 40, height: Int = 10, showLabels: Boolean = true)(bars: Bar*): BarChart =
+    BarChart(bars, width, height, showLabels)
+
+  final case class StackedBar(
+      segments: Seq[Bar],
+      label: String = ""
+  )
+
+  final case class StackedBarChart(
+      bars: Seq[StackedBar],
+      chartWidth: Int = 40,
+      chartHeight: Int = 10,
+      showLabels: Boolean = true,
+      showLegend: Boolean = true,
+      showAxis: Boolean = true
+  ) extends Element {
+
+    def render: String = {
+      if (bars.isEmpty) return "No data"
+
+      val maxVal = bars.map(_.segments.map(_.value).sum).max
+      if (maxVal <= 0) return "No data"
+
+      val numBars = bars.length
+      val axisWidth = if (showAxis) maxVal.toInt.toString.length + 2 else 0
+      val availableWidth = chartWidth - axisWidth
+      val barWidth = math.max(1, (availableWidth - numBars + 1) / numBars)
+
+      val allSegments = bars.flatMap(_.segments).filter(_.label.nonEmpty)
+      val uniqueLabels = allSegments.map(_.label).distinct
+      val labelColors = uniqueLabels.zipWithIndex.map { case (lbl, i) =>
+        lbl -> Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)
+      }.toMap
+
+      val totalPixelHeight = chartHeight * 8
+      val barSegments = bars.map { stackedBar =>
+        val values = stackedBar.segments.map(_.value)
+        val cumulative = values.scanLeft(0.0)(_ + _)
+        stackedBar.segments.zip(cumulative.zip(cumulative.tail)).map {
+          case (seg, (startVal, endVal)) =>
+            val start = (startVal / maxVal * totalPixelHeight).toInt
+            val end = (endVal / maxVal * totalPixelHeight).toInt
+            val c = seg.barColor.getOrElse(
+              if (seg.label.nonEmpty) labelColors.getOrElse(seg.label, Color.Blue)
+              else Color.Blue
+            )
+            (start, end, c)
+        }
+      }
+
+      val rows = (0 until chartHeight).map { row =>
+        val rowPixelBottom = (chartHeight - row - 1) * 8
+        val rowPixelTop = (chartHeight - row) * 8
+
+        val axisLabel = if (showAxis) {
+          /* Show tick value at each row */
+          val tickValue = maxVal * (chartHeight - row).toDouble / chartHeight
+          val tickStr =
+            if (tickValue == tickValue.toLong) tickValue.toLong.toString else f"$tickValue%.0f"
+          tickStr.reverse.padTo(axisWidth - 1, ' ').reverse + "┤"
+        } else ""
+
+        val barsStr = barSegments.zipWithIndex.map { case (segs, i) =>
+          var filledEighths = 0
+          var topColor: Color = Color.NoColor
+
+          for (eighth <- 0 until 8) {
+            val pixelY = rowPixelBottom + eighth
+            segs.find { case (start, end, _) => pixelY >= start && pixelY < end } match {
+              case Some((_, _, c)) =>
+                filledEighths += 1
+                topColor = c
+              case None =>
+            }
+          }
+
+          val barStr = if (filledEighths == 0) {
+            " " * barWidth
+          } else if (filledEighths == 8) {
+            wrapAnsi(topColor, "█" * barWidth)
+          } else {
+            wrapAnsi(topColor, Glyphs.BLOCK_CHARS(filledEighths).toString * barWidth)
+          }
+
+          val sep = if (i < numBars - 1) " " else ""
+          barStr + sep
+        }.mkString
+
+        axisLabel + barsStr
+      }
+
+      val labelRow = if (showLabels && bars.exists(_.label.nonEmpty)) {
+        val prefix = if (showAxis) " " * axisWidth else ""
+        Some(prefix + bars.map { b =>
+          val lbl = b.label.take(barWidth)
+          val pad = barWidth - lbl.length
+          val left = pad / 2
+          val right = pad - left
+          " " * left + lbl + " " * right
+        }.mkString(" "))
+      } else None
+
+      val legend = if (showLegend && uniqueLabels.nonEmpty) {
+        Some(uniqueLabels.map { lbl =>
+          val c = labelColors(lbl)
+          s"${wrapAnsi(c, "█")} $lbl"
+        }.mkString("  "))
+      } else None
+
+      (rows ++ labelRow ++ Seq("") ++ legend).mkString("\n")
+    }
+  }
+
+  def stackedBar(
+      width: Int = 40,
+      height: Int = 10,
+      showLabels: Boolean = true,
+      showLegend: Boolean = true
+  )(
+      bars: StackedBar*
+  ): StackedBarChart =
+    StackedBarChart(bars, width, height, showLabels, showLegend)
+
+  final case class Sparkline(values: Seq[Double], sparkColor: Color = Color.NoColor)
+      extends Element {
+    def render: String = {
+      if (values.isEmpty) return ""
+      val (lo, hi) = (values.min, values.max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      val result = values.map { v =>
+        Glyphs.BLOCK_CHARS(math.min(7, ((v - lo) / range * 8).toInt) + 1)
+      }.mkString
+      if (sparkColor == Color.NoColor) result else wrapAnsi(sparkColor, result)
+    }
+  }
+
+  def sparkline(values: Seq[Double]): Sparkline = Sparkline(values)
+
+  final case class BoxData(
+      label: String,
+      min: Double,
+      q1: Double,
+      median: Double,
+      q3: Double,
+      max: Double,
+      boxColor: Option[Color] = None
+  ) {
+    def color(c: Color): BoxData = copy(boxColor = Some(c))
+  }
+
+  final case class BoxPlot(boxes: Seq[BoxData], plotHeight: Int = 15, showLabels: Boolean = true)
+      extends Element {
+    def render: String = {
+      if (boxes.isEmpty) return "No data"
+
+      val (lo, hi) = (boxes.map(_.min).min, boxes.map(_.max).max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      def scale(v: Double): Int = ((v - lo) / range * (plotHeight - 1)).toInt
+
+      val boxWidth = 5
+      val spacing = 2
+      val colored = boxes.zipWithIndex.map { case (b, i) =>
+        (b, b.boxColor.getOrElse(Palette.DEFAULT_COLORS(i % Palette.DEFAULT_COLORS.length)))
+      }
+
+      val rows = (0 until plotHeight).reverse.map { row =>
+        colored.map { case (b, c) =>
+          val (rMin, rQ1, rMed, rQ3, rMax) =
+            (scale(b.min), scale(b.q1), scale(b.median), scale(b.q3), scale(b.max))
+          val cell =
+            if (row == rMax) " ─┬─ "
+            else if (row == rMin) " ─┴─ "
+            else if (row > rQ3 && row < rMax) "  │  "
+            else if (row > rMin && row < rQ1) "  │  "
+            else if (row == rQ3) "┌───┐"
+            else if (row == rQ1) "└───┘"
+            else if (row > rQ1 && row < rQ3) { if (row == rMed) "├───┤" else "│   │" }
+            else "     "
+          if (c == Color.NoColor) cell else wrapAnsi(c, cell)
+        }.mkString(" " * spacing)
+      }
+
+      val (lblTop, lblBot) = (f"$hi%.0f", f"$lo%.0f")
+      val lblW = math.max(lblTop.length, lblBot.length)
+
+      val labelRow = if (showLabels) Some(colored.map { case (b, _) =>
+        val lbl = b.label.take(boxWidth)
+        val pad = boxWidth - lbl.length
+        " " * (pad / 2) + lbl + " " * (pad - pad / 2)
+      }.mkString(" " * spacing))
+      else None
+
+      val axisRows = rows.zipWithIndex.map { case (row, i) =>
+        val axis = if (i == 0) lblTop else if (i == plotHeight - 1) lblBot else " " * lblW
+        axis.reverse.padTo(lblW, ' ').reverse + " │" + row
+      }
+
+      (axisRows ++ labelRow).mkString("\n")
+    }
+  }
+
+  def boxPlot(height: Int = 15)(boxes: BoxData*): BoxPlot = BoxPlot(boxes, height)
+
+  final case class Histogram(
+      data: Seq[Double],
+      bins: Int = 10,
+      histWidth: Int = 40,
+      histHeight: Int = 10
+  ) extends Element {
+    def render: String = {
+      if (data.isEmpty) return "No data"
+
+      val (lo, hi) = (data.min, data.max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      val binW = range / bins
+      val counts = (0 until bins).map { b =>
+        data.count { v =>
+          val idx = math.min(bins - 1, ((v - lo) / binW).toInt)
+          idx == b
+        }
+      }
+      val maxCount = counts.max.toDouble
+      val barW = math.max(1, histWidth / bins)
+
+      val rows = (0 until histHeight).reverse.map { row =>
+        val thresh = ((row + 1).toDouble / histHeight) * maxCount
+        counts.map(c => if (c >= thresh) "█" * barW else " " * barW).mkString
+      }
+
+      val w = barW * bins
+      val axis = "─" * w
+      val loS = f"$lo%.1f"
+      val hiS = f"$hi%.1f"
+      val labels = loS + " " * (w - loS.length - hiS.length).max(1) + hiS
+      (rows :+ axis :+ labels).mkString("\n")
+    }
+  }
+
+  def histogram(data: Seq[Double], bins: Int = 10): Histogram = Histogram(data, bins)
+
+  final case class HeatmapData(
+      rows: Seq[Seq[Double]],
+      rowLabels: Seq[String] = Seq.empty,
+      colLabels: Seq[String] = Seq.empty
+  )
+
+  final case class Heatmap(
+      data: HeatmapData,
+      cellWidth: Int = 2,
+      cellHeight: Int = 1,
+      showLegend: Boolean = true
+  ) extends Element {
+    private def colorCode(n: Double): Int = {
+      val t = math.max(0.0, math.min(1.0, n))
+      if (t < 0.25) (21 + (51 - 21) * t / 0.25).toInt
+      else if (t < 0.5) (51 + (46 - 51) * (t - 0.25) / 0.25).toInt
+      else if (t < 0.75) (46 + (226 - 46) * (t - 0.5) / 0.25).toInt
+      else (226 + (196 - 226) * (t - 0.75) / 0.25).toInt
+    }
+    private def bg(code: Int): String = s"\u001b[48;5;${code}m"
+    private val rst = "\u001b[0m"
+
+    def render: String = {
+      val rows = data.rows
+      if (rows.isEmpty) return "No data"
+
+      val all = rows.flatten
+      val (lo, hi) = (all.min, all.max)
+      val range = if (hi == lo) 1.0 else hi - lo
+      val (nCols, nRows) = (rows.map(_.length).max, rows.length)
+
+      val yLbls = if (data.rowLabels.nonEmpty) data.rowLabels else (0 until nRows).map(_.toString)
+      val yW = yLbls.map(_.length).max + 1
+      val xLbls = if (data.colLabels.nonEmpty) data.colLabels else (0 until nCols).map(_.toString)
+
+      val header =
+        " " * yW + xLbls.map(l => l.take(cellWidth).reverse.padTo(cellWidth, ' ').reverse).mkString
+      val heatRows = rows.zipWithIndex.flatMap { case (row, ri) =>
+        val yLbl = if (ri < yLbls.length) yLbls(ri).padTo(yW, ' ') else " " * yW
+        val cells =
+          row.map(v => s"${bg(colorCode((v - lo) / range))}${" " * cellWidth}$rst").mkString
+        (0 until cellHeight).map(h => if (h == 0) yLbl + cells else " " * yW + cells)
+      }
+      val legend = if (showLegend) {
+        val bar = (0 until 20).map(i => s"${bg(colorCode(i / 19.0))} $rst").mkString
+        Seq("", f"$lo%.1f $bar $hi%.1f")
+      } else Seq.empty
+
+      (Seq(header) ++ heatRows ++ legend).mkString("\n")
+    }
+  }
+
+  def heatmap(rows: Seq[Seq[Double]]): Heatmap = Heatmap(HeatmapData(rows))
+  def heatmap(data: HeatmapData): Heatmap = Heatmap(data)
 
   /** Banner - decorative text in a box */
   final case class Banner(content: Element, borderStyle: Border = Border.Double)
@@ -1154,10 +1773,12 @@ package object layoutz {
 
       (top +: contentLines :+ bottom).mkString("\n")
     }
+
   }
 
   /** Unified border styling for all box-like elements */
   sealed trait Border {
+
     def chars: (
         String,
         String,
@@ -1170,23 +1791,31 @@ package object layoutz {
     /** Apply this border style to an element with HasBorder typeclass */
     def apply[T](element: T)(implicit ev: HasBorder[T]): T =
       ev.setBorder(element, this)
+
   }
+
   object Border {
+
     case object None extends Border {
       val chars = (" ", " ", " ", " ", " ", " ")
     }
+
     case object Single extends Border {
       val chars = ("┌", "┐", "└", "┘", "─", "│")
     }
+
     case object Double extends Border {
       val chars = ("╔", "╗", "╚", "╝", "═", "║")
     }
+
     case object Thick extends Border {
       val chars = ("┏", "┓", "┗", "┛", "━", "┃")
     }
+
     case object Round extends Border {
       val chars = ("╭", "╮", "╰", "╯", "─", "│")
     }
+
     final case class Custom(
         corner: String,
         horizontal: String,
@@ -1194,11 +1823,13 @@ package object layoutz {
     ) extends Border {
       val chars = (corner, corner, corner, corner, horizontal, vertical)
     }
+
   }
 
   /* Keep BannerStyle and BorderStyle for backward compatibility */
   type BannerStyle = Border
   type BorderStyle = Border
+
   object BannerStyle {
     val None = Border.None
     val Single = Border.Single
@@ -1206,6 +1837,7 @@ package object layoutz {
     val Thick = Border.Thick
     val Round = Border.Round
   }
+
   object BorderStyle {
     val None = Border.None
     val Single = Border.Single
@@ -1244,7 +1876,7 @@ package object layoutz {
     }
 
     implicit val styledBorder: HasBorder[Styled] = new HasBorder[Styled] {
-      def setBorder(element: Styled, newStyle: Border): Styled = {
+      def setBorder(element: Styled, newStyle: Border): Styled =
         element.element match {
           case t: Table =>
             element.copy(element = tableBorder.setBorder(t, newStyle))
@@ -1260,11 +1892,10 @@ package object layoutz {
             element.copy(element = coloredBorder.setBorder(c, newStyle))
           case _ => element
         }
-      }
     }
 
     implicit val coloredBorder: HasBorder[Colored] = new HasBorder[Colored] {
-      def setBorder(element: Colored, newStyle: Border): Colored = {
+      def setBorder(element: Colored, newStyle: Border): Colored =
         element.element match {
           case t: Table =>
             element.copy(element = tableBorder.setBorder(t, newStyle))
@@ -1280,13 +1911,15 @@ package object layoutz {
             element.copy(element = coloredBorder.setBorder(c, newStyle))
           case _ => element
         }
-      }
     }
+
   }
 
   implicit class BorderOps[T](val element: T) extends AnyVal {
+
     def border(style: Border)(implicit ev: HasBorder[T]): T =
       ev.setBorder(element, style)
+
   }
 
   /** Box - bordered container with optional title */
@@ -1342,14 +1975,17 @@ package object layoutz {
       glyph: String = "=",
       flankingChars: Int = 3
   ) extends Element {
+
     def render: String = {
       val header = s"${glyph * flankingChars} $title ${glyph * flankingChars}"
       s"$header\n${content.render}"
     }
+
   }
 
   /** Horizontal element arrangement */
   final case class Row(elements: Seq[Element]) extends Element {
+
     def render: String = {
       if (elements.isEmpty) return ""
 
@@ -1370,24 +2006,30 @@ package object layoutz {
         renderedElements: Seq[Array[String]],
         elementWidths: Seq[Int],
         maxHeight: Int
-    ): Seq[Array[String]] = {
+    ): Seq[Array[String]] =
       renderedElements.zip(elementWidths).map { case (lines, width) =>
         val paddedLines = lines ++ Array.fill(maxHeight - lines.length)("")
         paddedLines.map(line => line.padTo(width, Glyphs.SPACE.head))
       }
-    }
+
   }
 
-  /** Tree structure GADT for hierarchical data visualization. Supports both
-    * branch nodes (with children) and leaf nodes (terminals).
+  final case class RowTight(elements: Seq[Element]) extends Element {
+    def render: String = elements.map(_.render).mkString
+  }
+
+  /** Tree structure GADT for hierarchical data visualization. Supports both branch nodes (with
+    * children) and leaf nodes (terminals).
     */
   sealed trait TreeNode extends Element
 
   final case class TreeBranch(name: String, children: Seq[TreeNode])
       extends TreeNode {
     def render: String = TreeRenderer.renderRoot(this)
+
     def renderAsChild(prefix: String, isLast: Boolean): String =
       TreeRenderer.render(this, prefix, isLast)
+
   }
 
   final case class TreeLeaf(name: String) extends TreeNode {
@@ -1395,6 +2037,7 @@ package object layoutz {
   }
 
   private object TreeRenderer {
+
     def renderRoot(node: TreeBranch): String = {
       val rootLine = node.name
       if (node.children.isEmpty) {
@@ -1408,7 +2051,7 @@ package object layoutz {
       }
     }
 
-    def render(node: TreeNode, prefix: String, isLast: Boolean): String = {
+    def render(node: TreeNode, prefix: String, isLast: Boolean): String =
       node match {
         case TreeLeaf(name) =>
           val connector =
@@ -1439,11 +2082,12 @@ package object layoutz {
             (nodeLine +: childLines).mkString("\n")
           }
       }
-    }
+
   }
 
   /** Root layout container */
   final case class Layout(elements: Seq[Element]) extends Element {
+
     def render: String = {
       /* Calculate layout max width for auto-centering */
       val layoutWidth = calculateLayoutWidth(elements)
@@ -1463,6 +2107,7 @@ package object layoutz {
       }
       if (widths.nonEmpty) widths.max else Dimensions.DEFAULT_RULE_WIDTH
     }
+
   }
 
   /** Create a vertical layout of elements.
@@ -1500,8 +2145,7 @@ package object layoutz {
   def section(title: String, glyph: String)(content: Element): Section =
     Section(title, content, glyph)
 
-  /** Create a titled section with custom separator and flanking character
-    * count.
+  /** Create a titled section with custom separator and flanking character count.
     *
     * @param title
     *   the section title
@@ -1525,7 +2169,16 @@ package object layoutz {
     * @return
     *   a KeyValue element with aligned key-value pairs
     */
-  def kv(pairs: (String, String)*): KeyValue = KeyValue(pairs)
+  def kv(pairs: (Element, Element)*): KeyValue = KeyValue(pairs)
+
+  implicit def stringPairToElementPair(p: (String, String)): (Element, Element) =
+    (Text(p._1), Text(p._2))
+
+  implicit def stringElementPairToElementPair(p: (String, Element)): (Element, Element) =
+    (Text(p._1), p._2)
+
+  implicit def elementStringPairToElementPair(p: (Element, String)): (Element, Element) =
+    (p._1, Text(p._2))
 
   /** Create a table.
     *
@@ -1584,6 +2237,9 @@ package object layoutz {
     */
   def row(elements: Element*): Row = Row(elements)
 
+  /** Row without spacing between elements */
+  def rowTight(elements: Element*): RowTight = RowTight(elements)
+
   /** Tight row - concatenates elements horizontally without spacing */
   def tightRow(elements: Element*): Element = new Element {
     def render: String = {
@@ -1624,23 +2280,22 @@ package object layoutz {
   def br: LineBreak.type = LineBreak
 
   /** Multiple line breaks */
-  def br(n: Int): Element = {
+  def br(n: Int): Element =
     if (n <= 0) Text("")
     else if (n == 1) LineBreak
     else Layout(List.fill(n)(LineBreak))
-  }
 
   /** Single space */
   def space: Element = Text(" ")
 
-  /** Multiple spaces */
-  def space(n: Int): Element = {
+  /** Spaces (default: 1) */
+  def space(n: Int = 1): Element =
     if (n <= 0) Text("")
     else Text(" " * n)
-  }
 
   /** Add padding around an element */
   final case class Padded(element: Element, padding: Int) extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -1652,6 +2307,7 @@ package object layoutz {
         emptyLine
       )).mkString("\n")
     }
+
   }
 
   /** Add padding around an element */
@@ -1663,6 +2319,7 @@ package object layoutz {
       maxWidth: Int,
       ellipsis: String = "..."
   ) extends Element {
+
     def render: String = {
       val content = element.render
       val lines = content.split('\n')
@@ -1675,7 +2332,7 @@ package object layoutz {
             val truncateAt = maxWidth - ellipsis.length
             if (truncateAt <= 0) ellipsis.take(maxWidth)
             else {
-              // Handle ANSI codes properly when truncating
+              /* ANSI escapes would break mid-truncation, strip first */
               val stripped = stripAnsiCodes(line)
               stripped.take(truncateAt) + ellipsis
             }
@@ -1683,6 +2340,7 @@ package object layoutz {
         }
         .mkString("\n")
     }
+
   }
 
   /** Truncate element if too wide */
@@ -1709,16 +2367,16 @@ package object layoutz {
   /** Empty element for conditional rendering */
   def empty: Empty.type = Empty
 
-  /** Create a fluent horizontal rule builder. Use .width() and .char() to
-    * customize.
+  /** Create a fluent horizontal rule builder. Use .width() and .char() to customize.
     *
     * @example
     *   {{{hr.width(40).char("═")}}}
     */
   def hr: HorizontalRuleBuilder = HorizontalRuleBuilder()
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * INTERACTIVE ELEMENTS */
+  /* ===========================================================================
+   * INTERACTIVE ELEMENTS
+   */
 
   object input {
 
@@ -1761,6 +2419,7 @@ package object layoutz {
         case _ => None
       }
     }
+
   }
 
   /** Interactive text input field */
@@ -1819,34 +2478,25 @@ package object layoutz {
   /** Create an empty banner.
     *
     * @return
-    *   an empty Banner with default double-line borders (use .border() to
-    *   change)
+    *   an empty Banner with default double-line borders (use .border() to change)
     */
   def banner(): Banner = Banner(Text(""), Border.Double)
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * TEXT FORMATTING */
+  /* ===========================================================================
+   * TEXT FORMATTING
+   */
 
-  /** Add underline to an element with custom character */
-  def underline(char: String = "─")(element: Element): Underline =
-    Underline(element, char, None)
+  /** Add underline to an element */
+  def underline(
+      char: Element = Text("─"),
+      color: Color = Color.NoColor
+  )(element: Element): Underline =
+    Underline(element, char.render, if (color == Color.NoColor) None else Some(color))
 
-  /** Add colored underline to an element with custom character and color
-    *
-    * Example usage: underlineColored("=", Color.Red)(Text("Error Section"))
-    * underlineColored("~", Color.Green)(Text("Success")) underlineColored("─",
-    * Color.BrightCyan)(Text("Info"))
-    */
-  def underlineColored(char: String, color: Color)(
-      element: Element
-  ): Underline =
-    Underline(element, char, Some(color))
+  @deprecated("Use underline(char, color) instead", "0.6.0")
+  def underlineColored(char: Element, color: Color)(element: Element): Underline =
+    underline(char, color)(element)
 
-  /** Apply a style to an element
-    *
-    * Example usage: style(Style.Bold)("Important!")
-    * style(Style.Italic)("Emphasis")
-    */
   def style(s: Style)(element: Element): Styled = Styled(s, element)
 
   /** Ordered (numbered) list */
@@ -1859,8 +2509,9 @@ package object layoutz {
   def ul(bullet: String)(items: Element*): UnorderedList =
     UnorderedList(items, bullet)
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * ALIGNMENT & FLOW */
+  /* ===========================================================================
+   * ALIGNMENT
+   */
 
   /** Center-align element within specified width */
   def center(element: Element, width: Int): Centered = Centered(element, width)
@@ -1891,27 +2542,23 @@ package object layoutz {
       justifyLastLine = true
     )
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * MARGINS & PREFIXES */
+  /* ===========================================================================
+   * MARGINS
+   */
 
   /** Add a prefix margin to elements */
-  def margin(prefix: String)(elements: Element*): Margin =
-    Margin(prefix, elements, None)
+  def margin(prefix: Element)(elements: Element*): Margin =
+    Margin(prefix.render, elements, None)
 
-  /** Add a colored prefix margin to elements
-    *
-    * Example usage: marginColor("[error]", Color.Red)(Text("Something went
-    * wrong")) marginColor("[info]", Color.BrightCyan)(Text("FYI: Check the
-    * logs")) marginColor("[success]", Color.Green)(Text("Operation completed"))
-    */
-  def marginColor(prefix: String, color: Color)(elements: Element*): Margin =
-    Margin(prefix, elements, Some(color))
+  def marginColor(prefix: Element, color: Color)(elements: Element*): Margin =
+    Margin(prefix.render, elements, Some(color))
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * IMPLICIT CONVERSIONS */
+  /* ===========================================================================
+   * IMPLICITS
+   */
 
-  /** Automatic conversion from String to Text element. Allows using strings
-    * directly wherever Elements are expected.
+  /** Automatic conversion from String to Text element. Allows using strings directly wherever
+    * Elements are expected.
     *
     * @param s
     *   the string to convert
@@ -1920,8 +2567,8 @@ package object layoutz {
     */
   implicit def stringToText(s: String): Text = Text(s)
 
-  /** Automatic conversion from Seq[String] to Seq[Element]. Allows using string
-    * sequences directly with varargs expansion.
+  /** Automatic conversion from Seq[String] to Seq[Element]. Allows using string sequences directly
+    * with varargs expansion.
     *
     * @param strings
     *   the sequence of strings to convert
@@ -1931,13 +2578,14 @@ package object layoutz {
   implicit def stringSeqToElementSeq(strings: Seq[String]): Seq[Element] =
     strings.map(Text(_))
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * APP RUNTIME */
+  /* ===========================================================================
+   * RUNTIME
+   */
+
   sealed trait Key
   final case class CharKey(c: Char) extends Key
   final case class SpecialKey(name: String) extends Key
 
-  /* Navigation keys */
   case object EnterKey extends Key
   case object EscapeKey extends Key
   case object TabKey extends Key
@@ -1948,39 +2596,28 @@ package object layoutz {
   case object ArrowLeftKey extends Key
   case object ArrowRightKey extends Key
 
-  /* ═══════════════════════════════════════════════════════════════════════════
-   * COMMANDS AND SUBSCRIPTIONS (ELM ARCHITECTURE) */
+  /* ===========================================================================
+   * COMMANDS & SUBSCRIPTIONS
+   */
 
-  /** Commands represent side effects to execute. Commands don't execute
-    * immediately, but are returned from init/update to be run by the runtime.
+  /** Commands represent side effects to execute. Commands don't execute immediately, but are
+    * returned from init/update to be run by the runtime.
     */
   sealed trait Cmd[+Msg]
 
   object Cmd {
-
-    /* No command to execute */
     def none[Msg]: Cmd[Msg] = CmdNone
+    def exit[Msg]: Cmd[Msg] = CmdExit
+    def halt(code: Int = 0): Cmd[Nothing] = CmdHalt(code)
+    def batch[Msg](cmds: Cmd[Msg]*): Cmd[Msg] = CmdBatch(cmds.toList)
 
-    /* Implicit conversion: allows returning just state instead of (state, Cmd.none) */
     implicit def stateWithNoCmd[State, Msg](state: State): (State, Cmd[Msg]) =
       (state, none[Msg])
 
-    /* Execute a batch of commands */
-    def batch[Msg](cmds: Cmd[Msg]*): Cmd[Msg] = CmdBatch(cmds.toList)
-
-    /* File I/O commands */
     object file {
-
-      /** Read file contents - fires msg with content on success, error msg on
-        * failure
-        */
-      def read[Msg](
-          path: String,
-          onResult: Either[String, String] => Msg
-      ): Cmd[Msg] =
+      def read[Msg](path: String, onResult: Either[String, String] => Msg): Cmd[Msg] =
         CmdFileRead(path, onResult)
 
-      /* Write file contents - fires msg on completion */
       def write[Msg](
           path: String,
           content: String,
@@ -1988,133 +2625,100 @@ package object layoutz {
       ): Cmd[Msg] =
         CmdFileWrite(path, content, onResult)
 
-      /* List directory contents - fires msg with list of file/dir names */
-      def ls[Msg](
-          path: String,
-          onResult: Either[String, List[String]] => Msg
-      ): Cmd[Msg] =
+      def ls[Msg](path: String, onResult: Either[String, List[String]] => Msg): Cmd[Msg] =
         CmdFileLs(path, onResult)
 
-      /** Get current working directory - fires msg with path */
       def cwd[Msg](onResult: Either[String, String] => Msg): Cmd[Msg] =
         CmdFileCwd(onResult)
     }
 
-    /* HTTP commands */
     object http {
-
-      /* HTTP GET request - fires msg with response on completion */
       def get[Msg](
           url: String,
           onResult: Either[String, String] => Msg,
           headers: Map[String, String] = Map.empty
       ): Cmd[Msg] = CmdHttpGet(url, headers, onResult)
 
-      /* HTTP POST request - fires msg with response on completion */
       def post[Msg](
           url: String,
           body: String,
           onResult: Either[String, String] => Msg,
           headers: Map[String, String] = Map.empty
       ): Cmd[Msg] = CmdHttpPost(url, body, headers, onResult)
-
-      /* Helper: Create Authorization Bearer token header */
-      def bearerAuth(token: String): Map[String, String] =
-        Map("Authorization" -> s"Bearer $token")
-
-      /* Helper: Create Basic auth header */
-      def basicAuth(username: String, password: String): Map[String, String] = {
-        val credentials = java.util.Base64.getEncoder
-          .encodeToString(s"$username:$password".getBytes)
-        Map("Authorization" -> s"Basic $credentials")
-      }
     }
 
-    /** Execute a custom async command - for user-defined effects */
-    def perform[Msg](
-        task: () => Either[String, String],
-        onResult: Either[String, String] => Msg
-    ): Cmd[Msg] =
-      CmdPerform(task, onResult)
+    def task[A, Msg](run: => A)(toMsg: Either[String, A] => Msg): Cmd[Msg] =
+      CmdTask(() => Try(run).toEither.left.map(_.getMessage), toMsg)
+
+    def fire(effect: => Unit): Cmd[Nothing] = CmdFire(() => effect)
   }
 
   private case object CmdNone extends Cmd[Nothing]
+  private case object CmdExit extends Cmd[Nothing]
+  private case class CmdHalt(code: Int) extends Cmd[Nothing]
   private case class CmdBatch[Msg](cmds: List[Cmd[Msg]]) extends Cmd[Msg]
+
   private case class CmdFileRead[Msg](
       path: String,
       onResult: Either[String, String] => Msg
   ) extends Cmd[Msg]
+
   private case class CmdFileWrite[Msg](
       path: String,
       content: String,
       onResult: Either[String, Unit] => Msg
   ) extends Cmd[Msg]
+
   private case class CmdFileLs[Msg](
       path: String,
       onResult: Either[String, List[String]] => Msg
   ) extends Cmd[Msg]
+
   private case class CmdFileCwd[Msg](onResult: Either[String, String] => Msg)
       extends Cmd[Msg]
+
   private case class CmdHttpGet[Msg](
       url: String,
       headers: Map[String, String],
       onResult: Either[String, String] => Msg
   ) extends Cmd[Msg]
+
   private case class CmdHttpPost[Msg](
       url: String,
       body: String,
       headers: Map[String, String],
       onResult: Either[String, String] => Msg
   ) extends Cmd[Msg]
-  private case class CmdPerform[Msg](
-      task: () => Either[String, String],
-      onResult: Either[String, String] => Msg
+
+  private case class CmdTask[A, Msg](
+      task: () => Either[String, A],
+      toMsg: Either[String, A] => Msg
   ) extends Cmd[Msg]
 
-  /** Subscriptions represent ongoing event sources. They declare what events
-    * your app is interested in based on the current state.
+  private case class CmdFire(effect: () => Unit) extends Cmd[Nothing]
+
+  /** Subscriptions represent ongoing event sources. They declare what events your app is interested
+    * in based on the current state.
     */
   sealed trait Sub[+Msg]
 
   object Sub {
-
-    /* No subscriptions */
     def none[Msg]: Sub[Msg] = SubNone
+    def onKeyPress[Msg](handler: Key => Option[Msg]): Sub[Msg] = OnKeyPress(handler)
+    def batch[Msg](subs: Sub[Msg]*): Sub[Msg] = SubBatch(subs.toList)
 
-    /* Subscribe to keyboard input */
-    def onKeyPress[Msg](handler: Key => Option[Msg]): Sub[Msg] =
-      OnKeyPress(handler)
-
-    /* Time-based subscriptions */
     object time {
-
-      /* Subscribe to time intervals - fires msg every intervalMs milliseconds */
-      def every[Msg](intervalMs: Long, msg: Msg): Sub[Msg] =
-        OnTimeEvery(intervalMs, () => msg)
-
-      /* Subscribe to time intervals with dynamic message generation */
-      def everyDynamic[Msg](
-          intervalMs: Long,
-          msgGenerator: () => Msg
-      ): Sub[Msg] =
+      def every[Msg](intervalMs: Long, msg: Msg): Sub[Msg] = OnTimeEvery(intervalMs, () => msg)
+      def everyDynamic[Msg](intervalMs: Long, msgGenerator: () => Msg): Sub[Msg] =
         OnTimeEvery(intervalMs, msgGenerator)
     }
 
-    /* File system subscriptions */
     object file {
-
-      /* Watch a file for changes - fires msg when file is modified */
-      def watch[Msg](
-          path: String,
-          onChange: Either[String, String] => Msg
-      ): Sub[Msg] =
+      def watch[Msg](path: String, onChange: Either[String, String] => Msg): Sub[Msg] =
         OnFileWatch(path, onChange)
     }
 
-    /* HTTP subscriptions */
     object http {
-
-      /* Poll an HTTP endpoint - fires msg with response at specified interval */
       def poll[Msg](
           url: String,
           intervalMs: Long,
@@ -2122,35 +2726,46 @@ package object layoutz {
           headers: Map[String, String] = Map.empty
       ): Sub[Msg] = OnHttpPoll(url, intervalMs, headers, onResponse)
     }
-
-    /* Batch multiple subscriptions */
-    def batch[Msg](subs: Sub[Msg]*): Sub[Msg] = SubBatch(subs.toList)
   }
 
   private case object SubNone extends Sub[Nothing]
+
   private case class OnKeyPress[Msg](handler: Key => Option[Msg])
       extends Sub[Msg]
+
   private case class OnTimeEvery[Msg](intervalMs: Long, msgGenerator: () => Msg)
       extends Sub[Msg]
+
   private case class OnFileWatch[Msg](
       path: String,
       onChange: Either[String, String] => Msg
   ) extends Sub[Msg]
+
   private case class OnHttpPoll[Msg](
       url: String,
       intervalMs: Long,
       headers: Map[String, String],
       onResponse: Either[String, String] => Msg
   ) extends Sub[Msg]
+
   private case class SubBatch[Msg](subs: List[Sub[Msg]]) extends Sub[Msg]
 
-  /* Configuration for the Layoutz runtime */
-  case class RuntimeConfig(
-      tickIntervalMs: Long = 100,
-      renderIntervalMs: Long = 50,
-      quitKey: Int = 17, // Ctrl+Q
-      showQuitMessage: Boolean = true,
-      quitMessage: String = "Press Ctrl+Q to quit"
+  sealed trait Alignment
+  object Alignment {
+    case object Left extends Alignment
+    case object Center extends Alignment
+    case object Right extends Alignment
+  }
+
+  private[layoutz] case class RuntimeConfig(
+      tickIntervalMs: Long,
+      renderIntervalMs: Long,
+      quitKey: Int,
+      showQuitMessage: Boolean,
+      quitMessage: String,
+      clearOnStart: Boolean,
+      clearOnExit: Boolean,
+      alignment: Alignment
   )
 
   trait Terminal {
@@ -2166,67 +2781,73 @@ package object layoutz {
     def readInput(): Int
     def readInputNonBlocking(): Option[Int]
     def close(): Unit
+    def terminalWidth(): Int
   }
 
   sealed trait RuntimeError
+
   case class TerminalError(message: String, cause: Option[Throwable] = None)
       extends RuntimeError
+
   case class RenderError(message: String, cause: Option[Throwable] = None)
       extends RuntimeError
+
   case class InputError(message: String, cause: Option[Throwable] = None)
       extends RuntimeError
 
   type RuntimeResult[T] = Either[RuntimeError, T]
 
-  /** JLine terminal implementation */
-  class JLineTerminal private (terminal: org.jline.terminal.Terminal)
-      extends Terminal {
-    private val reader = terminal.reader()
+  /** Pure Scala terminal using stty for raw mode (zero dependencies) */
+  class SttyTerminal private () extends Terminal {
+    private var originalStty = ""
 
-    def enterRawMode(): Unit = terminal.enterRawMode()
-    def exitRawMode(): Unit = () // JLine handles this automatically
-    def clearScreen(): Unit = {
-      terminal.writer().print("\u001b[2J\u001b[H")
-      terminal.writer().flush()
+    def enterRawMode(): Unit = {
+      originalStty = stty("-g").trim
+      stty("-echo -icanon min 1")
     }
-    def clearScrollback(): Unit = {
-      terminal.writer().print("\u001b[3J\u001b[2J\u001b[H")
-      terminal.writer().flush()
-    }
-    def hideCursor(): Unit = {
-      terminal.writer().print("\u001b[?25l")
-      terminal.writer().flush()
-    }
-    def showCursor(): Unit = {
-      terminal.writer().print("\u001b[?25h")
-      terminal.writer().flush()
-    }
-    def write(text: String): Unit = terminal.writer().print(text)
-    def writeLine(text: String): Unit = terminal.writer().println(text)
-    def flush(): Unit = terminal.writer().flush()
-    def readInput(): Int = {
-      reader.read()
-    }
-    def readInputNonBlocking(): Option[Int] = {
-      try {
-        if (reader.ready()) Some(reader.read()) else None
-      } catch {
-        case _: Exception => None
+
+    def exitRawMode(): Unit = if (originalStty.nonEmpty) stty(originalStty)
+    def clearScreen(): Unit = esc("2J", "H")
+    def clearScrollback(): Unit = esc("3J", "2J", "H")
+    def hideCursor(): Unit = esc("?25l")
+    def showCursor(): Unit = esc("?25h")
+    def write(text: String): Unit = System.out.print(text)
+    def writeLine(text: String): Unit = System.out.println(text)
+    def flush(): Unit = System.out.flush()
+    def readInput(): Int = System.in.read()
+
+    def readInputNonBlocking(): Option[Int] =
+      try if (System.in.available() > 0) Some(System.in.read()) else None
+      catch { case _: Exception => None }
+
+    def close(): Unit = exitRawMode()
+
+    def terminalWidth(): Int = {
+      val size = stty("size").trim
+      size.split("\\s+") match {
+        case Array(_, cols) => Try(cols.toInt).getOrElse(80)
+        case _              => 80
       }
     }
-    def close(): Unit = scala.util.Try(terminal.close())
 
-    /* Internal: Direct access to JLine reader for escape sequence parsing */
-    def getReader(): org.jline.utils.NonBlockingReader = reader
+    private def esc(codes: String*): Unit = {
+      codes.foreach(c => System.out.print(s"\u001b[$c"))
+      System.out.flush()
+    }
+
+    private def stty(args: String): String = {
+      import scala.sys.process._
+      try Seq("sh", "-c", s"stty $args < /dev/tty").!!
+      catch { case _: Exception => "" }
+    }
+
   }
 
-  object JLineTerminal {
-    def create(): RuntimeResult[JLineTerminal] = {
-      try {
-        import org.jline.terminal.TerminalBuilder
-        val terminal = TerminalBuilder.builder().system(true).build()
-        Right(new JLineTerminal(terminal))
-      } catch {
+  object SttyTerminal {
+
+    def create(): RuntimeResult[SttyTerminal] =
+      try Right(new SttyTerminal())
+      catch {
         case ex: Exception =>
           Left(
             TerminalError(
@@ -2235,25 +2856,14 @@ package object layoutz {
             )
           )
       }
-    }
+
   }
 
-  /* Key parser abstraction */
-  trait KeyParser {
-    def parseKey(input: Int, terminal: Terminal): Key
-  }
+  object KeyParser {
 
-  /* Default key parser implementation */
-  object DefaultKeyParser extends KeyParser {
-    def parseKey(input: Int, terminal: Terminal): Key = input match {
-      case 10 | 13 => EnterKey
-      case 27 => /* ESC - check for arrow keys */
-        terminal match {
-          case jline: JLineTerminal =>
-            parseEscapeSequence(jline.getReader())
-          case _ =>
-            parseEscapeSequenceGeneric(terminal)
-        }
+    def parse(input: Int, terminal: Terminal): Key = input match {
+      case 10 | 13                  => EnterKey
+      case 27                       => parseEscape(terminal)
       case 9                        => TabKey
       case 8 | 127                  => BackspaceKey
       case c if c >= 32 && c <= 126 => CharKey(c.toChar)
@@ -2261,259 +2871,154 @@ package object layoutz {
       case c                        => CharKey(c.toChar)
     }
 
-    private def parseEscapeSequence(
-        reader: org.jline.utils.NonBlockingReader
-    ): Key = {
-      try {
-        /* Brief pause to ensure complete escape sequence arrives */
-        Thread.sleep(5)
-        val next1 = reader.read()
-        if (next1 == 91) { // '[' character
-          val next2 = reader.read()
-          next2 match {
-            case 65 => ArrowUpKey // ESC[A
-            case 66 => ArrowDownKey // ESC[B
-            case 67 => ArrowRightKey // ESC[C
-            case 68 => ArrowLeftKey // ESC[D
-            case _  => EscapeKey
-          }
-        } else {
-          EscapeKey
-        }
-      } catch {
-        case _: Exception => EscapeKey
-      }
-    }
-
-    private def parseEscapeSequenceGeneric(terminal: Terminal): Key = {
+    private def parseEscape(terminal: Terminal): Key =
       try {
         Thread.sleep(5)
         terminal.readInputNonBlocking() match {
-          case Some(91) => // '[' character
+          case Some(91) =>
             Thread.sleep(5)
             terminal.readInputNonBlocking() match {
-              case Some(65) => ArrowUpKey // ESC[A
-              case Some(66) => ArrowDownKey // ESC[B
-              case Some(67) => ArrowRightKey // ESC[C
-              case Some(68) => ArrowLeftKey // ESC[D
+              case Some(65) => ArrowUpKey
+              case Some(66) => ArrowDownKey
+              case Some(67) => ArrowRightKey
+              case Some(68) => ArrowLeftKey
               case _        => EscapeKey
             }
           case _ => EscapeKey
         }
-      } catch {
-        case _: Exception => EscapeKey
-      }
-    }
+      } catch { case _: Exception => EscapeKey }
+
   }
 
-  /** Application lifecycle management following The Elm Architecture.
-    *
-    * The Elm Architecture consists of:
-    *   - init: ( Model, Cmd Msg ) - Initialize state and optional startup
-    *     commands
-    *   - update: Msg -> Model -> ( Model, Cmd Msg ) - Update state based on
-    *     messages
-    *   - subscriptions: Model -> Sub Msg - Declare what events to listen to
-    *   - view: Model -> Html Msg - Render the view based on current state
-    */
+  /** Elm Architecture app: init, update, subscriptions, view */
   trait LayoutzApp[State, Message] {
-
-    /** Initialize the application.
-      *
-      * @return
-      *   a tuple of (initial state, initial command)
-      */
     def init: (State, Cmd[Message])
-
-    /** Update the state based on a message.
-      *
-      * @param msg
-      *   the message to process
-      * @param state
-      *   the current state
-      * @return
-      *   a tuple of (new state, command to execute)
-      */
     def update(msg: Message, state: State): (State, Cmd[Message])
-
-    /** Declare what subscriptions are active based on the current state.
-      *
-      * Subscriptions represent event sources like:
-      *   - Keyboard input via Sub.onKeyPress
-      *   - Time ticks via Sub.onTick
-      *   - Multiple subscriptions via Sub.batch
-      *
-      * @param state
-      *   the current state
-      * @return
-      *   the subscriptions to activate
-      */
     def subscriptions(state: State): Sub[Message]
-
-    /** Render the view based on the current state.
-      *
-      * @param state
-      *   the current state
-      * @return
-      *   the element to render
-      */
     def view(state: State): Element
 
-    /** Run this application with default configuration */
-    def run(): Unit = LayoutzRuntime.run(this)
+    def run: Unit = run()
 
-    /** Run this application with custom configuration */
-    def run(config: RuntimeConfig): Unit = LayoutzRuntime.run(this, config)
-
-    /** Run this application with custom terminal */
-    def run(terminal: Terminal): Unit =
-      LayoutzRuntime.run(this, RuntimeConfig(), terminal)
-
-    /** Run this application with custom configuration and terminal */
-    def run(config: RuntimeConfig, terminal: Terminal): Unit =
+    def run(
+        tickIntervalMs: Long = 100,
+        renderIntervalMs: Long = 50,
+        quitKey: Int = 17,
+        showQuitMessage: Boolean = false,
+        quitMessage: String = "Press Ctrl+Q to quit",
+        clearOnStart: Boolean = true,
+        clearOnExit: Boolean = true,
+        alignment: Alignment = Alignment.Left,
+        terminal: Option[Terminal] = None
+    ): Unit = {
+      val config = RuntimeConfig(
+        tickIntervalMs,
+        renderIntervalMs,
+        quitKey,
+        showQuitMessage,
+        quitMessage,
+        clearOnStart,
+        clearOnExit,
+        alignment
+      )
       LayoutzRuntime.run(this, config, terminal)
+    }
   }
 
-  object LayoutzRuntime {
-    import scala.util.Try
+  private[layoutz] object LayoutzRuntime {
 
-    def run[State, Message](
-        app: LayoutzApp[State, Message],
-        config: RuntimeConfig = RuntimeConfig(),
-        terminalOpt: Option[Terminal] = None
-    ): RuntimeResult[Unit] = {
-      terminalOpt.orElse(JLineTerminal.create().toOption) match {
-        case Some(terminal) =>
-          Right(runWithTerminal(app, config, terminal))
-        case None =>
-          Left(TerminalError("Failed to initialize terminal"))
-      }
-    }
-
-    def run[State, Message](
-        app: LayoutzApp[State, Message],
+    def run[S, M](
+        app: LayoutzApp[S, M],
         config: RuntimeConfig,
-        terminal: Terminal
-    ): RuntimeResult[Unit] = {
-      Right(runWithTerminal(app, config, terminal))
-    }
-
-    private def runWithTerminal[State, Message](
-        app: LayoutzApp[State, Message],
-        config: RuntimeConfig,
-        terminal: Terminal
-    ): Unit = {
-      try {
-        val runtime = new RuntimeInstance(app, config, terminal)
-        runtime.run()
-      } finally {
-        terminal.close()
+        terminal: Option[Terminal] = None
+    ): RuntimeResult[Unit] =
+      terminal.orElse(SttyTerminal.create().toOption) match {
+        case Some(t) =>
+          Right(
+            try new RuntimeInstance(app, config, t).run()
+            finally t.close()
+          )
+        case None => Left(TerminalError("Failed to initialize terminal"))
       }
-    }
 
-    /** Runtime instance that manages the application lifecycle */
     private class RuntimeInstance[State, Message](
         app: LayoutzApp[State, Message],
         config: RuntimeConfig,
         terminal: Terminal
     ) {
-
       @volatile private var currentState: State = _
       @volatile private var shouldContinue = true
       private val stateLock = new Object()
-      private val keyParser = DefaultKeyParser
 
       def run(): Unit = {
         initialize()
-
         val renderThread = new Thread(() => runRenderLoop(), "LayoutzRender")
         val tickThread = new Thread(() => runTickLoop(), "LayoutzTick")
         val inputThread = new Thread(() => runInputLoop(), "LayoutzInput")
-
         renderThread.setDaemon(true)
         tickThread.setDaemon(true)
+        inputThread.setDaemon(true)
+        renderThread.start(); tickThread.start(); inputThread.start()
 
-        renderThread.start()
-        tickThread.start()
-        inputThread.start()
-
-        try {
-          inputThread.join()
-        } catch {
-          case _: InterruptedException => shouldContinue = false
-        } finally {
-          shouldContinue = false
-          cleanup()
-        }
+        try while (shouldContinue) Thread.sleep(50)
+        catch { case _: InterruptedException => () }
+        finally cleanup()
       }
 
       private def initialize(): Unit = {
         terminal.enterRawMode()
-        terminal.clearScreen()
+        if (config.clearOnStart) terminal.clearScreen()
         terminal.hideCursor()
-
-        // Initialize app state and process initial commands
         val (initialState, initialCmd) = app.init
         currentState = initialState
         processCommand(initialCmd)
       }
 
       private def cleanup(): Unit = {
-        terminal.clearScrollback()
+        if (config.clearOnExit) terminal.clearScrollback()
         terminal.showCursor()
         terminal.flush()
       }
 
-      private def execFileRead(path: String): Either[String, String] = {
-        Try {
-          scala.io.Source.fromFile(path).mkString
-        }.toEither.left.map(ex => s"Failed to read file: ${ex.getMessage}")
-      }
+      /* Command executors */
+      private def execFileRead(path: String): Either[String, String] =
+        Try(Source.fromFile(path).mkString).toEither.left.map(e =>
+          s"Read failed: ${e.getMessage}"
+        )
 
       private def execFileWrite(
           path: String,
           content: String
-      ): Either[String, Unit] = {
+      ): Either[String, Unit] =
         Try {
-          val writer = new java.io.PrintWriter(path)
-          try { writer.write(content) }
-          finally { writer.close() }
-        }.toEither.left.map(ex => s"Failed to write file: ${ex.getMessage}")
-      }
+          val w = new java.io.PrintWriter(path);
+          try w.write(content)
+          finally w.close()
+        }.toEither.left.map(e => s"Write failed: ${e.getMessage}")
 
       private def execFileLs(path: String): Either[String, List[String]] = {
-        val file = new java.io.File(path)
-        if (!file.exists())
-          Left(s"Path does not exist: $path")
-        else if (!file.isDirectory())
-          Left(s"Not a directory: $path")
+        val f = new java.io.File(path)
+        if (!f.exists()) Left(s"Path does not exist: $path")
+        else if (!f.isDirectory()) Left(s"Not a directory: $path")
         else
-          Option(file.listFiles())
-            .toRight(s"Cannot read directory: $path")
+          Option(f.listFiles())
+            .toRight(s"Cannot read: $path")
             .map(_.map(_.getName()).sorted.toList)
       }
 
-      private def execFileCwd(): Either[String, String] = {
-        Try {
-          System.getProperty("user.dir")
-        }.toEither.left.map(ex =>
-          s"Failed to get working directory: ${ex.getMessage}"
+      private def execFileCwd(): Either[String, String] =
+        Try(System.getProperty("user.dir")).toEither.left.map(e =>
+          s"Failed: ${e.getMessage}"
         )
-      }
 
       private def execHttpGet(
           url: String,
           headers: Map[String, String]
       ): Either[String, String] = {
+        import scala.sys.process._
         Try {
-          val connection = new java.net.URL(url)
-            .openConnection()
-            .asInstanceOf[java.net.HttpURLConnection]
-          headers.foreach { case (key, value) =>
-            connection.setRequestProperty(key, value)
-          }
-          scala.io.Source.fromInputStream(connection.getInputStream).mkString
-        }.toEither.left.map(ex => s"HTTP request failed: ${ex.getMessage}")
+          val h = headers.flatMap { case (k, v) => Seq("-H", s"$k: $v") }
+          (Seq("curl", "-s", "-f") ++ h ++ Seq(url)).!!
+        }.toEither.left.map(e => s"HTTP GET failed: ${e.getMessage}")
       }
 
       private def execHttpPost(
@@ -2521,176 +3026,143 @@ package object layoutz {
           body: String,
           headers: Map[String, String]
       ): Either[String, String] = {
+        import scala.sys.process._
         Try {
-          val connection = new java.net.URL(url)
-            .openConnection()
-            .asInstanceOf[java.net.HttpURLConnection]
-          connection.setRequestMethod("POST")
-          connection.setDoOutput(true)
-          headers.foreach { case (key, value) =>
-            connection.setRequestProperty(key, value)
-          }
-          val writer =
-            new java.io.OutputStreamWriter(connection.getOutputStream)
-          try { writer.write(body); writer.flush() }
-          finally { writer.close() }
-          scala.io.Source.fromInputStream(connection.getInputStream).mkString
-        }.toEither.left.map(ex => s"HTTP POST failed: ${ex.getMessage}")
+          val h = headers.flatMap { case (k, v) => Seq("-H", s"$k: $v") }
+          (Seq("curl", "-s", "-f", "-X", "POST", "-d", body) ++ h ++ Seq(
+            url
+          )).!!
+        }.toEither.left.map(e => s"HTTP POST failed: ${e.getMessage}")
       }
-
-      private def execTask(
-          task: () => Either[String, String]
-      ): Either[String, String] = {
-        Try(task()).toEither.left.map(ex =>
-          s"Task failed: ${ex.getMessage}"
-        ) match {
-          case Right(result) => result
-          case Left(error)   => Left(error)
-        }
-      }
-
-      /* ═══════════════════════════════════════════════════════════════════════════
-       * COMMAND PROCESSOR */
 
       private def processCommand(cmd: Cmd[Message]): Unit = {
-        import scala.concurrent.{Future, ExecutionContext}
         implicit val ec: ExecutionContext = ExecutionContext.global
 
         cmd match {
-          case CmdNone        => /* Nothing */
+          case CmdNone        =>
+          case CmdExit        => shouldContinue = false
+          case CmdHalt(code)  => cleanup(); System.exit(code)
           case CmdBatch(cmds) => cmds.foreach(processCommand)
-
-          case CmdFileRead(path, onResult) =>
-            Future(execFileRead(path)).foreach(result =>
-              updateState(onResult(result))
-            )
-
-          case CmdFileWrite(path, content, onResult) =>
-            Future(execFileWrite(path, content)).foreach(result =>
-              updateState(onResult(result))
-            )
-
-          case CmdFileLs(path, onResult) =>
-            Future(execFileLs(path)).foreach(result =>
-              updateState(onResult(result))
-            )
-
-          case CmdFileCwd(onResult) =>
-            Future(execFileCwd()).foreach(result =>
-              updateState(onResult(result))
-            )
-
-          case CmdHttpGet(url, headers, onResult) =>
-            Future(execHttpGet(url, headers)).foreach(result =>
-              updateState(onResult(result))
-            )
-
-          case CmdHttpPost(url, body, headers, onResult) =>
-            Future(execHttpPost(url, body, headers)).foreach(result =>
-              updateState(onResult(result))
-            )
-
-          case CmdPerform(task, onResult) =>
-            Future(execTask(task)).foreach(result =>
-              updateState(onResult(result))
-            )
+          case CmdFileRead(p, f) =>
+            Future(execFileRead(p)).foreach(r => updateState(f(r)))
+          case CmdFileWrite(p, c, f) =>
+            Future(execFileWrite(p, c)).foreach(r => updateState(f(r)))
+          case CmdFileLs(p, f) =>
+            Future(execFileLs(p)).foreach(r => updateState(f(r)))
+          case CmdFileCwd(f) =>
+            Future(execFileCwd()).foreach(r => updateState(f(r)))
+          case CmdHttpGet(u, h, f) =>
+            Future(execHttpGet(u, h)).foreach(r => updateState(f(r)))
+          case CmdHttpPost(u, b, h, f) =>
+            Future(execHttpPost(u, b, h)).foreach(r => updateState(f(r)))
+          case CmdTask(t, f)   => Future(t()).foreach(r => updateState(f(r)))
+          case CmdFire(effect) => Future(effect())
         }
       }
 
-      private def updateState(message: Message): Unit = {
-        stateLock.synchronized {
-          val (newState, cmd) = app.update(message, currentState)
-          currentState = newState
-          processCommand(cmd)
-        }
+      private def updateState(msg: Message): Unit = stateLock.synchronized {
+        val (newState, cmd) = app.update(msg, currentState)
+        currentState = newState
+        processCommand(cmd)
       }
 
-      private def readState(): State = {
-        stateLock.synchronized {
-          currentState
-        }
-      }
+      private def readState(): State = stateLock.synchronized(currentState)
 
-      /** Extract all subscriptions from the subscription tree */
-      private def flattenSubscriptions(
-          sub: Sub[Message]
-      ): List[Sub[Message]] = {
+      private def flattenSubs(sub: Sub[Message]): List[Sub[Message]] =
         sub match {
           case SubNone        => Nil
-          case SubBatch(subs) => subs.flatMap(flattenSubscriptions)
+          case SubBatch(subs) => subs.flatMap(flattenSubs)
           case other          => List(other)
         }
-      }
 
-      /** Get the current active key press handler, if any */
-      private def getKeyPressHandler(): Option[Key => Option[Message]] = {
-        val state = readState()
-        val subs = flattenSubscriptions(app.subscriptions(state))
-        subs.collectFirst { case OnKeyPress(handler) =>
-          handler
-        }
-      }
+      private def getSubs: List[Sub[Message]] = flattenSubs(
+        app.subscriptions(readState())
+      )
 
-      /** Get all active time subscriptions with their intervals */
-      private def getTimeSubscriptions(): List[(Long, () => Message)] = {
-        val state = readState()
-        val subs = flattenSubscriptions(app.subscriptions(state))
-        subs.collect { case OnTimeEvery(intervalMs, generator) =>
-          (intervalMs, generator)
-        }
-      }
+      private def getKeyPressHandler(): Option[Key => Option[Message]] =
+        getSubs.collectFirst { case OnKeyPress(h) => h }
 
-      /** Get all active file watch subscriptions */
-      private def getFileWatchSubscriptions()
-          : List[(String, Either[String, String] => Message)] = {
-        val state = readState()
-        val subs = flattenSubscriptions(app.subscriptions(state))
-        subs.collect { case OnFileWatch(path, onChange) =>
-          (path, onChange)
-        }
-      }
+      private def getTimeSubscriptions(): List[(Long, () => Message)] =
+        getSubs.collect { case OnTimeEvery(ms, gen) => (ms, gen) }
 
-      /** Get all active HTTP poll subscriptions */
+      private def getFileWatchSubscriptions(): List[(String, Either[String, String] => Message)] =
+        getSubs.collect { case OnFileWatch(p, f) => (p, f) }
+
       private def getHttpPollSubscriptions(): List[
         (String, Long, Map[String, String], Either[String, String] => Message)
-      ] = {
-        val state = readState()
-        val subs = flattenSubscriptions(app.subscriptions(state))
-        subs.collect { case OnHttpPoll(url, intervalMs, headers, onResponse) =>
-          (url, intervalMs, headers, onResponse)
-        }
-      }
+      ] =
+        getSubs.collect { case OnHttpPoll(u, ms, h, f) => (u, ms, h, f) }
 
       /* Runtime to handles last seens with mutable blocks */
       private val lastTickTimes = scala.collection.mutable.Map[Long, Long]()
+
       private val lastModifiedTimes =
         scala.collection.mutable.Map[String, Long]()
+
       private val lastPollTimes = scala.collection.mutable.Map[String, Long]()
 
       private def runRenderLoop(): Unit = {
         var lastRenderedState: Option[String] = None
+        var lastLineCount: Int = 0
 
-        while (shouldContinue) {
+        while (shouldContinue)
           try {
             val currentRender = app.view(readState()).render
             if (lastRenderedState.forall(_ != currentRender)) {
-              terminal.clearScreen()
-              terminal.writeLine(currentRender)
-              if (config.showQuitMessage) {
-                terminal.writeLine(s"\n${config.quitMessage}")
+              val fullRender = if (config.showQuitMessage) {
+                currentRender + "\n\n" + config.quitMessage
+              } else {
+                currentRender
+              }
+              val renderedLines = fullRender.split("\n", -1)
+              val currentLineCount = renderedLines.length
+
+              /* Move cursor to start of our render area */
+              if (config.clearOnStart) {
+                /* Absolute positioning when screen was cleared */
+                terminal.write("\u001b[H")
+              } else if (lastLineCount > 0) {
+                /* Relative positioning: move up by lines we previously rendered */
+                terminal.write(s"\u001b[${lastLineCount}A\r")
+              }
+
+              /* Apply alignment to layout as a block (uniform margin for all lines) */
+              val termWidth = terminal.terminalWidth()
+              val lineWidths = renderedLines.map(realLength)
+              val maxLineWidth = if (lineWidths.isEmpty) 0 else lineWidths.max
+              val blockPad = config.alignment match {
+                case Alignment.Left   => 0
+                case Alignment.Center => math.max(0, (termWidth - maxLineWidth) / 2)
+                case Alignment.Right  => math.max(0, termWidth - maxLineWidth)
+              }
+              val padding = " " * blockPad
+              val alignedLines =
+                if (blockPad > 0) renderedLines.map(padding + _) else renderedLines
+
+              /* Write each line with clear-to-end-of-line */
+              alignedLines.foreach { line =>
+                terminal.write(line + "\u001b[K\n")
+              }
+              /* Clear any extra lines from the previous render */
+              val extraLines = lastLineCount - currentLineCount
+              if (extraLines > 0) {
+                (0 until extraLines).foreach { _ =>
+                  terminal.write("\u001b[K\n")
+                }
               }
               terminal.flush()
+
               lastRenderedState = Some(currentRender)
+              lastLineCount = currentLineCount
             }
             Thread.sleep(config.renderIntervalMs)
           } catch {
             case ex: Exception => handleRenderError(ex)
           }
-        }
       }
 
-      private def runTickLoop(): Unit = {
-        while (shouldContinue) {
+      private def runTickLoop(): Unit =
+        while (shouldContinue)
           try {
             val currentTime = System.currentTimeMillis()
             val timeSubs = getTimeSubscriptions()
@@ -2715,7 +3187,7 @@ package object layoutz {
                     lastModifiedTimes(path) = currentModified
                     /* Not firing on first check */
                     if (lastModified > 0) {
-                      val content = scala.io.Source.fromFile(path).mkString
+                      val content = Source.fromFile(path).mkString
                       updateState(onChange(Right(content)))
                     }
                   }
@@ -2737,16 +3209,14 @@ package object layoutz {
                 if (currentTime - lastPoll >= intervalMs) {
                   lastPollTimes(url) = currentTime
                   scala.concurrent.Future {
+                    import scala.sys.process._
                     try {
-                      val connection = new java.net.URL(url)
-                        .openConnection()
-                        .asInstanceOf[java.net.HttpURLConnection]
-                      headers.foreach { case (key, value) =>
-                        connection.setRequestProperty(key, value)
+                      val headerArgs = headers.flatMap { case (k, v) =>
+                        Seq("-H", s"$k: $v")
                       }
-                      val response = scala.io.Source
-                        .fromInputStream(connection.getInputStream)
-                        .mkString
+                      val cmd =
+                        Seq("curl", "-s", "-f") ++ headerArgs ++ Seq(url)
+                      val response = cmd.!!
                       updateState(onResponse(Right(response)))
                     } catch {
                       case ex: Exception =>
@@ -2764,17 +3234,15 @@ package object layoutz {
           } catch {
             case ex: Exception => handleTickError(ex)
           }
-        }
-      }
 
-      private def runInputLoop(): Unit = {
-        while (shouldContinue) {
+      private def runInputLoop(): Unit =
+        while (shouldContinue)
           try {
             val input = terminal.readInput()
             if (input == config.quitKey) {
               shouldContinue = false
             } else {
-              val key = keyParser.parseKey(input, terminal)
+              val key = KeyParser.parse(input, terminal)
               /* Uses the current subscription's key handler */
               getKeyPressHandler().foreach { handler =>
                 handler(key).foreach(updateState)
@@ -2785,8 +3253,6 @@ package object layoutz {
               handleInputError(ex)
               Thread.sleep(10)
           }
-        }
-      }
 
       private def handleRenderError(ex: Throwable): Unit = {
         terminal.writeLine(s"Render error: ${ex.getMessage}")
@@ -2795,14 +3261,16 @@ package object layoutz {
 
       private def handleTickError(ex: Throwable): Unit = {}
 
-      private def handleInputError(ex: Throwable): Unit = {
+      private def handleInputError(ex: Throwable): Unit =
         try {
           terminal.writeLine(s"\nInput error: ${ex.getMessage}")
           terminal.flush()
         } catch {
           case _: Exception =>
         }
-      }
+
     }
+
   }
+
 }
