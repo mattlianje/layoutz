@@ -103,7 +103,7 @@ case class TypeError(
     hint: String
 )
 
-/* Bridge to layoutz with tiny pure functions using `Element`s */
+/* Bridge to layoutz with tiny pure functions using layoutz `Element`s */
 def typeError(e: TypeError): Element = {
   val ln = e.line.toString
   val bar = "│".color(Color.Cyan)
@@ -135,6 +135,7 @@ def typeError(e: TypeError): Element = {
   )
 }
 
+/* Compose and nest at will */
 val demo = layout(
   underline("─", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
   row(
@@ -173,6 +174,7 @@ val demo = layout(
   )
 )
 
+/* Get pretty strings with `render` */
 println(demo.render)
 ```
 
