@@ -39,12 +39,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
   - [Lists, Tables & Trees](#ordered-lists-ol)
   - [Boxes, Cards & Borders](#box-box)
   - [Progress Bars & Spinners](#progress-bar-inlinebar)
-  - [Charts & Plots](#chart-chart)
-    - [Horizontal Charts](#chart-chart)
-    - [Terminal Plots](#terminal-plots-plot)
-    - [Pie Charts](#pie-charts-pie)
-    - [Bar Charts](#bar-charts-bar)
-    - [Stacked Bar Charts](#stacked-bar-charts-stackedbar)
+  - [Charts & Plots](#charts--plots)
   - [Colors & Styles](#colors-color)
   - [Custom Elements](#create-your-custom-elements)
 - [Text Formatting & Layout](#text-formatting--layout)
@@ -661,7 +656,9 @@ banner("System Dashboard").border(Border.Double)
 ╚═══════════════════╝
 ```
 
-### Chart: `chart`
+### Charts & Plots
+
+#### Horizontal Chart: `chart`
 ```scala
 chart(
   "Web" -> 10,
@@ -675,7 +672,7 @@ Mobile         │████████████████████�
 API            │███████████████████████████ 15.0
 ```
 
-### Terminal Plots: `plot`
+#### Terminal Plots: `plot`
 
 ```scala
 /* Simple sine wave */
@@ -707,7 +704,7 @@ Shows both curves in different colors with an auto-generated legend.
 
 `width`/`height` set dimensions. `showAxes` toggles axis labels. `showOrigin` draws x=0/y=0 lines.
 
-### Pie Charts: `pie`
+#### Pie Charts: `pie`
 
 ```scala
 pie()(
@@ -726,7 +723,7 @@ Slices are automatically colored from the default palette, with a legend showing
 Use `width` and `height` for larger/smaller charts. Intuitively,
 largely dimensions render smoother curves
 
-### Bar Charts: `bar`
+#### Bar Charts: `bar`
 
 ```scala
 bar(width = 40, height = 10)(
@@ -753,7 +750,7 @@ bar()(
   <img src="pix/chart-bar-custom.png" width="500">
 </p>
 
-### Stacked Bar Charts: `stackedBar`
+#### Stacked Bar Charts: `stackedBar`
 
 ```scala
 stackedBar(width = 40, height = 10)(
@@ -768,7 +765,7 @@ stackedBar(width = 40, height = 10)(
 
 Segments with the same label share colors automatically.
 
-### Sparklines: `sparkline`
+#### Sparklines: `sparkline`
 
 Tiny inline charts using block characters:
 
@@ -780,7 +777,7 @@ sparkline(Seq(10, 20, 15, 30, 25, 40, 35)).color(Color.Cyan)
   <img src="pix/chart-sparkline.png" width="500">
 </p>
 
-### Box Plots: `boxPlot`
+#### Box Plots: `boxPlot`
 
 Visualize data distribution with box and whisker plots:
 
@@ -795,7 +792,7 @@ boxPlot(height = 12)(
   <img src="pix/chart-boxplot.png" width="500">
 </p>
 
-### Heatmaps: `heatmap`
+#### Heatmaps: `heatmap`
 
 2D grid with color intensity:
 
