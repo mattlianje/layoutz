@@ -61,7 +61,6 @@ let () = print demo
 
 ## Why layoutz?
 
-- We have `Printf.sprintf`, but there's a gap between raw strings and full TUI libraries
 - With LLMs, boilerplate "pretty-print" code is cheaper than ever to generate...
 - ...which means more formatting code spawning and polluting domain logic
 - **layoutz** is a tiny, declarative DSL to combat this
@@ -85,10 +84,29 @@ s "hello"           (* short form *)
 text "hello"        (* verbose *)
 ```
 
-### Line Break: `br`
+### Line Break: `br`, `br'`
 
 ```ocaml
 layout [ s "Line 1"; br; s "Line 2" ]
+layout [ s "Top"; br' 3; s "3 lines down" ]
+```
+
+### Space: `space`, `space'`
+
+```ocaml
+row [ s "Left"; space; s "Right" ]         (* single space *)
+row [ s "Left"; space' 10; s "Right" ]     (* 10 spaces *)
+```
+
+### Empty: `empty`
+
+Useful for conditional rendering:
+```ocaml
+layout [
+  s "Always shown";
+  (if has_error then s "Error!" |> fg colorRed else empty);
+  s "Footer"
+]
 ```
 
 ### Layout (vertical): `layout`
@@ -102,18 +120,19 @@ Second
 Third
 ```
 
-### Row (horizontal): `row`
+### Row (horizontal): `row`, `tightRow`
 
 ```ocaml
 row [ s "Left"; s "Middle"; s "Right" ]
 row ~tight:true [ s "["; s "no"; s "gaps"; s "]" ]
+tightRow [ s "["; s "same"; s "thing"; s "]" ]  (* convenience *)
 ```
 ```
 Left Middle Right
 [nogaps]
 ```
 
-### Horizontal Rule: `hr`
+### Horizontal Rule: `hr`, `hr'`
 
 ```ocaml
 hr
@@ -124,6 +143,21 @@ hr' ~char:"=" ~width:20 ()
 ──────────────────────────────────────────────────
 ────────────────────
 ====================
+```
+
+### Vertical Rule: `vr`
+
+```ocaml
+vr ()                      (* default: 10 high with │ *)
+vr ~height:5 ()
+vr ~char:"┃" ~height:3 ()
+```
+```
+│
+│
+│
+│
+│
 ```
 
 ### Box: `box`
@@ -167,6 +201,57 @@ table
 │ Alice │ 30  │
 │ Bob   │ 25  │
 └───────┴─────┘
+```
+
+### Columns: `columns`
+
+Multi-column layout with automatic height alignment:
+
+```ocaml
+columns [
+  layout [ s "Left Column"; s "Line 2"; s "Line 3" ];
+  layout [ s "Right Column"; s "More text" ]
+]
+
+columns ~spacing:4 [ s "Wide"; s "Gaps" ]
+```
+```
+Left Column   Right Column
+Line 2        More text
+Line 3
+```
+
+### Banner: `banner`
+
+Decorative bordered banner (double border by default):
+
+```ocaml
+banner (s "Welcome!")
+banner (s "System Status") |> borderRound
+```
+```
+╔═════════════╗
+║             ║
+║  Welcome!   ║
+║             ║
+╚═════════════╝
+```
+
+### Status Card: `statusCard`
+
+Compact label-value display in a box:
+
+```ocaml
+row [
+  statusCard ~label:(s "CPU") ~content:(s "45%") |> fg colorGreen;
+  statusCard ~label:(s "MEM") ~content:(s "2.1G") |> fg colorCyan
+]
+```
+```
+┌──────┐ ┌───────┐
+│ CPU  │ │ MEM   │
+│ 45%  │ │ 2.1G  │
+└──────┘ └───────┘
 ```
 
 ### Unordered List: `ul`
@@ -276,6 +361,76 @@ left_align ~width:30 (s "Left")
 right_align ~width:30 (s "Right")
 ```
 
+### Truncation: `truncate`
+
+```ocaml
+truncate ~max_width:15 (s "This is a very long text")
+truncate ~max_width:20 ~ellipsis:"…" (s "Custom ellipsis example")
+```
+```
+This is a ve...
+Custom ellipsis e…
+```
+
+### Word Wrap: `wrap`
+
+```ocaml
+wrap ~max_width:20 (s "This is a long line that will be wrapped at word boundaries")
+```
+```
+This is a long line
+that will be wrapped
+at word boundaries
+```
+
+### Justification: `justify`, `justifyAll`
+
+```ocaml
+justify ~width:30 (s "Spaces are\ndistributed evenly")
+justifyAll ~width:30 (s "Even the\nlast line")  (* justifies last line too *)
+```
+```
+Spaces          are
+distributed   evenly
+```
+
+### Padding: `pad`
+
+Add uniform padding around any element:
+
+```ocaml
+pad ~padding:2 (s "Padded content")
+box ~title:"Box" [ s "content" ] |> pad ~padding:1
+```
+
+### Margin: `margin`, `marginColor`
+
+Prefix each line with a string (great for compiler-style output):
+
+```ocaml
+margin ~prefix:"[info]" (layout [ s "Line 1"; s "Line 2" ])
+marginColor ~prefix:"[error]" ~color:colorRed (s "Something failed")
+```
+```
+[info] Line 1
+[info] Line 2
+```
+
+### Underline: `underline`, `underlineColored`
+
+```ocaml
+underline (s "Title")
+underline ~char:"=" (s "Double")
+underlineColored ~char:"~" ~color:colorCyan (s "Fancy")
+```
+```
+Title
+─────
+
+Double
+======
+```
+
 ## Colors & Styles
 
 Pipe-friendly - compose with `|>`:
@@ -298,6 +453,33 @@ s "WARNING" |> fg colorBlack |> bg colorYellow |> styleBold
 - Bright: `colorBrightBlack`, `colorBrightRed`, `colorBrightGreen`, etc.
 - 256 palette: `color256 201`
 - True color: `colorRGB 255 128 0`
+
+### Color Gradients
+
+```ocaml
+(* 256-color palette gradient *)
+let palette =
+  List.init 31 (fun i -> s "█" |> fg (color256 (16 + i * 7)))
+  |> tightRow
+
+(* RGB gradients *)
+let red_to_blue =
+  List.init 32 (fun i ->
+    let v = i * 8 in
+    s "█" |> fg (colorRGB v 100 (255 - v)))
+  |> tightRow
+
+let rainbow =
+  List.init 32 (fun i ->
+    let v = i * 8 in
+    let r = if v < 128 then v * 2 else 255 in
+    let g = if v < 128 then 255 else (255 - v) * 2 in
+    let b = if v > 128 then (v - 128) * 2 else 0 in
+    s "█" |> fg (colorRGB r g b))
+  |> tightRow
+
+let () = print (layout [ palette; red_to_blue; rainbow ])
+```
 
 ### Available Styles
 
@@ -351,3 +533,74 @@ row [ square 3; square 5; square 7 ]
                       │              │
                       └──────────────┘
 ```
+
+For bordered custom elements, implement `BORDERABLE` instead (adds `with_border` and `get_border`).
+
+## API Reference
+
+### Core Functions
+
+| Function | Description |
+|----------|-------------|
+| `render e` | Convert element to string |
+| `print e` | Render and print to stdout |
+| `width e` | Get element width |
+| `height e` | Get element height |
+
+### Elements
+
+| Element | Description |
+|---------|-------------|
+| `s`, `text` | Text |
+| `br`, `br'` | Line breaks |
+| `space`, `space'` | Horizontal spacing |
+| `empty` | Empty element |
+| `hr`, `hr'` | Horizontal rule |
+| `vr` | Vertical rule |
+| `layout` | Vertical stack |
+| `row`, `tightRow` | Horizontal row |
+| `columns` | Multi-column layout |
+| `box` | Bordered box |
+| `table` | Table with headers |
+| `banner` | Decorative banner |
+| `statusCard` | Label-value card |
+| `section` | Section with title |
+| `kv` | Key-value pairs |
+| `ul`, `ol`, `li` | Lists |
+| `tree`, `node` | Tree structure |
+| `inline_bar` | Progress bar |
+| `chart` | Horizontal bar chart |
+
+### Text Formatting
+
+| Function | Description |
+|----------|-------------|
+| `center` | Center (auto or fixed width) |
+| `left_align`, `right_align` | Alignment |
+| `truncate` | Truncate with ellipsis |
+| `wrap` | Word wrap |
+| `justify`, `justifyAll` | Text justification |
+| `pad` | Padding |
+| `margin`, `marginColor` | Prefix margins |
+| `underline`, `underlineColored` | Underlines |
+
+### Borders
+
+| Function | Description |
+|----------|-------------|
+| `borderNormal` | Standard box drawing |
+| `borderDouble` | Double lines |
+| `borderThick` | Thick lines |
+| `borderRound` | Rounded corners |
+| `borderNone` | Remove border |
+
+### Colors & Styles
+
+| Colors | Styles |
+|--------|--------|
+| `colorBlack` ... `colorWhite` | `styleBold` |
+| `colorBrightBlack` ... `colorBrightWhite` | `styleDim` |
+| `color256 n` | `styleItalic` |
+| `colorRGB r g b` | `styleUnderline` |
+| `fg color`, `bg color` | `styleBlink`, `styleReverse` |
+| | `styleHidden`, `styleStrikethrough` |

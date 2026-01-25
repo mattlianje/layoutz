@@ -1,0 +1,7 @@
+(executable
+ (name demo)
+ (libraries layoutz))
+
+(executable
+ (name examples)
+ (libraries layoutz))
