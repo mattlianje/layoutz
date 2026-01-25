@@ -1143,38 +1143,33 @@ section("Users by Role")(
 ```
 
 ## Interactive Apps
-Build **Elm-style terminal applications** with the `LayoutzApp` architecture.
-The [Elm Architecture](https://guide.elm-lang.org/architecture/) creates unidirectional data flow from inputs to view (re)rendering
+Beyond static rendering, **layoutz** has an [Elm-style](https://guide.elm-lang.org/architecture/) runtime for building terminal applications. Unidirectional data flow: inputs become messages, messages update state, state renders to view.
 
 ### `LayoutzApp[State, Message]`
-Implement this trait:
 ```scala
 trait LayoutzApp[State, Message] {
-  def init: (State, Cmd[Message])                                   /* Initial state and startup commands */
-  def update(message: Message, state: State): (State, Cmd[Message]) /* Apply message to state */
-  def subscriptions(state: State): Sub[Message]                     /* Declare event listeners */
-  def view(state: State): Element                                   /* Render state to UI */
+  def init: (State, Cmd[Message])                                  /* starting state + initial commands */
+  def update(msg: Message, state: State): (State, Cmd[Message])    /* state transitions */
+  def subscriptions(state: State): Sub[Message]                    /* event listeners */
+  def view(state: State): Element                                  /* render to screen */
 }
 ```
 
-The `.run` method handles the event loop, terminal management, and threading automatically.
+Call `.run` to start. Under the hood, three daemon threads coordinate:
+- **Render**: redraws `view` at ~50ms intervals
+- **Tick**: fires timers, polls files/HTTP
+- **Input**: captures keystrokes, dispatches to `subscriptions`
 
-You can customize runtime behavior with named parameters:
+State updates flow through `update` synchronously, so your logic stays simple.
+
 ```scala
 app.run(
-  clearOnStart = false,  // Don't clear screen on startup (default: true)
-  clearOnExit = false,   // Keep output visible after exit (default: true)
-  showQuitMessage = true, // Show "Press Ctrl+Q to quit" (default: false)
-  alignment = Alignment.Center // Center app in terminal (default: Left)
+  clearOnStart = false,      // default: true
+  clearOnExit = false,       // default: true
+  showQuitMessage = true,    // default: false
+  alignment = Alignment.Center
 )
 ```
-
-The **layoutz** runtime spawns three daemon threads:
-- **Render thread** - Continuously renders your `view` to the terminal (~50ms intervals)
-- **Tick thread** - Handles time-based subscriptions and file/HTTP polling (~10ms intervals)
-- **Input thread** - Blocks on terminal input, converts keys to messages via `subscriptions`
-
-All state updates happen synchronously through `update`, keeping your app logic simple and predictable.
 
 ### Key Types
 **layoutz** comes with a built-in little ADT to handle keyboard input
