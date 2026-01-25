@@ -1143,15 +1143,19 @@ section("Users by Role")(
 ```
 
 ## Interactive Apps
-Beyond static rendering, **layoutz** has an [Elm-style](https://guide.elm-lang.org/architecture/) runtime for building terminal applications. Unidirectional data flow: inputs become messages, messages update state, state renders to view.
+Beyond static rendering, **layoutz** has an [Elm-style](https://guide.elm-lang.org/architecture/) runtime for building terminal applications. Data flow is unidirectional - inputs become messages, messages update state, state renders to view.
 
 ### `LayoutzApp[State, Message]`
 ```scala
 trait LayoutzApp[State, Message] {
-  def init: (State, Cmd[Message])                                  /* starting state + initial commands */
-  def update(msg: Message, state: State): (State, Cmd[Message])    /* state transitions */
-  def subscriptions(state: State): Sub[Message]                    /* event listeners */
-  def view(state: State): Element                                  /* render to screen */
+  /* Starting state + initial commands */
+  def init: (State, Cmd[Message])
+  /* Stae transitions */                                
+  def update(msg: Message, state: State): (State, Cmd[Message])
+  /* Event listeners */
+  def subscriptions(state: State): Sub[Message]
+  /* Render to screen */
+  def view(state: State): Element
 }
 ```
 
