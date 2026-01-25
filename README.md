@@ -1148,14 +1148,10 @@ Beyond static rendering, **layoutz** has an [Elm-style](https://guide.elm-lang.o
 ### `LayoutzApp[State, Message]`
 ```scala
 trait LayoutzApp[State, Message] {
-  /* Starting state + initial commands */
-  def init: (State, Cmd[Message])
-  /* Stae transitions */                                
-  def update(msg: Message, state: State): (State, Cmd[Message])
-  /* Event listeners */
-  def subscriptions(state: State): Sub[Message]
-  /* Render to screen */
-  def view(state: State): Element
+  def init: (State, Cmd[Message])                                /* Starting state + initial commands */                            
+  def update(msg: Message, state: State): (State, Cmd[Message])  /* State transitions */
+  def subscriptions(state: State): Sub[Message]                  /* Event listeners */
+  def view(state: State): Element                                /* Render to screen */
 }
 ```
 
@@ -1165,6 +1161,9 @@ Call `.run` to start. Under the hood, three daemon threads coordinate:
 - **Input**: captures keystrokes, dispatches to `subscriptions`
 
 State updates flow through `update` synchronously, so your logic stays simple.
+
+You can tune some the runtimes paramaters like below. For example, if you are just animating a little loading bar
+as part of a stream of things being sent to STDOUT, you would want `clearOnStart = false`
 
 ```scala
 app.run(
