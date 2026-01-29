@@ -1,4 +1,7 @@
-.PHONY: build test retest clean repl fmt demo
+.PHONY: build test retest clean repl fmt demo install deps
+
+deps:
+	opam install . --deps-only --with-test --yes
 
 build:
 	dune build
@@ -20,3 +23,7 @@ fmt:
 
 demo:
 	dune exec ./demo.exe
+
+install: deps
+	dune build @install
+	dune install
