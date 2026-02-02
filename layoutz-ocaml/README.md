@@ -13,17 +13,7 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 
 ## Installation
 
-```bash
-opam install layoutz
-```
-
-Then add to your `dune` file:
-
-```lisp
-(library
- (name myproject)
- (libraries layoutz))
-```
+Since layoutz has zero dependencies, just drop [`lib/layoutz.ml`](lib/layoutz.ml) into your project.
 
 ## Features
 
