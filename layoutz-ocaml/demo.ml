@@ -1,9 +1,3 @@
-(* Layoutz OCaml Demo - equivalent to Demo.scala
-
-   Run: dune utop lib
-   Then paste this to test!
-*)
-
 open Layoutz
 
 (* Define layouts *)
