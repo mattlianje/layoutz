@@ -11,6 +11,20 @@ Easily create new primitives (no component-library limitations).
 
 Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [Scala](https://github.com/mattlianje/layoutz)
 
+## Installation
+
+```bash
+opam install layoutz
+```
+
+Then add to your `dune` file:
+
+```lisp
+(library
+ (name myproject)
+ (libraries layoutz))
+```
+
 ## Features
 
 - Use **Layoutz.ml** like a header-file
