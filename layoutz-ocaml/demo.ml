@@ -82,30 +82,27 @@ let d =
                   li ~c:[ li ~c:[ li (s "Бородино") ] (s "Iéna") ] (s "Wagram");
                 ];
             ];
-          layout
-            [
-              margin ~prefix:"[OCaml!]"
-                (layout
+          margin ~prefix:"[OCaml!]"
+            (layout
+               [
+                 box ~title:"Deploy Status"
                    [
-                     box ~title:"Deploy Status"
-                       [
-                         inline_bar ~label:"Build" ~progress:1.0;
-                         inline_bar ~label:"Test" ~progress:0.8;
-                         inline_bar ~label:"Deploy" ~progress:0.3;
-                       ]
-                     |> fg colorGreen;
-                   ]);
-              tree
-                (node
-                   ~c:
-                     [
-                       node
-                         ~c:[ node (s "main.ml"); node (s "test.ml") ]
-                         (s "src");
-                     ]
-                   (s "📁 Project"))
-              |> fg colorCyan;
-            ];
+                     inline_bar ~label:"Build" ~progress:1.0;
+                     inline_bar ~label:"Test" ~progress:0.8;
+                     inline_bar ~label:"Deploy" ~progress:0.3;
+                   ]
+                 |> fg colorGreen;
+                 tree
+                   (node
+                      ~c:
+                        [
+                          node
+                            ~c:[ node (s "main.ml"); node (s "test.ml") ]
+                            (s "src");
+                        ]
+                      (s "📁 Project"))
+                 |> fg colorCyan;
+               ]);
         ];
     ]
 
