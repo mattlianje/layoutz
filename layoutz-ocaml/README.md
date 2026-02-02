@@ -13,7 +13,15 @@ Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https:/
 
 ## Installation
 
-Since layoutz has zero dependencies, just drop [`lib/layoutz.ml`](lib/layoutz.ml) into your project.
+```bash
+opam install layoutz
+```
+
+```dune
+(libraries layoutz)
+```
+
+Or just drop [`lib/layoutz.ml`](lib/layoutz.ml) in like a header file - zero dependencies.
 
 ## Features
 
