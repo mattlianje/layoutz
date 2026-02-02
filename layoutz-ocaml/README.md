@@ -9,7 +9,7 @@
 Build declarative and composable sections, trees, tables, and dashboards.
 Easily create new primitives (no component-library limitations).
 
-Part of [layoutz](https://github.com/mattlianje/layoutz)
+Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [Scala](https://github.com/mattlianje/layoutz)
 
 ## Features
 
@@ -27,41 +27,35 @@ Part of [layoutz](https://github.com/mattlianje/layoutz)
 ```ocaml
 open Layoutz
 
-let status_card label value = box ~title:label [ s value ]
-
 let demo =
   layout
-    [
-      s "Dashboard" |> styleBold |> center;
-      hr;
-      row
-        [
-          status_card "API" "LIVE" |> fg colorGreen;
-          status_card "DB" "99.9%";
-          status_card "Cache" "READY" |> fg colorCyan;
-        ];
-      (box ~title:"Services"
-        [
-          ul [ li (s "Production"); li (s "Staging") ];
-          inline_bar ~label:"Health" ~progress:0.94;
+    [ center
+        (row
+           [ s "Layoutz" |> styleBold
+           ; underlineColored ~char:"^" ~color:colorCyan (s "DEMO")
+           ])
+    ; br
+    ; row
+        [ statusCard ~label:(s "Users") ~content:(s "1.2K")
+        ; statusCard ~label:(s "API") ~content:(s "UP") |> borderDouble
+        ; statusCard ~label:(s "CPU") ~content:(s "23%") |> borderThick |> fg colorRed
+        ; table
+            ~headers:[ s "Name"; s "Role"; s "Skills" ]
+            [ [ s "Gegard"; s "Pugilist"
+              ; ul [ li ~c:[ li ~c:[ li (s "man") ] (s "bad") ] (s "Armenian") ]
+              ]
+            ; [ s "Eve"; s "QA"; s "Testing" ]
+            ]
+          |> borderRound |> styleReverse
         ]
-      |> borderRound);
     ]
 
 let () = print demo
 ```
-```
-              Dashboard
-──────────────────────────────────────────────────
-┌─API──┐ ┌─DB────┐ ┌─Cache─┐
-│ LIVE │ │ 99.9% │ │ READY │
-└──────┘ └───────┘ └───────┘
-╭───────────Services────────────╮
-│ • Production                  │
-│ • Staging                     │
-│ Health [██████████████████──] │
-╰───────────────────────────────╯
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-intro.png" width="700">
+</p>
 
 ## Why layoutz?
 
@@ -69,7 +63,7 @@ let () = print demo
 - ...which means more formatting code spawning and polluting domain logic
 - **layoutz** is a tiny, declarative DSL to combat this
 - Everything is an `Element` - immutable and composable
-- Since you can extend the `Element` interface, you can create any elements you imagine... and they compose with all built-ins
+- Since you can implement the `ELEMENT` signature, you can create any elements you imagine... and they compose with all built-ins
 
 ## Core Concepts
 
@@ -437,26 +431,76 @@ Double
 
 ## Colors & Styles
 
-Pipe-friendly - compose with `|>`:
+### Colors
+
+Add ANSI coloring with `|> fg` and `color<...>` to see what is available:
 
 ```ocaml
-s "error" |> fg colorRed
-s "success" |> fg colorGreen
-s "highlighted" |> bg colorBlue
-s "important" |> styleBold
-s "emphasis" |> styleItalic
+let colors =
+  layout
+    [ s "The quick brown fox..." |> fg colorRed
+    ; s "The quick brown fox..." |> fg colorBrightCyan
+    ; underlineColored ~char:"~" ~color:colorRed (s "The quick brown fox...")
+    ; marginColor ~prefix:"[INFO]" ~color:colorCyan (s "The quick brown fox...")
+    ]
 
-(* Combine them *)
-s "critical" |> fg colorRed |> styleBold
-s "WARNING" |> fg colorBlack |> bg colorYellow |> styleBold
+let () = print colors
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-colour-2.png" width="700">
+</p>
 
-### Available Colors
-
+**Available Colors:**
 - Standard: `colorBlack`, `colorRed`, `colorGreen`, `colorYellow`, `colorBlue`, `colorMagenta`, `colorCyan`, `colorWhite`
-- Bright: `colorBrightBlack`, `colorBrightRed`, `colorBrightGreen`, etc.
+- Bright: `colorBrightBlack`, `colorBrightRed`, `colorBrightGreen`, `colorBrightCyan`, etc.
 - 256 palette: `color256 201`
 - True color: `colorRGB 255 128 0`
+
+### Styles
+
+ANSI styles are added the same way with `|> style<...>`:
+
+```ocaml
+let styles =
+  layout
+    [ s "The quick brown fox..." |> styleBold
+    ; s "The quick brown fox..." |> fg colorRed |> styleBold
+    ; s "The quick brown fox..." |> styleReverse |> styleItalic
+    ]
+
+let () = print styles
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-styles.png" width="700">
+</p>
+
+**Available Styles:** `styleBold`, `styleDim`, `styleItalic`, `styleUnderline`, `styleBlink`, `styleReverse`, `styleHidden`, `styleStrikethrough`
+
+### Combining Styles
+
+Use `++` to combine multiple styles at once:
+
+```ocaml
+let combined =
+  layout
+    [ s "Fancy!" |> (styleBold ++ styleItalic ++ styleUnderline)
+    ; table
+        ~headers:[ s "Name"; s "Role"; s "Status" ]
+        [ [ s "Alice"; s "Engineer"; s "Online" ]
+        ; [ s "Eve"; s "QA"; s "Away" ]
+        ; [ ul [ li ~c:[ li ~c:[ li (s "was a BAD man") ] (s "Mousasi") ] (s "Gegard") ]
+          ; s "Fighter"
+          ; s "Nasty"
+          ]
+        ]
+      |> borderRound |> (styleBold ++ styleReverse)
+    ]
+
+let () = print combined
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-combined.png" width="700">
+</p>
 
 ### Color Gradients
 
@@ -484,22 +528,9 @@ let rainbow =
 
 let () = print (layout [ palette; red_to_blue; rainbow ])
 ```
-
-### Available Styles
-
-`styleBold`, `styleDim`, `styleItalic`, `styleUnderline`, `styleBlink`, `styleReverse`, `styleHidden`, `styleStrikethrough`
-
-### Composing Styles
-
-Use `++` to combine styles:
-
-```ocaml
-let fancy = styleBold ++ styleItalic
-let warning = styleBold ++ styleUnderline ++ fg colorRed
-
-s "important" |> fancy
-s "alert" |> warning
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-colour.png" width="700">
+</p>
 
 ## Custom Elements
 

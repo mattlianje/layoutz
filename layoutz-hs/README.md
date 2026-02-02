@@ -8,7 +8,7 @@
 
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
 
-Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Scala](https://github.com/mattlianje/layoutz)
+Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
 ## Features
 - Zero dependencies, use `Layoutz.hs` like a header file

@@ -8,6 +8,8 @@
 
 Declarative and composable text layouts for JavaScript and TypeScript.
 
+Part of [d4](https://github.com/mattlianje/d4) • Also in: [Scala](https://github.com/mattlianje/layoutz), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
+
 ## Features
 
 - Zero dependencies
