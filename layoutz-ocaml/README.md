@@ -6,8 +6,7 @@
 
 **Simple, beautiful CLI output for OCaml**
 
-Build declarative and composable sections, trees, tables, and dashboards.
-Easily create new primitives (no component-library limitations).
+A tiny, zero-dep lib for building composable sections, trees, tables, dashboards, etc
 
 Part of [d4](https://github.com/mattlianje/d4) • Also in: [JavaScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [Scala](https://github.com/mattlianje/layoutz)
 
@@ -32,6 +31,7 @@ Or just drop [`lib/layoutz.ml`](lib/layoutz.ml) in like a header file - zero dep
 - ANSI colors and styles
 - Lists, trees, tables, charts, progress bars
 - Easy creation of custom elements
+  - (No component library limitations)
 - Thread-safe, purely functional rendering
 
 ## Quickstart
