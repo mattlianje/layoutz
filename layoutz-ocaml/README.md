@@ -20,7 +20,7 @@ opam install layoutz
 (libraries layoutz)
 ```
 
-Or just drop [`lib/layoutz.ml`](lib/layoutz.ml) in like a header file - zero dependencies.
+Or just drop the zero-dep [`lib/layoutz.ml`](lib/layoutz.ml) into your project like a header file.
 
 ## Features
 
