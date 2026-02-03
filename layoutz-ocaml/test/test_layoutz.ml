@@ -134,31 +134,39 @@ let test_styled_text () =
   check bool "bold starts with escape" true (output.[0] = '\027')
 
 let test_fg_color () =
-  let output = render (s "Error" |> fg colorRed) in
+  let output = render (s "Error" |> colorRed) in
   check bool "fg color has ANSI codes" true (String.length output > 5);
   check bool "fg color starts with escape" true (output.[0] = '\027')
 
 let test_bg_color () =
-  let output = render (s "Highlight" |> bg colorBlue) in
+  let output = render (s "Highlight" |> bgBlue) in
   check bool "bg color has ANSI codes" true (String.length output > 5);
   check bool "bg color starts with escape" true (output.[0] = '\027')
 
 let test_color256 () =
-  let output = render (s "Pink" |> fg (color256 201)) in
+  let output = render (s "Pink" |> color256 201) in
   check bool "256 color has ANSI codes" true (String.length output > 5);
   check bool "256 color starts with escape" true (output.[0] = '\027')
 
 let test_colorRGB () =
-  let output = render (s "Orange" |> fg (colorRGB 255 128 0)) in
+  let output = render (s "Orange" |> colorRGB 255 128 0) in
   check bool "RGB color has ANSI codes" true (String.length output > 5);
   check bool "RGB color starts with escape" true (output.[0] = '\027')
 
 let test_combined_styles () =
-  let output =
-    render (s "Fancy" |> fg colorRed |> bg colorWhite |> styleBold)
-  in
+  let output = render (s "Fancy" |> colorRed |> bgWhite |> styleBold) in
   check bool "combined styles has ANSI codes" true (String.length output > 10);
   check bool "combined styles starts with escape" true (output.[0] = '\027')
+
+let test_bg256 () =
+  let output = render (s "Pink BG" |> bg256 201) in
+  check bool "bg256 has ANSI codes" true (String.length output > 5);
+  check bool "bg256 starts with escape" true (output.[0] = '\027')
+
+let test_bgRGB () =
+  let output = render (s "Orange BG" |> bgRGB 255 128 0) in
+  check bool "bgRGB has ANSI codes" true (String.length output > 5);
+  check bool "bgRGB starts with escape" true (output.[0] = '\027')
 
 let test_s_shorthand () =
   check string "s is alias for text" "Hello" (render (s "Hello"))
@@ -233,6 +241,8 @@ let style_tests =
     ("256 color", `Quick, test_color256);
     ("RGB color", `Quick, test_colorRGB);
     ("combined styles", `Quick, test_combined_styles);
+    ("bg256", `Quick, test_bg256);
+    ("bgRGB", `Quick, test_bgRGB);
   ]
 
 let test_style_compose () =
@@ -270,8 +280,7 @@ let test_ordered_list_start () =
 
 let test_list_with_styled_items () =
   let output =
-    render
-      (ul [ li (s "Error" |> fg colorRed); li (s "Success" |> fg colorGreen) ])
+    render (ul [ li (s "Error" |> colorRed); li (s "Success" |> colorGreen) ])
   in
   check bool "styled list has content" true (String.length output > 10)
 

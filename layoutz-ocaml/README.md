@@ -44,13 +44,13 @@ let demo =
     [ center
         (row
            [ s "Layoutz" |> styleBold
-           ; underlineColored ~char:"^" ~color:colorCyan (s "DEMO")
+           ; underlineColored ~char:"^" ~color:Color.cyan (s "DEMO")
            ])
     ; br
     ; row
         [ statusCard ~label:(s "Users") ~content:(s "1.2K")
         ; statusCard ~label:(s "API") ~content:(s "UP") |> borderDouble
-        ; statusCard ~label:(s "CPU") ~content:(s "23%") |> borderThick |> fg colorRed
+        ; statusCard ~label:(s "CPU") ~content:(s "23%") |> borderThick |> colorRed
         ; table
             ~headers:[ s "Name"; s "Role"; s "Skills" ]
             [ [ s "Gegard"; s "Pugilist"
@@ -114,7 +114,7 @@ Useful for conditional rendering:
 ```ocaml
 layout [
   s "Always shown";
-  (if has_error then s "Error!" |> fg colorRed else empty);
+  (if has_error then s "Error!" |> colorRed else empty);
   s "Footer"
 ]
 ```
@@ -253,8 +253,8 @@ Compact label-value display in a box:
 
 ```ocaml
 row [
-  statusCard ~label:(s "CPU") ~content:(s "45%") |> fg colorGreen;
-  statusCard ~label:(s "MEM") ~content:(s "2.1G") |> fg colorCyan
+  statusCard ~label:(s "CPU") ~content:(s "45%") |> colorGreen;
+  statusCard ~label:(s "MEM") ~content:(s "2.1G") |> colorCyan
 ]
 ```
 ```
@@ -419,7 +419,7 @@ Prefix each line with a string (great for compiler-style output):
 
 ```ocaml
 margin ~prefix:"[info]" (layout [ s "Line 1"; s "Line 2" ])
-marginColor ~prefix:"[error]" ~color:colorRed (s "Something failed")
+marginColor ~prefix:"[error]" ~color:Color.red (s "Something failed")
 ```
 ```
 [info] Line 1
@@ -431,7 +431,7 @@ marginColor ~prefix:"[error]" ~color:colorRed (s "Something failed")
 ```ocaml
 underline (s "Title")
 underline ~char:"=" (s "Double")
-underlineColored ~char:"~" ~color:colorCyan (s "Fancy")
+underlineColored ~char:"~" ~color:Color.cyan (s "Fancy")
 ```
 ```
 Title
@@ -445,15 +445,15 @@ Double
 
 ### Colors
 
-Add ANSI coloring with `|> fg` and `color<...>` to see what is available:
+Colors apply directly via piping - foreground with `color*`, background with `bg*`:
 
 ```ocaml
 let colors =
   layout
-    [ s "The quick brown fox..." |> fg colorRed
-    ; s "The quick brown fox..." |> fg colorBrightCyan
-    ; underlineColored ~char:"~" ~color:colorRed (s "The quick brown fox...")
-    ; marginColor ~prefix:"[INFO]" ~color:colorCyan (s "The quick brown fox...")
+    [ s "The quick brown fox..." |> colorRed
+    ; s "The quick brown fox..." |> colorBrightCyan
+    ; underlineColored ~char:"~" ~color:Color.red (s "The quick brown fox...")
+    ; marginColor ~prefix:"[INFO]" ~color:Color.cyan (s "The quick brown fox...")
     ]
 
 let () = print colors
@@ -463,10 +463,12 @@ let () = print colors
 </p>
 
 **Available Colors:**
-- Standard: `colorBlack`, `colorRed`, `colorGreen`, `colorYellow`, `colorBlue`, `colorMagenta`, `colorCyan`, `colorWhite`
-- Bright: `colorBrightBlack`, `colorBrightRed`, `colorBrightGreen`, `colorBrightCyan`, etc.
-- 256 palette: `color256 201`
-- True color: `colorRGB 255 128 0`
+- Foreground: `colorBlack`, `colorRed`, `colorGreen`, `colorYellow`, `colorBlue`, `colorMagenta`, `colorCyan`, `colorWhite`
+- Bright foreground: `colorBrightBlack`, `colorBrightRed`, `colorBrightGreen`, `colorBrightCyan`, etc.
+- Background: `bgBlack`, `bgRed`, `bgGreen`, `bgYellow`, `bgBlue`, `bgMagenta`, `bgCyan`, `bgWhite`, etc.
+- 256 palette: `color256 201` (foreground), `bg256 201` (background)
+- True color: `colorRGB 255 128 0` (foreground), `bgRGB 255 128 0` (background)
+- Raw values (for `marginColor`, `underlineColored`): `Color.red`, `Color.cyan`, `Color.rgb 255 128 0`, etc.
 
 ### Styles
 
@@ -476,7 +478,7 @@ ANSI styles are added the same way with `|> style<...>`:
 let styles =
   layout
     [ s "The quick brown fox..." |> styleBold
-    ; s "The quick brown fox..." |> fg colorRed |> styleBold
+    ; s "The quick brown fox..." |> colorRed |> styleBold
     ; s "The quick brown fox..." |> styleReverse |> styleItalic
     ]
 
@@ -519,14 +521,14 @@ let () = print combined
 ```ocaml
 (* 256-color palette gradient *)
 let palette =
-  List.init 31 (fun i -> s "█" |> fg (color256 (16 + i * 7)))
+  List.init 31 (fun i -> s "█" |> color256 (16 + i * 7))
   |> tightRow
 
 (* RGB gradients *)
 let red_to_blue =
   List.init 32 (fun i ->
     let v = i * 8 in
-    s "█" |> fg (colorRGB v 100 (255 - v)))
+    s "█" |> colorRGB v 100 (255 - v))
   |> tightRow
 
 let rainbow =
@@ -535,7 +537,7 @@ let rainbow =
     let r = if v < 128 then v * 2 else 255 in
     let g = if v < 128 then 255 else (255 - v) * 2 in
     let b = if v > 128 then (v - 128) * 2 else 0 in
-    s "█" |> fg (colorRGB r g b))
+    s "█" |> colorRGB r g b)
   |> tightRow
 
 let () = print (layout [ palette; red_to_blue; rainbow ])

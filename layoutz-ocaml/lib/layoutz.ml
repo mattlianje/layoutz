@@ -212,29 +212,30 @@ module Color = struct
     | C256 n -> "48;5;" ^ string_of_int n
     | RGB (r, g, b) ->
       "48;2;" ^ string_of_int r ^ ";" ^ string_of_int g ^ ";" ^ string_of_int b
+
+  (* Raw color values for use with marginColor, underlineColored, etc. *)
+  let black = Code 30
+  let red = Code 31
+  let green = Code 32
+  let yellow = Code 33
+  let blue = Code 34
+  let magenta = Code 35
+  let cyan = Code 36
+  let white = Code 37
+  let brightBlack = Code 90
+  let brightRed = Code 91
+  let brightGreen = Code 92
+  let brightYellow = Code 93
+  let brightBlue = Code 94
+  let brightMagenta = Code 95
+  let brightCyan = Code 96
+  let brightWhite = Code 97
+  let rgb r g b = RGB (r, g, b)
+  let c256 n = C256 n
 end
 
 (* Color values *)
 type color = Color.t
-
-let colorBlack = Color.Code 30
-let colorRed = Color.Code 31
-let colorGreen = Color.Code 32
-let colorYellow = Color.Code 33
-let colorBlue = Color.Code 34
-let colorMagenta = Color.Code 35
-let colorCyan = Color.Code 36
-let colorWhite = Color.Code 37
-let colorBrightBlack = Color.Code 90
-let colorBrightRed = Color.Code 91
-let colorBrightGreen = Color.Code 92
-let colorBrightYellow = Color.Code 93
-let colorBrightBlue = Color.Code 94
-let colorBrightMagenta = Color.Code 95
-let colorBrightCyan = Color.Code 96
-let colorBrightWhite = Color.Code 97
-let color256 n = Color.C256 n
-let colorRGB r g b = Color.RGB (r, g, b)
 
 module Style = struct
   type t = string list
@@ -1597,8 +1598,53 @@ let withStyle ?(fg = Color.None) ?(bg = Color.None) ?(style = Style.none) inner
     =
   el (module Styled) (Styled.create ~fg ~bg ~style inner)
 
+(** Apply foreground color (for use with raw Color.t values) *)
 let fg color e = withStyle ~fg:color e
+
+(** Apply background color (for use with raw Color.t values) *)
 let bg color e = withStyle ~bg:color e
+
+(** Foreground color functions - pipe-friendly *)
+let colorBlack e = withStyle ~fg:Color.black e
+
+let colorRed e = withStyle ~fg:Color.red e
+let colorGreen e = withStyle ~fg:Color.green e
+let colorYellow e = withStyle ~fg:Color.yellow e
+let colorBlue e = withStyle ~fg:Color.blue e
+let colorMagenta e = withStyle ~fg:Color.magenta e
+let colorCyan e = withStyle ~fg:Color.cyan e
+let colorWhite e = withStyle ~fg:Color.white e
+let colorBrightBlack e = withStyle ~fg:Color.brightBlack e
+let colorBrightRed e = withStyle ~fg:Color.brightRed e
+let colorBrightGreen e = withStyle ~fg:Color.brightGreen e
+let colorBrightYellow e = withStyle ~fg:Color.brightYellow e
+let colorBrightBlue e = withStyle ~fg:Color.brightBlue e
+let colorBrightMagenta e = withStyle ~fg:Color.brightMagenta e
+let colorBrightCyan e = withStyle ~fg:Color.brightCyan e
+let colorBrightWhite e = withStyle ~fg:Color.brightWhite e
+let colorRGB r g b e = withStyle ~fg:(Color.rgb r g b) e
+let color256 n e = withStyle ~fg:(Color.c256 n) e
+
+(** Background color functions - pipe-friendly *)
+let bgBlack e = withStyle ~bg:Color.black e
+
+let bgRed e = withStyle ~bg:Color.red e
+let bgGreen e = withStyle ~bg:Color.green e
+let bgYellow e = withStyle ~bg:Color.yellow e
+let bgBlue e = withStyle ~bg:Color.blue e
+let bgMagenta e = withStyle ~bg:Color.magenta e
+let bgCyan e = withStyle ~bg:Color.cyan e
+let bgWhite e = withStyle ~bg:Color.white e
+let bgBrightBlack e = withStyle ~bg:Color.brightBlack e
+let bgBrightRed e = withStyle ~bg:Color.brightRed e
+let bgBrightGreen e = withStyle ~bg:Color.brightGreen e
+let bgBrightYellow e = withStyle ~bg:Color.brightYellow e
+let bgBrightBlue e = withStyle ~bg:Color.brightBlue e
+let bgBrightMagenta e = withStyle ~bg:Color.brightMagenta e
+let bgBrightCyan e = withStyle ~bg:Color.brightCyan e
+let bgBrightWhite e = withStyle ~bg:Color.brightWhite e
+let bgRGB r g b e = withStyle ~bg:(Color.rgb r g b) e
+let bg256 n e = withStyle ~bg:(Color.c256 n) e
 
 (** Style functions - pipe-friendly *)
 let styleBold e = withStyle ~style:Style.bold e
