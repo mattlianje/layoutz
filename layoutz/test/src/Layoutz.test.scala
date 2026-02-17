@@ -1,9 +1,6 @@
 package layoutz
 
-import utest._
-
-object LayoutzSpecs extends TestSuite {
-  val tests = Tests {
+class LayoutzSpecs extends munit.FunSuite {
 
     test("basic layout composition") {
       val result = layout(
@@ -66,6 +63,60 @@ status: active"""
 └───────┴──────────┴─────────┘"""
 
       assert(tableElement.render == expected)
+    }
+
+    test("table with new border styles") {
+      val t = table(Seq("A", "B"), Seq(Seq("1", "2")))
+
+      val ascii = t.border(Border.Ascii)
+      assert(ascii.render.contains("+"))
+      assert(ascii.render.contains("-"))
+      assert(ascii.render.contains("|"))
+
+      val dashed = t.border(Border.Dashed)
+      assert(dashed.render.contains("╌"))
+
+      val dotted = t.border(Border.Dotted)
+      assert(dotted.render.contains("┈"))
+
+      val block = t.border(Border.Block)
+      assert(block.render.contains("█"))
+
+      val markdown = t.border(Border.Markdown)
+      assert(markdown.render.contains("|"))
+      assert(markdown.render.contains("-"))
+
+      val inner = t.border(Border.InnerHalfBlock)
+      assert(inner.render.contains("▗"))
+      assert(inner.render.contains("▘"))
+
+      val outer = t.border(Border.OuterHalfBlock)
+      assert(outer.render.contains("▛"))
+      assert(outer.render.contains("▟"))
+    }
+
+    test("half-block border asymmetry") {
+      val inner = box()("test").border(Border.InnerHalfBlock)
+      val rendered = inner.render
+      val lines = rendered.split('\n')
+      // Top uses ▄, bottom uses ▀
+      assert(lines.head.contains("▄"))
+      assert(lines.last.contains("▀"))
+      // Left side uses ▐, right side uses ▌
+      val contentLine = lines(1)
+      assert(contentLine.startsWith("▐"))
+      assert(contentLine.endsWith("▌"))
+
+      val outer = box()("test").border(Border.OuterHalfBlock)
+      val rendered2 = outer.render
+      val lines2 = rendered2.split('\n')
+      // Top uses ▀, bottom uses ▄
+      assert(lines2.head.contains("▀"))
+      assert(lines2.last.contains("▄"))
+      // Left side uses ▌, right side uses ▐
+      val contentLine2 = lines2(1)
+      assert(contentLine2.startsWith("▌"))
+      assert(contentLine2.endsWith("▐"))
     }
 
     test("table row normalization") {
@@ -174,6 +225,46 @@ status: active"""
       val thickBox = box()("Thick border").border(Border.Thick)
       val roundBox = box()("Round border").border(Border.Round)
       val customBox = box()("Custom border").border(Border.Custom("*", "=", "|"))
+
+      val asciiBox = box()("hi").border(Border.Ascii)
+      assert(asciiBox.render.contains("+----+"))
+      assert(asciiBox.render.contains("| hi |"))
+
+      val blockBox = box()("hi").border(Border.Block)
+      assert(blockBox.render.contains("██████"))
+      assert(blockBox.render.contains("█ hi █"))
+
+      val dashedBox = box()("hi").border(Border.Dashed)
+      assert(dashedBox.render.contains("╌"))
+      assert(dashedBox.render.contains("╎"))
+
+      val dottedBox = box()("hi").border(Border.Dotted)
+      assert(dottedBox.render.contains("┈"))
+      assert(dottedBox.render.contains("┊"))
+
+      val markdownBox = box()("hi").border(Border.Markdown)
+      assert(markdownBox.render.contains("|----"))
+      assert(markdownBox.render.contains("| hi |"))
+
+      val innerBox = box()("hi").border(Border.InnerHalfBlock)
+      assert(innerBox.render.contains("▗"))
+      assert(innerBox.render.contains("▖"))
+      assert(innerBox.render.contains("▝"))
+      assert(innerBox.render.contains("▘"))
+      assert(innerBox.render.contains("▄"))
+      assert(innerBox.render.contains("▀"))
+      assert(innerBox.render.contains("▐"))
+      assert(innerBox.render.contains("▌"))
+
+      val outerBox = box()("hi").border(Border.OuterHalfBlock)
+      assert(outerBox.render.contains("▛"))
+      assert(outerBox.render.contains("▜"))
+      assert(outerBox.render.contains("▙"))
+      assert(outerBox.render.contains("▟"))
+      assert(outerBox.render.contains("▀"))
+      assert(outerBox.render.contains("▄"))
+      assert(outerBox.render.contains("▌"))
+      assert(outerBox.render.contains("▐"))
     }
 
     test("HasBorder typeclass") {
@@ -266,30 +357,36 @@ status: active"""
         )
       )
 
-      test("horizontal rules") {
-        // Fluent API
-        val rule1 = hr
-        val rule2 = hr.width(20).char("=")
-        val rule3 = hr.char("*")
+      val rendered = dashboard.render
+      assert(rendered.contains("=== System Status ==="))
+      assert(rendered.contains("• User alice logged in"))
+      assert(rendered.contains("API Response"))
+    }
 
-        assert(rule1.render == "─" * 50) // DEFAULT_RULE_WIDTH
-        assert(rule2.render == "=" * 20)
-        assert(rule3.render == "*" * 50)
+    test("horizontal rules") {
+      // Fluent API
+      val rule1 = hr
+      val rule2 = hr.width(20).char("=")
+      val rule3 = hr.char("*")
 
-        // Test method chaining in different orders
-        assert(hr.char("█").width(5).render == "█████")
-        assert(hr.width(3).char("•").render == "•••")
-      }
+      assert(rule1.render == "─" * 50) // DEFAULT_RULE_WIDTH
+      assert(rule2.render == "=" * 20)
+      assert(rule3.render == "*" * 50)
 
-      test("nested bullets") {
-        val nestedBullets = ul(
-          "Backend",
-          ul("API", "Database"),
-          "Frontend",
-          ul("Components", ul("Header", "Footer"))
-        )
+      // Test method chaining in different orders
+      assert(hr.char("█").width(5).render == "█████")
+      assert(hr.width(3).char("•").render == "•••")
+    }
 
-        val expected = """• Backend
+    test("nested bullets") {
+      val nestedBullets = ul(
+        "Backend",
+        ul("API", "Database"),
+        "Frontend",
+        ul("Components", ul("Header", "Footer"))
+      )
+
+      val expected = """• Backend
   ◦ API
   ◦ Database
 • Frontend
@@ -297,14 +394,7 @@ status: active"""
     ▪ Header
     ▪ Footer"""
 
-        assert(nestedBullets.render == expected)
-      }
-      println(dashboard.render)
-      val rendered = dashboard.render
-      assert(rendered.contains("=== System Status ==="))
-      assert(rendered.contains("• User alice logged in"))
-      assert(rendered.contains("API Response"))
-
+      assert(nestedBullets.render == expected)
     }
 
     test("element dimensions") {
@@ -1803,5 +1893,94 @@ Longer line 2
       assert(rendered.contains("Test"))
     }
 
-  }
+    test("background color bgCode derivation") {
+      assert(Color.Red.bgCode == "41")
+      assert(Color.Green.bgCode == "42")
+      assert(Color.Blue.bgCode == "44")
+      assert(Color.Black.bgCode == "40")
+      assert(Color.White.bgCode == "47")
+      assert(Color.BrightRed.bgCode == "101")
+      assert(Color.BrightGreen.bgCode == "102")
+      assert(Color.BrightBlue.bgCode == "104")
+      assert(Color.NoColor.bgCode == "")
+      assert(Color.Full(196).bgCode == "48;5;196")
+      assert(Color.True(255, 128, 0).bgCode == "48;2;255;128;0")
+    }
+
+    test("background color via element .bg()") {
+      val rendered = "Error".bg(Color.Red).render
+      assert(rendered.contains("\u001b[41m"))
+      assert(rendered.contains("Error"))
+      assert(rendered.contains("\u001b[0m"))
+    }
+
+    test("background color via Color.bg()") {
+      val rendered = Color.Red.bg("Error").render
+      assert(rendered.contains("\u001b[41m"))
+      assert(rendered.contains("Error"))
+    }
+
+    test("background color NoColor passthrough") {
+      assert("Plain".bg(Color.NoColor).render == "Plain")
+    }
+
+    test("background color with foreground and style") {
+      val rendered = "Alert".bg(Color.Red).color(Color.White).style(Style.Bold).render
+      assert(rendered.contains("\u001b[41m"))
+      assert(rendered.contains("\u001b[37m"))
+      assert(rendered.contains("\u001b[1m"))
+      assert(rendered.contains("Alert"))
+    }
+
+    test("background color multiline") {
+      val rendered = "Line1\nLine2".bg(Color.Green).render
+      val lines = rendered.split('\n')
+      assert(lines.length == 2)
+      lines.foreach { line =>
+        assert(line.contains("\u001b[42m"))
+        assert(line.contains("\u001b[0m"))
+      }
+    }
+
+    test("background color on box") {
+      val rendered = box()("content").bg(Color.Yellow).render
+      assert(rendered.contains("\u001b[43m"))
+      assert(rendered.contains("content"))
+    }
+
+    test("background color extended") {
+      val full = "Test".bg(Color.Full(196)).render
+      assert(full.contains("48;5;196"))
+
+      val trueColor = "RGB".bg(Color.True(255, 128, 0)).render
+      assert(trueColor.contains("48;2;255;128;0"))
+    }
+
+    test("Cmd.after") {
+      case class Tick(n: Int)
+      val cmd = Cmd.after(1000L, Tick(1))
+      assert(cmd != Cmd.none)
+    }
+
+    test("Cmd.showCursor and Cmd.hideCursor") {
+      val show = Cmd.showCursor
+      val hide = Cmd.hideCursor
+      assert(show != Cmd.none)
+      assert(hide != Cmd.none)
+      assert(show != hide)
+    }
+
+    test("Cmd.setTitle") {
+      val cmd = Cmd.setTitle("My App")
+      assert(cmd != Cmd.none)
+    }
+
+    test("Cmd variants in batch") {
+      val batched = Cmd.batch(
+        Cmd.setTitle("Test"),
+        Cmd.hideCursor
+      )
+      assert(batched != Cmd.none)
+    }
+
 }

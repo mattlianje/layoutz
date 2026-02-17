@@ -1,0 +1,62 @@
+package build
+import mill._, scalalib._, scalanativelib._, publish._
+
+val scalaVersions      = Seq("2.12.20", "2.13.16", "3.5.2")
+val scalaNativeVersion = "0.5.9"
+
+// Shared publish settings
+trait LayoutzPublishModule extends SonatypeCentralPublishModule {
+  def publishVersion = "0.6.0"
+  def artifactName   = "layoutz"
+
+  def pomSettings = PomSettings(
+    description = "Friendly, expressive print-layout & TUI DSL for Scala",
+    organization = "xyz.matthieucourt",
+    url = "https://github.com/mattlianje/layoutz",
+    licenses = Seq(License.`Apache-2.0`),
+    versionControl = VersionControl.github("mattlianje", "layoutz"),
+    developers = Seq(
+      Developer("mattlianje", "Matthieu Court", "https://github.com/mattlianje")
+    )
+  )
+}
+
+// Shared source paths
+trait LayoutzSourceModule extends CrossScalaModule {
+  def layoutzRoot = Task.Source(moduleDir / os.up)
+  def platformDir: String
+
+  override def sources = Task {
+    val base = layoutzRoot().path
+    Seq(PathRef(base / "src"))
+  }
+
+  def testSources = Task {
+    val base = layoutzRoot().path / "test"
+    Seq(PathRef(base / "src"))
+  }
+}
+
+object layoutz extends Module {
+
+  // JVM
+  object jvm      extends Cross[JvmModule](scalaVersions)
+  trait JvmModule extends LayoutzSourceModule with LayoutzPublishModule {
+    def platformDir = "jvm"
+    object test extends ScalaTests with TestModule.Munit {
+      def mvnDeps          = Seq(mvn"org.scalameta::munit:1.1.1")
+      override def sources = JvmModule.this.testSources
+    }
+  }
+
+  // Scala Native
+  object native      extends Cross[NativeModule](scalaVersions)
+  trait NativeModule extends LayoutzSourceModule with ScalaNativeModule with LayoutzPublishModule {
+    def platformDir        = "native"
+    def scalaNativeVersion = build.scalaNativeVersion
+    object test extends ScalaNativeTests with TestModule.Munit {
+      def mvnDeps          = Seq(mvn"org.scalameta::munit::1.1.1")
+      override def sources = NativeModule.this.testSources
+    }
+  }
+}

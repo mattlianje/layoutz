@@ -154,6 +154,7 @@ package object layoutz {
       Margin(prefix.render, Seq(this), Some(color))
     final def color(c: Color): Colored = Colored(c, this)
     final def style(s: Style): Styled = Styled(s, this)
+    final def bg(c: Color): BgColored = BgColored(c, this)
     final def putStrLn: Unit = println(render)
 
   }
@@ -194,11 +195,24 @@ package object layoutz {
   sealed trait Color {
     def code: String
 
+    /** Derive background ANSI code from foreground code */
+    def bgCode: String = code match {
+      case ""                       => ""
+      case c if c.startsWith("38;") => "48" + c.drop(2)
+      case c                        => (c.toInt + 10).toString
+    }
+
     /** Apply this color to an element */
     def apply(element: Element): Colored = Colored(this, element)
 
     /** Apply this color to a string (auto-converts to Text) */
     def apply(text: String): Colored = Colored(this, Text(text))
+
+    /** Apply this color as background to an element */
+    def bg(element: Element): BgColored = BgColored(this, element)
+
+    /** Apply this color as background to a string (auto-converts to Text) */
+    def bg(text: String): BgColored = BgColored(this, Text(text))
   }
 
   object Color {
@@ -285,6 +299,11 @@ package object layoutz {
     if (color.code.isEmpty) content
     else "\u001b[" + color.code + "m" + content + "\u001b[0m"
 
+  /** Wrap text with ANSI background color codes */
+  private def wrapBgAnsi(color: Color, content: String): String =
+    if (color.bgCode.isEmpty) content
+    else "\u001b[" + color.bgCode + "m" + content + "\u001b[0m"
+
   /** Wrap text with ANSI style codes */
   private def wrapStyle(style: Style, content: String): String =
     if (style.code.isEmpty) content
@@ -297,6 +316,17 @@ package object layoutz {
       val rendered = element.render
       val lines = rendered.split('\n')
       lines.map(line => wrapAnsi(color, line)).mkString("\n")
+    }
+
+  }
+
+  /** Element wrapper that applies background color to its content */
+  final case class BgColored(color: Color, element: Element) extends Element {
+
+    def render: String = {
+      val rendered = element.render
+      val lines = rendered.split('\n')
+      lines.map(line => wrapBgAnsi(color, line)).mkString("\n")
     }
 
   }
@@ -794,37 +824,44 @@ package object layoutz {
     private object TableBorders {
 
       def apply(widths: Seq[Int], style: Border): TableBorders = {
-        val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-          style.chars
-        val segments = widths.map(horizontal * _)
+        val (tl, tr, bl, br) = (style.topLeft, style.topRight, style.bottomLeft, style.bottomRight)
+        val (ht, hb) = (style.hTop, style.hBottom)
+        val topSegments = widths.map(ht * _)
+        val bottomSegments = widths.map(hb * _)
 
         /* Table junction characters */
         val (teeDown, teeUp, teeLeft, teeRight, cross) = style match {
           case Border.None   => (" ", " ", " ", " ", " ")
-          case Border.Single => ("┬", "┴", "┤", "├", "┼")
+          case Border.Single | Border.Dashed | Border.Dotted | Border.Round =>
+            ("┬", "┴", "┤", "├", "┼")
           case Border.Double => ("╦", "╩", "╣", "╠", "╬")
           case Border.Thick  => ("┳", "┻", "┫", "┣", "╋")
-          case Border.Round =>
-            ("┬", "┴", "┤", "├", "┼") /* Round uses single junctions */
+          case Border.Ascii  => ("+", "+", "+", "+", "+")
+          case Border.Block  => ("█", "█", "█", "█", "█")
+          case Border.Markdown => ("|", "|", "|", "|", "|")
+          case Border.InnerHalfBlock =>
+            ("▄", "▀", "▌", "▐", "▄")
+          case Border.OuterHalfBlock =>
+            ("▀", "▄", "▐", "▌", "▀")
           case Border.Custom(_, h, _) =>
-            (h, h, h, h, h) /* Use horizontal char for all junctions */
+            (h, h, h, h, h)
         }
 
         TableBorders(
-          top = segments.mkString(
-            s"$topLeft$horizontal",
-            s"$horizontal$teeDown$horizontal",
-            s"$horizontal$topRight"
+          top = topSegments.mkString(
+            s"$tl$ht",
+            s"$ht$teeDown$ht",
+            s"$ht$tr"
           ),
-          separator = segments.mkString(
-            s"$teeRight$horizontal",
-            s"$horizontal$cross$horizontal",
-            s"$horizontal$teeLeft"
+          separator = topSegments.mkString(
+            s"$teeRight$ht",
+            s"$ht$cross$ht",
+            s"$ht$teeLeft"
           ),
-          bottom = segments.mkString(
-            s"$bottomLeft$horizontal",
-            s"$horizontal$teeUp$horizontal",
-            s"$horizontal$bottomRight"
+          bottom = bottomSegments.mkString(
+            s"$bl$hb",
+            s"$hb$teeUp$hb",
+            s"$hb$br"
           )
         )
       }
@@ -837,7 +874,7 @@ package object layoutz {
         rowHeight: Int,
         style: Border
     ): Seq[String] = {
-      val (_, _, _, _, _, vertical) = style.chars
+      val (vl, vr) = (style.vLeft, style.vRight)
 
       (0 until rowHeight).map { lineIndex =>
         cellLines
@@ -849,9 +886,9 @@ package object layoutz {
             line + (" " * math.max(0, padding))
           }
           .mkString(
-            s"$vertical ",
-            s" $vertical ",
-            s" $vertical"
+            s"$vl ",
+            s" $vl ",
+            s" $vr"
           )
       }
     }
@@ -896,24 +933,22 @@ package object layoutz {
         else allLines.map(line => realLength(line)).max
       val contentWidth = maxTextLength + Dimensions.MIN_CONTENT_PADDING
 
-      val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        borderStyle.chars
+      val (tl, tr, bl, br) = (borderStyle.topLeft, borderStyle.topRight, borderStyle.bottomLeft, borderStyle.bottomRight)
+      val (ht, hb, vl, vr) = (borderStyle.hTop, borderStyle.hBottom, borderStyle.vLeft, borderStyle.vRight)
 
-      val topBorder =
-        topLeft + horizontal * (contentWidth + 2) + topRight
-      val bottomBorder =
-        bottomLeft + horizontal * (contentWidth + 2) + bottomRight
+      val topBorder = tl + ht * (contentWidth + 2) + tr
+      val bottomBorder = bl + hb * (contentWidth + 2) + br
 
       val labelCardLines = labelLines.map { line =>
         val visibleLength = realLength(line)
         val padding = contentWidth - visibleLength
-        s"$vertical $line${" " * padding} $vertical"
+        s"$vl $line${" " * padding} $vr"
       }
 
       val contentCardLines = contentLines.map { line =>
         val visibleLength = realLength(line)
         val padding = contentWidth - visibleLength
-        s"$vertical $line${" " * padding} $vertical"
+        s"$vl $line${" " * padding} $vr"
       }
 
       (Seq(topBorder) ++ labelCardLines ++ contentCardLines :+ bottomBorder)
@@ -1756,19 +1791,17 @@ package object layoutz {
         else lines.map(line => realLength(line)).max
       val totalWidth = maxWidth + Dimensions.BOX_INNER_PADDING
 
-      val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        borderStyle.chars
+      val (tl, tr, bl, br) = (borderStyle.topLeft, borderStyle.topRight, borderStyle.bottomLeft, borderStyle.bottomRight)
+      val (ht, hb, vl, vr) = (borderStyle.hTop, borderStyle.hBottom, borderStyle.vLeft, borderStyle.vRight)
 
-      val top =
-        topLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + topRight
-      val bottom =
-        bottomLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + bottomRight
+      val top = tl + ht * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + tr
+      val bottom = bl + hb * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + br
 
       val contentLines = lines.map { line =>
         val visibleLength = realLength(line)
         val padding = maxWidth - visibleLength
         val actualPadding = " " * padding
-        s"$vertical $line$actualPadding $vertical"
+        s"$vl $line$actualPadding $vr"
       }
 
       (top +: contentLines :+ bottom).mkString("\n")
@@ -1787,6 +1820,16 @@ package object layoutz {
         String,
         String
     ) // TL, TR, BL, BR, H, V
+
+    /** Directional accessors - override for asymmetric borders (e.g. half-block) */
+    def topLeft: String = chars._1
+    def topRight: String = chars._2
+    def bottomLeft: String = chars._3
+    def bottomRight: String = chars._4
+    def hTop: String = chars._5
+    def hBottom: String = chars._5
+    def vLeft: String = chars._6
+    def vRight: String = chars._6
 
     /** Apply this border style to an element with HasBorder typeclass */
     def apply[T](element: T)(implicit ev: HasBorder[T]): T =
@@ -1816,6 +1859,38 @@ package object layoutz {
       val chars = ("╭", "╮", "╰", "╯", "─", "│")
     }
 
+    case object Ascii extends Border {
+      val chars = ("+", "+", "+", "+", "-", "|")
+    }
+
+    case object Block extends Border {
+      val chars = ("█", "█", "█", "█", "█", "█")
+    }
+
+    case object Dashed extends Border {
+      val chars = ("┌", "┐", "└", "┘", "╌", "╎")
+    }
+
+    case object Dotted extends Border {
+      val chars = ("┌", "┐", "└", "┘", "┈", "┊")
+    }
+
+    case object InnerHalfBlock extends Border {
+      val chars = ("▗", "▖", "▝", "▘", "▄", "▐")
+      override def hBottom: String = "▀"
+      override def vRight: String = "▌"
+    }
+
+    case object OuterHalfBlock extends Border {
+      val chars = ("▛", "▜", "▙", "▟", "▀", "▌")
+      override def hBottom: String = "▄"
+      override def vRight: String = "▐"
+    }
+
+    case object Markdown extends Border {
+      val chars = ("|", "|", "|", "|", "-", "|")
+    }
+
     final case class Custom(
         corner: String,
         horizontal: String,
@@ -1836,6 +1911,13 @@ package object layoutz {
     val Double = Border.Double
     val Thick = Border.Thick
     val Round = Border.Round
+    val Ascii = Border.Ascii
+    val Block = Border.Block
+    val Dashed = Border.Dashed
+    val Dotted = Border.Dotted
+    val InnerHalfBlock = Border.InnerHalfBlock
+    val OuterHalfBlock = Border.OuterHalfBlock
+    val Markdown = Border.Markdown
   }
 
   object BorderStyle {
@@ -1844,6 +1926,13 @@ package object layoutz {
     val Double = Border.Double
     val Thick = Border.Thick
     val Round = Border.Round
+    val Ascii = Border.Ascii
+    val Block = Border.Block
+    val Dashed = Border.Dashed
+    val Dotted = Border.Dotted
+    val InnerHalfBlock = Border.InnerHalfBlock
+    val OuterHalfBlock = Border.OuterHalfBlock
+    val Markdown = Border.Markdown
   }
 
   /** Typeclass for elements that have configurable borders */
@@ -1942,25 +2031,25 @@ package object layoutz {
       val innerWidth = math.max(contentWidth, titleWidth)
       val totalWidth = innerWidth + Dimensions.BOX_INNER_PADDING
 
-      val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        borderStyle.chars
+      val (tl, tr, bl, br) = (borderStyle.topLeft, borderStyle.topRight, borderStyle.bottomLeft, borderStyle.bottomRight)
+      val (ht, hb, vl, vr) = (borderStyle.hTop, borderStyle.hBottom, borderStyle.vLeft, borderStyle.vRight)
 
       val topBorder = if (title.nonEmpty) {
         val titlePadding =
           totalWidth - title.length - Dimensions.BOX_BORDER_WIDTH
         val leftPad = titlePadding / 2
         val rightPad = titlePadding - leftPad
-        s"$topLeft${horizontal * leftPad}$title${horizontal * rightPad}$topRight"
+        s"$tl${ht * leftPad}$title${ht * rightPad}$tr"
       } else {
-        s"$topLeft${horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$topRight"
+        s"$tl${ht * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$tr"
       }
 
       val bottomBorder =
-        s"$bottomLeft${horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$bottomRight"
+        s"$bl${hb * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$br"
 
       val paddedContent = contentLines.map { line =>
         val padding = innerWidth - realLength(line)
-        s"$vertical $line${" " * padding} $vertical"
+        s"$vl $line${" " * padding} $vr"
       }
 
       (topBorder +: paddedContent :+ bottomBorder).mkString("\n")
@@ -2651,6 +2740,11 @@ package object layoutz {
       CmdTask(() => Try(run).toEither.left.map(_.getMessage), toMsg)
 
     def fire(effect: => Unit): Cmd[Nothing] = CmdFire(() => effect)
+
+    def after[Msg](delayMs: Long, msg: Msg): Cmd[Msg] = CmdAfter(delayMs, msg)
+    def showCursor: Cmd[Nothing] = CmdShowCursor
+    def hideCursor: Cmd[Nothing] = CmdHideCursor
+    def setTitle(title: String): Cmd[Nothing] = CmdSetTitle(title)
   }
 
   private case object CmdNone extends Cmd[Nothing]
@@ -2696,6 +2790,11 @@ package object layoutz {
   ) extends Cmd[Msg]
 
   private case class CmdFire(effect: () => Unit) extends Cmd[Nothing]
+
+  private case class CmdAfter[Msg](delayMs: Long, msg: Msg) extends Cmd[Msg]
+  private case object CmdShowCursor extends Cmd[Nothing]
+  private case object CmdHideCursor extends Cmd[Nothing]
+  private case class CmdSetTitle(title: String) extends Cmd[Nothing]
 
   /** Subscriptions represent ongoing event sources. They declare what events your app is interested
     * in based on the current state.
@@ -3057,6 +3156,11 @@ package object layoutz {
             Future(execHttpPost(u, b, h)).foreach(r => updateState(f(r)))
           case CmdTask(t, f)   => Future(t()).foreach(r => updateState(f(r)))
           case CmdFire(effect) => Future(effect())
+          case CmdAfter(delayMs, msg) =>
+            Future { Thread.sleep(delayMs); updateState(msg) }
+          case CmdShowCursor  => terminal.showCursor(); terminal.flush()
+          case CmdHideCursor  => terminal.hideCursor(); terminal.flush()
+          case CmdSetTitle(t) => terminal.write("\u001b]2;" + t + "\u0007"); terminal.flush()
         }
       }
 
