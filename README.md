@@ -3,28 +3,40 @@
 </p>
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
+**Simple, beautiful CLI output 🪶**
 
-Compositional ANSI strings, terminal plots, and Elm-style TUIs in pure Scala. Zero dependencies.
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUIs in pure Scala.
+Extend the `Element` trait to create your own primitives — no component-library limitations.
 
 ## Features
-- **Elm Architecture** - Model-Update-View pattern via `LayoutzApp[State, Message]`
-- **Composable Elements** - everything is an `Element`, everything composes with everything else
-- **Styling** - ANSI 16, 256-color, true color (foreground + background), bold/dim/italic/underline/reverse/strikethrough
-- **Layouts** - rows, columns, sections, margins, padding, alignment, wrapping, justification
-- **Data Display** - tables, trees, ordered/unordered lists, key-value pairs
-- **Charts** - line plots, pie, bar, stacked bar, sparklines, heatmaps, box plots
-- **Widgets** - text input, single/multi choice, spinners, progress bars, banners
-- **Border System** - Single, Double, Thick, Round, Custom, None; `HasBorder` typeclass
-- **Command System** - async tasks, file I/O, HTTP, timers, cursor/title control, fire-and-forget
-- **Subscriptions** - key input, periodic ticks, file watching, HTTP polling
-- **Custom Elements** - implement `Element` trait, composes with all built-ins
-- **Cross-platform** - JVM and Native, Scala 2.12 / 2.13 / 3.x
+- **Elm Architecture** — Model-Update-View via `LayoutzApp[State, Message]`
+- **Composable** — everything is an `Element`, everything composes
+- **Colors** — foreground, background, 256-color, true color, bold/dim/italic/reverse/...
+- **Layout** — rows, columns, sections, margins, padding, alignment, wrapping, justification
+- **Data** — tables, trees, ordered/unordered lists, key-value pairs
+- **Charts** — line plots, pie, bar, stacked bar, sparklines, heatmaps, box plots
+- **Widgets** — text input, single/multi choice, spinners, progress bars, banners
+- **Borders** — 13 styles + `HasBorder` typeclass + custom borders
+- **Commands** — async tasks, file I/O, HTTP, timers, cursor/title control
+- **Subscriptions** — key input, ticks, file watching, HTTP polling
+- **Cross-platform** — pure Scala, JVM + Native, Scala 2.12 / 2.13 / 3.x
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
 <br>
 <sub><a href="examples/NavLoadApp.scala">interactive task list</a> • <a href="examples/SimpleGame.scala">simple game</a></sub>
 </p>
+
+## Table of Contents
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [Elements](#elements)
+- [Colors & Styles](#colors)
+- [Border Styles](#border-styles)
+- [Charts & Plots](#charts--plots)
+- [Interactive Apps](#interactive-apps)
+- [Examples](#examples)
 
 ## Installation
 On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM and Native):
@@ -40,7 +52,7 @@ import layoutz._
 
 ## Quick Start
 
-**Static rendering** - compose elements, call `.render` to get a String:
+**Static rendering** — compose elements, call `.render` to get a String:
 
 <details>
 <summary>show code</summary>
@@ -108,7 +120,7 @@ println(demo.render)
   <img src="pix/main-demo-3.png" width="650">
 </p>
 
-**Interactive apps** - Elm-style TUIs:
+**Interactive apps** — Elm-style TUIs:
 
 ```scala
 import layoutz._
@@ -142,6 +154,12 @@ CounterApp.run
   <img src="pix/counter-demo.gif" width="550">
 </p>
 
+## Why layoutz?
+- There's `s"..."` and [full-blown](https://github.com/oyvindberg/tui-scala) TUI frameworks — but nothing in-between
+- **layoutz** is a tiny declarative DSL: compose `Element`s, call `.render`, get a String
+- Optionally, use the Elm-style runtime (`LayoutzApp`) for interactive TUIs with built-in commands for file I/O, HTTP, key input
+- Or just use it to structure strings — no TUI required
+
 ## Core Concepts
 
 Every piece of content is an `Element`. Elements are immutable and composable.
@@ -155,7 +173,7 @@ elem.putStrLn                 // render + print
 
 Implement `Element` to create custom components that compose with all built-ins.
 
-**Fluent API** - nested and fluent syntax are interchangeable:
+**Fluent API** — nested and fluent syntax are interchangeable:
 ```scala
 margin(">>")(underline()("Hello\nWorld!"))
 "Hello\nWorld!".underline.margin(">>")
@@ -165,34 +183,27 @@ Available: `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.ma
 
 ## Elements
 
-### Text & Layout
+### Text, Layout & Spacing
 
 ```scala
-"Simple text"                              // implicit Text conversion
-layout("First", "Second", "Third")         // vertical
-row("Left", "Middle", "Right")             // horizontal
-columns(layout("A", "B"), layout("C", "D"))// side-by-side columns
-section("Config")(kv("env" -> "prod"))     // titled section
-br                                         // line break
-hr                                         // horizontal rule
-hr.width(10).char("~")
-space(10)                                  // horizontal spacing
-empty                                      // conditional rendering
-vr(3)                                      // vertical rule
+"Simple text"                                // implicit Text conversion
+layout("First", "Second", "Third")           // vertical join
+row("Left", "Middle", "Right")               // horizontal join
+columns(layout("A", "B"), layout("C", "D"))  // side-by-side columns
+section("Config")(kv("env" -> "prod"))       // titled section
+br                                           // line break
+hr                                           // horizontal rule ──────
+hr.width(10).char("~")                       // ~~~~~~~~~~
+space(10)                                    // horizontal spacing
+empty                                        // no-op (conditional rendering)
+vr(3)                                        // vertical rule │
 ```
 
-### Key-value pairs
+### Key-Value Pairs, Tables
+
 ```scala
 kv("name" -> "Alice", "role" -> "admin")
-```
-```
-name : Alice
-role : admin
-```
 
-### Tables
-Auto-normalizes row lengths:
-```scala
 table(
   headers = Seq("Name", "Age", "City"),
   rows = Seq(
@@ -203,6 +214,9 @@ table(
 )
 ```
 ```
+name : Alice
+role : admin
+
 ┌─────────┬─────┬─────────┐
 │ Name    │ Age │ City    │
 ├─────────┼─────┼─────────┤
@@ -213,15 +227,39 @@ table(
 ```
 
 ### Lists
+
 ```scala
-ol("First", "Second", "Third")             // ordered
-ol("Setup", ol("Install", "Configure"))    // nested numbering (1, a, i)
-ul("Feature A", "Feature B")               // unordered
-ul("Backend", ul("API", "DB"))             // nested (•, ◦, ▪)
+ol("First", "Second", "Third")
+ol("Setup", ol("Install", "Configure"), "Deploy")
+
+ul("Feature A", "Feature B")
+ul("Backend", ul("API", "DB"), "Frontend")
 ul("→")("Custom", "Bullets")
+```
+```
+1. First
+2. Second
+3. Third
+
+1. Setup
+  a. Install
+  b. Configure
+2. Deploy
+
+• Feature A
+• Feature B
+
+• Backend
+  ◦ API
+  ◦ DB
+• Frontend
+
+→ Custom
+→ Bullets
 ```
 
 ### Trees
+
 ```scala
 tree("Project")(
   tree("src")(
@@ -239,58 +277,141 @@ Project
         └── AppSpec.scala
 ```
 
-### Boxes & Cards
+### Boxes, Cards & Banners
+
 ```scala
-box("Summary")(kv("total" -> "42"))        // titled box
-box()(kv("total" -> "42"))                 // untitled box
-statusCard("CPU", "45%")                   // status card
-banner("Dashboard").border(Border.Double)  // banner
+box("Summary")(kv("total" -> "42"))
+box()(kv("total" -> "42"))
+statusCard("CPU", "45%")
+banner("System Dashboard").border(Border.Double)
+```
+```
+┌──Summary───┐
+│ total : 42 │
+└────────────┘
+
+┌────────────┐
+│ total : 42 │
+└────────────┘
+
+┌───────┐
+│ CPU   │
+│ 45%   │
+└───────┘
+
+╔═══════════════════╗
+║ System Dashboard  ║
+╚═══════════════════╝
 ```
 
-### Progress & Spinners
+### Progress, Spinners & Form Widgets
+
 ```scala
-inlineBar("Download", 0.75)               // progress bar
-spinner("Loading...", frame = 3)           // animated spinner
+inlineBar("Download", 0.75)
+spinner("Loading...", frame = 3)
 spinner("Work", frame = 0, SpinnerStyle.Line)
+
+textInput("Username", "alice", "Enter name", active = true)
+SingleChoice("Mood?", Seq("great", "okay", "meh"), selected = 0, active = true)
+MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active = true)
+```
+```
+Download [███████████████─────] 75%
+⠸ Loading...
+|| Work
+
+> Username: alice_
+> Mood?
+  ► ● great
+    ○ okay
+    ○ meh
 ```
 Spinner styles: `Dots` (default), `Line`, `Clock`, `Bounce`
 
-### Underline
+### Underline, Margin, Padding & Truncation
+
 ```scala
 "Title".underline()
 "Custom".underline("=")
-```
 
-### Margin
-```scala
 layout(
   "Ooops!",
   row("val result: Int = ", underline("^")("getString()")),
   "Expected Int, found String"
 ).margin("[error]")
+
+"content".pad(2)
+
+"Very long text that will be cut off".truncate(15)
+"Custom ellipsis example text here".truncate(20, "…")
 ```
 ```
+Title
+─────
+Custom
+══════
+
 [error] Ooops!
 [error] val result: Int =  getString()
 [error]                    ^^^^^^^^^^^
 [error] Expected Int, found String
+
+This is a ve...
+Custom ellipsis ex…
 ```
 
-### Padding & Truncation
+### Text Formatting
+
 ```scala
-"content".pad(2)
-"Very long text here".truncate(15)         // "Very long te..."
-"Very long text here".truncate(15, "…")
+"TITLE".center(20)
+"Left".leftAlign(20)
+"Right".rightAlign(20)
+"Long text here that should wrap".wrap(20)
+"Spread this out".justify(30)
 ```
 
-### Form Widgets
+### Custom Elements
+
+Implement `Element` to create reusable components:
 ```scala
-textInput("Username", "alice", "Enter name", active = true)
-SingleChoice("Mood?", Seq("great", "okay", "meh"), selected = 0, active = true)
-MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active = true)
+case class Square(size: Int) extends Element {
+  def render: String = {
+    if (size < 2) return ""
+    val width = size * 2 - 2
+    val top = "┌" + ("─" * width) + "┐"
+    val middle = (1 to size - 2).map(_ => "│" + (" " * width) + "│")
+    val bottom = "└" + ("─" * width) + "┘"
+    (top +: middle :+ bottom).mkString("\n")
+  }
+}
+
+row(Square(2), Square(4), Square(6))
+```
+```
+┌──┐ ┌──────┐ ┌──────────┐
+└──┘ │      │ │          │
+     │      │ │          │
+     └──────┘ │          │
+              │          │
+              └──────────┘
 ```
 
-### Colors
+### Working with Collections
+```scala
+case class User(name: String, role: String)
+val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
+
+section("Users by Role")(
+  layout(
+    users.groupBy(_.role).map { case (role, roleUsers) =>
+      box(role)(ul(roleUsers.map(_.name): _*))
+    }.toSeq: _*
+  )
+)
+```
+
+## Colors
+
 Foreground with `.color`, background with `.bg`:
 
 ```scala
@@ -329,8 +450,22 @@ Color.NoColor                 // conditional no-op
 ```
 
 ```scala
+import layoutz._
+
+/* 256-color palette gradient */
 val palette = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
-val gradient = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
+
+/* RGB gradients */
+val redToBlue = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
+val greenFade = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(0, 255 - i, i))): _*)
+val rainbow = tightRow((0 to 255 by 8).map { i =>
+  val r = if (i < 128) i * 2 else 255
+  val g = if (i < 128) 255 else (255 - i) * 2
+  val b = if (i > 128) (i - 128) * 2 else 0
+  "█".color(Color.True(r, g, b))
+}: _*)
+
+layout(palette, redToBlue, greenFade, rainbow)
 ```
 
 <p align="center">
@@ -365,16 +500,7 @@ Style.Bold ++ Style.Italic    // combine with ++
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
 </p>
 
-### Text Formatting
-```scala
-"TITLE".center(20)                         // center alignment
-"Left".leftAlign(20)                       // left alignment
-"Right".rightAlign(20)                     // right alignment
-"Long text here...".wrap(20)               // word wrap
-"Spread this out".justify(30)              // justify
-```
-
-### Border Styles
+## Border Styles
 ```scala
 Border.Single                              // ┌─┐ (default)
 Border.Double                              // ╔═╗
@@ -398,33 +524,7 @@ table(h, r).border(Border.Thick)
 def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
 ```
 
-### Custom Elements
-
-Implement `Element` to create reusable components:
-```scala
-case class Square(size: Int) extends Element {
-  def render: String = {
-    if (size < 2) return ""
-    val width = size * 2 - 2
-    val top = "┌" + ("─" * width) + "┐"
-    val middle = (1 to size - 2).map(_ => "│" + (" " * width) + "│")
-    val bottom = "└" + ("─" * width) + "┘"
-    (top +: middle :+ bottom).mkString("\n")
-  }
-}
-
-row(Square(2), Square(4), Square(6))
-```
-```
-┌──┐ ┌──────┐ ┌──────────┐
-└──┘ │      │ │          │
-     │      │ │          │
-     └──────┘ │          │
-              │          │
-              └──────────┘
-```
-
-### Charts & Plots
+## Charts & Plots
 
 #### Line Plot
 ```scala
@@ -439,6 +539,9 @@ plot(width = 40, height = 10)(
 
 Multiple series:
 ```scala
+val sin = (0 to 50).map(i => (i.toDouble, math.sin(i * 0.15) * 5))
+val cos = (0 to 50).map(i => (i.toDouble, math.cos(i * 0.15) * 5))
+
 plot(width = 50, height = 12)(
   Series(sin, "sin(x)").color(Color.BrightCyan),
   Series(cos, "cos(x)").color(Color.BrightMagenta)
@@ -533,20 +636,6 @@ heatmap(Seq(
 
 Options: `cellWidth`, `cellHeight`, `showLegend`, row/column labels via `HeatmapData`.
 
-### Working with Collections
-```scala
-case class User(name: String, role: String)
-val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
-
-section("Users by Role")(
-  layout(
-    users.groupBy(_.role).map { case (role, roleUsers) =>
-      box(role)(ul(roleUsers.map(_.name): _*))
-    }.toSeq: _*
-  )
-)
-```
-
 ## Interactive Apps
 
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/):
@@ -584,7 +673,7 @@ def update(msg: Msg, state: State) = msg match {
 CharKey(c: Char)
 EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
 ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
-SpecialKey(name: String)   // Ctrl+Q, Ctrl+S, etc.
+SpecialKey(name: String)                         // Ctrl+Q, Ctrl+S, etc.
 ```
 
 ### Subscriptions
