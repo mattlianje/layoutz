@@ -6,20 +6,20 @@
 **Simple, beautiful CLI output 🪶**
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUIs in pure Scala.
-Extend the `Element` trait to create your own primitives — no component-library limitations.
+Extend the `Element` trait to create your own primitives - no component-library limitations.
 
 ## Features
-- **Elm Architecture** — Model-Update-View via `LayoutzApp[State, Message]`
-- **Composable** — everything is an `Element`, everything composes
-- **Colors** — foreground, background, 256-color, true color, bold/dim/italic/reverse/...
-- **Layout** — rows, columns, sections, margins, padding, alignment, wrapping, justification
-- **Data** — tables, trees, ordered/unordered lists, key-value pairs
-- **Charts** — line plots, pie, bar, stacked bar, sparklines, heatmaps, box plots
-- **Widgets** — text input, single/multi choice, spinners, progress bars, banners
-- **Borders** — 13 styles + `HasBorder` typeclass + custom borders
-- **Commands** — async tasks, file I/O, HTTP, timers, cursor/title control
-- **Subscriptions** — key input, ticks, file watching, HTTP polling
-- **Cross-platform** — pure Scala, JVM + Native, Scala 2.12 / 2.13 / 3.x
+- **Elm Architecture** - Model-Update-View via `LayoutzApp[State, Message]`
+- **Composable** - everything is an `Element`, everything composes
+- **Colors** - foreground, background, 256-color, true color, bold/dim/italic/reverse/...
+- **Layout** - rows, columns, sections, margins, padding, alignment, wrapping, justification
+- **Data** - tables, trees, ordered/unordered lists, key-value pairs
+- **Charts** - line plots, pie, bar, stacked bar, sparklines, heatmaps, box plots
+- **Widgets** - text input, single/multi choice, spinners, progress bars, banners
+- **Borders** - 13 styles + `HasBorder` typeclass + custom borders
+- **Commands** - async tasks, file I/O, HTTP, timers, cursor/title control
+- **Subscriptions** - key input, ticks, file watching, HTTP polling
+- **Cross-platform** - pure Scala, JVM + Native, Scala 2.12 / 2.13 / 3.x
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -52,7 +52,7 @@ import layoutz._
 
 ## Quick Start
 
-**Static rendering** — compose elements, call `.render` to get a String:
+**Static rendering** - compose elements, call `.render` to get a String
 
 <details>
 <summary>show code</summary>
@@ -120,7 +120,7 @@ println(demo.render)
   <img src="pix/main-demo-3.png" width="650">
 </p>
 
-**Interactive apps** — Elm-style TUIs:
+**Interactive apps** - Elm-style TUIs:
 
 ```scala
 import layoutz._
@@ -155,10 +155,13 @@ CounterApp.run
 </p>
 
 ## Why layoutz?
-- There's `s"..."` and [full-blown](https://github.com/oyvindberg/tui-scala) TUI frameworks — but nothing in-between
-- **layoutz** is a tiny declarative DSL: compose `Element`s, call `.render`, get a String
-- Optionally, use the Elm-style runtime (`LayoutzApp`) for interactive TUIs with built-in commands for file I/O, HTTP, key input
-- Or just use it to structure strings — no TUI required
+- We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
+- With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
+- Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
+- Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
+- On the side, **layoutz** also has an Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook.
+   - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler
+- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
 
 ## Core Concepts
 
@@ -173,10 +176,25 @@ elem.putStrLn                 // render + print
 
 Implement `Element` to create custom components that compose with all built-ins.
 
-**Fluent API** — nested and fluent syntax are interchangeable:
+**Fluent API** - some typesetting elements work as both nouns ("an underline") and verbs ("to underline something").
+For these, layoutz offers a fluent syntax with transformations available in infix position via dot-completion.
+Both styles produce the same case classes and render identically:
+
+Nested style:
 ```scala
 margin(">>")(underline()("Hello\nWorld!"))
+```
+
+Fluent style:
+```scala
 "Hello\nWorld!".underline.margin(">>")
+```
+
+Both render:
+```
+>> Hello
+>> World!
+>> ──────
 ```
 
 Available: `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.color()`, `.bg()`, `.style()`, `.border()`
@@ -624,11 +642,18 @@ boxPlot(height = 12)(
 
 #### Heatmap
 ```scala
-heatmap(Seq(
-  Seq(1.0, 2.0, 3.0),
-  Seq(4.0, 5.0, 6.0),
-  Seq(7.0, 8.0, 9.0)
-))
+Heatmap(
+  HeatmapData(
+    rows = Seq(
+      Seq(12.0, 15.0, 22.0, 28.0, 30.0, 25.0, 18.0),
+      Seq(14.0, 18.0, 25.0, 32.0, 35.0, 28.0, 20.0),
+      Seq(10.0, 13.0, 20.0, 26.0, 28.0, 22.0, 15.0)
+    ),
+    rowLabels = Seq("Mon", "Tue", "Wed"),
+    colLabels = Seq("6am", "9am", "12pm", "3pm", "6pm", "9pm", "12am")
+  ),
+  cellWidth = 5
+)
 ```
 <p align="center">
   <img src="pix/chart-heatmap.png" width="500">
