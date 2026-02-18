@@ -705,10 +705,27 @@ def update(msg: Msg, state: State) = msg match {
 
 ### Key Types
 ```scala
+// printable
 Key.Char(c: Char)
-Key.Enter, Key.Backspace, Key.Tab, Key.Escape, Key.Delete
-Key.Up, Key.Down, Key.Left, Key.Right
-Key.Home, Key.End, Key.PageUp, Key.PageDown
+
+// editing
+Key.Enter
+Key.Backspace
+Key.Tab
+Key.Escape
+Key.Delete
+
+// navigation
+Key.Up
+Key.Down
+Key.Left
+Key.Right
+Key.Home
+Key.End
+Key.PageUp
+Key.PageDown
+
+// modifiers
 Key.Ctrl(c: Char)                                // Ctrl+A, Ctrl+S, etc.
 Key.Unknown(code: Int)                           // unrecognized input
 ```
