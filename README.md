@@ -716,13 +716,13 @@ Key.Unknown(code: Int)                           // unrecognized input
 ### Subscriptions
 
 ```scala
-Sub.none                                         // no subscriptions
-Sub.onKeyPress { case Key.Char('q') => Some(Quit) // keyboard input
+Sub.none                                           // no subscriptions
+Sub.onKeyPress { case Key.Char('q') => Some(Quit)  // keyboard input
                  case _ => None }
 Sub.time.everyMs(intervalMs, msg)                  // periodic ticks
-Sub.file.watch(path, onChange)                   // file changes
+Sub.file.watch(path, onChange)                     // file changes
 Sub.http.pollMs(url, intervalMs, onResponse)       // HTTP polling
-Sub.batch(sub1, sub2, ...)                       // combine multiple
+Sub.batch(sub1, sub2, ...)                         // combine multiple
 ```
 
 ```scala
@@ -741,7 +741,7 @@ Cmd.exit                                         // exit the application
 Cmd.batch(cmd1, cmd2, ...)                       // execute multiple commands
 Cmd.task(expr)(toMsg)                            // async task, result as Either
 Cmd.fire(effect)                                 // fire and forget
-Cmd.afterMs(delayMs, msg)                          // one-shot delayed message
+Cmd.afterMs(delayMs, msg)                        // one-shot delayed message
 Cmd.showCursor                                   // show terminal cursor
 Cmd.hideCursor                                   // hide terminal cursor
 Cmd.setTitle(title)                              // set terminal window title
