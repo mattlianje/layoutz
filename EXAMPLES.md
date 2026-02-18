@@ -27,7 +27,7 @@ object LoadingApp extends LayoutzApp[State, Msg] {
       }
   }
 
-  def subscriptions(state: State) = Sub.time.every(50, Tick)
+  def subscriptions(state: State) = Sub.time.everyMs(50, Tick)
 
   def view(state: State) = layout(
     inlineBar("Loading", state.progress),
@@ -92,7 +92,7 @@ FileViewer.run
 ## Stopwatch timer
 
 <details>
-<summary>Custom timer using <code>Sub.time.every</code></summary>
+<summary>Custom timer using <code>Sub.time.everyMs</code></summary>
 
 ```scala
 import layoutz._
@@ -116,10 +116,10 @@ object StopwatchApp extends LayoutzApp[TimerState, Msg] {
   }
 
   def subscriptions(state: TimerState) = Sub.batch(
-    if (state.running) Sub.time.every(1000, Tick) else Sub.none,
+    if (state.running) Sub.time.everyMs(1000, Tick) else Sub.none,
     Sub.onKeyPress {
-      case CharKey(' ') => Some(ToggleTimer)
-      case CharKey('r') => Some(ResetTimer)
+      case Key.Char(' ') => Some(ToggleTimer)
+      case Key.Char('r') => Some(ResetTimer)
       case _ => None
     }
   )
@@ -191,7 +191,7 @@ object SideEffectApp extends LayoutzApp[TaskState, Msg] {
   }
 
   def subscriptions(state: TaskState) = Sub.onKeyPress {
-    case CharKey('r') => Some(RunTask)
+    case Key.Char('r') => Some(RunTask)
     case _ => None
   }
 
@@ -238,7 +238,7 @@ object ApiPoller extends LayoutzApp[ApiState, Msg] {
   }
 
   def subscriptions(state: ApiState) =
-    Sub.http.poll(apiUrl, 3000, ApiResponse)
+    Sub.http.pollMs(apiUrl, 3000, ApiResponse)
 
   def view(state: ApiState) = {
     val display = state.error match {
@@ -291,9 +291,9 @@ object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
   }
 
   def subscriptions(state: MonitorState) = Sub.batch(
-    Sub.http.poll("https://api.github.com/zen", 4000, GithubResp),
-    Sub.http.poll("https://httpbin.org/get", 5000, HttpbinResp),
-    Sub.http.poll("https://jsonplaceholder.typicode.com/posts/1", 6000, PlaceholderResp)
+    Sub.http.pollMs("https://api.github.com/zen", 4000, GithubResp),
+    Sub.http.pollMs("https://httpbin.org/get", 5000, HttpbinResp),
+    Sub.http.pollMs("https://jsonplaceholder.typicode.com/posts/1", 6000, PlaceholderResp)
   )
 
   def view(state: MonitorState) = layout(
@@ -343,7 +343,7 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
   }
 
   def subscriptions(state: FetchState) = Sub.onKeyPress {
-    case CharKey('f') => Some(Fetch)
+    case Key.Char('f') => Some(Fetch)
     case _ => None
   }
 
@@ -442,11 +442,11 @@ object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
   }
 
   def subscriptions(state: TaskState) = Sub.batch(
-    Sub.time.every(100, UpdateTick),
+    Sub.time.everyMs(100, UpdateTick),
     Sub.onKeyPress {
-      case CharKey('w') | ArrowUpKey   => Some(MoveUp)
-      case CharKey('s') | ArrowDownKey => Some(MoveDown)
-      case CharKey(' ') | EnterKey     => Some(StartTask)
+      case Key.Char('w') | Key.Up   => Some(MoveUp)
+      case Key.Char('s') | Key.Down => Some(MoveDown)
+      case Key.Char(' ') | Key.Enter     => Some(StartTask)
       case _                           => None
     }
   )
@@ -535,12 +535,12 @@ object FormApp extends LayoutzApp[FormState, Msg] {
   }
 
   def subscriptions(state: FormState) = Sub.onKeyPress {
-    case CharKey(' ') if state.field == 2 => Some(Toggle)
-    case CharKey(c) if c.isLetterOrDigit || c == ' ' => Some(TypeChar(c))
-    case BackspaceKey => Some(Backspace)
-    case ArrowUpKey => Some(MoveUp)
-    case ArrowDownKey => Some(MoveDown)
-    case TabKey | EnterKey => Some(NextField)
+    case Key.Char(' ') if state.field == 2 => Some(Toggle)
+    case Key.Char(c) if c.isLetterOrDigit || c == ' ' => Some(TypeChar(c))
+    case Key.Backspace => Some(Backspace)
+    case Key.Up => Some(MoveUp)
+    case Key.Down => Some(MoveDown)
+    case Key.Tab | Key.Enter => Some(NextField)
     case _ => None
   }
 

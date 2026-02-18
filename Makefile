@@ -1,10 +1,10 @@
-.PHONY: compile test test-jvm test-native publish-local bundle clean fmt fmt-check repl repl2
+.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2
 
 VERSION := 0.6.0
 BUNDLE_DIR := bundles
 GPG_KEY := F36FE8EEBD829E6CF1A5ADB6246482D1268EDC6E
 
-# Compile all versions (JVM + Native)
+# Compile all versions (JVM + JS + Native)
 compile:
 	./mill layoutz.__.compile
 
@@ -14,10 +14,13 @@ repl:
 repl2:
 	./mill -i layoutz.jvm[2.13.16].console
 
-test: test-jvm test-native
+test: test-jvm test-js test-native
 
 test-jvm:
 	./mill layoutz.jvm.__.test
+
+test-js:
+	./mill layoutz.js.__.test
 
 test-native:
 	./mill layoutz.native.__.test
@@ -39,7 +42,7 @@ bundle:
 	@echo "Building publish artifacts..."
 	@./mill show layoutz.__.publishArtifacts > /dev/null
 	@rm -rf $(BUNDLE_DIR) && mkdir -p $(BUNDLE_DIR)/xyz/matthieucourt
-	@for platform in jvm native; do \
+	@for platform in jvm js native; do \
 		for scalaVer in 2.12.20 2.13.16 3.5.2; do \
 			artifactId=$$(./mill show layoutz.$$platform[$$scalaVer].artifactId 2>/dev/null | tr -d '"'); \
 			dir=$(BUNDLE_DIR)/xyz/matthieucourt/$$artifactId/$(VERSION); \

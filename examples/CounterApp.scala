@@ -14,9 +14,9 @@ object CounterApp extends LayoutzApp[Int, String] {
   // subscriptions: Model -> Sub Msg
   def subscriptions(count: Int) =
     Sub.onKeyPress {
-      case CharKey('+') => Some("inc")
-      case CharKey('-') => Some("dec")
-      case _            => None
+      case Key.Char('+') => Some("inc")
+      case Key.Char('-') => Some("dec")
+      case _             => None
     }
 
   // view: Model -> Html Msg

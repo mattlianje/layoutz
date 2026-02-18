@@ -9,17 +9,16 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 Extend the `Element` trait to create your own primitives - no component-library limitations.
 
 ## Features
-- **Elm Architecture** - Model-Update-View via `LayoutzApp[State, Message]`
-- **Composable** - everything is an `Element`, everything composes
-- **Colors** - foreground, background, 256-color, true color, bold/dim/italic/reverse/...
-- **Layout** - rows, columns, sections, margins, padding, alignment, wrapping, justification
-- **Data** - tables, trees, ordered/unordered lists, key-value pairs
-- **Charts** - line plots, pie, bar, stacked bar, sparklines, heatmaps, box plots
-- **Widgets** - text input, single/multi choice, spinners, progress bars, banners
-- **Borders** - 13 styles + `HasBorder` typeclass + custom borders
-- **Commands** - async tasks, file I/O, HTTP, timers, cursor/title control
-- **Subscriptions** - key input, ticks, file watching, HTTP polling
-- **Cross-platform** - pure Scala, JVM + Native, Scala 2.12 / 2.13 / 3.x
+- Pure Scala, zero dependencies - JVM + Native, Scala 2.12 / 2.13 / 3.x
+- Everything is an `Element` - compose, nest, extend, `.render` to `String`
+- Elm Architecture TUIs via `LayoutzApp[State, Message]`
+- Layout primitives - rows, columns, margins, padding, alignment, wrapping
+- Colors and styles - ANSI 16/256/true color, bold, dim, italic, reverse, ...
+- 13 border styles - `HasBorder` typeclass
+- Tables, trees, lists - nested, ordered/unordered, CJK-aware
+- Terminal charts - line plots, pie, bar, sparklines, heatmaps, box plots
+- Widgets - text input, single/multi choice, spinners, progress bars
+- Commands and subscriptions - async tasks, file I/O, HTTP, timers, key input
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -136,9 +135,9 @@ object CounterApp extends LayoutzApp[Int, String] {
 
   def subscriptions(count: Int) =
     Sub.onKeyPress {
-      case CharKey('+') => Some("inc")
-      case CharKey('-') => Some("dec")
-      case _            => None
+      case Key.Char('+') => Some("inc")
+      case Key.Char('-') => Some("dec")
+      case _             => None
     }
 
   def view(count: Int) = layout(
@@ -642,6 +641,13 @@ boxPlot(height = 12)(
 
 #### Heatmap
 ```scala
+heatmap(Seq(
+  Seq(1.0, 2.0, 3.0),
+  Seq(4.0, 5.0, 6.0),
+  Seq(7.0, 8.0, 9.0)
+))
+
+/* With labels and settings */
 Heatmap(
   HeatmapData(
     rows = Seq(
@@ -695,29 +701,31 @@ def update(msg: Msg, state: State) = msg match {
 
 ### Key Types
 ```scala
-CharKey(c: Char)
-EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
-ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
-SpecialKey(name: String)                         // Ctrl+Q, Ctrl+S, etc.
+Key.Char(c: Char)
+Key.Enter, Key.Backspace, Key.Tab, Key.Escape, Key.Delete
+Key.Up, Key.Down, Key.Left, Key.Right
+Key.Home, Key.End, Key.PageUp, Key.PageDown
+Key.Ctrl(c: Char)                                // Ctrl+A, Ctrl+S, etc.
+Key.Unknown(code: Int)                           // unrecognized input
 ```
 
 ### Subscriptions
 
 ```scala
 Sub.none                                         // no subscriptions
-Sub.onKeyPress { case CharKey('q') => Some(Quit) // keyboard input
+Sub.onKeyPress { case Key.Char('q') => Some(Quit) // keyboard input
                  case _ => None }
-Sub.time.every(intervalMs, msg)                  // periodic ticks
+Sub.time.everyMs(intervalMs, msg)                  // periodic ticks
 Sub.file.watch(path, onChange)                   // file changes
-Sub.http.poll(url, intervalMs, onResponse)       // HTTP polling
+Sub.http.pollMs(url, intervalMs, onResponse)       // HTTP polling
 Sub.batch(sub1, sub2, ...)                       // combine multiple
 ```
 
 ```scala
 def subscriptions(state: State) = Sub.batch(
-  Sub.time.every(100, Tick),
+  Sub.time.everyMs(100, Tick),
   Sub.file.watch("config.json", ConfigChanged),
-  Sub.onKeyPress { case CharKey('q') => Some(Quit); case _ => None }
+  Sub.onKeyPress { case Key.Char('q') => Some(Quit); case _ => None }
 )
 ```
 
@@ -729,7 +737,7 @@ Cmd.exit                                         // exit the application
 Cmd.batch(cmd1, cmd2, ...)                       // execute multiple commands
 Cmd.task(expr)(toMsg)                            // async task, result as Either
 Cmd.fire(effect)                                 // fire and forget
-Cmd.after(delayMs, msg)                          // one-shot delayed message
+Cmd.afterMs(delayMs, msg)                          // one-shot delayed message
 Cmd.showCursor                                   // show terminal cursor
 Cmd.hideCursor                                   // hide terminal cursor
 Cmd.setTitle(title)                              // set terminal window title
@@ -743,7 +751,7 @@ Cmd.http.post(url, body, onResult, headers)      // HTTP POST
 
 ## Examples
 
-See [EXAMPLES.md](EXAMPLES.md) for full interactive app examples:
+See [examples](EXAMPLES.md) for full interactive app examples:
 - Self-terminating loading bar
 - File viewer with auto-reload
 - Stopwatch timer
