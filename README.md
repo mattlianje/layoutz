@@ -690,7 +690,7 @@ app.run(
   clearOnExit      = true,             // clear screen on quit
   showQuitMessage  = false,            // display quit hint
   quitMessage      = "Ctrl+Q to quit", // custom quit text
-  quitKey          = 17,               // Ctrl+Q (ASCII 17)
+  quitKey          = Key.Ctrl('Q'),    // quit on this key
   alignment        = Alignment.Left    // Left | Center | Right
 )
 ```

@@ -195,7 +195,7 @@ object Alignment {
 private[layoutz] case class RuntimeConfig(
     tickIntervalMs: Long,
     renderIntervalMs: Long,
-    quitKey: Int,
+    quitKey: Key,
     showQuitMessage: Boolean,
     quitMessage: String,
     clearOnStart: Boolean,
@@ -389,7 +389,7 @@ trait LayoutzApp[State, Message] {
   def run(
       tickIntervalMs: Long = 100,
       renderIntervalMs: Long = 50,
-      quitKey: Int = 17,
+      quitKey: Key = Key.Ctrl('Q'),
       showQuitMessage: Boolean = false,
       quitMessage: String = "Press Ctrl+Q to quit",
       clearOnStart: Boolean = true,
@@ -731,10 +731,10 @@ private[layoutz] object LayoutzRuntime {
       while (shouldContinue)
         try {
           val input = terminal.readInput()
-          if (input == config.quitKey) {
+          val key = KeyParser.parse(input, terminal)
+          if (key == config.quitKey) {
             shouldContinue = false
           } else {
-            val key = KeyParser.parse(input, terminal)
             /* Uses the current subscription's key handler */
             getKeyPressHandler().foreach { handler =>
               handler(key).foreach(updateState)

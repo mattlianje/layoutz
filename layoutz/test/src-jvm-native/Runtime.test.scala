@@ -352,7 +352,7 @@ class RuntimeSpecs extends munit.FunSuite {
     val config = RuntimeConfig(
       tickIntervalMs = 50,
       renderIntervalMs = 10,
-      quitKey = 17,
+      quitKey = Key.Ctrl('Q'),
       showQuitMessage = false,
       quitMessage = "",
       clearOnStart = false,

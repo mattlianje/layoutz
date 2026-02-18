@@ -1,7 +1,7 @@
 package build
 import mill._, scalalib._, scalanativelib._, scalajslib._, publish._
 
-val scalaVersions      = Seq("2.12.20", "2.13.16", "3.5.2")
+val scalaVersions      = Seq("2.12.17", "2.13.10", "3.3.7")
 val scalaNativeVersion = "0.5.9"
 val scalaJSVersion     = "1.20.2"
 
