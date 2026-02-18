@@ -684,10 +684,14 @@ Three daemon threads coordinate rendering (~50ms), tick/timers, and input captur
 
 ```scala
 app.run(
-  clearOnStart = false,
-  clearOnExit = false,
-  showQuitMessage = true,
-  alignment = Alignment.Center
+  tickIntervalMs   = 100,              // subscription polling rate
+  renderIntervalMs = 50,               // screen refresh rate
+  clearOnStart     = true,             // clear screen on launch
+  clearOnExit      = true,             // clear screen on quit
+  showQuitMessage  = false,            // display quit hint
+  quitMessage      = "Ctrl+Q to quit", // custom quit text
+  quitKey          = 17,               // Ctrl+Q (ASCII 17)
+  alignment        = Alignment.Left    // Left | Center | Right
 )
 ```
 
