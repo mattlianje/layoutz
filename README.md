@@ -9,16 +9,13 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 Extend the `Element` trait to create your own primitives - no component-library limitations.
 
 ## Features
-- Pure Scala, zero dependencies - JVM + Native, Scala 2.12 / 2.13 / 3.x
-- Everything is an `Element` - compose, nest, extend, `.render` to `String`
-- Elm Architecture TUIs via `LayoutzApp[State, Message]`
-- Layout primitives - rows, columns, margins, padding, alignment, wrapping
-- Colors and styles - ANSI 16/256/true color, bold, dim, italic, reverse, ...
-- 13 border styles - `HasBorder` typeclass
-- Tables, trees, lists - nested, ordered/unordered, CJK-aware
-- Terminal charts - line plots, pie, bar, sparklines, heatmaps, box plots
-- Widgets - text input, single/multi choice, spinners, progress bars
-- Commands and subscriptions - async tasks, file I/O, HTTP, timers, key input
+- Pure Scala, zero dependencies
+- Elm-style TUI's w/ LayoutzApp
+- Layout primitives + tables, trees, lists, CJK-aware
+- Colors and ANSI styles
+- Built-in terminal charts + plots
+- Widgets - text input, spinners, progress bars
+- Batteries included commands - async tasks, file I/O, HTTP, timers, key input
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
@@ -38,7 +35,7 @@ Extend the `Element` trait to create your own primitives - no component-library 
 - [Examples](#examples)
 
 ## Installation
-On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM and Native):
+On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):
 ```scala
 "xyz.matthieucourt" %% "layoutz" % "0.6.0"
 ```
@@ -51,41 +48,17 @@ import layoutz._
 
 ## Quick Start
 
-**Static rendering** - compose elements, call `.render` to get a String
+There are two usage paths with this little package:
+
+**(1/2) Static rendering**
+
+Beautiful + compositional strings
 
 <details>
 <summary>show code</summary>
 
 ```scala
 import layoutz._
-
-case class TypeError(
-    file: String, line: Int, prefix: String,
-    bad: String, expected: String, found: String, hint: String
-)
-
-def typeError(e: TypeError): Element = {
-  val ln = e.line.toString
-  val bar = "│".color(Color.Cyan)
-  layout(
-    rowTight(
-      "── TYPE MISMATCH ".color(Color.Cyan),
-      s"${e.file}:${e.line}".style(Style.Dim),
-      " ────────".color(Color.Cyan)
-    ),
-    rowTight(ln.color(Color.Cyan), space, bar, space, e.prefix, e.bad),
-    rowTight(
-      space(ln.length + 1), bar, space, space(e.prefix.length),
-      ("^" * e.bad.length + " ").color(Color.Red),
-      "expected ", e.expected.color(Color.Green),
-      ", found ", e.found.color(Color.Red)
-    ),
-    rowTight(
-      space(ln.length + 1), bar, space,
-      "hint: ".color(Color.Cyan), e.hint
-    )
-  )
-}
 
 val demo = layout(
   underline("─", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
@@ -98,28 +71,28 @@ val demo = layout(
   box("Composition")(
     columns(
       plot(width = 30, height = 8)(
-        Series((0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 3)), "sin").color(Color.Cyan),
-        Series((0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 3)), "cos").color(Color.Magenta)
+        Series((0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 3)), "sin") .color(Color.Cyan),
+        Series((0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 3)), "cos") .color(Color.Magenta)
       ),
       tree("src")(
         tree("main")(tree("App.scala")),
         tree("test")(tree("AppSpec.scala"))
       )
     )
-  ).border(Border.Round).center(),
-  "",
-  typeError(TypeError("Foo.scala", 42, "val x: Int = ", "getName()", "Int", "String", "try `.toInt`"))
+  ).border(Border.Round).center()
 )
 
-println(demo.render)
+demo.putStrLn
 ```
 
 </details>
 <p align="center">
-  <img src="pix/main-demo-3.png" width="650">
+  <img src="pix/main-demo-4.png" width="650">
 </p>
 
-**Interactive apps** - Elm-style TUIs:
+**(2/2) Interactive apps**
+
+Build Elm-style TUIs
 
 ```scala
 import layoutz._
@@ -175,7 +148,9 @@ elem.putStrLn                 // render + print
 
 Implement `Element` to create custom components that compose with all built-ins.
 
-**Fluent API** - some typesetting elements work as both nouns ("an underline") and verbs ("to underline something").
+### Fluent API
+
+Some typesetting elements work as both nouns ("an underline") and verbs ("to underline something").
 For these, layoutz offers a fluent syntax with transformations available in infix position via dot-completion.
 Both styles produce the same case classes and render identically:
 
@@ -203,17 +178,17 @@ Available: `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.ma
 ### Text, Layout & Spacing
 
 ```scala
-"Simple text"                                // implicit Text conversion
-layout("First", "Second", "Third")           // vertical join
-row("Left", "Middle", "Right")               // horizontal join
-columns(layout("A", "B"), layout("C", "D"))  // side-by-side columns
-section("Config")(kv("env" -> "prod"))       // titled section
-br                                           // line break
-hr                                           // horizontal rule ──────
+"Simple text"                                // Implicit Text conversion
+layout("First", "Second", "Third")           // Vertical join
+row("Left", "Middle", "Right")               // Horizontal join
+columns(layout("A", "B"), layout("C", "D"))  // Side-by-side columns
+section("Config")(kv("env" -> "prod"))       // Titled section
+br                                           // Line break
+hr                                           // Horizontal rule ──────
 hr.width(10).char("~")                       // ~~~~~~~~~~
-space(10)                                    // horizontal spacing
-empty                                        // no-op (conditional rendering)
-vr(3)                                        // vertical rule │
+space(10)                                    // Horizontal spacing
+empty                                        // No-op (conditional rendering)
+vr(3)                                        // Vertical rule │
 ```
 
 ### Key-Value Pairs, Tables
@@ -246,28 +221,24 @@ role : admin
 ### Lists
 
 ```scala
-ol("First", "Second", "Third")
-ol("Setup", ol("Install", "Configure"), "Deploy")
+ol("Setup", ol("Install deps", ol("npm", "pip"), "Configure"), "Deploy")
 
-ul("Feature A", "Feature B")
-ul("Backend", ul("API", "DB"), "Frontend")
+ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
+
 ul("→")("Custom", "Bullets")
 ```
 ```
-1. First
-2. Second
-3. Third
-
 1. Setup
-  a. Install
+  a. Install deps
+    i. npm
+    ii. pip
   b. Configure
 2. Deploy
 
-• Feature A
-• Feature B
-
 • Backend
   ◦ API
+    ▪ REST
+    ▪ GraphQL
   ◦ DB
 • Frontend
 
@@ -445,7 +416,7 @@ box()("warning").bg(Color.Yellow)
 </p>
 
 ```scala
-Color.Black                   // standard 8
+Color.Black
 Color.Red
 Color.Green
 Color.Yellow
@@ -453,7 +424,7 @@ Color.Blue
 Color.Magenta
 Color.Cyan
 Color.White
-Color.BrightBlack             // bright 8
+Color.BrightBlack             // Bright 8
 Color.BrightRed
 Color.BrightGreen
 Color.BrightYellow
@@ -463,7 +434,7 @@ Color.BrightCyan
 Color.BrightWhite
 Color.Full(196)               // 256-color palette (0-255)
 Color.True(255, 128, 0)       // 24-bit RGB
-Color.NoColor                 // conditional no-op
+Color.NoColor                 // Conditional no-op
 ```
 
 ```scala
@@ -533,7 +504,7 @@ Border.Markdown                            // |-|
 Border.Custom(corner = "+", horizontal = "=", vertical = "|")
 Border.None                                // no borders
 
-// applied via .border()
+// Applied via .border()
 box("Title")("content").border(Border.Round)
 table(h, r).border(Border.Thick)
 
@@ -684,13 +655,13 @@ Three daemon threads coordinate rendering (~50ms), tick/timers, and input captur
 
 ```scala
 app.run(
-  tickIntervalMs   = 100,              // subscription polling rate
-  renderIntervalMs = 50,               // screen refresh rate
-  clearOnStart     = true,             // clear screen on launch
-  clearOnExit      = true,             // clear screen on quit
-  showQuitMessage  = false,            // display quit hint
-  quitMessage      = "Ctrl+Q to quit", // custom quit text
-  quitKey          = Key.Ctrl('Q'),    // quit on this key
+  tickIntervalMs   = 100,              // Subscription polling rate
+  renderIntervalMs = 50,               // Screen refresh rate
+  clearOnStart     = true,             // Clear screen on launch
+  clearOnExit      = true,             // Clear screen on quit
+  showQuitMessage  = false,            // Display quit hint
+  quitMessage      = "Ctrl+Q to quit", // Custom quit text
+  quitKey          = Key.Ctrl('Q'),    // Quit on this key
   alignment        = Alignment.Left    // Left | Center | Right
 )
 ```
@@ -705,17 +676,17 @@ def update(msg: Msg, state: State) = msg match {
 
 ### Key Types
 ```scala
-// printable
+// Printable
 Key.Char(c: Char)
 
-// editing
+// Editing
 Key.Enter
 Key.Backspace
 Key.Tab
 Key.Escape
 Key.Delete
 
-// navigation
+// Navigation
 Key.Up
 Key.Down
 Key.Left
@@ -725,21 +696,21 @@ Key.End
 Key.PageUp
 Key.PageDown
 
-// modifiers
+// Modifiers
 Key.Ctrl(c: Char)                                // Ctrl+A, Ctrl+S, etc.
-Key.Unknown(code: Int)                           // unrecognized input
+Key.Unknown(code: Int)                           // Unrecognized input
 ```
 
 ### Subscriptions
 
 ```scala
-Sub.none                                           // no subscriptions
-Sub.onKeyPress { case Key.Char('q') => Some(Quit)  // keyboard input
+Sub.none                                           // No subscriptions
+Sub.onKeyPress { case Key.Char('q') => Some(Quit)  // Keyboard input
                  case _ => None }
-Sub.time.everyMs(intervalMs, msg)                  // periodic ticks
-Sub.file.watch(path, onChange)                     // file changes
+Sub.time.everyMs(intervalMs, msg)                  // Periodic ticks
+Sub.file.watch(path, onChange)                     // File changes
 Sub.http.pollMs(url, intervalMs, onResponse)       // HTTP polling
-Sub.batch(sub1, sub2, ...)                         // combine multiple
+Sub.batch(sub1, sub2, ...)                         // Combine multiple
 ```
 
 ```scala
@@ -753,19 +724,19 @@ def subscriptions(state: State) = Sub.batch(
 ### Commands
 
 ```scala
-Cmd.none                                         // no-op (default)
-Cmd.exit                                         // exit the application
-Cmd.batch(cmd1, cmd2, ...)                       // execute multiple commands
-Cmd.task(expr)(toMsg)                            // async task, result as Either
-Cmd.fire(effect)                                 // fire and forget
-Cmd.afterMs(delayMs, msg)                        // one-shot delayed message
-Cmd.showCursor                                   // show terminal cursor
-Cmd.hideCursor                                   // hide terminal cursor
-Cmd.setTitle(title)                              // set terminal window title
-Cmd.file.read(path, onResult)                    // read file
-Cmd.file.write(path, content, onResult)          // write file
-Cmd.file.ls(path, onResult)                      // list directory
-Cmd.file.cwd(onResult)                           // get working directory
+Cmd.none                                         // No-op (default)
+Cmd.exit                                         // Exit the application
+Cmd.batch(cmd1, cmd2, ...)                       // Execute multiple commands
+Cmd.task(expr)(toMsg)                            // Async task, result as Either
+Cmd.fire(effect)                                 // Fire and forget
+Cmd.afterMs(delayMs, msg)                        // One-shot delayed message
+Cmd.showCursor                                   // Show terminal cursor
+Cmd.hideCursor                                   // Hide terminal cursor
+Cmd.setTitle(title)                              // Set terminal window title
+Cmd.file.read(path, onResult)                    // Read file
+Cmd.file.write(path, content, onResult)          // Write file
+Cmd.file.ls(path, onResult)                      // List directory
+Cmd.file.cwd(onResult)                           // Get working directory
 Cmd.http.get(url, onResult, headers)             // HTTP GET
 Cmd.http.post(url, body, onResult, headers)      // HTTP POST
 ```
@@ -786,3 +757,4 @@ See [examples](EXAMPLES.md) for full interactive app examples:
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
 - Go's [bubbletea](https://github.com/charmbracelet/bubbletea)
+- Countless templating libs via osmosis

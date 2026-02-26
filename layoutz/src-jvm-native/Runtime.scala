@@ -236,7 +236,7 @@ class SttyTerminal private () extends Terminal {
 
   def enterRawMode(): Unit = {
     originalStty = stty("-g").trim
-    stty("-echo -icanon min 1")
+    stty("-echo -icanon -ixon min 1")
   }
 
   def exitRawMode(): Unit = if (originalStty.nonEmpty) stty(originalStty)

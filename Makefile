@@ -9,10 +9,10 @@ compile:
 	./mill layoutz.__.compile
 
 repl:
-	./mill -i layoutz.jvm[3.5.2].console
+	./mill -i layoutz.jvm[3.3.7].console
 
 repl2:
-	./mill -i layoutz.jvm[2.13.16].console
+	./mill -i layoutz.jvm[2.13.11].console
 
 test: test-jvm test-js test-native
 
@@ -43,7 +43,7 @@ bundle:
 	@./mill show layoutz.__.publishArtifacts > /dev/null
 	@rm -rf $(BUNDLE_DIR) && mkdir -p $(BUNDLE_DIR)/xyz/matthieucourt
 	@for platform in jvm js native; do \
-		for scalaVer in 2.12.20 2.13.16 3.5.2; do \
+		for scalaVer in 2.12.18 2.13.11 3.3.7; do \
 			artifactId=$$(./mill show layoutz.$$platform[$$scalaVer].artifactId 2>/dev/null | tr -d '"'); \
 			dir=$(BUNDLE_DIR)/xyz/matthieucourt/$$artifactId/$(VERSION); \
 			mkdir -p $$dir; \
