@@ -640,7 +640,8 @@ Options: `cellWidth`, `cellHeight`, `showLegend`, row/column labels via `Heatmap
 
 ## Interactive Apps
 
-`LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/):
+`LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
+view is simply a `layoutz.Element`
 
 ```scala
 trait LayoutzApp[State, Message] {
