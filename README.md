@@ -10,9 +10,9 @@ Extend the `Element` trait to create your own primitives - no component-library 
 
 ## Features
 - Pure Scala, zero dependencies
-- Elm-style TUI's w/ LayoutzApp
-- Layout primitives + tables, trees, lists, CJK-aware
-- Colors and ANSI styles
+- Elm-style TUI's w/ [`LayoutzApp`](#interactive-apps)
+- Layout primitives + tables, trees, lists, CJK-aware + [`HasBorder`](#border-styles) typeclass
+- [Colors](#colors) and [ANSI styles](#styles)
 - Built-in terminal charts + plots
 - Widgets - text input, spinners, progress bars
 - Batteries included commands - async tasks, file I/O, HTTP, timers, key input
