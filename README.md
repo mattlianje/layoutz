@@ -60,6 +60,50 @@ Beautiful + compositional strings
 ```scala
 import layoutz._
 
+/* Model your domain as usual */
+case class TypeError(
+    file: String,
+    line: Int,
+    prefix: String,
+    bad: String,
+    expected: String,
+    found: String,
+    hint: String
+)
+
+/* Bridge to layoutz with tiny pure functions using layoutz `Element`s */
+def typeError(e: TypeError): Element = {
+  val ln = e.line.toString
+  val bar = "│".color(Color.Cyan)
+  layout(
+    rowTight(
+      "── TYPE MISMATCH ".color(Color.Cyan),
+      s"${e.file}:${e.line}".style(Style.Dim),
+      " ────────".color(Color.Cyan)
+    ),
+    rowTight(ln.color(Color.Cyan), space, bar, space, e.prefix, e.bad),
+    rowTight(
+      space(ln.length + 1),
+      bar,
+      space,
+      space(e.prefix.length),
+      ("^" * e.bad.length + " ").color(Color.Red),
+      "expected ",
+      e.expected.color(Color.Green),
+      ", found ",
+      e.found.color(Color.Red)
+    ),
+    rowTight(
+      space(ln.length + 1),
+      bar,
+      space,
+      "hint: ".color(Color.Cyan),
+      e.hint
+    )
+  )
+}
+
+/* Compose and nest at will */
 val demo = layout(
   underline("─", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
   row(
@@ -71,23 +115,40 @@ val demo = layout(
   box("Composition")(
     columns(
       plot(width = 30, height = 8)(
-        Series((0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 3)), "sin") .color(Color.Cyan),
-        Series((0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 3)), "cos") .color(Color.Magenta)
+        Series((0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 3)), "sin").color(Color.Cyan),
+        Series((0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 3)), "cos").color(Color.Magenta)
       ),
       tree("src")(
-        tree("main")(tree("App.scala")),
-        tree("test")(tree("AppSpec.scala"))
+        tree("main")(
+          tree("App.scala")
+        ),
+        tree("test")(
+          tree("AppSpec.scala")
+        )
       )
     )
-  ).border(Border.Round).center()
+  ).border(Border.Round).center(),
+  "",
+  typeError(
+    TypeError(
+      "Foo.scala",
+      42,
+      "val x: Int = ",
+      "getName()",
+      "Int",
+      "String",
+      "try `.toInt`"
+    )
+  )
 )
 
-demo.putStrLn
+/* Get pretty strings with `render` */
+println(demo.render)
 ```
 
 </details>
 <p align="center">
-  <img src="pix/main-demo-4.png" width="650">
+  <img src="pix/main-demo-3.png" width="650">
 </p>
 
 **(2/2) Interactive apps**
