@@ -9,13 +9,13 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 Extend the `Element` trait to create your own primitives - no component-library limitations.
 
 ## Features
-- Pure Scala, zero dependencies
-- Elm-style TUI's w/ [`LayoutzApp`](#interactive-apps)
-- Layout primitives + tables, trees, lists, CJK-aware + [`HasBorder`](#border-styles) typeclass
+- Pure Scala, zero-deps — cross-platform: JVM, JS, Native
+- Elm-style TUI's w/ [LayoutzApp](#interactive-apps)
+- [Layout primitives](#elements) + tables, trees, lists, CJK-aware + [HasBorder](#border-styles) typeclass
 - [Colors](#colors) and [ANSI styles](#styles)
-- Built-in terminal charts + plots
-- Widgets - text input, spinners, progress bars
-- Batteries included commands - async tasks, file I/O, HTTP, timers, key input
+- Built-in terminal [charts & plots](#charts--plots)
+- [Widgets](#progress-spinners--form-widgets) — text input, spinners, progress bars
+- Batteries included [commands](#commands) — async tasks, file I/O, HTTP, timers, key input
 
 <p align="center">
 <img src="pix/layoutzapp-demo.gif" height="350"><img src="pix/game-demo.gif" height="350">
