@@ -187,16 +187,16 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
   def subscriptions(state: GameState): Sub[GameMessage] =
     Sub.batch(
       // Subscribe to time updates (for enemy movement and game updates)
-      Sub.time.every(100, GameTick),
+      Sub.time.everyMs(100, GameTick),
 
       // Subscribe to keyboard input
       Sub.onKeyPress {
-        case CharKey('w') | CharKey('W') | ArrowUpKey    => Some(GameMoveUp)
-        case CharKey('s') | CharKey('S') | ArrowDownKey  => Some(GameMoveDown)
-        case CharKey('a') | CharKey('A') | ArrowLeftKey  => Some(GameMoveLeft)
-        case CharKey('d') | CharKey('D') | ArrowRightKey => Some(GameMoveRight)
-        case CharKey('r') | CharKey('R')                 => Some(RestartGame)
-        case _                                           => None
+        case Key.Char('w') | Key.Char('W') | Key.Up    => Some(GameMoveUp)
+        case Key.Char('s') | Key.Char('S') | Key.Down  => Some(GameMoveDown)
+        case Key.Char('a') | Key.Char('A') | Key.Left  => Some(GameMoveLeft)
+        case Key.Char('d') | Key.Char('D') | Key.Right => Some(GameMoveRight)
+        case Key.Char('r') | Key.Char('R')             => Some(RestartGame)
+        case _                                         => None
       }
     )
 

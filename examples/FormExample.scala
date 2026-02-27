@@ -74,7 +74,7 @@ object FormExample extends LayoutzApp[FormState, FormMsg] {
 
   def subscriptions(state: FormState) = Sub.onKeyPress { key =>
     // Space toggles in multi-choice - handle this first!
-    (if (state.activeField == 2 && key == CharKey(' ')) Some(ToggleSelection)
+    (if (state.activeField == 2 && key == Key.Char(' ')) Some(ToggleSelection)
      else None)
       // Check if name field handled the key
       .orElse(
@@ -82,13 +82,13 @@ object FormExample extends LayoutzApp[FormState, FormMsg] {
       )
       // Otherwise check other keys
       .orElse(key match {
-        case TabKey                                 => Some(NextField)
-        case CharKey('n') if state.activeField != 0 => Some(NextField)
-        case CharKey('p') if state.activeField != 0 => Some(PrevField)
-        case ArrowUpKey | CharKey('k')              => Some(FormMoveUp)
-        case ArrowDownKey | CharKey('j')            => Some(FormMoveDown)
-        case EnterKey                               => Some(Submit)
-        case _                                      => None
+        case Key.Tab                                 => Some(NextField)
+        case Key.Char('n') if state.activeField != 0 => Some(NextField)
+        case Key.Char('p') if state.activeField != 0 => Some(PrevField)
+        case Key.Up | Key.Char('k')                  => Some(FormMoveUp)
+        case Key.Down | Key.Char('j')                => Some(FormMoveDown)
+        case Key.Enter                               => Some(Submit)
+        case _                                       => None
       })
   }
 

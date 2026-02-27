@@ -59,7 +59,7 @@ object LoadingApp extends LayoutzApp[LoadingState, LoadingMsg] {
       }
   }
 
-  def subscriptions(state: LoadingState) = Sub.time.every(50, Tick)
+  def subscriptions(state: LoadingState) = Sub.time.everyMs(50, Tick)
 
   def view(state: LoadingState) = {
     val completed = state.completedTasks.map(t => Text(s"[==========] $t"))

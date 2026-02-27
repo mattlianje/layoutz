@@ -13,11 +13,7 @@
 
 package object layoutz {
 
-  import scala.concurrent.{Future, ExecutionContext}
   import scala.language.implicitConversions
-  import scala.io.Source
-  import scala.util.Try
-  import java.io.{PrintWriter, File}
 
   type Width = Int
   type Height = Int
@@ -154,6 +150,7 @@ package object layoutz {
       Margin(prefix.render, Seq(this), Some(color))
     final def color(c: Color): Colored = Colored(c, this)
     final def style(s: Style): Styled = Styled(s, this)
+    final def bg(c: Color): BgColored = BgColored(c, this)
     final def putStrLn: Unit = println(render)
 
   }
@@ -194,11 +191,24 @@ package object layoutz {
   sealed trait Color {
     def code: String
 
+    /** Derive background ANSI code from foreground code */
+    def bgCode: String = code match {
+      case ""                       => ""
+      case c if c.startsWith("38;") => "48" + c.drop(2)
+      case c                        => (c.toInt + 10).toString
+    }
+
     /** Apply this color to an element */
     def apply(element: Element): Colored = Colored(this, element)
 
     /** Apply this color to a string (auto-converts to Text) */
     def apply(text: String): Colored = Colored(this, Text(text))
+
+    /** Apply this color as background to an element */
+    def bg(element: Element): BgColored = BgColored(this, element)
+
+    /** Apply this color as background to a string (auto-converts to Text) */
+    def bg(text: String): BgColored = BgColored(this, Text(text))
   }
 
   object Color {
@@ -285,18 +295,47 @@ package object layoutz {
     if (color.code.isEmpty) content
     else "\u001b[" + color.code + "m" + content + "\u001b[0m"
 
+  /** Wrap text with ANSI background color codes */
+  private def wrapBgAnsi(color: Color, content: String): String =
+    if (color.bgCode.isEmpty) content
+    else "\u001b[" + color.bgCode + "m" + content + "\u001b[0m"
+
   /** Wrap text with ANSI style codes */
   private def wrapStyle(style: Style, content: String): String =
     if (style.code.isEmpty) content
     else "\u001b[" + style.code + "m" + content + "\u001b[0m"
+
+  /** Re-apply an ANSI code after every inner reset so nested colors don't break the outer wrapper */
+  private def reapplyAfterResets(ansiPrefix: String, line: String): String =
+    if (ansiPrefix.isEmpty) line
+    else ansiPrefix + line.replace("\u001b[0m", "\u001b[0m" + ansiPrefix) + "\u001b[0m"
 
   /** Element wrapper that applies color to its content */
   final case class Colored(color: Color, element: Element) extends Element {
 
     def render: String = {
       val rendered = element.render
-      val lines = rendered.split('\n')
-      lines.map(line => wrapAnsi(color, line)).mkString("\n")
+      if (color.code.isEmpty) rendered
+      else {
+        val prefix = "\u001b[" + color.code + "m"
+        val lines = rendered.split('\n')
+        lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
+      }
+    }
+
+  }
+
+  /** Element wrapper that applies background color to its content */
+  final case class BgColored(color: Color, element: Element) extends Element {
+
+    def render: String = {
+      val rendered = element.render
+      if (color.bgCode.isEmpty) rendered
+      else {
+        val prefix = "\u001b[" + color.bgCode + "m"
+        val lines = rendered.split('\n')
+        lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
+      }
     }
 
   }
@@ -311,13 +350,16 @@ package object layoutz {
       style match {
         case combined: CombinedStyle =>
           val styles = combined.flatten
+          val prefix = styles.map(s => "\u001b[" + s.code + "m").mkString
           lines
-            .map { line =>
-              styles.foldLeft(line)((acc, s) => wrapStyle(s, acc))
-            }
+            .map(line => if (prefix.isEmpty) line else reapplyAfterResets(prefix, line))
             .mkString("\n")
         case _ =>
-          lines.map(line => wrapStyle(style, line)).mkString("\n")
+          if (style.code.isEmpty) rendered
+          else {
+            val prefix = "\u001b[" + style.code + "m"
+            lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
+          }
       }
     }
 
@@ -794,37 +836,44 @@ package object layoutz {
     private object TableBorders {
 
       def apply(widths: Seq[Int], style: Border): TableBorders = {
-        val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-          style.chars
-        val segments = widths.map(horizontal * _)
+        val (tl, tr, bl, br) = (style.topLeft, style.topRight, style.bottomLeft, style.bottomRight)
+        val (ht, hb) = (style.hTop, style.hBottom)
+        val topSegments = widths.map(ht * _)
+        val bottomSegments = widths.map(hb * _)
 
         /* Table junction characters */
         val (teeDown, teeUp, teeLeft, teeRight, cross) = style match {
-          case Border.None   => (" ", " ", " ", " ", " ")
-          case Border.Single => ("┬", "┴", "┤", "├", "┼")
-          case Border.Double => ("╦", "╩", "╣", "╠", "╬")
-          case Border.Thick  => ("┳", "┻", "┫", "┣", "╋")
-          case Border.Round =>
-            ("┬", "┴", "┤", "├", "┼") /* Round uses single junctions */
+          case Border.None => (" ", " ", " ", " ", " ")
+          case Border.Single | Border.Dashed | Border.Dotted | Border.Round =>
+            ("┬", "┴", "┤", "├", "┼")
+          case Border.Double   => ("╦", "╩", "╣", "╠", "╬")
+          case Border.Thick    => ("┳", "┻", "┫", "┣", "╋")
+          case Border.Ascii    => ("+", "+", "+", "+", "+")
+          case Border.Block    => ("█", "█", "█", "█", "█")
+          case Border.Markdown => ("|", "|", "|", "|", "|")
+          case Border.InnerHalfBlock =>
+            ("▄", "▀", "▌", "▐", "▄")
+          case Border.OuterHalfBlock =>
+            ("▀", "▄", "▐", "▌", "▀")
           case Border.Custom(_, h, _) =>
-            (h, h, h, h, h) /* Use horizontal char for all junctions */
+            (h, h, h, h, h)
         }
 
         TableBorders(
-          top = segments.mkString(
-            s"$topLeft$horizontal",
-            s"$horizontal$teeDown$horizontal",
-            s"$horizontal$topRight"
+          top = topSegments.mkString(
+            s"$tl$ht",
+            s"$ht$teeDown$ht",
+            s"$ht$tr"
           ),
-          separator = segments.mkString(
-            s"$teeRight$horizontal",
-            s"$horizontal$cross$horizontal",
-            s"$horizontal$teeLeft"
+          separator = topSegments.mkString(
+            s"$teeRight$ht",
+            s"$ht$cross$ht",
+            s"$ht$teeLeft"
           ),
-          bottom = segments.mkString(
-            s"$bottomLeft$horizontal",
-            s"$horizontal$teeUp$horizontal",
-            s"$horizontal$bottomRight"
+          bottom = bottomSegments.mkString(
+            s"$bl$hb",
+            s"$hb$teeUp$hb",
+            s"$hb$br"
           )
         )
       }
@@ -837,7 +886,7 @@ package object layoutz {
         rowHeight: Int,
         style: Border
     ): Seq[String] = {
-      val (_, _, _, _, _, vertical) = style.chars
+      val (vl, vr) = (style.vLeft, style.vRight)
 
       (0 until rowHeight).map { lineIndex =>
         cellLines
@@ -849,9 +898,9 @@ package object layoutz {
             line + (" " * math.max(0, padding))
           }
           .mkString(
-            s"$vertical ",
-            s" $vertical ",
-            s" $vertical"
+            s"$vl ",
+            s" $vl ",
+            s" $vr"
           )
       }
     }
@@ -896,24 +945,24 @@ package object layoutz {
         else allLines.map(line => realLength(line)).max
       val contentWidth = maxTextLength + Dimensions.MIN_CONTENT_PADDING
 
-      val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        borderStyle.chars
+      val (tl, tr, bl, br) =
+        (borderStyle.topLeft, borderStyle.topRight, borderStyle.bottomLeft, borderStyle.bottomRight)
+      val (ht, hb, vl, vr) =
+        (borderStyle.hTop, borderStyle.hBottom, borderStyle.vLeft, borderStyle.vRight)
 
-      val topBorder =
-        topLeft + horizontal * (contentWidth + 2) + topRight
-      val bottomBorder =
-        bottomLeft + horizontal * (contentWidth + 2) + bottomRight
+      val topBorder = tl + ht * (contentWidth + 2) + tr
+      val bottomBorder = bl + hb * (contentWidth + 2) + br
 
       val labelCardLines = labelLines.map { line =>
         val visibleLength = realLength(line)
         val padding = contentWidth - visibleLength
-        s"$vertical $line${" " * padding} $vertical"
+        s"$vl $line${" " * padding} $vr"
       }
 
       val contentCardLines = contentLines.map { line =>
         val visibleLength = realLength(line)
         val padding = contentWidth - visibleLength
-        s"$vertical $line${" " * padding} $vertical"
+        s"$vl $line${" " * padding} $vr"
       }
 
       (Seq(topBorder) ++ labelCardLines ++ contentCardLines :+ bottomBorder)
@@ -1756,19 +1805,19 @@ package object layoutz {
         else lines.map(line => realLength(line)).max
       val totalWidth = maxWidth + Dimensions.BOX_INNER_PADDING
 
-      val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        borderStyle.chars
+      val (tl, tr, bl, br) =
+        (borderStyle.topLeft, borderStyle.topRight, borderStyle.bottomLeft, borderStyle.bottomRight)
+      val (ht, hb, vl, vr) =
+        (borderStyle.hTop, borderStyle.hBottom, borderStyle.vLeft, borderStyle.vRight)
 
-      val top =
-        topLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + topRight
-      val bottom =
-        bottomLeft + horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + bottomRight
+      val top = tl + ht * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + tr
+      val bottom = bl + hb * (totalWidth - Dimensions.BOX_BORDER_WIDTH) + br
 
       val contentLines = lines.map { line =>
         val visibleLength = realLength(line)
         val padding = maxWidth - visibleLength
         val actualPadding = " " * padding
-        s"$vertical $line$actualPadding $vertical"
+        s"$vl $line$actualPadding $vr"
       }
 
       (top +: contentLines :+ bottom).mkString("\n")
@@ -1787,6 +1836,16 @@ package object layoutz {
         String,
         String
     ) // TL, TR, BL, BR, H, V
+
+    /** Directional accessors - override for asymmetric borders (e.g. half-block) */
+    def topLeft: String = chars._1
+    def topRight: String = chars._2
+    def bottomLeft: String = chars._3
+    def bottomRight: String = chars._4
+    def hTop: String = chars._5
+    def hBottom: String = chars._5
+    def vLeft: String = chars._6
+    def vRight: String = chars._6
 
     /** Apply this border style to an element with HasBorder typeclass */
     def apply[T](element: T)(implicit ev: HasBorder[T]): T =
@@ -1816,6 +1875,38 @@ package object layoutz {
       val chars = ("╭", "╮", "╰", "╯", "─", "│")
     }
 
+    case object Ascii extends Border {
+      val chars = ("+", "+", "+", "+", "-", "|")
+    }
+
+    case object Block extends Border {
+      val chars = ("█", "█", "█", "█", "█", "█")
+    }
+
+    case object Dashed extends Border {
+      val chars = ("┌", "┐", "└", "┘", "╌", "╎")
+    }
+
+    case object Dotted extends Border {
+      val chars = ("┌", "┐", "└", "┘", "┈", "┊")
+    }
+
+    case object InnerHalfBlock extends Border {
+      val chars = ("▗", "▖", "▝", "▘", "▄", "▐")
+      override def hBottom: String = "▀"
+      override def vRight: String = "▌"
+    }
+
+    case object OuterHalfBlock extends Border {
+      val chars = ("▛", "▜", "▙", "▟", "▀", "▌")
+      override def hBottom: String = "▄"
+      override def vRight: String = "▐"
+    }
+
+    case object Markdown extends Border {
+      val chars = ("|", "|", "|", "|", "-", "|")
+    }
+
     final case class Custom(
         corner: String,
         horizontal: String,
@@ -1836,6 +1927,13 @@ package object layoutz {
     val Double = Border.Double
     val Thick = Border.Thick
     val Round = Border.Round
+    val Ascii = Border.Ascii
+    val Block = Border.Block
+    val Dashed = Border.Dashed
+    val Dotted = Border.Dotted
+    val InnerHalfBlock = Border.InnerHalfBlock
+    val OuterHalfBlock = Border.OuterHalfBlock
+    val Markdown = Border.Markdown
   }
 
   object BorderStyle {
@@ -1844,6 +1942,13 @@ package object layoutz {
     val Double = Border.Double
     val Thick = Border.Thick
     val Round = Border.Round
+    val Ascii = Border.Ascii
+    val Block = Border.Block
+    val Dashed = Border.Dashed
+    val Dotted = Border.Dotted
+    val InnerHalfBlock = Border.InnerHalfBlock
+    val OuterHalfBlock = Border.OuterHalfBlock
+    val Markdown = Border.Markdown
   }
 
   /** Typeclass for elements that have configurable borders */
@@ -1942,25 +2047,27 @@ package object layoutz {
       val innerWidth = math.max(contentWidth, titleWidth)
       val totalWidth = innerWidth + Dimensions.BOX_INNER_PADDING
 
-      val (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical) =
-        borderStyle.chars
+      val (tl, tr, bl, br) =
+        (borderStyle.topLeft, borderStyle.topRight, borderStyle.bottomLeft, borderStyle.bottomRight)
+      val (ht, hb, vl, vr) =
+        (borderStyle.hTop, borderStyle.hBottom, borderStyle.vLeft, borderStyle.vRight)
 
       val topBorder = if (title.nonEmpty) {
         val titlePadding =
           totalWidth - title.length - Dimensions.BOX_BORDER_WIDTH
         val leftPad = titlePadding / 2
         val rightPad = titlePadding - leftPad
-        s"$topLeft${horizontal * leftPad}$title${horizontal * rightPad}$topRight"
+        s"$tl${ht * leftPad}$title${ht * rightPad}$tr"
       } else {
-        s"$topLeft${horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$topRight"
+        s"$tl${ht * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$tr"
       }
 
       val bottomBorder =
-        s"$bottomLeft${horizontal * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$bottomRight"
+        s"$bl${hb * (totalWidth - Dimensions.BOX_BORDER_WIDTH)}$br"
 
       val paddedContent = contentLines.map { line =>
         val padding = innerWidth - realLength(line)
-        s"$vertical $line${" " * padding} $vertical"
+        s"$vl $line${" " * padding} $vr"
       }
 
       (topBorder +: paddedContent :+ bottomBorder).mkString("\n")
@@ -2374,54 +2481,6 @@ package object layoutz {
     */
   def hr: HorizontalRuleBuilder = HorizontalRuleBuilder()
 
-  /* ===========================================================================
-   * INTERACTIVE ELEMENTS
-   */
-
-  object input {
-
-    /** Handle a key for a text field
-      *
-      * @param key
-      *   The key that was pressed
-      * @param fieldId
-      *   Which field this is (0, 1, 2, etc.)
-      * @param activeField
-      *   Which field is currently active
-      * @param currentValue
-      *   The current text in the field
-      * @return
-      *   Some(newValue) if the key was handled, None if not
-      *
-      * Example:
-      * {{{
-      * case CharKey(c) => input.handle(CharKey(c), 0, state.activeField, state.name) match {
-      *   case Some(newValue) => Some(UpdateName(newValue))
-      *   case None => None
-      * }
-      * }}}
-      */
-    def handle(
-        key: Key,
-        fieldId: Int,
-        activeField: Int,
-        currentValue: String
-    ): Option[String] = {
-      if (activeField != fieldId) return None
-
-      key match {
-        case CharKey(c)
-            if c.isLetterOrDigit || c.isWhitespace ||
-              "!@#$%^&*()_+-=[]{}|;':,.<>?/\\\"".contains(c) =>
-          Some(currentValue + c)
-        case BackspaceKey if currentValue.nonEmpty =>
-          Some(currentValue.dropRight(1))
-        case _ => None
-      }
-    }
-
-  }
-
   /** Interactive text input field */
   def textInput(
       label: String,
@@ -2577,700 +2636,5 @@ package object layoutz {
     */
   implicit def stringSeqToElementSeq(strings: Seq[String]): Seq[Element] =
     strings.map(Text(_))
-
-  /* ===========================================================================
-   * RUNTIME
-   */
-
-  sealed trait Key
-  final case class CharKey(c: Char) extends Key
-  final case class SpecialKey(name: String) extends Key
-
-  case object EnterKey extends Key
-  case object EscapeKey extends Key
-  case object TabKey extends Key
-  case object BackspaceKey extends Key
-  case object DeleteKey extends Key
-  case object ArrowUpKey extends Key
-  case object ArrowDownKey extends Key
-  case object ArrowLeftKey extends Key
-  case object ArrowRightKey extends Key
-
-  /* ===========================================================================
-   * COMMANDS & SUBSCRIPTIONS
-   */
-
-  /** Commands represent side effects to execute. Commands don't execute immediately, but are
-    * returned from init/update to be run by the runtime.
-    */
-  sealed trait Cmd[+Msg]
-
-  object Cmd {
-    def none[Msg]: Cmd[Msg] = CmdNone
-    def exit[Msg]: Cmd[Msg] = CmdExit
-    def halt(code: Int = 0): Cmd[Nothing] = CmdHalt(code)
-    def batch[Msg](cmds: Cmd[Msg]*): Cmd[Msg] = CmdBatch(cmds.toList)
-
-    implicit def stateWithNoCmd[State, Msg](state: State): (State, Cmd[Msg]) =
-      (state, none[Msg])
-
-    object file {
-      def read[Msg](path: String, onResult: Either[String, String] => Msg): Cmd[Msg] =
-        CmdFileRead(path, onResult)
-
-      def write[Msg](
-          path: String,
-          content: String,
-          onResult: Either[String, Unit] => Msg
-      ): Cmd[Msg] =
-        CmdFileWrite(path, content, onResult)
-
-      def ls[Msg](path: String, onResult: Either[String, List[String]] => Msg): Cmd[Msg] =
-        CmdFileLs(path, onResult)
-
-      def cwd[Msg](onResult: Either[String, String] => Msg): Cmd[Msg] =
-        CmdFileCwd(onResult)
-    }
-
-    object http {
-      def get[Msg](
-          url: String,
-          onResult: Either[String, String] => Msg,
-          headers: Map[String, String] = Map.empty
-      ): Cmd[Msg] = CmdHttpGet(url, headers, onResult)
-
-      def post[Msg](
-          url: String,
-          body: String,
-          onResult: Either[String, String] => Msg,
-          headers: Map[String, String] = Map.empty
-      ): Cmd[Msg] = CmdHttpPost(url, body, headers, onResult)
-    }
-
-    def task[A, Msg](run: => A)(toMsg: Either[String, A] => Msg): Cmd[Msg] =
-      CmdTask(() => Try(run).toEither.left.map(_.getMessage), toMsg)
-
-    def fire(effect: => Unit): Cmd[Nothing] = CmdFire(() => effect)
-  }
-
-  private case object CmdNone extends Cmd[Nothing]
-  private case object CmdExit extends Cmd[Nothing]
-  private case class CmdHalt(code: Int) extends Cmd[Nothing]
-  private case class CmdBatch[Msg](cmds: List[Cmd[Msg]]) extends Cmd[Msg]
-
-  private case class CmdFileRead[Msg](
-      path: String,
-      onResult: Either[String, String] => Msg
-  ) extends Cmd[Msg]
-
-  private case class CmdFileWrite[Msg](
-      path: String,
-      content: String,
-      onResult: Either[String, Unit] => Msg
-  ) extends Cmd[Msg]
-
-  private case class CmdFileLs[Msg](
-      path: String,
-      onResult: Either[String, List[String]] => Msg
-  ) extends Cmd[Msg]
-
-  private case class CmdFileCwd[Msg](onResult: Either[String, String] => Msg)
-      extends Cmd[Msg]
-
-  private case class CmdHttpGet[Msg](
-      url: String,
-      headers: Map[String, String],
-      onResult: Either[String, String] => Msg
-  ) extends Cmd[Msg]
-
-  private case class CmdHttpPost[Msg](
-      url: String,
-      body: String,
-      headers: Map[String, String],
-      onResult: Either[String, String] => Msg
-  ) extends Cmd[Msg]
-
-  private case class CmdTask[A, Msg](
-      task: () => Either[String, A],
-      toMsg: Either[String, A] => Msg
-  ) extends Cmd[Msg]
-
-  private case class CmdFire(effect: () => Unit) extends Cmd[Nothing]
-
-  /** Subscriptions represent ongoing event sources. They declare what events your app is interested
-    * in based on the current state.
-    */
-  sealed trait Sub[+Msg]
-
-  object Sub {
-    def none[Msg]: Sub[Msg] = SubNone
-    def onKeyPress[Msg](handler: Key => Option[Msg]): Sub[Msg] = OnKeyPress(handler)
-    def batch[Msg](subs: Sub[Msg]*): Sub[Msg] = SubBatch(subs.toList)
-
-    object time {
-      def every[Msg](intervalMs: Long, msg: Msg): Sub[Msg] = OnTimeEvery(intervalMs, () => msg)
-      def everyDynamic[Msg](intervalMs: Long, msgGenerator: () => Msg): Sub[Msg] =
-        OnTimeEvery(intervalMs, msgGenerator)
-    }
-
-    object file {
-      def watch[Msg](path: String, onChange: Either[String, String] => Msg): Sub[Msg] =
-        OnFileWatch(path, onChange)
-    }
-
-    object http {
-      def poll[Msg](
-          url: String,
-          intervalMs: Long,
-          onResponse: Either[String, String] => Msg,
-          headers: Map[String, String] = Map.empty
-      ): Sub[Msg] = OnHttpPoll(url, intervalMs, headers, onResponse)
-    }
-  }
-
-  private case object SubNone extends Sub[Nothing]
-
-  private case class OnKeyPress[Msg](handler: Key => Option[Msg])
-      extends Sub[Msg]
-
-  private case class OnTimeEvery[Msg](intervalMs: Long, msgGenerator: () => Msg)
-      extends Sub[Msg]
-
-  private case class OnFileWatch[Msg](
-      path: String,
-      onChange: Either[String, String] => Msg
-  ) extends Sub[Msg]
-
-  private case class OnHttpPoll[Msg](
-      url: String,
-      intervalMs: Long,
-      headers: Map[String, String],
-      onResponse: Either[String, String] => Msg
-  ) extends Sub[Msg]
-
-  private case class SubBatch[Msg](subs: List[Sub[Msg]]) extends Sub[Msg]
-
-  sealed trait Alignment
-  object Alignment {
-    case object Left extends Alignment
-    case object Center extends Alignment
-    case object Right extends Alignment
-  }
-
-  private[layoutz] case class RuntimeConfig(
-      tickIntervalMs: Long,
-      renderIntervalMs: Long,
-      quitKey: Int,
-      showQuitMessage: Boolean,
-      quitMessage: String,
-      clearOnStart: Boolean,
-      clearOnExit: Boolean,
-      alignment: Alignment
-  )
-
-  trait Terminal {
-    def enterRawMode(): Unit
-    def exitRawMode(): Unit
-    def clearScreen(): Unit
-    def clearScrollback(): Unit
-    def hideCursor(): Unit
-    def showCursor(): Unit
-    def write(text: String): Unit
-    def writeLine(text: String): Unit
-    def flush(): Unit
-    def readInput(): Int
-    def readInputNonBlocking(): Option[Int]
-    def close(): Unit
-    def terminalWidth(): Int
-  }
-
-  sealed trait RuntimeError
-
-  case class TerminalError(message: String, cause: Option[Throwable] = None)
-      extends RuntimeError
-
-  case class RenderError(message: String, cause: Option[Throwable] = None)
-      extends RuntimeError
-
-  case class InputError(message: String, cause: Option[Throwable] = None)
-      extends RuntimeError
-
-  type RuntimeResult[T] = Either[RuntimeError, T]
-
-  /** Pure Scala terminal using stty for raw mode (zero dependencies) */
-  class SttyTerminal private () extends Terminal {
-    private var originalStty = ""
-
-    def enterRawMode(): Unit = {
-      originalStty = stty("-g").trim
-      stty("-echo -icanon min 1")
-    }
-
-    def exitRawMode(): Unit = if (originalStty.nonEmpty) stty(originalStty)
-    def clearScreen(): Unit = esc("2J", "H")
-    def clearScrollback(): Unit = esc("3J", "2J", "H")
-    def hideCursor(): Unit = esc("?25l")
-    def showCursor(): Unit = esc("?25h")
-    def write(text: String): Unit = System.out.print(text)
-    def writeLine(text: String): Unit = System.out.println(text)
-    def flush(): Unit = System.out.flush()
-    def readInput(): Int = System.in.read()
-
-    def readInputNonBlocking(): Option[Int] =
-      try if (System.in.available() > 0) Some(System.in.read()) else None
-      catch { case _: Exception => None }
-
-    def close(): Unit = exitRawMode()
-
-    def terminalWidth(): Int = {
-      val size = stty("size").trim
-      size.split("\\s+") match {
-        case Array(_, cols) => Try(cols.toInt).getOrElse(80)
-        case _              => 80
-      }
-    }
-
-    private def esc(codes: String*): Unit = {
-      codes.foreach(c => System.out.print(s"\u001b[$c"))
-      System.out.flush()
-    }
-
-    private def stty(args: String): String = {
-      import scala.sys.process._
-      try Seq("sh", "-c", s"stty $args < /dev/tty").!!
-      catch { case _: Exception => "" }
-    }
-
-  }
-
-  object SttyTerminal {
-
-    def create(): RuntimeResult[SttyTerminal] =
-      try Right(new SttyTerminal())
-      catch {
-        case ex: Exception =>
-          Left(
-            TerminalError(
-              s"Failed to create terminal: ${ex.getMessage}",
-              Some(ex)
-            )
-          )
-      }
-
-  }
-
-  object KeyParser {
-
-    def parse(input: Int, terminal: Terminal): Key = input match {
-      case 10 | 13                  => EnterKey
-      case 27                       => parseEscape(terminal)
-      case 9                        => TabKey
-      case 8 | 127                  => BackspaceKey
-      case c if c >= 32 && c <= 126 => CharKey(c.toChar)
-      case c if c < 32              => SpecialKey(s"Ctrl+${(c + 64).toChar}")
-      case c                        => CharKey(c.toChar)
-    }
-
-    private def parseEscape(terminal: Terminal): Key =
-      try {
-        Thread.sleep(5)
-        terminal.readInputNonBlocking() match {
-          case Some(91) =>
-            Thread.sleep(5)
-            terminal.readInputNonBlocking() match {
-              case Some(65) => ArrowUpKey
-              case Some(66) => ArrowDownKey
-              case Some(67) => ArrowRightKey
-              case Some(68) => ArrowLeftKey
-              case _        => EscapeKey
-            }
-          case _ => EscapeKey
-        }
-      } catch { case _: Exception => EscapeKey }
-
-  }
-
-  /** Elm Architecture app: init, update, subscriptions, view */
-  trait LayoutzApp[State, Message] {
-    def init: (State, Cmd[Message])
-    def update(msg: Message, state: State): (State, Cmd[Message])
-    def subscriptions(state: State): Sub[Message]
-    def view(state: State): Element
-
-    def run: Unit = run()
-
-    def run(
-        tickIntervalMs: Long = 100,
-        renderIntervalMs: Long = 50,
-        quitKey: Int = 17,
-        showQuitMessage: Boolean = false,
-        quitMessage: String = "Press Ctrl+Q to quit",
-        clearOnStart: Boolean = true,
-        clearOnExit: Boolean = true,
-        alignment: Alignment = Alignment.Left,
-        terminal: Option[Terminal] = None
-    ): Unit = {
-      val config = RuntimeConfig(
-        tickIntervalMs,
-        renderIntervalMs,
-        quitKey,
-        showQuitMessage,
-        quitMessage,
-        clearOnStart,
-        clearOnExit,
-        alignment
-      )
-      LayoutzRuntime.run(this, config, terminal)
-    }
-  }
-
-  private[layoutz] object LayoutzRuntime {
-
-    def run[S, M](
-        app: LayoutzApp[S, M],
-        config: RuntimeConfig,
-        terminal: Option[Terminal] = None
-    ): RuntimeResult[Unit] =
-      terminal.orElse(SttyTerminal.create().toOption) match {
-        case Some(t) =>
-          Right(
-            try new RuntimeInstance(app, config, t).run()
-            finally t.close()
-          )
-        case None => Left(TerminalError("Failed to initialize terminal"))
-      }
-
-    private class RuntimeInstance[State, Message](
-        app: LayoutzApp[State, Message],
-        config: RuntimeConfig,
-        terminal: Terminal
-    ) {
-      @volatile private var currentState: State = _
-      @volatile private var shouldContinue = true
-      private val stateLock = new Object()
-
-      def run(): Unit = {
-        initialize()
-        val renderThread = new Thread(() => runRenderLoop(), "LayoutzRender")
-        val tickThread = new Thread(() => runTickLoop(), "LayoutzTick")
-        val inputThread = new Thread(() => runInputLoop(), "LayoutzInput")
-        renderThread.setDaemon(true)
-        tickThread.setDaemon(true)
-        inputThread.setDaemon(true)
-        renderThread.start(); tickThread.start(); inputThread.start()
-
-        try while (shouldContinue) Thread.sleep(50)
-        catch { case _: InterruptedException => () }
-        finally cleanup()
-      }
-
-      private def initialize(): Unit = {
-        terminal.enterRawMode()
-        if (config.clearOnStart) terminal.clearScreen()
-        terminal.hideCursor()
-        val (initialState, initialCmd) = app.init
-        currentState = initialState
-        processCommand(initialCmd)
-      }
-
-      private def cleanup(): Unit = {
-        if (config.clearOnExit) terminal.clearScrollback()
-        terminal.showCursor()
-        terminal.flush()
-      }
-
-      /* Command executors */
-      private def execFileRead(path: String): Either[String, String] =
-        Try(Source.fromFile(path).mkString).toEither.left.map(e =>
-          s"Read failed: ${e.getMessage}"
-        )
-
-      private def execFileWrite(
-          path: String,
-          content: String
-      ): Either[String, Unit] =
-        Try {
-          val w = new java.io.PrintWriter(path);
-          try w.write(content)
-          finally w.close()
-        }.toEither.left.map(e => s"Write failed: ${e.getMessage}")
-
-      private def execFileLs(path: String): Either[String, List[String]] = {
-        val f = new java.io.File(path)
-        if (!f.exists()) Left(s"Path does not exist: $path")
-        else if (!f.isDirectory()) Left(s"Not a directory: $path")
-        else
-          Option(f.listFiles())
-            .toRight(s"Cannot read: $path")
-            .map(_.map(_.getName()).sorted.toList)
-      }
-
-      private def execFileCwd(): Either[String, String] =
-        Try(System.getProperty("user.dir")).toEither.left.map(e =>
-          s"Failed: ${e.getMessage}"
-        )
-
-      private def execHttpGet(
-          url: String,
-          headers: Map[String, String]
-      ): Either[String, String] = {
-        import scala.sys.process._
-        Try {
-          val h = headers.flatMap { case (k, v) => Seq("-H", s"$k: $v") }
-          (Seq("curl", "-s", "-f") ++ h ++ Seq(url)).!!
-        }.toEither.left.map(e => s"HTTP GET failed: ${e.getMessage}")
-      }
-
-      private def execHttpPost(
-          url: String,
-          body: String,
-          headers: Map[String, String]
-      ): Either[String, String] = {
-        import scala.sys.process._
-        Try {
-          val h = headers.flatMap { case (k, v) => Seq("-H", s"$k: $v") }
-          (Seq("curl", "-s", "-f", "-X", "POST", "-d", body) ++ h ++ Seq(
-            url
-          )).!!
-        }.toEither.left.map(e => s"HTTP POST failed: ${e.getMessage}")
-      }
-
-      private def processCommand(cmd: Cmd[Message]): Unit = {
-        implicit val ec: ExecutionContext = ExecutionContext.global
-
-        cmd match {
-          case CmdNone        =>
-          case CmdExit        => shouldContinue = false
-          case CmdHalt(code)  => cleanup(); System.exit(code)
-          case CmdBatch(cmds) => cmds.foreach(processCommand)
-          case CmdFileRead(p, f) =>
-            Future(execFileRead(p)).foreach(r => updateState(f(r)))
-          case CmdFileWrite(p, c, f) =>
-            Future(execFileWrite(p, c)).foreach(r => updateState(f(r)))
-          case CmdFileLs(p, f) =>
-            Future(execFileLs(p)).foreach(r => updateState(f(r)))
-          case CmdFileCwd(f) =>
-            Future(execFileCwd()).foreach(r => updateState(f(r)))
-          case CmdHttpGet(u, h, f) =>
-            Future(execHttpGet(u, h)).foreach(r => updateState(f(r)))
-          case CmdHttpPost(u, b, h, f) =>
-            Future(execHttpPost(u, b, h)).foreach(r => updateState(f(r)))
-          case CmdTask(t, f)   => Future(t()).foreach(r => updateState(f(r)))
-          case CmdFire(effect) => Future(effect())
-        }
-      }
-
-      private def updateState(msg: Message): Unit = stateLock.synchronized {
-        val (newState, cmd) = app.update(msg, currentState)
-        currentState = newState
-        processCommand(cmd)
-      }
-
-      private def readState(): State = stateLock.synchronized(currentState)
-
-      private def flattenSubs(sub: Sub[Message]): List[Sub[Message]] =
-        sub match {
-          case SubNone        => Nil
-          case SubBatch(subs) => subs.flatMap(flattenSubs)
-          case other          => List(other)
-        }
-
-      private def getSubs: List[Sub[Message]] = flattenSubs(
-        app.subscriptions(readState())
-      )
-
-      private def getKeyPressHandler(): Option[Key => Option[Message]] =
-        getSubs.collectFirst { case OnKeyPress(h) => h }
-
-      private def getTimeSubscriptions(): List[(Long, () => Message)] =
-        getSubs.collect { case OnTimeEvery(ms, gen) => (ms, gen) }
-
-      private def getFileWatchSubscriptions(): List[(String, Either[String, String] => Message)] =
-        getSubs.collect { case OnFileWatch(p, f) => (p, f) }
-
-      private def getHttpPollSubscriptions(): List[
-        (String, Long, Map[String, String], Either[String, String] => Message)
-      ] =
-        getSubs.collect { case OnHttpPoll(u, ms, h, f) => (u, ms, h, f) }
-
-      /* Runtime to handles last seens with mutable blocks */
-      private val lastTickTimes = scala.collection.mutable.Map[Long, Long]()
-
-      private val lastModifiedTimes =
-        scala.collection.mutable.Map[String, Long]()
-
-      private val lastPollTimes = scala.collection.mutable.Map[String, Long]()
-
-      private def runRenderLoop(): Unit = {
-        var lastRenderedState: Option[String] = None
-        var lastLineCount: Int = 0
-
-        while (shouldContinue)
-          try {
-            val currentRender = app.view(readState()).render
-            if (lastRenderedState.forall(_ != currentRender)) {
-              val fullRender = if (config.showQuitMessage) {
-                currentRender + "\n\n" + config.quitMessage
-              } else {
-                currentRender
-              }
-              val renderedLines = fullRender.split("\n", -1)
-              val currentLineCount = renderedLines.length
-
-              /* Move cursor to start of our render area */
-              if (config.clearOnStart) {
-                /* Absolute positioning when screen was cleared */
-                terminal.write("\u001b[H")
-              } else if (lastLineCount > 0) {
-                /* Relative positioning: move up by lines we previously rendered */
-                terminal.write(s"\u001b[${lastLineCount}A\r")
-              }
-
-              /* Apply alignment to layout as a block (uniform margin for all lines) */
-              val termWidth = terminal.terminalWidth()
-              val lineWidths = renderedLines.map(realLength)
-              val maxLineWidth = if (lineWidths.isEmpty) 0 else lineWidths.max
-              val blockPad = config.alignment match {
-                case Alignment.Left   => 0
-                case Alignment.Center => math.max(0, (termWidth - maxLineWidth) / 2)
-                case Alignment.Right  => math.max(0, termWidth - maxLineWidth)
-              }
-              val padding = " " * blockPad
-              val alignedLines =
-                if (blockPad > 0) renderedLines.map(padding + _) else renderedLines
-
-              /* Write each line with clear-to-end-of-line */
-              alignedLines.foreach { line =>
-                terminal.write(line + "\u001b[K\n")
-              }
-              /* Clear any extra lines from the previous render */
-              val extraLines = lastLineCount - currentLineCount
-              if (extraLines > 0) {
-                (0 until extraLines).foreach { _ =>
-                  terminal.write("\u001b[K\n")
-                }
-              }
-              terminal.flush()
-
-              lastRenderedState = Some(currentRender)
-              lastLineCount = currentLineCount
-            }
-            Thread.sleep(config.renderIntervalMs)
-          } catch {
-            case ex: Exception => handleRenderError(ex)
-          }
-      }
-
-      private def runTickLoop(): Unit =
-        while (shouldContinue)
-          try {
-            val currentTime = System.currentTimeMillis()
-            val timeSubs = getTimeSubscriptions()
-            timeSubs.foreach { case (intervalMs, generator) =>
-              val lastTime = lastTickTimes.getOrElse(intervalMs, 0L)
-              if (currentTime - lastTime >= intervalMs) {
-                lastTickTimes(intervalMs) = currentTime
-                val msg = generator()
-                updateState(msg)
-              }
-            }
-
-            /* Simple polling for now */
-            val fileWatchSubs = getFileWatchSubscriptions()
-            fileWatchSubs.foreach { case (path, onChange) =>
-              try {
-                val file = new java.io.File(path)
-                if (file.exists()) {
-                  val currentModified = file.lastModified()
-                  val lastModified = lastModifiedTimes.getOrElse(path, 0L)
-                  if (currentModified > lastModified) {
-                    lastModifiedTimes(path) = currentModified
-                    /* Not firing on first check */
-                    if (lastModified > 0) {
-                      val content = Source.fromFile(path).mkString
-                      updateState(onChange(Right(content)))
-                    }
-                  }
-                } else {
-                  lastModifiedTimes(path) = 0L
-                }
-              } catch {
-                case ex: Exception =>
-                  updateState(
-                    onChange(Left(s"File watch error: ${ex.getMessage}"))
-                  )
-              }
-            }
-
-            val httpPollSubs = getHttpPollSubscriptions()
-            httpPollSubs.foreach {
-              case (url, intervalMs, headers, onResponse) =>
-                val lastPoll = lastPollTimes.getOrElse(url, 0L)
-                if (currentTime - lastPoll >= intervalMs) {
-                  lastPollTimes(url) = currentTime
-                  scala.concurrent.Future {
-                    import scala.sys.process._
-                    try {
-                      val headerArgs = headers.flatMap { case (k, v) =>
-                        Seq("-H", s"$k: $v")
-                      }
-                      val cmd =
-                        Seq("curl", "-s", "-f") ++ headerArgs ++ Seq(url)
-                      val response = cmd.!!
-                      updateState(onResponse(Right(response)))
-                    } catch {
-                      case ex: Exception =>
-                        updateState(
-                          onResponse(
-                            Left(s"HTTP poll failed: ${ex.getMessage}")
-                          )
-                        )
-                    }
-                  }(scala.concurrent.ExecutionContext.global)
-                }
-            }
-
-            Thread.sleep(10) /* Short sleep to avoid busy wait */
-          } catch {
-            case ex: Exception => handleTickError(ex)
-          }
-
-      private def runInputLoop(): Unit =
-        while (shouldContinue)
-          try {
-            val input = terminal.readInput()
-            if (input == config.quitKey) {
-              shouldContinue = false
-            } else {
-              val key = KeyParser.parse(input, terminal)
-              /* Uses the current subscription's key handler */
-              getKeyPressHandler().foreach { handler =>
-                handler(key).foreach(updateState)
-              }
-            }
-          } catch {
-            case ex: Exception =>
-              handleInputError(ex)
-              Thread.sleep(10)
-          }
-
-      private def handleRenderError(ex: Throwable): Unit = {
-        terminal.writeLine(s"Render error: ${ex.getMessage}")
-        terminal.flush()
-      }
-
-      private def handleTickError(ex: Throwable): Unit = {}
-
-      private def handleInputError(ex: Throwable): Unit =
-        try {
-          terminal.writeLine(s"\nInput error: ${ex.getMessage}")
-          terminal.flush()
-        } catch {
-          case _: Exception =>
-        }
-
-    }
-
-  }
 
 }

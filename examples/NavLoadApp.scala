@@ -311,18 +311,18 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
   def subscriptions(state: NavLoadState): Sub[NavLoadMessage] =
     Sub.batch(
       // Subscribe to time updates (for progress updates and spinners)
-      Sub.time.every(100, UpdateTick),
+      Sub.time.everyMs(100, UpdateTick),
 
       // Subscribe to keyboard input
       Sub.onKeyPress {
-        case EscapeKey    => Some(CancelNewTask)
-        case TabKey       => Some(ConfirmNewTask)
-        case BackspaceKey => Some(DeleteTaskChar)
-        case ArrowUpKey   => Some(MoveUp)
-        case ArrowDownKey => Some(MoveDown)
-        case EnterKey     => Some(StartTask)
-        case CharKey(c)   => Some(HandleChar(c))
-        case _            => None
+        case Key.Escape    => Some(CancelNewTask)
+        case Key.Tab       => Some(ConfirmNewTask)
+        case Key.Backspace => Some(DeleteTaskChar)
+        case Key.Up        => Some(MoveUp)
+        case Key.Down      => Some(MoveDown)
+        case Key.Enter     => Some(StartTask)
+        case Key.Char(c)   => Some(HandleChar(c))
+        case _             => None
       }
     )
 

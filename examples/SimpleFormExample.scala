@@ -41,9 +41,9 @@ object SimpleFormExample extends LayoutzApp[SimpleFormState, SimpleFormMsg] {
       )
       // Otherwise check other keys
       .orElse(key match {
-        case TabKey   => Some(NextSimpleField)
-        case EnterKey => Some(SubmitSimple)
-        case _        => None
+        case Key.Tab   => Some(NextSimpleField)
+        case Key.Enter => Some(SubmitSimple)
+        case _         => None
       })
   }
 

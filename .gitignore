@@ -1,4 +1,4 @@
-.scala-build/
+out/
 .bsp/
 .metals/
 
@@ -10,6 +10,8 @@
 *.swp
 *.tmp
 *~
+
+bundles/
 
 layoutz-hs/dist-newstyle/
 
