@@ -24,6 +24,6 @@ Sleep 300ms
 Show
 
 # Lines print one by one, then the gradient bar animates, then done
-Sleep 8s
+Sleep 7.5s
 
 Hide
