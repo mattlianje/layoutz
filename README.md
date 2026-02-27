@@ -183,13 +183,13 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="650">
+  <img src="pix/counter-demo.gif" width="550">
 </p>
 
 Apps can also run inline without clearing the screen, animating in place within existing output:
 
 <p align="center">
-<img src="pix/inline-demo.gif" width="650">
+<img src="pix/inline-demo.gif" width="550">
 <br>
 <sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
 </p>
