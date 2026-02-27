@@ -5,8 +5,7 @@
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUIs in pure Scala.
-Extend the `Element` trait to create your own primitives - no component-library limitations.
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala. Easily create new primitives (no component-library limitations).
 
 ## Features
 - Pure Scala, zero-dependencies
@@ -713,7 +712,7 @@ trait LayoutzApp[State, Message] {
 }
 ```
 
-Three daemon threads coordinate rendering (~50ms), tick/timers, and input capture. State updates flow through `update` synchronously.
+Three daemon threads coordinate rendering (~50ms), tick/timers, and input capture. State updates flow through `update` synchronously. Rendering uses incremental line-diffing: only changed lines are redrawn, eliminating flicker.
 
 ```scala
 app.run(

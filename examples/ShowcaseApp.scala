@@ -248,7 +248,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
             s"Energy ${"█" * filled}${"░" * (barW - filled)} $pct%"
           }.color(Color.BrightGreen),
           br,
-          spinner("Simulating", state.tick, SpinnerStyle.Earth).color(Color.BrightCyan),
+          spinner("Simulating", state.tick / 3, SpinnerStyle.Earth).color(Color.BrightCyan),
           "Space to kick!".color(Color.BrightYellow).style(Style.Bold)
         ), 28)
       ).border(Border.Round).color(Color.BrightMagenta)
@@ -508,15 +508,21 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
 
     val selCount = state.selected.size
 
-    val heatData = Seq(
+    val baseData = Seq(
       Seq(10.0, 45.0, 80.0, 75.0, 50.0, 15.0),
-      Seq(12.0, 50.0, 85.0, 70.0, 55.0, 20.0), 
-      Seq( 8.0, 40.0, 90.0, 80.0, 60.0, 25.0),  
-      Seq(15.0, 55.0, 75.0, 65.0, 45.0, 18.0),  
-      Seq(10.0, 48.0, 70.0, 60.0, 35.0, 30.0),  
-      Seq( 5.0, 15.0, 25.0, 30.0, 40.0, 55.0),  
-      Seq( 3.0, 10.0, 20.0, 25.0, 35.0, 45.0)   
+      Seq(12.0, 50.0, 85.0, 70.0, 55.0, 20.0),
+      Seq( 8.0, 40.0, 90.0, 80.0, 60.0, 25.0),
+      Seq(15.0, 55.0, 75.0, 65.0, 45.0, 18.0),
+      Seq(10.0, 48.0, 70.0, 60.0, 35.0, 30.0),
+      Seq( 5.0, 15.0, 25.0, 30.0, 40.0, 55.0),
+      Seq( 3.0, 10.0, 20.0, 25.0, 35.0, 45.0)
     )
+
+    /* Selected days stay bright, unselected dim out */
+    val heatData = if (state.selected.isEmpty) baseData
+    else baseData.zipWithIndex.map { case (row, idx) =>
+      if (state.selected.contains(idx)) row else row.map(_ * 0.15)
+    }
 
     columns(
       box("Schedule")(

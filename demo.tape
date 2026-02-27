@@ -27,7 +27,7 @@ Show
 Sleep 4s
 # Two quick kicks in succession
 Space
-Sleep 1.5s
+Sleep 1.7s
 Space
 Sleep 3s
 
@@ -64,21 +64,19 @@ Sleep 300ms
 # Select Auth
 Space
 Sleep 600ms
-# Move around a bit more
+# Browse around without wrapping
+Up
+Sleep 250ms
+Up
+Sleep 250ms
+Up
+Sleep 250ms
+Up
+Sleep 250ms
 Down
-Sleep 300ms
+Sleep 250ms
 Down
-Sleep 300ms
-Up
-Sleep 300ms
-Up
-Sleep 300ms
-Up
-Sleep 300ms
-Up
-Sleep 300ms
-Down
-Sleep 300ms
+Sleep 250ms
 Down
 Sleep 500ms
 
