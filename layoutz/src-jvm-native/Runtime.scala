@@ -72,6 +72,14 @@ object Cmd {
     ): Cmd[Msg] = CmdHttpPost(url, body, headers, onResult)
   }
 
+  object clipboard {
+    def read[Msg](onResult: Either[String, String] => Msg): Cmd[Msg] =
+      CmdClipboardRead(onResult)
+
+    def write[Msg](content: String, onResult: Either[String, Unit] => Msg): Cmd[Msg] =
+      CmdClipboardWrite(content, onResult)
+  }
+
   def task[A, Msg](run: => A)(toMsg: Either[String, A] => Msg): Cmd[Msg] =
     CmdTask(() => Try(run).toEither.left.map(_.getMessage), toMsg)
 
@@ -118,6 +126,15 @@ private case class CmdHttpPost[Msg](
     body: String,
     headers: Map[String, String],
     onResult: Either[String, String] => Msg
+) extends Cmd[Msg]
+
+private case class CmdClipboardRead[Msg](
+    onResult: Either[String, String] => Msg
+) extends Cmd[Msg]
+
+private case class CmdClipboardWrite[Msg](
+    content: String,
+    onResult: Either[String, Unit] => Msg
 ) extends Cmd[Msg]
 
 private case class CmdTask[A, Msg](
@@ -522,6 +539,30 @@ private[layoutz] object LayoutzRuntime {
       }.toEither.left.map(e => s"HTTP POST failed: ${e.getMessage}")
     }
 
+    private def execClipboardRead(): Either[String, String] = {
+      import scala.sys.process._
+      Try {
+        val os = System.getProperty("os.name").toLowerCase
+        if (os.contains("mac")) "pbpaste".!!
+        else Seq("xclip", "-selection", "clipboard", "-o").!!
+      }.toEither.left.map(e => s"Clipboard read failed: ${e.getMessage}")
+    }
+
+    private def execClipboardWrite(content: String): Either[String, Unit] = {
+      import scala.sys.process._
+      Try {
+        val os = System.getProperty("os.name").toLowerCase
+        val cmd = if (os.contains("mac")) Seq("pbcopy") else Seq("xclip", "-selection", "clipboard")
+        val io = new ProcessIO(
+          in => { in.write(content.getBytes); in.close() },
+          _ => (),
+          _ => ()
+        )
+        val proc = cmd.run(io)
+        proc.exitValue(): Unit
+      }.toEither.left.map(e => s"Clipboard write failed: ${e.getMessage}")
+    }
+
     private def processCommand(cmd: Cmd[Message]): Unit = {
       implicit val ec: ExecutionContext = ExecutionContext.global
 
@@ -542,6 +583,10 @@ private[layoutz] object LayoutzRuntime {
           Future(execHttpGet(u, h)).foreach(r => updateState(f(r)))
         case CmdHttpPost(u, b, h, f) =>
           Future(execHttpPost(u, b, h)).foreach(r => updateState(f(r)))
+        case CmdClipboardRead(f) =>
+          Future(execClipboardRead()).foreach(r => updateState(f(r)))
+        case CmdClipboardWrite(c, f) =>
+          Future(execClipboardWrite(c)).foreach(r => updateState(f(r)))
         case CmdTask(t, f)   => Future(t()).foreach(r => updateState(f(r)))
         case CmdFire(effect) => Future(effect())
         case CmdAfterMs(delayMs, msg) =>

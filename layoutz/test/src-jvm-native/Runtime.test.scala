@@ -394,4 +394,24 @@ class RuntimeSpecs extends munit.FunSuite {
     assert(batched != Cmd.none)
   }
 
+  test("Cmd.clipboard.read construction") {
+    case class ClipResult(r: Either[String, String])
+    val cmd = Cmd.clipboard.read[ClipResult](ClipResult)
+    assert(cmd != Cmd.none)
+  }
+
+  test("Cmd.clipboard.write construction") {
+    case class WriteResult(r: Either[String, Unit])
+    val cmd = Cmd.clipboard.write[WriteResult]("hello", WriteResult)
+    assert(cmd != Cmd.none)
+  }
+
+  test("Cmd.clipboard in batch") {
+    case class Msg(s: String)
+    val readCmd = Cmd.clipboard.read[Msg](r => Msg(r.toString))
+    val writeCmd = Cmd.clipboard.write[Msg]("test", r => Msg(r.toString))
+    val batched = Cmd.batch(readCmd, writeCmd)
+    assert(batched != Cmd.none)
+  }
+
 }

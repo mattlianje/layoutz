@@ -305,13 +305,22 @@ package object layoutz {
     if (style.code.isEmpty) content
     else "\u001b[" + style.code + "m" + content + "\u001b[0m"
 
+  /** Re-apply an ANSI code after every inner reset so nested colors don't break the outer wrapper */
+  private def reapplyAfterResets(ansiPrefix: String, line: String): String =
+    if (ansiPrefix.isEmpty) line
+    else ansiPrefix + line.replace("\u001b[0m", "\u001b[0m" + ansiPrefix) + "\u001b[0m"
+
   /** Element wrapper that applies color to its content */
   final case class Colored(color: Color, element: Element) extends Element {
 
     def render: String = {
       val rendered = element.render
-      val lines = rendered.split('\n')
-      lines.map(line => wrapAnsi(color, line)).mkString("\n")
+      if (color.code.isEmpty) rendered
+      else {
+        val prefix = "\u001b[" + color.code + "m"
+        val lines = rendered.split('\n')
+        lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
+      }
     }
 
   }
@@ -321,8 +330,12 @@ package object layoutz {
 
     def render: String = {
       val rendered = element.render
-      val lines = rendered.split('\n')
-      lines.map(line => wrapBgAnsi(color, line)).mkString("\n")
+      if (color.bgCode.isEmpty) rendered
+      else {
+        val prefix = "\u001b[" + color.bgCode + "m"
+        val lines = rendered.split('\n')
+        lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
+      }
     }
 
   }
@@ -337,13 +350,16 @@ package object layoutz {
       style match {
         case combined: CombinedStyle =>
           val styles = combined.flatten
+          val prefix = styles.map(s => "\u001b[" + s.code + "m").mkString
           lines
-            .map { line =>
-              styles.foldLeft(line)((acc, s) => wrapStyle(s, acc))
-            }
+            .map(line => if (prefix.isEmpty) line else reapplyAfterResets(prefix, line))
             .mkString("\n")
         case _ =>
-          lines.map(line => wrapStyle(style, line)).mkString("\n")
+          if (style.code.isEmpty) rendered
+          else {
+            val prefix = "\u001b[" + style.code + "m"
+            lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
+          }
       }
     }
 
