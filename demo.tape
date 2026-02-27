@@ -2,9 +2,9 @@
 # Records a GIF navigating all 7 scenes of the showcase TUI
 
 Output pix/showcase-demo.gif
-Set FontSize 13
-Set Width 820
-Set Height 520
+Set FontSize 18
+Set Width 1000
+Set Height 640
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 80ms
 Set Padding 10
