@@ -292,28 +292,28 @@ styleTests = testGroup "Styles"
 -- Command execution tests
 commandTests :: TestTree
 commandTests = testGroup "Commands"
-  [ testCase "None produces Nothing" $ do
-      result <- executeCmd (None :: Cmd String)
+  [ testCase "CmdNone produces Nothing" $ do
+      result <- executeCmd (CmdNone :: Cmd String)
       result @?= Nothing
-      
-  , testCase "cmd executes IO without message" $ do
+
+  , testCase "cmdFire executes IO without message" $ do
       ref <- newIORef (0 :: Int)
-      result <- executeCmd (cmd $ writeIORef ref 42 :: Cmd String)
+      result <- executeCmd (cmdFire $ writeIORef ref 42 :: Cmd String)
       val <- readIORef ref
       result @?= Nothing
       val @?= 42
-      
-  , testCase "cmdMsg executes IO and returns message" $ do
-      result <- executeCmd (cmdMsg $ pure "hello" :: Cmd String)
+
+  , testCase "cmdTask executes IO and returns message" $ do
+      result <- executeCmd (cmdTask $ pure "hello" :: Cmd String)
       result @?= Just "hello"
-      
-  , testCase "Batch executes all commands" $ do
+
+  , testCase "CmdBatch executes all commands" $ do
       ref <- newIORef (0 :: Int)
-      _ <- executeCmd (Batch [cmd $ writeIORef ref 1, cmd $ writeIORef ref 2] :: Cmd String)
+      _ <- executeCmd (CmdBatch [cmdFire $ writeIORef ref 1, cmdFire $ writeIORef ref 2] :: Cmd String)
       val <- readIORef ref
       val @?= 2  -- Last write wins
-      
-  , testCase "Batch returns first Just message" $ do
-      result <- executeCmd (Batch [Cmd (pure Nothing), cmdMsg (pure "first"), cmdMsg (pure "second")] :: Cmd String)
+
+  , testCase "CmdBatch returns first Just message" $ do
+      result <- executeCmd (CmdBatch [CmdRun (pure Nothing), cmdTask (pure "first"), cmdTask (pure "second")] :: Cmd String)
       result @?= Just "first"
   ]

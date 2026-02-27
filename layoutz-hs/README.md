@@ -57,7 +57,7 @@ import Layoutz
 import Layoutz
 
 demo = layout
-  [ center $ row 
+  [ center $ row
       [ withStyle StyleBold $ text "Layoutz"
       , withColor ColorCyan $ underline' "ˆ" $ text "DEMO"
       ]
@@ -66,7 +66,7 @@ demo = layout
     [ statusCard "Users" "1.2K"
     , withBorder BorderDouble $ statusCard "API" "UP"
     , withColor ColorRed $ withBorder BorderThick $ statusCard "CPU" "23%"
-    , withStyle StyleReverse $ withBorder BorderRound $ table ["Name", "Role", "Skills"] 
+    , withStyle StyleReverse $ withBorder BorderRound $ table ["Name", "Role", "Skills"]
 	[ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
         , ["Eve", "QA", "Testing"]
         ]
@@ -90,13 +90,13 @@ data Msg = Inc | Dec
 
 counterApp :: LayoutzApp Int Msg
 counterApp = LayoutzApp
-  { appInit = (0, None)
+  { appInit = (0, CmdNone)
   , appUpdate = \msg count -> case msg of
-      Inc -> (count + 1, None)
-      Dec -> (count - 1, None)
-  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
-      CharKey '+' -> Just Inc
-      CharKey '-' -> Just Dec
+      Inc -> (count + 1, CmdNone)
+      Dec -> (count - 1, CmdNone)
+  , appSubscriptions = \_ -> subKeyPress $ \key -> case key of
+      KeyChar '+' -> Just Inc
+      KeyChar '-' -> Just Dec
       _           -> Nothing
   , appView = \count -> layout
       [ section "Counter" [text $ "Count: " <> show count]
@@ -141,430 +141,160 @@ underline' "=" "Title"         -- Ambiguous type error
 
 ## Elements
 
-### Text
+### Text, Layout & Spacing
 ```haskell
-text "Simple text"
--- Or with OverloadedStrings:
-"Simple text"
-```
-```
-Simple text
+text "Simple text"                           -- Or just "Simple text" with OverloadedStrings
+layout ["First", "Second", "Third"]          -- Vertical join (\n)
+row ["Left", "Middle", "Right"]              -- Horizontal join (space-separated)
+tightRow [text "A", text "B", text "C"]      -- No spacing (gradients, etc.)
+section "Config" [kv [("env", "prod")]]      -- Titled section: === Config ===
+section' "-" "Status" [text "ok"]            -- Custom glyph: --- Status ---
+section'' "#" "Report" 5 [text "42"]         -- Custom glyph + width
+br                                           -- Empty line break
+hr                                           -- Horizontal rule ──────────
+hr' "~"                                      -- Custom char ~~~~~~~~~~
+hr'' "-" 10                                  -- Custom char and width
+vr                                           -- Vertical rule │ (10 lines)
+vr' "║"                                      -- Custom char
+vr'' "|" 5                                   -- Custom char and height
 ```
 
-### Line Break
-Add line breaks with `br`:
+### Boxes, Cards & Progress
 ```haskell
-layout ["Line 1", br, "Line 2"]
+box "Summary" [kv [("total", "42")]]         -- Titled box
+box "" ["content"]                           -- Untitled box
+statusCard "CPU" "45%"                       -- Compact status card
+inlineBar "Download" 0.75                    -- Progress bar
 ```
 ```
-Line 1
+┌──Summary───┐    ┌─────────┐    ┌───────┐
+│ total: 42  │    │ content │    │ CPU   │    Download [███████████████─────] 75%
+└────────────┘    └─────────┘    │ 45%   │
+                                  └───────┘
+```
 
-Line 2
-```
-
-### Section: `section`
+### Tables & Key-Value Pairs
 ```haskell
-section "Config" [kv [("env", "prod")]]
-section' "-" "Status" [kv [("health", "ok")]]
-section'' "#" "Report" 5 [kv [("items", "42")]]
-```
-```
-=== Config ===
-env: prod
-
---- Status ---
-health: ok
-
-##### Report #####
-items: 42
-```
-
-### Layout (vertical): `layout`
-```haskell
-layout ["First", "Second", "Third"]
-```
-```
-First
-Second
-Third
-```
-
-### Row (horizontal): `row`
-Arrange elements side-by-side horizontally:
-```haskell
-row ["Left", "Middle", "Right"]
-```
-```
-Left Middle Right
-```
-
-Multi-line elements are aligned at the top:
-```haskell
-row 
-  [ layout ["Left", "Column"]
-  , layout ["Middle", "Column"]
-  , layout ["Right", "Column"]
-  ]
-```
-
-### Tight Row: `tightRow`
-Like `row`, but with no spacing between elements (useful for gradients and progress bars):
-```haskell
-tightRow [withColor ColorRed $ text "█", withColor ColorGreen $ text "█", withColor ColorBlue $ text "█"]
-```
-```
-███
-```
-
-### Text alignment: `alignLeft`, `alignRight`, `alignCenter`, `justify`
-Align text within a specified width:
-```haskell
-layout
-  [ alignLeft 40 "Left aligned"
-  , alignCenter 40 "Centered"
-  , alignRight 40 "Right aligned"
-  , justify 40 "This text is justified evenly"
-  ]
-```
-```
-Left aligned                            
-               Centered                 
-                           Right aligned
-This  text  is  justified         evenly
-```
-
-### Horizontal rule: `hr`
-```haskell
-hr
-hr' "~"
-hr'' "-" 10
-```
-```
-──────────────────────────────────────────────────
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-----------
-```
-
-### Vertical rule: `vr`
-```haskell
-row [vr, vr' "║", vr'' "x" 5]
-```
-```
-│ ║ x
-│ ║ x
-│ ║ x
-│ ║ x
-│ ║ x
-│ ║
-│ ║
-│ ║
-│ ║
-│ ║
-```
-
-### Key-value pairs: `kv`
-```haskell
-kv [("name", "Alice"), ("role", "admin")]
-```
-```
-name: Alice
-role: admin
-```
-
-### Table: `table`
-Tables automatically handle alignment and borders:
-```haskell
-table ["Name", "Age", "City"] 
+table ["Name", "Age", "City"]
   [ ["Alice", "30", "New York"]
   , ["Bob", "25", ""]
   , ["Charlie", "35", "London"]
   ]
+
+kv [("name", "Alice"), ("role", "admin")]
 ```
 ```
-┌─────────┬─────┬─────────┐
-│ Name    │ Age │ City    │
-├─────────┼─────┼─────────┤
-│ Alice   │ 30  │ New York│
-│ Bob     │ 25  │         │
-│ Charlie │ 35  │ London  │
-└─────────┴─────┴─────────┘
+┌─────────┬─────┬──────────┐    name: Alice
+│ Name    │ Age │ City     │    role: admin
+├─────────┼─────┼──────────┤
+│ Alice   │ 30  │ New York │
+│ Bob     │ 25  │          │
+│ Charlie │ 35  │ London   │
+└─────────┴─────┴──────────┘
 ```
 
-### Unordered Lists: `ul`
-Clean unordered lists with automatic nesting:
+### Lists & Trees
 ```haskell
-ul ["Feature A", "Feature B", "Feature C"]
-```
-```
-• Feature A
-• Feature B
-• Feature C
-```
+ul ["Feature A", "Feature B"]               -- Unordered list
+ul ["Backend", ul ["API", "DB"]]            -- Nested (auto-styled: • ◦ ▪)
+ol ["First", "Second", "Third"]             -- Ordered list
+ol ["Setup", ol ["Install", "Configure"]]   -- Nested (auto-styled: 1. a. i.)
 
-Nested lists with auto-styling:
-```haskell
-ul [ "Backend"
-   , ul ["API", "Database"]
-   , "Frontend"
-   , ul ["Components", ul ["Header", ul ["Footer"]]]
-   ]
-```
-```
-• Backend
-  ◦ API
-  ◦ Database
-• Frontend
-  ◦ Components
-    ▪ Header
-      • Footer
-```
-
-### Ordered Lists: `ol`
-Numbered lists with automatic nesting:
-```haskell
-ol ["First step", "Second step", "Third step"]
-```
-```
-1. First step
-2. Second step
-3. Third step
-```
-
-Nested ordered lists with automatic style cycling (numbers → letters → roman numerals):
-```haskell
-ol [ "Setup"
-   , ol ["Install dependencies", "Configure", ol ["Check version"]]
-   , "Build"
-   , "Deploy"
-   ]
-```
-```
-1. Setup
-  a. Install dependencies
-  b. Configure
-    i. Check version
-2. Build
-3. Deploy
-```
-
-### Underline: `underline`
-Add underlines to any element:
-```haskell
-underline "Important Title"
-underline' "=" $ text "Custom"  -- Use text for custom underline char
-```
-```
-Important Title
-───────────────
-
-Custom
-══════
-```
-
-### Box: `box`
-With title:
-```haskell
-box "Summary" [kv [("total", "42")]]
-```
-```
-┌──Summary───┐
-│ total: 42  │
-└────────────┘
-```
-
-Without title:
-```haskell
-box "" [kv [("total", "42")]]
-```
-```
-┌────────────┐
-│ total: 42  │
-└────────────┘
-```
-
-### Status card: `statusCard`
-```haskell
-statusCard "CPU" "45%"
-```
-```
-┌───────┐
-│ CPU   │
-│ 45%   │
-└───────┘
-```
-
-### Progress bar: `inlineBar`
-```haskell
-inlineBar "Download" 0.75
-```
-```
-Download [███████████████─────] 75%
-```
-
-### Tree: `tree`
-```haskell
-tree "Project" 
-  [ branch "src" 
-      [ leaf "main.hs"
-      , leaf "test.hs"
-      ]
-  , branch "docs"
-      [ leaf "README.md"
-      ]
+tree "Project"
+  [ branch "src" [leaf "main.hs", leaf "test.hs"]
+  , branch "docs" [leaf "README.md"]
   ]
 ```
 ```
-Project
-├── src
-│   ├── main.hs
-│   └── test.hs
-└── docs
-    └── README.md
+• Feature A     1. First              Project
+• Feature B     2. Second             ├── src
+                3. Third              │   ├── main.hs
+• Backend                             │   └── test.hs
+  ◦ API         1. Setup              └── docs
+  ◦ DB            a. Install              └── README.md
+                  b. Configure
 ```
 
-### Chart: `chart`
+### Text Formatting
+```haskell
+center $ text "Auto-centered"               -- Uses layout context width
+center' 20 $ text "Fixed width"             -- Center within fixed width
+alignLeft 40 "Left aligned"
+alignRight 40 "Right aligned"
+alignCenter 40 "Centered"
+justify 40 "This text is justified evenly"
+wrap 20 "Long text that should wrap at word boundaries"
+```
+```
+Left aligned
+                           Right aligned
+               Centered
+This  text  is  justified         evenly
+```
+
+### Underline, Margin & Padding
+```haskell
+underline $ text "Title"                     -- Underline with ───
+underline' "=" $ text "Custom"               -- Underline with ===
+underlineColored "~" ColorRed $ text "Error" -- Colored underline
+margin "[error]" [text "Oops", text "fix"]   -- Prefix each line
+pad 2 $ text "content"                       -- Padding all sides
+```
+```
+Title           Custom          [error] Oops
+─────           ======          [error] fix
+```
+
+### Charts & Spinners
 ```haskell
 chart [("Web", 10), ("Mobile", 20), ("API", 15)]
-```
-```
-Web    │████████████████████ 10
-Mobile │████████████████████████████████████████ 20
-API    │██████████████████████████████ 15
-```
 
-### Padding: `pad`
-Add uniform padding around any element:
-```haskell
-pad 2 $ text "content"
+spinner "Loading" frame SpinnerDots          -- ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+spinner "Working" frame SpinnerLine          -- | / - \
+spinner "Waiting" frame SpinnerClock         -- 🕐 🕑 🕒 ...
+spinner "Thinking" frame SpinnerBounce       -- ⠁ ⠂ ⠄ ⠂
 ```
 ```
-        
-        
-  content  
-        
-        
-```
-
-### Spinners: `spinner`
-Animated loading spinners for TUI apps:
-```haskell
-spinner "Loading..." frameNum SpinnerDots
-spinner "Processing" frameNum SpinnerLine
-spinner "Working" frameNum SpinnerClock
-spinner "Thinking" frameNum SpinnerBounce
-```
-
-Styles:
-- **`SpinnerDots`** - Braille dot spinner: ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
-- **`SpinnerLine`** - Classic line spinner: | / - \
-- **`SpinnerClock`** - Clock face spinner: 🕐 🕑 🕒 ...
-- **`SpinnerBounce`** - Bouncing dots: ⠁ ⠂ ⠄ ⠂
-
-Increment the frame number on each render to animate:
-```haskell
--- In your app state, track a frame counter
-data AppState = AppState { spinnerFrame :: Int, ... }
-
--- In your view function
-spinner "Loading" (spinnerFrame state) SpinnerDots
-
--- In your update function (triggered by a tick or key press)
-state { spinnerFrame = spinnerFrame state + 1 }
-```
-
-With colors:
-```haskell
-withColor ColorGreen $ spinner "Success!" frame SpinnerDots
-withColor ColorYellow $ spinner "Warning" frame SpinnerLine
-```
-
-### Centering: `center`
-Smart auto-centering and manual width:
-```haskell
-center "Auto-centered"     -- Uses layout context
-center' 20 "Manual width"  -- Fixed width
-```
-```
-        Auto-centered        
-
-    Manual width    
-```
-
-### Margin: `margin`
-Add prefix margins to elements for compiler-style error messages:
-
-```haskell
-margin "[error]"
-  [ text "Ooops"
-  , text ""
-  , row [ text "result :: Int = "
-        , underline' "^" $ text "getString"
-        ]
-  , text "Expected Int, found String"
-  ]
-```
-```
-[error] Ooops
-[error]
-[error] result :: Int =  getString
-[error]                  ^^^^^^^^^
-[error] Expected Int, found String
+Web    │████████████████████────────────────────│ 10
+Mobile │████████████████████████████████████████│ 20
+API    │██████████████████████████████──────────│ 15
 ```
 
 ## Border Styles
 Elements like `box`, `table`, and `statusCard` support different border styles:
 
-**BorderNormal** (default):
 ```haskell
-box "Title" ["content"]
-```
-```
-┌──Title──┐
-│ content │
-└─────────┘
+BorderNormal                  -- ┌─┐ (default)
+BorderDouble                  -- ╔═╗
+BorderThick                   -- ┏━┓
+BorderRound                   -- ╭─╮
+BorderAscii                   -- +-+
+BorderBlock                   -- ███
+BorderDashed                  -- ┌╌┐
+BorderDotted                  -- ┌┈┐
+BorderInnerHalfBlock          -- ▗▄▖
+BorderOuterHalfBlock          -- ▛▀▜
+BorderMarkdown                -- |-|
+BorderCustom "+" "=" "|"      -- Custom border
+BorderNone                    -- No borders
 ```
 
-**BorderDouble**:
+**Usage examples:**
 ```haskell
-withBorder BorderDouble $ statusCard "API" "UP"
-```
-```
-╔═══════╗
-║ API   ║
-║ UP    ║
-╚═══════╝
+box "Title" ["content"]                                -- BorderNormal (default)
+withBorder BorderDouble $ statusCard "API" "UP"        -- Double-line border
+withBorder BorderThick $ table ["Name"] [["Alice"]]    -- Thick border
+withBorder BorderRound $ box "Info" ["content"]        -- Rounded corners
+withBorder BorderNone $ box "Info" ["content"]         -- Invisible borders
+withBorder (BorderCustom "+" "=" "|") $ box "X" ["y"]  -- Custom chars
 ```
 
-**BorderThick**:
-```haskell
-withBorder BorderThick $ table ["Name"] [["Alice"]]
 ```
-```
-┏━━━━━━━┓
-┃ Name  ┃
-┣━━━━━━━┫
-┃ Alice ┃
-┗━━━━━━━┛
-```
-
-**BorderRound**:
-```haskell
-withBorder BorderRound $ box "Info" ["content"]
-```
-```
-╭──Info───╮
-│ content │
-╰─────────╯
-```
-
-**BorderNone** (invisible borders):
-```haskell
-withBorder BorderNone $ box "Info" ["content"]
-```
-```
-  Info   
- content 
-         
+┌──Title──┐    ╔═══════╗    ┏━━━━━━━┓    ╭──Info───╮
+│ content │    ║ API   ║    ┃ Name  ┃    │ content │
+└─────────┘    ║ UP    ║    ┣━━━━━━━┫    ╰─────────╯
+               ╚═══════╝    ┃ Alice ┃
+                             ┗━━━━━━━┛
 ```
 
 ## Colors (ANSI Support)
@@ -572,26 +302,39 @@ withBorder BorderNone $ box "Info" ["content"]
 Add ANSI colors to any element:
 
 ```haskell
-layout[
-  withColor ColorRed $ text "The quick brown fox...",
-  withColor ColorBrightCyan $ text "The quick brown fox...",
-  underlineColored "~" ColorRed $ text "The quick brown fox...",
-  margin "[INFO]" [withColor ColorCyan $ text "The quick brown fox..."]
-]
+layout
+  [ withColor ColorRed $ text "The quick brown fox..."
+  , withColor ColorBrightCyan $ text "The quick brown fox..."
+  , underlineColored "~" ColorRed $ text "The quick brown fox..."
+  , margin "[INFO]" [withColor ColorCyan $ text "The quick brown fox..."]
+  ]
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-2.png" width="700">
 </p>
 
 
-**Standard Colors:**
-- `ColorBlack` `ColorRed` `ColorGreen` `ColorYellow` `ColorBlue` `ColorMagenta` `ColorCyan` `ColorWhite`
-- `ColorBrightBlack` `ColorBrightRed` `ColorBrightGreen` `ColorBrightYellow` `ColorBrightBlue` `ColorBrightMagenta` `ColorBrightCyan` `ColorBrightWhite`
-- `ColorNoColor` *(for conditional formatting)*
-
-**Extended Colors:**
-- `ColorFull n` - 256-color palette (0-255)
-- `ColorTrue r g b` - 24-bit RGB true color
+```haskell
+ColorBlack
+ColorRed
+ColorGreen
+ColorYellow
+ColorBlue
+ColorMagenta
+ColorCyan
+ColorWhite
+ColorBrightBlack              -- Bright 8
+ColorBrightRed
+ColorBrightGreen
+ColorBrightYellow
+ColorBrightBlue
+ColorBrightMagenta
+ColorBrightCyan
+ColorBrightWhite
+ColorFull 196                 -- 256-color palette (0-255)
+ColorTrue 255 128 0           -- 24-bit RGB
+ColorNoColor                  -- Conditional no-op
+```
 
 ### Color Gradients
 
@@ -622,30 +365,38 @@ putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
 Add ANSI styles to any element:
 
 ```haskell
-layout[
-  withStyle StyleBold $ text "The quick brown fox...",
-  withColor ColorRed $ withStyle StyleBold $ text "The quick brown fox...",
-  withStyle StyleReverse $ withStyle StyleItalic $ text "The quick brown fox..."
-]
+layout
+  [ withStyle StyleBold $ text "The quick brown fox..."
+  , withColor ColorRed $ withStyle StyleBold $ text "The quick brown fox..."
+  , withStyle StyleReverse $ withStyle StyleItalic $ text "The quick brown fox..."
+  ]
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-1.png" width="700">
 </p>
 
-**Styles:**
-- `StyleBold` `StyleDim` `StyleItalic` `StyleUnderline`
-- `StyleBlink` `StyleReverse` `StyleHidden` `StyleStrikethrough`
-- `StyleNoStyle` *(for conditional formatting)*
+```haskell
+StyleBold
+StyleDim
+StyleItalic
+StyleUnderline
+StyleBlink
+StyleReverse
+StyleHidden
+StyleStrikethrough
+StyleNoStyle                  -- Conditional no-op
+StyleBold <> StyleItalic      -- Combine with <>
+```
 
 **Combining Styles:**
 
 Use `<>` to combine multiple styles at once:
 
 ```haskell
-layout[
-  withStyle (StyleBold <> StyleItalic <> StyleUnderline) $ text "The quick brown fox...",
-  withStyle (StyleBold <> StyleReverse) $ text "The quick brown fox..."
-]
+layout
+  [ withStyle (StyleBold <> StyleItalic <> StyleUnderline) $ text "The quick brown fox..."
+  , withStyle (StyleBold <> StyleReverse) $ text "The quick brown fox..."
+  ]
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-2.png" width="700">
@@ -665,7 +416,7 @@ Create your own components by implementing the `Element` typeclass
 data Square = Square Int
 
 instance Element Square where
-  renderElement (Square size) 
+  renderElement (Square size)
     | size < 2 = ""
     | otherwise = intercalate "\n" (top : middle ++ [bottom])
     where
@@ -728,13 +479,13 @@ data Msg = Inc | Dec
 
 counterApp :: LayoutzApp Int Msg
 counterApp = LayoutzApp
-  { appInit = (0, None)
+  { appInit = (0, CmdNone)
   , appUpdate = \msg count -> case msg of
-      Inc -> (count + 1, None)
-      Dec -> (count - 1, None)
-  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
-      CharKey '+' -> Just Inc
-      CharKey '-' -> Just Dec
+      Inc -> (count + 1, CmdNone)
+      Dec -> (count - 1, CmdNone)
+  , appSubscriptions = \_ -> subKeyPress $ \key -> case key of
+      KeyChar '+' -> Just Inc
+      KeyChar '-' -> Just Dec
       _           -> Nothing
   , appView = \count -> layout
       [ section "Counter" [text $ "Count: " <> show count]
@@ -744,6 +495,18 @@ counterApp = LayoutzApp
 
 main = runApp counterApp
 ```
+
+### App Options
+
+Customise how your app runs with `runAppWith` and the `AppOptions` record. Override only the fields you need:
+
+```haskell
+runApp app                                                          -- Default options
+runAppWith defaultAppOptions { optAlignment = AppAlignCenter } app  -- Centered in terminal
+runAppWith defaultAppOptions { optAlignment = AppAlignRight } app   -- Right-aligned
+```
+
+Terminal width is detected once at startup via ANSI cursor position report (zero dependencies).
 
 ### How the Runtime Works
 
@@ -769,21 +532,21 @@ data LayoutzApp state msg = LayoutzApp
 
 ### Subscriptions
 
-| Subscription | Description |
-|--------------|-------------|
-| `onKeyPress (Key -> Maybe msg)` | Keyboard input |
-| `onTick msg` | Periodic ticks (~100ms) for animations |
-| `batch [sub1, sub2, ...]` | Combine subscriptions |
+```haskell
+subKeyPress (\key -> ...)              -- Keyboard input
+subEveryMs 100 msg                     -- Periodic ticks (interval in ms)
+subBatch [sub1, sub2, ...]             -- Combine subscriptions
+```
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `None` | No effect |
-| `Cmd (IO (Maybe msg))` | Run IO, optionally produce message |
-| `Batch [cmd1, cmd2, ...]` | Multiple commands |
-| `cmd :: IO () -> Cmd msg` | Fire and forget |
-| `cmdMsg :: IO msg -> Cmd msg` | IO that returns a message |
+```haskell
+CmdNone                                -- No effect
+cmdFire (writeFile "log.txt" "entry")  -- Fire and forget IO
+cmdTask (readFile "data.txt")          -- IO that returns a message
+cmdAfterMs 500 msg                     -- Fire a message after delay (ms)
+CmdBatch [cmd1, cmd2, ...]            -- Combine multiple commands
+```
 
 **Example: Logger with file I/O**
 ```haskell
@@ -794,13 +557,13 @@ data State = State { count :: Int, status :: String }
 
 loggerApp :: LayoutzApp State Msg
 loggerApp = LayoutzApp
-  { appInit = (State 0 "Ready", None)
+  { appInit = (State 0 "Ready", CmdNone)
   , appUpdate = \msg s -> case msg of
-      Log   -> (s { count = count s + 1 }, 
-                cmd $ appendFile "log.txt" ("Entry " <> show (count s) <> "\n"))
-      Saved -> (s { status = "Saved!" }, None)
-  , appSubscriptions = \_ -> onKeyPress $ \key -> case key of
-      CharKey 'l' -> Just Log
+      Log   -> (s { count = count s + 1 },
+                cmdFire $ appendFile "log.txt" ("Entry " <> show (count s) <> "\n"))
+      Saved -> (s { status = "Saved!" }, CmdNone)
+  , appSubscriptions = \_ -> subKeyPress $ \key -> case key of
+      KeyChar 'l' -> Just Log
       _           -> Nothing
   , appView = \s -> layout
       [ section "Logger" [text $ "Entries: " <> show (count s)]
@@ -815,10 +578,25 @@ main = runApp loggerApp
 ### Key Types
 
 ```haskell
-CharKey Char       -- 'a', '1', ' '
-EnterKey, BackspaceKey, TabKey, EscapeKey, DeleteKey
-ArrowUpKey, ArrowDownKey, ArrowLeftKey, ArrowRightKey
-SpecialKey String  -- "Ctrl+C", etc.
+-- Printable
+KeyChar Char                  -- 'a', '1', ' '
+
+-- Editing
+KeyEnter                      -- Enter/Return
+KeyBackspace                  -- Backspace
+KeyTab                        -- Tab
+KeyEscape                     -- Escape
+KeyDelete                     -- Delete
+
+-- Navigation
+KeyUp                         -- Arrow up
+KeyDown                       -- Arrow down
+KeyLeft                       -- Arrow left
+KeyRight                      -- Arrow right
+
+-- Modifiers
+KeyCtrl Char                  -- Ctrl+'C', Ctrl+'Q', etc.
+KeySpecial String             -- Other unrecognized sequences
 ```
 
 ## Inspiration

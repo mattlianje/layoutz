@@ -255,32 +255,32 @@ viewGame state =
 -- | The game application
 simpleGame :: LayoutzApp GameState GameMsg
 simpleGame = LayoutzApp
-  { appInit = (initialState, None)
+  { appInit = (initialState, CmdNone)
   
-  , appUpdate = \msg state -> (updateGame msg state, None)
+  , appUpdate = \msg state -> (updateGame msg state, CmdNone)
   
   , appSubscriptions = \_state ->
-      batch
-        [ onTick Tick
-        , onKeyPress $ \key -> case key of
-            CharKey 'w' -> Just MoveUp
-            CharKey 'W' -> Just MoveUp
-            ArrowUpKey  -> Just MoveUp
+      subBatch
+        [ subEveryMs 100 Tick
+        , subKeyPress $ \key -> case key of
+            KeyChar 'w' -> Just MoveUp
+            KeyChar 'W' -> Just MoveUp
+            KeyUp  -> Just MoveUp
             
-            CharKey 's' -> Just MoveDown
-            CharKey 'S' -> Just MoveDown
-            ArrowDownKey -> Just MoveDown
+            KeyChar 's' -> Just MoveDown
+            KeyChar 'S' -> Just MoveDown
+            KeyDown -> Just MoveDown
             
-            CharKey 'a' -> Just MoveLeft
-            CharKey 'A' -> Just MoveLeft
-            ArrowLeftKey -> Just MoveLeft
+            KeyChar 'a' -> Just MoveLeft
+            KeyChar 'A' -> Just MoveLeft
+            KeyLeft -> Just MoveLeft
             
-            CharKey 'd' -> Just MoveRight
-            CharKey 'D' -> Just MoveRight
-            ArrowRightKey -> Just MoveRight
+            KeyChar 'd' -> Just MoveRight
+            KeyChar 'D' -> Just MoveRight
+            KeyRight -> Just MoveRight
             
-            CharKey 'r' -> Just Restart
-            CharKey 'R' -> Just Restart
+            KeyChar 'r' -> Just Restart
+            KeyChar 'R' -> Just Restart
             
             _ -> Nothing
         ]
