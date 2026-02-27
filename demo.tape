@@ -2,13 +2,12 @@
 # Records a GIF navigating all 7 scenes of the showcase TUI
 
 Output pix/showcase-demo.gif
-Set FontSize 14
-Set Width 1100
-Set Height 650
+Set FontSize 13
+Set Width 820
+Set Height 520
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 80ms
-Set Padding 20
-Set BorderRadius 14
+Set Padding 10
 Set Framerate 60
 
 # Start mill console and load the showcase (hidden)
@@ -118,7 +117,7 @@ Right
 Sleep 1.5s
 # Toggle chart mode
 Tab
-Sleep 2.5s
+Sleep 1.5s
 
 # ── Scene 7/7: Selections & Heatmap ──
 Right
@@ -136,7 +135,7 @@ Down
 Sleep 300ms
 # Select Fri
 Space
-Sleep 3s
+Sleep 1.5s
 
 # Quit
 Hide
