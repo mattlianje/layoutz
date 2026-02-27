@@ -508,15 +508,14 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
 
     val selCount = state.selected.size
 
-    /* Static realistic weekly activity pattern — no dependency on selections */
     val heatData = Seq(
-      Seq(10.0, 45.0, 80.0, 75.0, 50.0, 15.0),  // Mon
-      Seq(12.0, 50.0, 85.0, 70.0, 55.0, 20.0),  // Tue
-      Seq( 8.0, 40.0, 90.0, 80.0, 60.0, 25.0),  // Wed
-      Seq(15.0, 55.0, 75.0, 65.0, 45.0, 18.0),  // Thu
-      Seq(10.0, 48.0, 70.0, 60.0, 35.0, 30.0),  // Fri
-      Seq( 5.0, 15.0, 25.0, 30.0, 40.0, 55.0),  // Sat
-      Seq( 3.0, 10.0, 20.0, 25.0, 35.0, 45.0)   // Sun
+      Seq(10.0, 45.0, 80.0, 75.0, 50.0, 15.0),
+      Seq(12.0, 50.0, 85.0, 70.0, 55.0, 20.0), 
+      Seq( 8.0, 40.0, 90.0, 80.0, 60.0, 25.0),  
+      Seq(15.0, 55.0, 75.0, 65.0, 45.0, 18.0),  
+      Seq(10.0, 48.0, 70.0, 60.0, 35.0, 30.0),  
+      Seq( 5.0, 15.0, 25.0, 30.0, 40.0, 55.0),  
+      Seq( 3.0, 10.0, 20.0, 25.0, 35.0, 45.0)   
     )
 
     columns(
