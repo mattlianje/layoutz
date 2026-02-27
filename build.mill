@@ -7,7 +7,7 @@ val scalaJSVersion     = "1.20.2"
 
 // Shared publish settings
 trait LayoutzPublishModule extends SonatypeCentralPublishModule {
-  def publishVersion = "0.6.0"
+  def publishVersion = "0.7.0"
   def artifactName   = "layoutz"
 
   def pomSettings = PomSettings(

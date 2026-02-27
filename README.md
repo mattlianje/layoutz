@@ -36,10 +36,10 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 ## Installation
 On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):
 ```scala
-"xyz.matthieucourt" %% "layoutz" % "0.6.0"
+"xyz.matthieucourt" %% "layoutz" % "0.7.0"
 ```
 ```bash
-scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.6.0
+scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.7.0
 ```
 ```scala
 import layoutz._
@@ -186,7 +186,7 @@ CounterApp.run
   <img src="pix/counter-demo.gif" width="550">
 </p>
 
-Apps can also run inline without clearing the screen, animating in place within existing output:
+`LayoutzApp`s can also run inline without clearing the screen, animating in place within existing output:
 
 <p align="center">
 <img src="pix/inline-demo.gif" width="550">
