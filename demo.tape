@@ -4,7 +4,7 @@
 Output pix/showcase-demo.gif
 Set FontSize 18
 Set Width 1000
-Set Height 640
+Set Height 720
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 80ms
 Set Padding 10
