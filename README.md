@@ -9,18 +9,18 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 Extend the `Element` trait to create your own primitives - no component-library limitations.
 
 ## Features
-- Pure Scala, zero-deps, cross-platform (JVM, JS, Native)
-- Elm-style TUI runtime via `LayoutzApp`
+- Pure Scala, zero-dependencies
+- Elm-style TUIs
 - Layout primitives, tables, trees, lists, CJK-aware
-- Colors, ANSI styles, `HasBorder` typeclass
+- Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
-- Built-in commands: async tasks, file I/O, HTTP, timers, key input
+- Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 <p align="center">
 <img src="pix/showcase-demo.gif" width="650">
 <br>
-<sub><a href="examples/ShowcaseApp.scala">showcase TUI</a> — navigable multi-scene demo</sub>
+<sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
 ## Table of Contents
@@ -1185,12 +1185,12 @@ HttpFetcher.run
 
 ### Complex task manager
 
-<details>
-<summary>Navigation, progress tracking, and stateful emojis</summary>
-
 <p align="center">
   <img src="pix/nav-demo-edit.gif" width="600">
 </p>
+
+<details>
+<summary>Navigation, progress tracking, and stateful emojis</summary>
 
 ```scala
 import layoutz._
