@@ -727,6 +727,14 @@ app.run(
 )
 ```
 
+Apps can also run inline without clearing the screen, animating in place within existing output:
+
+<p align="center">
+<img src="pix/inline-demo.gif" width="650">
+<br>
+<sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
+</p>
+
 Implicit conversion: return just state instead of `(state, Cmd.none)`:
 ```scala
 def update(msg: Msg, state: State) = msg match {
