@@ -8,7 +8,7 @@
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala. Easily create new primitives (no component-library limitations).
 
 ## Features
-- Pure Scala, zero-dependencies
+- Pure Scala, zero-dependencies (JVM, Native, JS)
 - Elm-style TUIs
 - Layout primitives, tables, trees, lists, CJK-aware
 - Colors, ANSI styles, rich formatting
