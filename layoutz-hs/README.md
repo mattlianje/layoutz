@@ -8,16 +8,16 @@
 
 Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
 
-Part of [d4](https://github.com/mattlianje/d4)
+Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
 ## Features
-- Zero dependencies, use `Layoutz.hs` like a header file
+- Pure Haskell, zero dependencies (use `Layoutz.hs` like a header file)
+- Elm-style TUIs
+- Layout primitives, tables, trees, lists, CJK-aware
+- Colors, ANSI styles, rich formatting
+- Terminal charts and plots
+- Widgets: text input, spinners, progress bars
 - Easy porting to MicroHs
-- Rich text formatting: alignment, underlines, padding, margins
-- Lists, trees, tables, charts, spinners...
-- ANSI colors and wide character support
-- Easily create new primitives (no component-library limitations)
-- [`LayoutzApp`](#interactive-apps) for Elm-style TUI's
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="650">
