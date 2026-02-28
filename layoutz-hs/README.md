@@ -32,10 +32,11 @@ Part of [d4](https://github.com/mattlianje/d4)
 - [Core Concepts](#core-concepts)
 - [Elements](#elements)
 - [Border Styles](#border-styles)
-- [Colors](#colors-ansi-support)
-- [Styles](#styles-ansi-support)
+- [Charts & Plots](#charts--plots)
+- [Colors & Styles](#colors-ansi-support)
 - [Custom Components](#custom-components)
 - [Interactive Apps](#interactive-apps)
+- [Examples](#examples)
 
 ## Installation
 
@@ -147,54 +148,128 @@ underline' "=" $ text "Title"  -- Correct
 underline' "=" "Title"         -- Ambiguous type error
 ```
 
+## Border Styles
+
+Applied via `withBorder` to any element with the `HasBorder` typeclass (`box`, `statusCard`, `table`):
+```haskell
+withBorder BorderRound $ box "Info" ["content"]
+withBorder BorderDouble $ statusCard "API" "UP"
+withBorder BorderThick $ table ["Name"] [["Alice"]]
+```
+
+Write generic code over bordered elements:
+```haskell
+makeThick :: HasBorder a => a -> a
+makeThick = setBorder BorderThick
+```
+
+```haskell
+BorderNormal                  -- ┌─┐ (default)
+BorderDouble                  -- ╔═╗
+BorderThick                   -- ┏━┓
+BorderRound                   -- ╭─╮
+BorderAscii                   -- +-+
+BorderBlock                   -- ███
+BorderDashed                  -- ┌╌┐
+BorderDotted                  -- ┌┈┐
+BorderInnerHalfBlock          -- ▗▄▖
+BorderOuterHalfBlock          -- ▛▀▜
+BorderMarkdown                -- |-|
+BorderCustom "+" "=" "|"      -- Custom border
+BorderNone                    -- No borders
+```
+
 ## Elements
 
-### Text, Layout & Spacing
+### Text: `text`
 ```haskell
-text "Simple text"                           -- Or just "Simple text" with OverloadedStrings
-layout ["First", "Second", "Third"]          -- Vertical join (\n)
-row ["Left", "Middle", "Right"]              -- Horizontal join (space-separated)
-tightRow [text "A", text "B", text "C"]      -- No spacing (gradients, etc.)
-section "Config" [kv [("env", "prod")]]      -- Titled section: === Config ===
-section' "-" "Status" [text "ok"]            -- Custom glyph: --- Status ---
-section'' "#" "Report" 5 [text "42"]         -- Custom glyph + width
-br                                           -- Empty line break
-hr                                           -- Horizontal rule ──────────
-hr' "~"                                      -- Custom char ~~~~~~~~~~
-hr'' "-" 10                                  -- Custom char and width
-vr                                           -- Vertical rule │ (10 lines)
-vr' "║"                                      -- Custom char
-vr'' "|" 5                                   -- Custom char and height
+text "hello"
+"hello"                                      -- with OverloadedStrings
 ```
 
-### Boxes, Cards & Progress
+### Line Break: `br`
 ```haskell
-box "Summary" [kv [("total", "42")]]
-```
-```
-┌──Summary───┐
-│ total: 42  │
-└────────────┘
+layout [text "Line 1", br, text "Line 2"]
 ```
 
+### Layout (vertical): `layout`
 ```haskell
-statusCard "CPU" "45%"
+layout ["First", "Second", "Third"]
 ```
 ```
-┌───────┐
-│ CPU   │
-│ 45%   │
-└───────┘
+First
+Second
+Third
 ```
 
+### Row (horizontal): `row`, `tightRow`
 ```haskell
-inlineBar "Download" 0.75
+row ["Left", "Middle", "Right"]
+tightRow [text "A", text "B", text "C"]      -- no spacing
 ```
 ```
-Download [███████████████─────] 75%
+Left Middle Right
+ABC
 ```
 
-### Tables & Key-Value Pairs
+### Horizontal Rule: `hr`, `hr'`, `hr''`
+```haskell
+hr                                           -- default ──────────
+hr' "~"                                      -- custom char
+hr'' "=" 20                                  -- custom char + width
+```
+```
+──────────────────────────────────────────────────
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+====================
+```
+
+### Vertical Rule: `vr`, `vr'`, `vr''`
+```haskell
+vr                                           -- default: 10 high with │
+vr' "║"                                      -- custom char
+vr'' "|" 5                                   -- custom char + height
+```
+
+### Box: `box`
+```haskell
+box "Status" [text "All systems go"]
+withBorder BorderDouble $ box "Fancy" [text "Double border"]
+withBorder BorderRound $ box "Smooth" [text "Rounded corners"]
+```
+```
+┌──Status──────────┐
+│ All systems go   │
+└──────────────────┘
+╔══Fancy═══════════╗
+║ Double border    ║
+╚══════════════════╝
+╭──Smooth────────────╮
+│ Rounded corners    │
+╰────────────────────╯
+```
+
+Pipe any element through `withBorder`:
+```haskell
+withBorder BorderRound $ box "Info" ["content"]
+withBorder BorderDouble $ statusCard "API" "UP"
+withBorder BorderThick $ table ["Name"] [["Alice"]]
+```
+
+### Status Card: `statusCard`
+```haskell
+row [ withColor ColorGreen $ statusCard "CPU" "45%"
+    , withColor ColorCyan $ statusCard "MEM" "2.1G"
+    ]
+```
+```
+┌──────┐ ┌───────┐
+│ CPU  │ │ MEM   │
+│ 45%  │ │ 2.1G  │
+└──────┘ └───────┘
+```
+
+### Table: `table`
 ```haskell
 table ["Name", "Age", "City"]
   [ ["Alice", "30", "New York"]
@@ -212,27 +287,28 @@ table ["Name", "Age", "City"]
 └─────────┴─────┴──────────┘
 ```
 
+### Key-Value: `kv`
 ```haskell
-kv [("name", "Alice"), ("role", "admin")]
+kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
 ```
 ```
-name: Alice
-role: admin
+Name: Alice
+Age:  30
+City: NYC
 ```
 
-### Lists & Trees
+### Section: `section`, `section'`, `section''`
 ```haskell
-ol ["Setup", ol ["Install deps", ol ["npm", "pip"], "Configure"], "Deploy"]
+section "Status" [text "All systems operational"]
+section' "-" "Status" [text "ok"]            -- custom glyph
+section'' "#" "Report" 5 [text "42"]         -- custom glyph + width
 ```
 ```
-1. Setup
-  a. Install deps
-    i. npm
-    ii. pip
-  b. Configure
-2. Deploy
+=== Status ===
+All systems operational
 ```
 
+### Unordered List: `ul`
 ```haskell
 ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
 ```
@@ -245,6 +321,20 @@ ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
 • Frontend
 ```
 
+### Ordered List: `ol`
+```haskell
+ol ["Setup", ol ["Install deps", ol ["npm", "pip"], "Configure"], "Deploy"]
+```
+```
+1. Setup
+  a. Install deps
+    i. npm
+    ii. pip
+  b. Configure
+2. Deploy
+```
+
+### Tree: `tree`, `branch`, `leaf`
 ```haskell
 tree "Project"
   [ branch "src" [leaf "main.hs", leaf "test.hs"]
@@ -260,53 +350,15 @@ Project
     └── README.md
 ```
 
-### Text Formatting
+### Progress Bar: `inlineBar`
 ```haskell
-center $ text "Auto-centered"
-center' 20 $ text "Fixed width"
-alignLeft 40 "Left aligned"
-alignRight 40 "Right aligned"
-alignCenter 40 "Centered"
-justify 40 "This text is justified evenly"
-wrap 20 "Long text that should wrap at word boundaries"
+inlineBar "Download" 0.75
 ```
 ```
-Left aligned
-                                   Right aligned
-               Centered
-This  text  is  justified                  evenly
+Download [███████████████─────] 75%
 ```
 
-### Underline, Margin & Padding
-```haskell
-underline $ text "Title"
-```
-```
-Title
-─────
-```
-
-```haskell
-underline' "=" $ text "Custom"
-```
-```
-Custom
-======
-```
-
-```haskell
-margin "[error]" [text "Oops", text "fix"]
-```
-```
-[error] Oops
-[error] fix
-```
-
-```haskell
-pad 2 $ text "content"
-```
-
-### Charts & Spinners
+### Chart: `chart`
 ```haskell
 chart [("Web", 10), ("Mobile", 20), ("API", 15)]
 ```
@@ -316,7 +368,8 @@ Mobile │███████████████████████�
 API    │██████████████████████████████──────────│ 15
 ```
 
-Spinner styles: `Dots` (default), `Line`, `Clock`, `Bounce`
+### Spinner: `spinner`
+Styles: `SpinnerDots` (default), `SpinnerLine`, `SpinnerClock`, `SpinnerBounce`
 ```haskell
 spinner "Loading" frame SpinnerDots            -- ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
 spinner "Working" frame SpinnerLine            -- | / - \
@@ -324,7 +377,45 @@ spinner "Waiting" frame SpinnerClock           -- 🕐 🕑 🕒 ...
 spinner "Thinking" frame SpinnerBounce         -- ⠁ ⠂ ⠄ ⠂
 ```
 
-### Charts & Plots
+### Alignment: `center`, `alignLeft`, `alignRight`, `justify`, `wrap`
+```haskell
+center $ text "Auto-centered"                  -- width from siblings
+center' 30 $ text "Fixed width"
+alignLeft 30 "Left"
+alignRight 30 "Right"
+justify 30 "Spaces are distributed evenly"
+wrap 20 "Long text wrapped at word boundaries"
+```
+
+### Underline: `underline`, `underline'`, `underlineColored`
+```haskell
+underline $ text "Title"
+underline' "=" $ text "Double"
+underlineColored "~" ColorCyan $ text "Fancy"
+```
+```
+Title
+─────
+
+Double
+======
+```
+
+### Margin: `margin`
+```haskell
+margin "[error]" [text "Oops", text "fix it"]
+```
+```
+[error] Oops
+[error] fix it
+```
+
+### Padding: `pad`
+```haskell
+pad 2 $ text "Padded content"
+```
+
+## Charts & Plots
 
 See also [Granite](https://github.com/mchav/granite) for terminal plots in Haskell.
 
@@ -418,43 +509,6 @@ plotHeatmap $ HeatmapData
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
 </p>
-
-## Border Styles
-Elements like `box`, `table`, and `statusCard` support different border styles:
-
-```haskell
-BorderNormal                  -- ┌─┐ (default)
-BorderDouble                  -- ╔═╗
-BorderThick                   -- ┏━┓
-BorderRound                   -- ╭─╮
-BorderAscii                   -- +-+
-BorderBlock                   -- ███
-BorderDashed                  -- ┌╌┐
-BorderDotted                  -- ┌┈┐
-BorderInnerHalfBlock          -- ▗▄▖
-BorderOuterHalfBlock          -- ▛▀▜
-BorderMarkdown                -- |-|
-BorderCustom "+" "=" "|"      -- Custom border
-BorderNone                    -- No borders
-```
-
-**Usage examples:**
-```haskell
-box "Title" ["content"]                                -- BorderNormal (default)
-withBorder BorderDouble $ statusCard "API" "UP"        -- Double-line border
-withBorder BorderThick $ table ["Name"] [["Alice"]]    -- Thick border
-withBorder BorderRound $ box "Info" ["content"]        -- Rounded corners
-withBorder BorderNone $ box "Info" ["content"]         -- Invisible borders
-withBorder (BorderCustom "+" "=" "|") $ box "X" ["y"]  -- Custom chars
-```
-
-```
-┌──Title──┐    ╔═══════╗    ┏━━━━━━━┓    ╭──Info───╮
-│ content │    ║ API   ║    ┃ Name  ┃    │ content │
-└─────────┘    ║ UP    ║    ┣━━━━━━━┫    ╰─────────╯
-               ╚═══════╝    ┃ Alice ┃
-                             ┗━━━━━━━┛
-```
 
 ## Colors (ANSI Support)
 

@@ -26,9 +26,9 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
+- [Border Styles](#border-styles)
 - [Elements](#elements)
 - [Colors & Styles](#colors)
-- [Border Styles](#border-styles)
 - [Charts & Plots](#charts--plots)
 - [Interactive Apps](#interactive-apps)
 - [Examples](#examples)
@@ -240,6 +240,33 @@ Both render:
 ```
 
 Available: `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.color()`, `.bg()`, `.style()`, `.border()`
+
+## Border Styles
+
+Applied via `.border()` to any element with the `HasBorder` typeclass (`box`, `statusCard`, `table`):
+```scala
+box("Title")("content").border(Border.Round)
+table(h, r).border(Border.Thick)
+
+// HasBorder typeclass for generic code
+def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
+```
+
+```scala
+Border.Single                              // ┌─┐ (default)
+Border.Double                              // ╔═╗
+Border.Thick                               // ┏━┓
+Border.Round                               // ╭─╮
+Border.Ascii                               // +-+
+Border.Block                               // ███
+Border.Dashed                              // ┌╌┐
+Border.Dotted                              // ┌┈┐
+Border.InnerHalfBlock                      // ▗▄▖
+Border.OuterHalfBlock                      // ▛▀▜
+Border.Markdown                            // |-|
+Border.Custom(corner = "+", horizontal = "=", vertical = "|")
+Border.None                                // no borders
+```
 
 ## Elements
 
@@ -555,30 +582,6 @@ Style.Bold ++ Style.Italic    // combine with ++
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
 </p>
-
-## Border Styles
-```scala
-Border.Single                              // ┌─┐ (default)
-Border.Double                              // ╔═╗
-Border.Thick                               // ┏━┓
-Border.Round                               // ╭─╮
-Border.Ascii                               // +-+
-Border.Block                               // ███
-Border.Dashed                              // ┌╌┐
-Border.Dotted                              // ┌┈┐
-Border.InnerHalfBlock                      // ▗▄▖
-Border.OuterHalfBlock                      // ▛▀▜
-Border.Markdown                            // |-|
-Border.Custom(corner = "+", horizontal = "=", vertical = "|")
-Border.None                                // no borders
-
-// Applied via .border()
-box("Title")("content").border(Border.Round)
-table(h, r).border(Border.Thick)
-
-// HasBorder typeclass for generic code
-def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
-```
 
 ## Charts & Plots
 
