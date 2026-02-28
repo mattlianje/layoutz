@@ -1448,6 +1448,19 @@ See [SimpleGame.scala](examples/SimpleGame.scala) for the full source.
 
 </details>
 
+## Contributing
+
+You need [Mill](https://mill-build.org) and a JDK (11+).
+
+```bash
+make test          # run all tests (JVM, JS, Native)
+make compile       # compile all platforms
+make repl          # Scala 3 REPL with layoutz loaded
+make fmt           # scalafmt
+```
+
+Fork, make your change, `make test`, open a PR. Keep it zero-dep.
+
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
 - Go's [bubbletea](https://github.com/charmbracelet/bubbletea)
