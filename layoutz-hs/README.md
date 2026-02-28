@@ -573,7 +573,7 @@ putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
 </p>
 
 
-## Styles (ANSI Support)
+## Styles
 
 Add ANSI styles to any element:
 
