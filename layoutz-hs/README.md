@@ -781,9 +781,9 @@ KeySpecial String             -- Other unrecognized sequences
 ```
 
 ## Examples
-- [ShowcaseApp.hs](examples/ShowcaseApp.hs) - 7-scene interactive demo
-- [SimpleGame.hs](SimpleGame.hs) - Collect gems, avoid enemies
-- [InlineBar.hs](examples/InlineBar.hs) - Gradient loading bar
+- [ShowcaseApp.hs](examples/ShowcaseApp.hs) - Tours every layoutz element and visualization across 7 scenes
+- [SimpleGame.hs](SimpleGame.hs) - Grid game where you collect gems and dodge enemies with WASD
+- [InlineBar.hs](examples/InlineBar.hs) - Renders a gradient progress bar in-place
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)
