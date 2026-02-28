@@ -175,16 +175,29 @@ vr'' "|" 5                                   -- Custom char and height
 
 ### Boxes, Cards & Progress
 ```haskell
-box "Summary" [kv [("total", "42")]]         -- Titled box
-box "" ["content"]                           -- Untitled box
-statusCard "CPU" "45%"                       -- Compact status card
-inlineBar "Download" 0.75                    -- Progress bar
+box "Summary" [kv [("total", "42")]]
 ```
 ```
-┌──Summary───┐    ┌─────────┐    ┌───────┐
-│ total: 42  │    │ content │    │ CPU   │    Download [███████████████─────] 75%
-└────────────┘    └─────────┘    │ 45%   │
-                                  └───────┘
+┌──Summary───┐
+│ total: 42  │
+└────────────┘
+```
+
+```haskell
+statusCard "CPU" "45%"
+```
+```
+┌───────┐
+│ CPU   │
+│ 45%   │
+└───────┘
+```
+
+```haskell
+inlineBar "Download" 0.75
+```
+```
+Download [███████████████─────] 75%
 ```
 
 ### Tables & Key-Value Pairs
@@ -194,12 +207,10 @@ table ["Name", "Age", "City"]
   , ["Bob", "25", ""]
   , ["Charlie", "35", "London"]
   ]
-
-kv [("name", "Alice"), ("role", "admin")]
 ```
 ```
-┌─────────┬─────┬──────────┐    name: Alice
-│ Name    │ Age │ City     │    role: admin
+┌─────────┬─────┬──────────┐
+│ Name    │ Age │ City     │
 ├─────────┼─────┼──────────┤
 │ Alice   │ 30  │ New York │
 │ Bob     │ 25  │          │
@@ -207,32 +218,58 @@ kv [("name", "Alice"), ("role", "admin")]
 └─────────┴─────┴──────────┘
 ```
 
+```haskell
+kv [("name", "Alice"), ("role", "admin")]
+```
+```
+name: Alice
+role: admin
+```
+
 ### Lists & Trees
 ```haskell
-ul ["Feature A", "Feature B"]               -- Unordered list
-ul ["Backend", ul ["API", "DB"]]            -- Nested (auto-styled: • ◦ ▪)
-ol ["First", "Second", "Third"]             -- Ordered list
-ol ["Setup", ol ["Install", "Configure"]]   -- Nested (auto-styled: 1. a. i.)
+ol ["Setup", ol ["Install deps", ol ["npm", "pip"], "Configure"], "Deploy"]
+```
+```
+1. Setup
+  a. Install deps
+    i. npm
+    ii. pip
+  b. Configure
+2. Deploy
+```
 
+```haskell
+ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
+```
+```
+• Backend
+  ◦ API
+    ▪ REST
+    ▪ GraphQL
+  ◦ DB
+• Frontend
+```
+
+```haskell
 tree "Project"
   [ branch "src" [leaf "main.hs", leaf "test.hs"]
   , branch "docs" [leaf "README.md"]
   ]
 ```
 ```
-• Feature A     1. First              Project
-• Feature B     2. Second             ├── src
-                3. Third              │   ├── main.hs
-• Backend                             │   └── test.hs
-  ◦ API         1. Setup              └── docs
-  ◦ DB            a. Install              └── README.md
-                  b. Configure
+Project
+├── src
+│   ├── main.hs
+│   └── test.hs
+└── docs
+    └── README.md
 ```
 
 ### Text Formatting
 ```haskell
-center $ text "Auto-centered"               -- Uses layout context width
-center' 20 $ text "Fixed width"             -- Center within fixed width
+center $ text "Auto-centered"
+center' 20 $ text "Fixed width"
 alignLeft 40 "Left aligned"
 alignRight 40 "Right aligned"
 alignCenter 40 "Centered"
@@ -241,32 +278,43 @@ wrap 20 "Long text that should wrap at word boundaries"
 ```
 ```
 Left aligned
-                           Right aligned
+                                   Right aligned
                Centered
-This  text  is  justified         evenly
+This  text  is  justified                  evenly
 ```
 
 ### Underline, Margin & Padding
 ```haskell
-underline $ text "Title"                     -- Underline with ───
-underline' "=" $ text "Custom"               -- Underline with ===
-underlineColored "~" ColorRed $ text "Error" -- Colored underline
-margin "[error]" [text "Oops", text "fix"]   -- Prefix each line
-pad 2 $ text "content"                       -- Padding all sides
+underline $ text "Title"
 ```
 ```
-Title           Custom          [error] Oops
-─────           ======          [error] fix
+Title
+─────
+```
+
+```haskell
+underline' "=" $ text "Custom"
+```
+```
+Custom
+======
+```
+
+```haskell
+margin "[error]" [text "Oops", text "fix"]
+```
+```
+[error] Oops
+[error] fix
+```
+
+```haskell
+pad 2 $ text "content"
 ```
 
 ### Charts & Spinners
 ```haskell
 chart [("Web", 10), ("Mobile", 20), ("API", 15)]
-
-spinner "Loading" frame SpinnerDots          -- ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
-spinner "Working" frame SpinnerLine          -- | / - \
-spinner "Waiting" frame SpinnerClock         -- 🕐 🕑 🕒 ...
-spinner "Thinking" frame SpinnerBounce       -- ⠁ ⠂ ⠄ ⠂
 ```
 ```
 Web    │████████████████████────────────────────│ 10
@@ -274,7 +322,17 @@ Mobile │███████████████████████�
 API    │██████████████████████████████──────────│ 15
 ```
 
+Spinner styles: `Dots` (default), `Line`, `Clock`, `Bounce`
+```haskell
+spinner "Loading" frame SpinnerDots            -- ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+spinner "Working" frame SpinnerLine            -- | / - \
+spinner "Waiting" frame SpinnerClock           -- 🕐 🕑 🕒 ...
+spinner "Thinking" frame SpinnerBounce         -- ⠁ ⠂ ⠄ ⠂
+```
+
 ### Charts & Plots
+
+See also [Granite](https://github.com/mchav/granite) for terminal plots in Haskell.
 
 #### Line Plot
 ```haskell
@@ -322,12 +380,11 @@ plotBar 40 10
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="500">
 </p>
 
-Custom colors:
 ```haskell
 plotBar 40 10
   [ BarItem 100 "Sales" ColorBrightMagenta
-  , BarItem 80 "Costs" ColorBrightRed
-  , BarItem 20 "Profit" ColorBrightCyan
+  , BarItem 80  "Costs" ColorBrightRed
+  , BarItem 20  "Profit" ColorBrightCyan
   ]
 ```
 <p align="center">
@@ -349,7 +406,6 @@ plotStackedBar 40 10
 #### Sparkline
 ```haskell
 plotSparkline [1, 4, 2, 8, 5, 7, 3, 6]
-withColor ColorBrightCyan $ plotSparkline [10, 20, 15, 30, 25, 40, 35]
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-sparkline.png" width="500">
@@ -364,8 +420,6 @@ plotHeatmap $ HeatmapData
   ]
   ["Mon", "Tue", "Wed"]
   ["6am", "9am", "12pm", "3pm", "6pm", "9pm", "12am"]
-
-plotHeatmap' 5 heatmapData  -- custom cell width
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
