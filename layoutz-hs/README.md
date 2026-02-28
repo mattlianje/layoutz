@@ -110,6 +110,14 @@ main = runApp counterApp
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="500">
 </p>
 
+`LayoutzApp`s can also run inline without clearing the screen, animating in place within existing output:
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="550">
+<br>
+<sub><a href="examples/InlineBar.hs">InlineBar.hs</a></sub>
+</p>
+
 ## Why layoutz?
 - We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between
 - **layoutz** is a tiny, declarative DSL for structured CLI output
@@ -260,6 +268,103 @@ Mobile │███████████████████████�
 API    │██████████████████████████████──────────│ 15
 ```
 
+### Charts & Plots
+
+#### Line Plot
+```haskell
+let sinePoints = [(x, sin x) | x <- [0, 0.1 .. 10.0]]
+plotLine 40 10 [Series sinePoints "sine" ColorBrightCyan]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-1.png" width="500">
+</p>
+
+Multiple series:
+```haskell
+let sinPts = [(x, sin (x * 0.15) * 5) | x <- [0..50]]
+    cosPts = [(x, cos (x * 0.15) * 5) | x <- [0..50]]
+plotLine 50 12
+  [ Series sinPts "sin(x)" ColorBrightCyan
+  , Series cosPts "cos(x)" ColorBrightMagenta
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="500">
+</p>
+
+#### Pie Chart
+```haskell
+plotPie 20 10
+  [ Slice 50 "A" ColorBrightCyan
+  , Slice 30 "B" ColorBrightMagenta
+  , Slice 20 "C" ColorBrightYellow
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="500">
+</p>
+
+#### Bar Chart
+```haskell
+plotBar 40 10
+  [ BarItem 85 "Mon" ColorBrightCyan
+  , BarItem 120 "Tue" ColorBrightGreen
+  , BarItem 95 "Wed" ColorBrightMagenta
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="500">
+</p>
+
+Custom colors:
+```haskell
+plotBar 40 10
+  [ BarItem 100 "Sales" ColorBrightMagenta
+  , BarItem 80 "Costs" ColorBrightRed
+  , BarItem 20 "Profit" ColorBrightCyan
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar-custom.png" width="500">
+</p>
+
+#### Stacked Bar Chart
+```haskell
+plotStackedBar 40 10
+  [ StackedBarGroup [BarItem 30 "Q1" ColorDefault, BarItem 20 "Q2" ColorDefault, BarItem 25 "Q3" ColorDefault] "2022"
+  , StackedBarGroup [BarItem 35 "Q1" ColorDefault, BarItem 25 "Q2" ColorDefault, BarItem 30 "Q3" ColorDefault] "2023"
+  , StackedBarGroup [BarItem 40 "Q1" ColorDefault, BarItem 30 "Q2" ColorDefault, BarItem 35 "Q3" ColorDefault] "2024"
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-stacked.png" width="500">
+</p>
+
+#### Sparkline
+```haskell
+plotSparkline [1, 4, 2, 8, 5, 7, 3, 6]
+withColor ColorBrightCyan $ plotSparkline [10, 20, 15, 30, 25, 40, 35]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-sparkline.png" width="500">
+</p>
+
+#### Heatmap
+```haskell
+plotHeatmap $ HeatmapData
+  [ [12, 15, 22, 28, 30, 25, 18]
+  , [14, 18, 25, 32, 35, 28, 20]
+  , [10, 13, 20, 26, 28, 22, 15]
+  ]
+  ["Mon", "Tue", "Wed"]
+  ["6am", "9am", "12pm", "3pm", "6pm", "9pm", "12am"]
+
+plotHeatmap' 5 heatmapData  -- custom cell width
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
+</p>
+
 ## Border Styles
 Elements like `box`, `table`, and `statusCard` support different border styles:
 
@@ -333,7 +438,7 @@ ColorBrightCyan
 ColorBrightWhite
 ColorFull 196                 -- 256-color palette (0-255)
 ColorTrue 255 128 0           -- 24-bit RGB
-ColorNoColor                  -- Conditional no-op
+ColorDefault                  -- Conditional no-op
 ```
 
 ### Color Gradients
@@ -384,7 +489,7 @@ StyleBlink
 StyleReverse
 StyleHidden
 StyleStrikethrough
-StyleNoStyle                  -- Conditional no-op
+StyleDefault                  -- Conditional no-op
 StyleBold <> StyleItalic      -- Combine with <>
 ```
 

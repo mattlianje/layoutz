@@ -51,6 +51,13 @@ module Layoutz
     -- * Spinners
   , spinner
   , SpinnerStyle(..)
+    -- * Visualizations
+  , plotSparkline
+  , Series(..), plotLine
+  , Slice(..), plotPie
+  , BarItem(..), plotBar
+  , StackedBarGroup(..), plotStackedBar
+  , HeatmapData(..), plotHeatmap, plotHeatmap'
     -- * Border utilities
   , withBorder
     -- * Color utilities
@@ -79,7 +86,8 @@ module Layoutz
   , subBatch
   ) where
 
-import Data.List (intercalate, transpose)
+import Data.List (intercalate, transpose, nub)
+import Data.Bits ((.|.))
 import Data.String (IsString(..))
 import Data.Char (ord, chr)
 import Text.Printf (printf)
@@ -194,13 +202,13 @@ render :: Element a => a -> String
 render = renderElement
 
 -- | L is the universal layout element type - a type-erased wrapper for the DSL.
--- 
+--
 -- This allows mixing different element types in layouts while providing a common interface.
 -- Uses existential quantification to store any Element type inside L.
 --
 -- Constructors:
 --   * L a          - Wraps any Element (Text, Box, Table, etc.)
---   * UL [L]       - Special case for unordered lists (allows nesting)  
+--   * UL [L]       - Special case for unordered lists (allows nesting)
 --   * AutoCenter L - Smart centering that adapts to layout context width
 --   * LBox, LStatusCard, LTable - Specialized constructors for bordered elements
 --
@@ -289,7 +297,7 @@ instance HasBorder L where
   setBorder _ other = other  -- Non-bordered elements remain unchanged
 
 -- Color support with ANSI codes
-data Color = ColorNoColor | ColorBlack | ColorRed | ColorGreen | ColorYellow 
+data Color = ColorDefault | ColorBlack | ColorRed | ColorGreen | ColorYellow 
            | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
            | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow 
            | ColorBrightBlue | ColorBrightMagenta | ColorBrightCyan | ColorBrightWhite
@@ -299,7 +307,7 @@ data Color = ColorNoColor | ColorBlack | ColorRed | ColorGreen | ColorYellow
 
 -- | Get ANSI foreground color code
 colorCode :: Color -> String
-colorCode ColorNoColor       = ""
+colorCode ColorDefault       = ""
 colorCode ColorBlack         = "30"
 colorCode ColorRed           = "31"
 colorCode ColorGreen         = "32"
@@ -330,26 +338,26 @@ wrapAnsi color str
   | otherwise = "\ESC[" ++ colorCode color ++ "m" ++ str ++ "\ESC[0m"
 
 -- Style support with ANSI codes
-data Style = StyleNoStyle | StyleBold | StyleDim | StyleItalic | StyleUnderline
+data Style = StyleDefault | StyleBold | StyleDim | StyleItalic | StyleUnderline
            | StyleBlink | StyleReverse | StyleHidden | StyleStrikethrough
            | StyleCombined [Style]  -- ^ Combine multiple styles
   deriving (Show, Eq)
 
 -- | Combine styles using ++
 instance Semigroup Style where
-  StyleNoStyle <> other = other
-  other <> StyleNoStyle = other
+  StyleDefault <> other = other
+  other <> StyleDefault = other
   StyleCombined styles1 <> StyleCombined styles2 = StyleCombined (styles1 ++ styles2)
   StyleCombined styles <> style = StyleCombined (styles ++ [style])
   style <> StyleCombined styles = StyleCombined (style : styles)
   style1 <> style2 = StyleCombined [style1, style2]
 
 instance Monoid Style where
-  mempty = StyleNoStyle
+  mempty = StyleDefault
 
 -- | Get ANSI style code
 styleCode :: Style -> String
-styleCode StyleNoStyle       = ""
+styleCode StyleDefault       = ""
 styleCode StyleBold          = "1"
 styleCode StyleDim           = "2"
 styleCode StyleItalic        = "3"
@@ -504,8 +512,8 @@ instance Element Box where
     let elementStrings = map render elements
         content = intercalate "\n" elementStrings
         contentLines = if null content then [""] else lines content
-        contentWidth = maximum (0 : map length contentLines)
-        titleWidth = if null title then 0 else length title + 2
+        contentWidth = maximum (0 : map visibleLength contentLines)
+        titleWidth = if null title then 0 else visibleLength title + 2
         innerWidth = max contentWidth titleWidth
         totalWidth = innerWidth + 4
         BorderChars{..} = borderChars border
@@ -514,7 +522,7 @@ instance Element Box where
 
         topBorder
           | null title = bcTL ++ replicate (totalWidth - 2) hTopChar ++ bcTR
-          | otherwise  = let titlePadding = totalWidth - length title - 2
+          | otherwise  = let titlePadding = totalWidth - visibleLength title - 2
                              leftPad = titlePadding `div` 2
                              rightPad = titlePadding - leftPad
                          in bcTL ++ replicate leftPad hTopChar ++ title ++ replicate rightPad hTopChar ++ bcTR
@@ -534,7 +542,7 @@ instance Element StatusCard where
     let labelLines = lines label
         contentLines = lines content
         allLines = labelLines ++ contentLines
-        maxWidth = maximum (0 : map length allLines)
+        maxWidth = maximum (0 : map visibleLength allLines)
         contentWidth = maxWidth + 2
         BorderChars{..} = borderChars border
         hTopChar = head bcHTop
@@ -1013,6 +1021,384 @@ instance Element Spinner where
 -- @
 spinner :: String -> Int -> SpinnerStyle -> L
 spinner label frame style = L (Spinner label frame style)
+
+-- ============================================================================
+-- Visualization Primitives
+-- ============================================================================
+
+-- | Block characters for sparklines and bar charts (indices 0–8)
+blockChars :: String
+blockChars = " ▁▂▃▄▅▆▇█"
+
+-- | Braille dot bit flag for position (row 0–3, col 0–1) in a 2×4 braille cell
+brailleDot :: Int -> Int -> Int
+brailleDot 0 0 = 0x01
+brailleDot 1 0 = 0x02
+brailleDot 2 0 = 0x04
+brailleDot 3 0 = 0x40
+brailleDot 0 1 = 0x08
+brailleDot 1 1 = 0x10
+brailleDot 2 1 = 0x20
+brailleDot 3 1 = 0x80
+brailleDot _ _ = 0
+
+-- | Default color palette for cycling through series/slices
+defaultPalette :: [Color]
+defaultPalette = [ ColorBrightCyan, ColorBrightMagenta, ColorBrightYellow
+                 , ColorBrightGreen, ColorBrightRed, ColorBrightBlue ]
+
+-- | Use explicit color if not ColorDefault, else cycle palette by index
+pickColor :: Int -> Color -> Color
+pickColor idx ColorDefault = defaultPalette !! (idx `mod` length defaultPalette)
+pickColor _   c            = c
+
+-- | Format number for axis labels: "3" for integers, "3.5" for decimals
+formatAxisNum :: Double -> String
+formatAxisNum v
+  | v == fromInteger (round v) = show (round v :: Integer)
+  | otherwise                  = printf "%.1f" v
+
+-- | ANSI 256-color background escape sequence
+bgColor256 :: Int -> String
+bgColor256 n = "\ESC[48;5;" ++ show n ++ "m"
+
+-- | ANSI reset sequence
+ansiReset :: String
+ansiReset = "\ESC[0m"
+
+-- Sparkline ------------------------------------------------------------------
+
+data SparklineData = SparklineData [Double]
+
+instance Element SparklineData where
+  renderElement (SparklineData []) = ""
+  renderElement (SparklineData vals) =
+    let mn  = minimum vals
+        mx  = maximum vals
+        rng = mx - mn
+        idx v | rng == 0  = 4
+              | otherwise = max 1 $ min 8 $ floor ((v - mn) / rng * 8)
+    in map (\v -> blockChars !! idx v) vals
+
+-- | Create a sparkline from a list of values
+plotSparkline :: [Double] -> L
+plotSparkline = L . SparklineData
+
+-- Line Plot (Braille) --------------------------------------------------------
+
+-- | A data series for line plots: points, label, color
+data Series = Series [(Double, Double)] String Color
+
+data PlotData = PlotData [Series] Int Int  -- series, width, height
+
+instance Element PlotData where
+  renderElement (PlotData ss w h)
+    | null ss || all (\(Series ps _ _) -> null ps) ss = "No data"
+    | otherwise =
+      let allPts = concatMap (\(Series ps _ _) -> ps) ss
+          (xs, ys) = unzip allPts
+          xMin = minimum xs; xMax = maximum xs
+          yMin = minimum ys; yMax = maximum ys
+          xRng = if xMax == xMin then 1.0 else xMax - xMin
+          yRng = if yMax == yMin then 1.0 else yMax - yMin
+          pxW  = w * 2; pxH = h * 4
+
+          toPixel (x, y) =
+            ( clampI 0 (pxW - 1) $ round ((x - xMin) / xRng * fromIntegral (pxW - 1))
+            , clampI 0 (pxH - 1) $ round ((yMax - y) / yRng * fromIntegral (pxH - 1))
+            )
+          clampI lo hi = max lo . min hi
+
+          emptyGrid = replicate h (replicate w (0 :: Int, -1 :: Int))
+
+          plotSeries grd sIdx (Series ps _ _) =
+            foldl (\g p ->
+              let (px, py) = toPixel p
+                  cx = px `div` 2; cy = py `div` 4
+                  dx = px `mod` 2; dy = py `mod` 4
+                  bit = brailleDot dy dx
+              in updGrid cy cx (\(b, si) -> (b .|. bit, if si < 0 then sIdx else si)) g
+            ) grd ps
+
+          updGrid r c f g =
+            [ if ri == r
+              then [ if ci == c then f cell else cell | (ci, cell) <- zip [0..] row' ]
+              else row'
+            | (ri, row') <- zip [0..] g ]
+
+          grid = foldl (\g (i, s) -> plotSeries g i s) emptyGrid (zip [0..] ss)
+
+          yTicks  = [ yMax - yRng * fromIntegral i / fromIntegral (max 1 (h - 1)) | i <- [0 .. h-1] ]
+          yLabels = map formatAxisNum yTicks
+          yLabelW = maximum (0 : map length yLabels)
+
+          gridLines = zipWith (\yLbl row' ->
+            padLeft yLabelW yLbl ++ " │" ++
+            concatMap (\(bits, si) ->
+              let ch = if bits == 0 then ' ' else chr (0x2800 + bits)
+                  c  = if si >= 0 then pickColor si (sColor (ss !! si)) else ColorDefault
+              in if c == ColorDefault then [ch] else wrapAnsi c [ch]
+            ) row'
+            ) yLabels grid
+
+          xAxis   = replicate (yLabelW + 2) ' ' ++ replicate w '─'
+          xMinL   = formatAxisNum xMin
+          xMaxL   = formatAxisNum xMax
+          xLabels = replicate (yLabelW + 2) ' ' ++ xMinL
+                    ++ replicate (max 1 (w - length xMinL - length xMaxL)) ' '
+                    ++ xMaxL
+
+          legend
+            | length ss <= 1 = []
+            | otherwise      = ["", intercalate "  " $
+                zipWith (\i (Series _ nm cl) ->
+                  wrapAnsi (pickColor i cl) "●" ++ " " ++ nm
+                ) [0..] ss]
+
+      in intercalate "\n" (gridLines ++ [xAxis, xLabels] ++ legend)
+    where sColor (Series _ _ c) = c
+
+-- | Create a braille line plot
+plotLine :: Int -> Int -> [Series] -> L
+plotLine w h ss = L (PlotData ss w h)
+
+-- Pie Chart (Braille) --------------------------------------------------------
+
+-- | A slice of a pie chart: value, label, color
+data Slice = Slice Double String Color
+
+data PieData = PieData [Slice] Int Int
+
+instance Element PieData where
+  renderElement (PieData [] _ _) = "No data"
+  renderElement (PieData slices w h) =
+    let total   = sum [ v | Slice v _ _ <- slices ]
+        cumAngs = scanl (+) 0 [ v / total * 2 * pi | Slice v _ _ <- slices ]
+
+        cxF    = fromIntegral w                   :: Double
+        cyF    = fromIntegral (h * 4) / 2.0       :: Double
+        radius = min cxF (cyF * 0.9)
+
+        findSlice ang = go 0 (tail cumAngs)
+          where go i []      = max 0 (i - 1)
+                go i (a:as') = if ang < a then i else go (i + 1) as'
+
+        renderCell gcx gcy =
+          let subPx = [ (dy, dx, dist, nAng)
+                      | dy <- [0..3], dx <- [0..1]
+                      , let dpx  = fromIntegral (gcx * 2 + dx) :: Double
+                            dpy  = fromIntegral (gcy * 4 + dy) :: Double
+                            relX = dpx - cxF
+                            relY = (dpy - cyF) * 2.0
+                            dist = sqrt (relX * relX + relY * relY)
+                            ang  = atan2 relY relX
+                            nAng = if ang < 0 then ang + 2 * pi else ang
+                      ]
+              inside = [ (dy, dx, nAng) | (dy, dx, dist, nAng) <- subPx, dist <= radius ]
+              bits   = foldl (\acc (dy, dx, _) -> acc .|. brailleDot dy dx) 0 inside
+              domSi  = case inside of
+                         []            -> -1
+                         ((_, _, a):_) -> findSlice a
+              ch     = if bits == 0 then ' ' else chr (0x2800 + bits)
+              color  = if domSi >= 0 && domSi < length slices
+                       then pickColor domSi (slColor (slices !! domSi))
+                       else ColorDefault
+          in if bits == 0 then " " else wrapAnsi color [ch]
+
+        gridLines = [ concatMap (\gcx -> renderCell gcx gcy) [0..w-1] | gcy <- [0..h-1] ]
+
+        legendLines = zipWith (\i (Slice v nm cl) ->
+          let c   = pickColor i cl
+              pct = printf "%.0f" (v / total * 100) :: String
+          in "  " ++ wrapAnsi c "●" ++ " " ++ nm ++ " (" ++ pct ++ "%)"
+          ) [0..] slices
+
+    in intercalate "\n" (gridLines ++ [""] ++ legendLines)
+    where slColor (Slice _ _ c) = c
+
+-- | Create a braille pie chart
+plotPie :: Int -> Int -> [Slice] -> L
+plotPie w h sl = L (PieData sl w h)
+
+-- Bar Chart (Vertical) -------------------------------------------------------
+
+-- | A bar item: value, label, color
+data BarItem = BarItem Double String Color
+
+data BarChartData = BarChartData [BarItem] Int Int
+
+instance Element BarChartData where
+  renderElement (BarChartData [] _ _) = "No data"
+  renderElement (BarChartData items w h) =
+    let maxVal   = maximum [ v | BarItem v _ _ <- items ]
+        nBars    = length items
+        barW     = max 1 $ (w - nBars + 1) `div` nBars
+        totalSub = h * 8
+        barHts   = [ round (v / maxVal * fromIntegral totalSub) :: Int | BarItem v _ _ <- items ]
+
+        yTicks  = [ maxVal * fromIntegral (h - 1 - i) / fromIntegral (max 1 (h - 1)) | i <- [0..h-1] ]
+        yLabels = map formatAxisNum yTicks
+        yLabelW = maximum (0 : map length yLabels)
+
+        gridLines =
+          [ let r = h - 1 - rowIdx
+                barCells = intercalate " " $
+                  map (\(i, (bh, BarItem _ _ cl)) ->
+                    let filled = min 8 $ max 0 (bh - r * 8)
+                        color' = pickColor i cl
+                        barStr = replicate barW (blockChars !! filled)
+                    in if filled > 0 then wrapAnsi color' barStr else barStr
+                  ) (zip [0..] (zip barHts items))
+            in padLeft yLabelW (yLabels !! rowIdx) ++ " │" ++ barCells
+          | rowIdx <- [0..h-1]
+          ]
+
+        xAxisW    = nBars * barW + nBars - 1
+        xAxis     = replicate (yLabelW + 2) ' ' ++ replicate xAxisW '─'
+        barLabels = replicate (yLabelW + 2) ' ' ++
+                    intercalate " " [ take barW (nm ++ replicate barW ' ') | BarItem _ nm _ <- items ]
+
+    in intercalate "\n" (gridLines ++ [xAxis, barLabels])
+
+-- | Create a vertical bar chart
+plotBar :: Int -> Int -> [BarItem] -> L
+plotBar w h items = L (BarChartData items w h)
+
+-- Stacked Bar Chart -----------------------------------------------------------
+
+-- | A group of stacked bars: segments and group label
+data StackedBarGroup = StackedBarGroup [BarItem] String
+
+data StackedBarChartData = StackedBarChartData [StackedBarGroup] Int Int
+
+instance Element StackedBarChartData where
+  renderElement (StackedBarChartData [] _ _) = "No data"
+  renderElement (StackedBarChartData groups w h) =
+    let maxTotal  = maximum [ sum [ v | BarItem v _ _ <- segs ] | StackedBarGroup segs _ <- groups ]
+        nGroups   = length groups
+        barW      = max 1 $ (w - nGroups + 1) `div` nGroups
+        totalSub  = h * 8
+
+        groupBounds = map (\(StackedBarGroup segs _) ->
+          let vals    = [ v | BarItem v _ _ <- segs ]
+              subHts  = map (\v -> round (v / maxTotal * fromIntegral totalSub) :: Int) vals
+              cumHts  = scanl (+) 0 subHts
+              bottoms = init cumHts
+              tops    = tail cumHts
+          in zip segs (zip bottoms tops)
+          ) groups
+
+        allLabels = nub [ nm | StackedBarGroup segs _ <- groups, BarItem _ nm _ <- segs ]
+        labelIdx nm = case lookup nm (zip allLabels [0..]) of
+          Just i  -> i
+          Nothing -> 0
+
+        yTicks  = [ maxTotal * fromIntegral (h - 1 - i) / fromIntegral (max 1 (h - 1)) | i <- [0..h-1] ]
+        yLabels = map formatAxisNum yTicks
+        yLabelW = maximum (0 : map length yLabels)
+
+        gridLines =
+          [ let r = h - 1 - rowIdx
+                subBot = r * 8
+                subTop = r * 8 + 8
+                barCells = intercalate " " $
+                  map (\bounds ->
+                    let overlapping = [ (bi, bot, top)
+                                      | (bi, (bot, top)) <- bounds
+                                      , top > subBot, bot < subTop ]
+                        topSeg = case overlapping of
+                          [] -> Nothing
+                          _  -> Just $ foldl1 (\a@(_, _, t1) b@(_, _, t2) ->
+                                  if t2 > t1 then b else a) overlapping
+                    in case topSeg of
+                      Nothing -> replicate barW ' '
+                      Just (BarItem _ nm cl, _, top) ->
+                        let filled = min 8 $ max 0 (top - subBot)
+                            color' = case cl of
+                              ColorDefault -> pickColor (labelIdx nm) ColorDefault
+                              _            -> cl
+                            barStr = replicate barW (blockChars !! filled)
+                        in if filled > 0 then wrapAnsi color' barStr else barStr
+                  ) groupBounds
+            in padLeft yLabelW (yLabels !! rowIdx) ++ " │" ++ barCells
+          | rowIdx <- [0..h-1]
+          ]
+
+        xAxisW    = nGroups * barW + nGroups - 1
+        xAxis     = replicate (yLabelW + 2) ' ' ++ replicate xAxisW '─'
+        grpLabels = replicate (yLabelW + 2) ' ' ++
+                    intercalate " " [ take barW (nm ++ replicate barW ' ')
+                                    | StackedBarGroup _ nm <- groups ]
+
+        legendItems = map (\nm ->
+          let i = labelIdx nm
+              c = defaultPalette !! (i `mod` length defaultPalette)
+          in wrapAnsi c "█" ++ " " ++ nm
+          ) allLabels
+        legendLine
+          | length allLabels <= 1 = []
+          | otherwise             = ["", intercalate "  " legendItems]
+
+    in intercalate "\n" (gridLines ++ [xAxis, grpLabels] ++ legendLine)
+
+-- | Create a stacked vertical bar chart
+plotStackedBar :: Int -> Int -> [StackedBarGroup] -> L
+plotStackedBar w h groups = L (StackedBarChartData groups w h)
+
+-- Heatmap --------------------------------------------------------------------
+
+-- | Heatmap data: grid of values, row labels, column labels
+data HeatmapData = HeatmapData [[Double]] [String] [String]
+
+data HeatmapElement = HeatmapElement HeatmapData Int  -- data, cellWidth
+
+instance Element HeatmapElement where
+  renderElement (HeatmapElement (HeatmapData [] _ _) _) = "No data"
+  renderElement (HeatmapElement (HeatmapData grid rowLbls colLbls) cellW) =
+    let allVals = concat grid
+        mn  = minimum allVals
+        mx  = maximum allVals
+        rng = if mx == mn then 1.0 else mx - mn
+        normalize v = (v - mn) / rng
+
+        toColor256 :: Double -> Int
+        toColor256 t
+          | t <= 0.0  = 21
+          | t >= 1.0  = 196
+          | t < 0.25  = let s = t / 0.25      in round (21.0  + s * 30.0)
+          | t < 0.5   = let s = (t-0.25)/0.25 in round (51.0  + s * (-5.0))
+          | t < 0.75  = let s = (t-0.5)/0.25  in round (46.0  + s * 180.0)
+          | otherwise  = let s = (t-0.75)/0.25 in round (226.0 + s * (-30.0))
+
+        rowLblW = maximum (0 : map length rowLbls)
+
+        header = replicate (rowLblW + 1) ' ' ++
+                 intercalate " " (map (\l -> padRight cellW (take cellW l)) colLbls)
+
+        dataRows = zipWith (\lbl rowVals ->
+          padRight rowLblW (take rowLblW lbl) ++ " " ++
+          intercalate " " (map (\v ->
+            let n    = normalize v
+                c256 = toColor256 n
+                vs   = formatAxisNum v
+            in bgColor256 c256 ++ padRight cellW (take cellW vs) ++ ansiReset
+          ) rowVals)
+          ) rowLbls grid
+
+        legendCs   = map (\i -> toColor256 (fromIntegral i / 10.0)) [0..10 :: Int]
+        legendBar  = concatMap (\c -> bgColor256 c ++ " " ++ ansiReset) legendCs
+        legendLine = replicate (rowLblW + 1) ' ' ++
+                     formatAxisNum mn ++ " " ++ legendBar ++ " " ++ formatAxisNum mx
+
+    in intercalate "\n" ([header] ++ dataRows ++ ["", legendLine])
+
+-- | Create a heatmap with default cell width (6)
+plotHeatmap :: HeatmapData -> L
+plotHeatmap dat = L (HeatmapElement dat 6)
+
+-- | Create a heatmap with custom cell width
+plotHeatmap' :: Int -> HeatmapData -> L
+plotHeatmap' cellW dat = L (HeatmapElement dat cellW)
 
 -- ============================================================================
 -- TUI Runtime - Simple event loop for interactive terminal applications
