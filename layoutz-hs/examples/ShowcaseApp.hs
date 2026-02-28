@@ -62,7 +62,7 @@ totalScenes = 7
 
 sceneNames :: [String]
 sceneNames =
-  [ "Bouncing Ball", "Text Input & Lists", "Borders & Styles"
+  [ "Physics Game", "Text Input & Lists", "Borders & Styles"
   , "Tables", "Charts & Plots", "Bar Charts & Sparklines"
   , "Selections & Heatmap" ]
 
@@ -182,7 +182,7 @@ view :: ShowcaseState -> L
 view s =
   let header  = renderHeader s
       content = case scene s of
-        0 -> sceneBouncingBall s
+        0 -> scenePhysicsGame s
         1 -> sceneTextInput s
         2 -> sceneBordersStyles s
         3 -> sceneTables s
@@ -226,10 +226,10 @@ renderFooter s =
         _ -> "  </> scenes  ESC quit"
   in withStyle StyleDim $ withColor ColorBrightBlack $ text hints
 
--- Scene 1: Bouncing Ball ------------------------------------------------------
+-- Scene 1: Physics Game -------------------------------------------------------
 
-sceneBouncingBall :: ShowcaseState -> L
-sceneBouncingBall s =
+scenePhysicsGame :: ShowcaseState -> L
+scenePhysicsGame s =
   let trailPoints = zip (map fromIntegral [0 :: Int ..]) (ballTrail s)
       gLabel   = printf "g = %.2f" (fromIntegral (gravity s) * 0.08 :: Double) :: String
       velLabel = printf "vy = %.1f" (ballVy s) :: String
@@ -256,7 +256,7 @@ sceneBouncingBall s =
             , withColor ColorBrightGreen $ text energyBar
             , br
             , withColor ColorBrightCyan $ spinner "Simulating" (tick s `div` 3) SpinnerDots
-            , withStyle StyleBold $ withColor ColorBrightYellow $ text "Space to kick!"
+            , withStyle StyleBold $ withColor ColorBrightYellow $ text "Press Space to kick ball!"
             ]
         ]
     ]
