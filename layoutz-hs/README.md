@@ -20,6 +20,12 @@ Part of [d4](https://github.com/mattlianje/d4)
 - [`LayoutzApp`](#interactive-apps) for Elm-style TUI's
 
 <p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="650">
+<br>
+<sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
+</p>
+
+<p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutzapp-demo.gif" height="350"><img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/game-demo.gif" height="350">
 <br>
 <sub><a href="TaskListDemo.hs">TaskListDemo.hs</a> • <a href="SimpleGame.hs">SimpleGame.hs</a></sub>
@@ -107,7 +113,7 @@ counterApp = LayoutzApp
 main = runApp counterApp
 ```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="550">
 </p>
 
 `LayoutzApp`s can also run inline without clearing the screen, animating in place within existing output:
@@ -575,31 +581,21 @@ cabal repl
 
 ## Interactive Apps
 
-Build **Elm-style terminal applications** with the built-in TUI runtime.
+`LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
+view is simply a `layoutz` `Element`.
 
 ```haskell
-import Layoutz
-
-data Msg = Inc | Dec
-
-counterApp :: LayoutzApp Int Msg
-counterApp = LayoutzApp
-  { appInit = (0, CmdNone)
-  , appUpdate = \msg count -> case msg of
-      Inc -> (count + 1, CmdNone)
-      Dec -> (count - 1, CmdNone)
-  , appSubscriptions = \_ -> subKeyPress $ \key -> case key of
-      KeyChar '+' -> Just Inc
-      KeyChar '-' -> Just Dec
-      _           -> Nothing
-  , appView = \count -> layout
-      [ section "Counter" [text $ "Count: " <> show count]
-      , ul ["Press '+' or '-'", "ESC to quit"]
-      ]
+data LayoutzApp state msg = LayoutzApp
+  { appInit          :: (state, Cmd msg)                 -- Initial state + startup command
+  , appUpdate        :: msg -> state -> (state, Cmd msg) -- Pure state transitions
+  , appSubscriptions :: state -> Sub msg                 -- Event sources
+  , appView          :: state -> L                       -- Render to UI
   }
-
-main = runApp counterApp
 ```
+
+Three daemon threads coordinate rendering (~30fps), tick/timers, and input capture. State updates flow through `appUpdate` synchronously.
+
+Press **ESC** to exit.
 
 ### App Options
 
@@ -612,28 +608,6 @@ runAppWith defaultAppOptions { optAlignment = AppAlignRight } app   -- Right-ali
 ```
 
 Terminal width is detected once at startup via ANSI cursor position report (zero dependencies).
-
-### How the Runtime Works
-
-The `runApp` function spawns three daemon threads:
-- **Render thread** - Continuously renders `appView state` to terminal (~30fps)
-- **Input thread** - Reads keys, maps via `appSubscriptions`, calls `appUpdate`
-- **Command thread** - Executes `Cmd` side effects async, feeds results back
-
-As per the above, commands run without blocking the UI.
-
-Press **ESC** to exit.
-
-### `LayoutzApp state msg`
-
-```haskell
-data LayoutzApp state msg = LayoutzApp
-  { appInit          :: (state, Cmd msg)                 -- Initial state + startup command
-  , appUpdate        :: msg -> state -> (state, Cmd msg) -- Pure state transitions
-  , appSubscriptions :: state -> Sub msg                 -- Event sources
-  , appView          :: state -> L                       -- Render to UI
-  }
-```
 
 ### Subscriptions
 
