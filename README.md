@@ -32,6 +32,7 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 - [Charts & Plots](#charts--plots)
 - [Interactive Apps](#interactive-apps)
 - [Examples](#examples)
+- [Contributing](#contributing)
 
 ## Installation
 On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):

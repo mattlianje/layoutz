@@ -36,6 +36,7 @@ Part of [d4](https://github.com/mattlianje/d4)
 - [Styles](#styles-ansi-support)
 - [Custom Components](#custom-components)
 - [Interactive Apps](#interactive-apps)
+- [Contributing](#contributing)
 
 ## Installation
 
