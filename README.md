@@ -821,59 +821,6 @@ Cmd.clipboard.write(content, onResult)           // Write clipboard
 
 Interactive TUI apps using `LayoutzApp` with built-in `Cmd` and `Sub`.
 
-### Showcase TUI
-
-<details>
-<summary>Multi-scene feature showcase with navigation</summary>
-
-A navigable TUI that cycles through 7 scenes demonstrating spinners, text input, lists, tables, charts, bar charts, and selections.
-
-See [ShowcaseApp.scala](examples/ShowcaseApp.scala) for the full source.
-
-Navigate with `←`/`→` arrow keys or number keys `1`-`7`. Each scene has its own interactive controls.
-</details>
-
-### Self-terminating loading bar
-
-<details>
-<summary>Auto-exit when tasks complete using <code>Cmd.exit</code></summary>
-
-```scala
-import layoutz._
-
-case class State(progress: Double, done: Boolean)
-sealed trait Msg
-case object Tick extends Msg
-
-object LoadingApp extends LayoutzApp[State, Msg] {
-  def init = (State(0, false), Cmd.none)
-
-  def update(msg: Msg, state: State) = msg match {
-    case Tick =>
-      if (state.done) (state, Cmd.exit)
-      else {
-        val next = state.progress + 0.02
-        if (next >= 1.0) (State(1.0, true), Cmd.none)
-        else (state.copy(progress = next), Cmd.none)
-      }
-  }
-
-  def subscriptions(state: State) = Sub.time.everyMs(50, Tick)
-
-  def view(state: State) = layout(
-    inlineBar("Loading", state.progress),
-    f"${state.progress * 100}%.0f%% complete"
-  )
-}
-
-LoadingApp.run(clearOnExit = false, showQuitMessage = false)
-println("Done!")
-```
-
-See [LoadingApp.scala](examples/LoadingApp.scala) for a multi-task version.
-
-</details>
-
 ### File viewer
 
 <details>
@@ -1438,19 +1385,6 @@ object ClipboardApp extends LayoutzApp[ClipState, Msg] {
 
 ClipboardApp.run
 ```
-</details>
-
-### Wizard game
-
-<p align="center">
-  <img src="pix/game-demo.gif" width="600">
-</p>
-
-<details>
-<summary>Collect gems, avoid enemies</summary>
-
-See [SimpleGame.scala](examples/SimpleGame.scala) for the full source.
-
 </details>
 
 ## Inspiration
