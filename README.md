@@ -1387,6 +1387,19 @@ ClipboardApp.run
 ```
 </details>
 
+### Wizard game
+
+<p align="center">
+  <img src="pix/game-demo.gif" width="600">
+</p>
+
+<details>
+<summary>Collect gems, avoid enemies</summary>
+
+See [SimpleGame.scala](examples/SimpleGame.scala) for the full source.
+
+</details>
+
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
 - Go's [bubbletea](https://github.com/charmbracelet/bubbletea)
