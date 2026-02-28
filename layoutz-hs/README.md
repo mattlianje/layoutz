@@ -25,12 +25,6 @@ Part of [d4](https://github.com/mattlianje/d4)
 <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
 
-<p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutzapp-demo.gif" height="350"><img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/game-demo.gif" height="350">
-<br>
-<sub><a href="TaskListDemo.hs">TaskListDemo.hs</a> • <a href="SimpleGame.hs">SimpleGame.hs</a></sub>
-</p>
-
 ## Table of Contents
 - [Installation](#installation)
 - [Quickstart](#quickstart)
@@ -731,6 +725,11 @@ KeyRight                      -- Arrow right
 KeyCtrl Char                  -- Ctrl+'C', Ctrl+'Q', etc.
 KeySpecial String             -- Other unrecognized sequences
 ```
+
+## Examples
+- [ShowcaseApp.hs](examples/ShowcaseApp.hs) - 7-scene interactive demo
+- [SimpleGame.hs](SimpleGame.hs) - Collect gems, avoid enemies
+- [InlineBar.hs](examples/InlineBar.hs) - Gradient loading bar
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)
