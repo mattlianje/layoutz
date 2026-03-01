@@ -800,12 +800,13 @@ KeySpecial String             -- Other unrecognized sequences
 You need [GHC](https://www.haskell.org/ghcup/) (8.10+) and [Cabal](https://www.haskell.org/cabal/).
 
 ```bash
-cabal build        # build library
-cabal test         # run tests
-cabal repl         # GHCi with layoutz loaded
+make build         # build library
+make test          # run tests
+make repl          # GHCi with layoutz loaded
+make clean         # clean build artifacts
 ```
 
-Fork, make your change, `cabal test`, open a PR. Keep it zero-dep.
+Fork, make your change, `make test`, open a PR. Keep it zero-dep.
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)
