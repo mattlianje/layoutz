@@ -276,40 +276,115 @@ Border.None                                // no borders
 
 ## Elements
 
-### Text, Layout & Spacing
-
+### Text
 ```scala
 "Simple text"                                // Implicit Text conversion
-layout("First", "Second", "Third")           // Vertical join
-row("Left", "Middle", "Right")               // Horizontal join
-columns(layout("A", "B"), layout("C", "D"))  // Side-by-side columns
-section("Config")(kv("env" -> "prod"))       // Titled section
-br                                           // Line break
-hr                                           // Horizontal rule ──────
-hr.width(10).char("~")                       // ~~~~~~~~~~
-space(10)                                    // Horizontal spacing
-empty                                        // No-op (conditional rendering)
-vr(3)                                        // Vertical rule │
 ```
 
-### Key-Value Pairs, Tables
-
+### Line Break: `br`
 ```scala
-kv("name" -> "Alice", "role" -> "admin")
+layout("Line 1", br, "Line 2")
+```
 
+### Layout (vertical): `layout`
+```scala
+layout("First", "Second", "Third")
+```
+```
+First
+Second
+Third
+```
+
+### Row (horizontal): `row`
+```scala
+row("Left", "Middle", "Right")
+columns(layout("A", "B"), layout("C", "D"))  // Side-by-side columns
+```
+```
+Left Middle Right
+```
+
+### Horizontal Rule: `hr`
+```scala
+hr                                           // default ──────────
+hr.char("~")                                 // custom char
+hr.width(10).char("=")                       // custom char + width
+```
+```
+──────────────────────────────────────────────────
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==========
+```
+
+### Vertical Rule: `vr`
+```scala
+vr(3)                                        // 3-high with │
+```
+
+### Section: `section`
+```scala
+section("Config")(kv("env" -> "prod"))
+```
+```
+=== Config ===
+env : prod
+```
+
+### Box: `box`
+```scala
+box("Summary")(kv("total" -> "42"))
+box("Fancy")("content").border(Border.Double)
+box("Smooth")("content").border(Border.Round)
+```
+```
+┌──Summary───┐
+│ total : 42 │
+└────────────┘
+╔══Fancy═════╗
+║ content    ║
+╚════════════╝
+╭──Smooth────╮
+│ content    │
+╰────────────╯
+```
+
+### Status Card: `statusCard`
+```scala
+row(
+  statusCard("CPU", "45%").color(Color.Green),
+  statusCard("MEM", "2.1G").color(Color.Cyan)
+)
+```
+```
+┌──────┐ ┌───────┐
+│ CPU  │ │ MEM   │
+│ 45%  │ │ 2.1G  │
+└──────┘ └───────┘
+```
+
+### Banner: `banner`
+```scala
+banner("System Dashboard").border(Border.Double)
+```
+```
+╔═══════════════════╗
+║ System Dashboard  ║
+╚═══════════════════╝
+```
+
+### Table: `table`
+```scala
 table(
   headers = Seq("Name", "Age", "City"),
   rows = Seq(
     Seq("Alice", "30", "New York"),
     Seq("Bob", "25"),
-    Seq("Charlie", "35", "London", "Extra")
+    Seq("Charlie", "35", "London")
   )
 )
 ```
 ```
-name : Alice
-role : admin
-
 ┌─────────┬─────┬─────────┐
 │ Name    │ Age │ City    │
 ├─────────┼─────┼─────────┤
@@ -319,14 +394,31 @@ role : admin
 └─────────┴─────┴─────────┘
 ```
 
-### Lists
+### Key-Value: `kv`
+```scala
+kv("name" -> "Alice", "role" -> "admin")
+```
+```
+name : Alice
+role : admin
+```
 
+### Unordered List: `ul`
+```scala
+ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
+```
+```
+• Backend
+  ◦ API
+    ▪ REST
+    ▪ GraphQL
+  ◦ DB
+• Frontend
+```
+
+### Ordered List: `ol`
 ```scala
 ol("Setup", ol("Install deps", ol("npm", "pip"), "Configure"), "Deploy")
-
-ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
-
-ul("→")("Custom", "Bullets")
 ```
 ```
 1. Setup
@@ -335,20 +427,9 @@ ul("→")("Custom", "Bullets")
     ii. pip
   b. Configure
 2. Deploy
-
-• Backend
-  ◦ API
-    ▪ REST
-    ▪ GraphQL
-  ◦ DB
-• Frontend
-
-→ Custom
-→ Bullets
 ```
 
-### Trees
-
+### Tree: `tree`
 ```scala
 tree("Project")(
   tree("src")(
@@ -366,97 +447,95 @@ Project
         └── AppSpec.scala
 ```
 
-### Boxes, Cards & Banners
-
-```scala
-box("Summary")(kv("total" -> "42"))
-box()(kv("total" -> "42"))
-statusCard("CPU", "45%")
-banner("System Dashboard").border(Border.Double)
-```
-```
-┌──Summary───┐
-│ total : 42 │
-└────────────┘
-
-┌────────────┐
-│ total : 42 │
-└────────────┘
-
-┌───────┐
-│ CPU   │
-│ 45%   │
-└───────┘
-
-╔═══════════════════╗
-║ System Dashboard  ║
-╚═══════════════════╝
-```
-
-### Progress, Spinners & Form Widgets
-
+### Progress Bar: `inlineBar`
 ```scala
 inlineBar("Download", 0.75)
-spinner("Loading...", frame = 3)
-spinner("Work", frame = 0, SpinnerStyle.Line)
-
-textInput("Username", "alice", "Enter name", active = true)
-SingleChoice("Mood?", Seq("great", "okay", "meh"), selected = 0, active = true)
-MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active = true)
 ```
 ```
 Download [███████████████─────] 75%
-⠸ Loading...
-|| Work
-
-> Username: alice_
-> Mood?
-  ► ● great
-    ○ okay
-    ○ meh
 ```
-Spinner styles: `Dots` (default), `Line`, `Clock`, `Bounce`
 
-### Underline, Margin, Padding & Truncation
+### Chart: `chart`
+```scala
+chart("Web" -> 10, "Mobile" -> 20, "API" -> 15)
+```
 
+### Spinner: `spinner`
+Styles: `Dots` (default), `Line`, `Clock`, `Bounce`
+```scala
+spinner("Loading...", frame = 3)             // ⠸ Loading...
+spinner("Work", frame = 0, SpinnerStyle.Line) // | Work
+```
+
+### Alignment: `center`, `leftAlign`, `rightAlign`, `justify`, `wrap`
+```scala
+"TITLE".center(20)
+"Left".leftAlign(20)
+"Right".rightAlign(20)
+"Spread this out".justify(30)
+"Long text here that should wrap".wrap(20)
+```
+```
+       TITLE
+Left
+               Right
+Spread    this   out
+Long text here that
+should wrap
+```
+
+### Underline: `underline`
 ```scala
 "Title".underline()
 "Custom".underline("=")
-
-layout(
-  "Ooops!",
-  row("val result: Int = ", underline("^")("getString()")),
-  "Expected Int, found String"
-).margin("[error]")
-
-"content".pad(2)
-
-"Very long text that will be cut off".truncate(15)
-"Custom ellipsis example text here".truncate(20, "…")
 ```
 ```
 Title
 ─────
 Custom
 ══════
+```
 
+### Margin: `margin`
+```scala
+layout(
+  "Ooops!",
+  row("val result: Int = ", underline("^")("getString()")),
+  "Expected Int, found String"
+).margin("[error]")
+```
+```
 [error] Ooops!
 [error] val result: Int =  getString()
 [error]                    ^^^^^^^^^^^
 [error] Expected Int, found String
-
-This is a ve...
-Custom ellipsis ex…
 ```
 
-### Text Formatting
-
+### Padding & Truncation: `pad`, `truncate`
 ```scala
-"TITLE".center(20)
-"Left".leftAlign(20)
-"Right".rightAlign(20)
-"Long text here that should wrap".wrap(20)
-"Spread this out".justify(30)
+"content".pad(2)
+"Very long text that will be cut off".truncate(15)
+"Custom ellipsis example text here".truncate(20, "…")
+```
+
+### Form Widgets: `textInput`, `SingleChoice`, `MultiChoice`
+```scala
+textInput("Username", "alice", "Enter name", active = true)
+SingleChoice("Mood?", Seq("great", "okay", "meh"), selected = 0, active = true)
+MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active = true)
+```
+```
+> Username: alice_
+> Mood?
+  ► ● great
+    ○ okay
+    ○ meh
+```
+
+### Spacing: `space`, `empty`
+```scala
+space(10)                                    // Horizontal spacing
+empty                                        // No-op (conditional rendering)
 ```
 
 ### Custom Elements
