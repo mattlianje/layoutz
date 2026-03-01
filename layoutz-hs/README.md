@@ -25,7 +25,8 @@ Part of [d4](https://github.com/mattlianje/d4)
 <sub><a href="TaskListDemo.hs">TaskListDemo.hs</a> • <a href="SimpleGame.hs">SimpleGame.hs</a></sub>
 </p>
 
-You can also drop animations into build scripts or any stdout - no alternate screen, no TUI framework, it just renders inline:
+Layoutz also lets you drop animations into build scripts or any stdout, without heavy "frameworks",
+just bring your Elements to life Elm-style and render them inline...
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="550">
