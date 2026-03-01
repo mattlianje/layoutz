@@ -25,6 +25,15 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
 
+Layoutz also lets you drop animations into build scripts or any stdout, without heavy "frameworks",
+just bring your Elements to life Elm-style and render them inline...
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="550">
+<br>
+<sub><a href="examples/InlineBar.hs">InlineBar.hs</a></sub>
+</p>
+
 ## Table of Contents
 - [Installation](#installation)
 - [Quickstart](#quickstart)
@@ -37,6 +46,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 - [Custom Components](#custom-components)
 - [Interactive Apps](#interactive-apps)
 - [Examples](#examples)
+- [Contributing](#contributing)
 
 ## Installation
 
@@ -726,7 +736,7 @@ CmdNone                                -- No effect
 cmdFire (writeFile "log.txt" "entry")  -- Fire and forget IO
 cmdTask (readFile "data.txt")          -- IO that returns a message
 cmdAfterMs 500 msg                     -- Fire a message after delay (ms)
-CmdBatch [cmd1, cmd2, ...]            -- Combine multiple commands
+CmdBatch [cmd1, cmd2, ...]             -- Combine multiple commands
 ```
 
 **Example: Logger with file I/O**
@@ -784,6 +794,18 @@ KeySpecial String             -- Other unrecognized sequences
 - [ShowcaseApp.hs](examples/ShowcaseApp.hs) - Tours every layoutz element and visualization across 7 scenes
 - [SimpleGame.hs](SimpleGame.hs) - Grid game where you collect gems and dodge enemies with WASD
 - [InlineBar.hs](examples/InlineBar.hs) - Renders a gradient progress bar in-place
+
+## Contributing
+
+You need [GHC](https://www.haskell.org/ghcup/) (8.10+) and [Cabal](https://www.haskell.org/cabal/).
+
+```bash
+cabal build        # build library
+cabal test         # run tests
+cabal repl         # GHCi with layoutz loaded
+```
+
+Fork, make your change, `cabal test`, open a PR. Keep it zero-dep.
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)

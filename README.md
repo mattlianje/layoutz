@@ -5,7 +5,7 @@
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala. Easily create new primitives (no component-library limitations).
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala.
 
 Part of [d4](https://github.com/mattlianje/d4) · Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
@@ -16,12 +16,23 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Haskell](https://gith
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
+- Extend `Element` and easily create new primitives
+   - (No component library limitations)
 - Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 <p align="center">
 <img src="pix/showcase-demo.gif" width="650">
 <br>
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
+</p>
+
+Layoutz also lets you drop animations into build scripts or any stdout, without heavy "frameworks",
+just bring your Elements to life Elm-style and render them inline...
+
+<p align="center">
+<img src="pix/inline-demo.gif" width="650">
+<br>
+<sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
 </p>
 
 ## Table of Contents
@@ -34,6 +45,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Haskell](https://gith
 - [Charts & Plots](#charts--plots)
 - [Interactive Apps](#interactive-apps)
 - [Examples](#examples)
+- [Contributing](#contributing)
 
 ## Installation
 On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):
@@ -186,14 +198,6 @@ CounterApp.run
 ```
 <p align="center">
   <img src="pix/counter-demo.gif" width="550">
-</p>
-
-`LayoutzApp`s can also run inline without clearing the screen, animating in place within existing output:
-
-<p align="center">
-<img src="pix/inline-demo.gif" width="550">
-<br>
-<sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
 </p>
 
 ## Why layoutz?
@@ -1399,6 +1403,19 @@ ClipboardApp.run
 See [SimpleGame.scala](examples/SimpleGame.scala) for the full source.
 
 </details>
+
+## Contributing
+
+You need [Mill](https://mill-build.org) and a JDK (11+).
+
+```bash
+make test          # run all tests (JVM, JS, Native)
+make compile       # compile all platforms
+make repl          # Scala 3 REPL with layoutz loaded
+make fmt           # scalafmt
+```
+
+Fork, make your change, `make test`, open a PR. Keep it zero-dep.
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
