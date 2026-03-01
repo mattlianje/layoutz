@@ -1,6 +1,6 @@
 .PHONY: build test repl clean bundle
 
-VERSION := 0.3.0.0
+VERSION := 0.3.1.0
 BUNDLE_DIR := bundles
 
 build:

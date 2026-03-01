@@ -120,7 +120,7 @@ counterApp = LayoutzApp
 main = runApp counterApp
 ```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="550">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="650">
 </p>
 
 ## Why layoutz?

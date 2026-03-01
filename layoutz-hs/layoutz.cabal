@@ -1,12 +1,15 @@
 cabal-version: 3.0
 name:          layoutz
-version:       0.3.0.0
-synopsis:      Simple, beautiful CLI output for Haskell
-description:   
-  Build declarative and composable sections, trees, tables, dashboards for your Haskell applications.
+version:       0.3.1.0
+synopsis:      Simple, beautiful CLI output
+description:
+  Compositional terminal output in pure Haskell. Use Layoutz.hs like a header file.
   .
-  Zero dependencies, rich text formatting with alignment, underlines, padding, margins.
-  Features lists, trees, tables, charts, banners and more.
+  Tables, trees, lists, boxes, charts (line, pie, bar, heatmap), spinners, progress bars.
+  ANSI colors (256 + truecolor), styles, borders, CJK-aware alignment.
+  .
+  Includes an Elm-style TUI runtime with subscriptions, commands, and keyboard handling.
+  Apps can also animate inline without taking over the terminal.
 homepage:      https://github.com/mattlianje/layoutz
 bug-reports:   https://github.com/mattlianje/layoutz/issues
 license:       Apache-2.0
