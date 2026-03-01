@@ -197,7 +197,7 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="550">
+  <img src="pix/counter-demo.gif" width="650">
 </p>
 
 ## Why layoutz?
