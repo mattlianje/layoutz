@@ -123,14 +123,6 @@ main = runApp counterApp
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="550">
 </p>
 
-`LayoutzApp`s can also run inline without clearing the screen, animating in place within existing output:
-
-<p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="550">
-<br>
-<sub><a href="examples/InlineBar.hs">InlineBar.hs</a></sub>
-</p>
-
 ## Why layoutz?
 - We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between
 - **layoutz** is a tiny, declarative DSL for structured CLI output
