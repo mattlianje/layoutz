@@ -1,12 +1,14 @@
 cabal-version: 3.0
 name:          layoutz
-version:       0.3.1.0
+version:       0.3.2.0
 synopsis:      Simple, beautiful CLI output
 description:
-  Compositional terminal output in pure Haskell. Use Layoutz.hs like a header file.
+  Zero-dep, compositional terminal output. Use @Layoutz.hs@ like a header file.
   .
-  Tables, trees, lists, boxes, charts (line, pie, bar, heatmap), spinners, progress bars.
-  ANSI colors (256 + truecolor), styles, borders, CJK-aware alignment.
+  * Tables, trees, lists, boxes, key-value pairs
+  * Charts: line, pie, bar, stacked bar, sparkline, heatmap
+  * ANSI colors (256 + truecolor), styles, borders
+  * Spinners, progress bars, CJK-aware alignment
   .
   Includes an Elm-style TUI runtime with subscriptions, commands, and keyboard handling.
   Apps can also animate inline without taking over the terminal.
