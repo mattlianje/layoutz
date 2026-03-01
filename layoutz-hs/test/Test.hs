@@ -6,7 +6,7 @@ import Layoutz
 import Data.List (isInfixOf)
 import Data.IORef (newIORef, readIORef, writeIORef)
 
--- Helper to strip ANSI codes for testing (re-export from Layoutz would be better, but this works)
+-- Helper to strip ANSI codes for testing
 stripAnsiTest :: String -> String
 stripAnsiTest [] = []
 stripAnsiTest ('\ESC':'[':rest) = stripAnsiTest (dropAfterM rest)
@@ -31,6 +31,7 @@ tests = testGroup "Layoutz Tests"
   , extendedColorTests
   , styleTests
   , commandTests
+  , visualizationTests
   ]
 
 -- Basic element tests
@@ -292,28 +293,178 @@ styleTests = testGroup "Styles"
 -- Command execution tests
 commandTests :: TestTree
 commandTests = testGroup "Commands"
-  [ testCase "None produces Nothing" $ do
-      result <- executeCmd (None :: Cmd String)
+  [ testCase "CmdNone produces Nothing" $ do
+      result <- executeCmd (CmdNone :: Cmd String)
       result @?= Nothing
-      
-  , testCase "cmd executes IO without message" $ do
+
+  , testCase "cmdFire executes IO without message" $ do
       ref <- newIORef (0 :: Int)
-      result <- executeCmd (cmd $ writeIORef ref 42 :: Cmd String)
+      result <- executeCmd (cmdFire $ writeIORef ref 42 :: Cmd String)
       val <- readIORef ref
       result @?= Nothing
       val @?= 42
-      
-  , testCase "cmdMsg executes IO and returns message" $ do
-      result <- executeCmd (cmdMsg $ pure "hello" :: Cmd String)
+
+  , testCase "cmdTask executes IO and returns message" $ do
+      result <- executeCmd (cmdTask $ pure "hello" :: Cmd String)
       result @?= Just "hello"
-      
-  , testCase "Batch executes all commands" $ do
+
+  , testCase "CmdBatch executes all commands" $ do
       ref <- newIORef (0 :: Int)
-      _ <- executeCmd (Batch [cmd $ writeIORef ref 1, cmd $ writeIORef ref 2] :: Cmd String)
+      _ <- executeCmd (CmdBatch [cmdFire $ writeIORef ref 1, cmdFire $ writeIORef ref 2] :: Cmd String)
       val <- readIORef ref
       val @?= 2  -- Last write wins
-      
-  , testCase "Batch returns first Just message" $ do
-      result <- executeCmd (Batch [Cmd (pure Nothing), cmdMsg (pure "first"), cmdMsg (pure "second")] :: Cmd String)
+
+  , testCase "CmdBatch returns first Just message" $ do
+      result <- executeCmd (CmdBatch [CmdRun (pure Nothing), cmdTask (pure "first"), cmdTask (pure "second")] :: Cmd String)
       result @?= Just "first"
+  ]
+
+-- Visualization primitive tests
+visualizationTests :: TestTree
+visualizationTests = testGroup "Visualizations"
+  [ testGroup "Renames"
+    [ testCase "ColorDefault produces no ANSI wrapping" $
+        render (withColor ColorDefault $ text "Hello") @?= "Hello"
+
+    , testCase "StyleDefault produces no style wrapping" $
+        render (withStyle StyleDefault $ text "Hello") @?= "Hello"
+
+    , testCase "StyleDefault is Monoid mempty" $
+        render (withStyle mempty $ text "Hello") @?= "Hello"
+    ]
+
+  , testGroup "Sparkline"
+    [ testCase "sparkline output length matches input" $
+        length (render $ plotSparkline [1,2,3,4,5]) @?= 5
+
+    , testCase "sparkline empty input" $
+        render (plotSparkline []) @?= ""
+
+    , testCase "sparkline constant values use middle block" $
+        all (== '▄') (render $ plotSparkline [5,5,5]) @?= True
+
+    , testCase "sparkline max value is full block" $
+        last (render $ plotSparkline [0,0,10]) @?= '█'
+
+    , testCase "sparkline min value is lowest block" $
+        head (render $ plotSparkline [0,5,10]) @?= '▁'
+    ]
+
+  , testGroup "Line Plot"
+    [ testCase "plotLine no data" $
+        render (plotLine 20 5 []) @?= "No data"
+
+    , testCase "plotLine empty series" $
+        render (plotLine 20 5 [Series [] "empty" ColorBrightCyan]) @?= "No data"
+
+    , testCase "plotLine contains y-axis" $
+        "│" `isInfixOf` render (plotLine 20 5 [Series [(0,0),(1,1)] "test" ColorBrightCyan]) @?= True
+
+    , testCase "plotLine contains x-axis" $
+        "─" `isInfixOf` render (plotLine 20 5 [Series [(0,0),(1,1)] "test" ColorBrightCyan]) @?= True
+
+    , testCase "plotLine multi-series has legend" $
+        let r = render $ plotLine 20 5
+              [ Series [(0,0),(1,1)] "A" ColorBrightCyan
+              , Series [(0,1),(1,0)] "B" ColorBrightRed ]
+        in ("A" `isInfixOf` r && "B" `isInfixOf` r) @?= True
+
+    , testCase "plotLine single series no legend" $
+        let r = render $ plotLine 20 5 [Series [(0,0),(1,1)] "only" ColorBrightCyan]
+        in not ("●" `isInfixOf` stripAnsiTest r) @?= True
+
+    , testCase "plotLine contains braille characters" $
+        let r = stripAnsiTest $ render $ plotLine 30 8 [Series [(x, sin x) | x <- [0,0.1..6.28]] "sin" ColorBrightCyan]
+        in any (\c -> c >= '⠀' && c <= '⣿') r @?= True
+    ]
+
+  , testGroup "Pie Chart"
+    [ testCase "plotPie no data" $
+        render (plotPie 10 5 []) @?= "No data"
+
+    , testCase "plotPie legend has percentages" $
+        let r = render $ plotPie 15 6 [Slice 75 "Big" ColorBrightCyan, Slice 25 "Small" ColorBrightMagenta]
+        in ("75%" `isInfixOf` stripAnsiTest r && "25%" `isInfixOf` stripAnsiTest r) @?= True
+
+    , testCase "plotPie legend has labels" $
+        let r = stripAnsiTest $ render $ plotPie 15 6
+              [Slice 50 "Alpha" ColorBrightCyan, Slice 50 "Beta" ColorBrightMagenta]
+        in ("Alpha" `isInfixOf` r && "Beta" `isInfixOf` r) @?= True
+
+    , testCase "plotPie contains braille characters" $
+        let r = stripAnsiTest $ render $ plotPie 20 8
+              [Slice 60 "A" ColorBrightCyan, Slice 40 "B" ColorBrightMagenta]
+        in any (\c -> c >= '⠀' && c <= '⣿') r @?= True
+    ]
+
+  , testGroup "Bar Chart"
+    [ testCase "plotBar no data" $
+        render (plotBar 20 5 []) @?= "No data"
+
+    , testCase "plotBar contains y-axis" $
+        "│" `isInfixOf` render (plotBar 20 5 [BarItem 10 "A" ColorBrightCyan]) @?= True
+
+    , testCase "plotBar contains bar labels" $
+        let r = stripAnsiTest $ render $ plotBar 30 5
+              [BarItem 10 "Mon" ColorBrightCyan, BarItem 20 "Tue" ColorBrightGreen]
+        in ("Mon" `isInfixOf` r && "Tue" `isInfixOf` r) @?= True
+
+    , testCase "plotBar contains block characters" $
+        let r = stripAnsiTest $ render $ plotBar 20 5 [BarItem 100 "X" ColorBrightCyan]
+        in any (\c -> c `elem` ("▁▂▃▄▅▆▇█" :: String)) r @?= True
+
+    , testCase "plotBar y-axis shows max value" $
+        let r = stripAnsiTest $ render $ plotBar 30 5 [BarItem 50 "A" ColorBrightCyan]
+        in "50" `isInfixOf` r @?= True
+    ]
+
+  , testGroup "Stacked Bar Chart"
+    [ testCase "plotStackedBar no data" $
+        render (plotStackedBar 20 5 []) @?= "No data"
+
+    , testCase "plotStackedBar contains group labels" $
+        let r = stripAnsiTest $ render $ plotStackedBar 30 5
+              [ StackedBarGroup [BarItem 10 "X" ColorDefault] "G1"
+              , StackedBarGroup [BarItem 20 "X" ColorDefault] "G2" ]
+        in ("G1" `isInfixOf` r && "G2" `isInfixOf` r) @?= True
+
+    , testCase "plotStackedBar multi-segment has legend" $
+        let r = stripAnsiTest $ render $ plotStackedBar 30 5
+              [ StackedBarGroup [BarItem 10 "Sales" ColorDefault, BarItem 5 "Tax" ColorDefault] "Q1" ]
+        in ("Sales" `isInfixOf` r && "Tax" `isInfixOf` r) @?= True
+
+    , testCase "plotStackedBar single segment no legend" $
+        let r = stripAnsiTest $ render $ plotStackedBar 30 5
+              [ StackedBarGroup [BarItem 10 "Only" ColorDefault] "Q1"
+              , StackedBarGroup [BarItem 20 "Only" ColorDefault] "Q2" ]
+        in not ("█ Only" `isInfixOf` r) @?= True
+    ]
+
+  , testGroup "Heatmap"
+    [ testCase "plotHeatmap no data" $
+        render (plotHeatmap (HeatmapData [] [] [])) @?= "No data"
+
+    , testCase "plotHeatmap contains row labels" $
+        let r = stripAnsiTest $ render $ plotHeatmap
+              (HeatmapData [[1,2],[3,4]] ["Row1","Row2"] ["C1","C2"])
+        in ("Row1" `isInfixOf` r && "Row2" `isInfixOf` r) @?= True
+
+    , testCase "plotHeatmap contains column labels" $
+        let r = stripAnsiTest $ render $ plotHeatmap
+              (HeatmapData [[1,2],[3,4]] ["R1","R2"] ["ColA","ColB"])
+        in ("ColA" `isInfixOf` r && "ColB" `isInfixOf` r) @?= True
+
+    , testCase "plotHeatmap contains ANSI background codes" $
+        "\ESC[48;5;" `isInfixOf` render (plotHeatmap
+          (HeatmapData [[10,90]] ["R"] ["A","B"])) @?= True
+
+    , testCase "plotHeatmap contains gradient legend" $
+        let r = stripAnsiTest $ render $ plotHeatmap
+              (HeatmapData [[0,100]] ["R"] ["A","B"])
+        in ("0" `isInfixOf` r && "100" `isInfixOf` r) @?= True
+
+    , testCase "plotHeatmap' custom cell width" $
+        let r = render $ plotHeatmap' 10 (HeatmapData [[1]] ["R"] ["C"])
+        in length r > length (render $ plotHeatmap (HeatmapData [[1]] ["R"] ["C"])) @?= True
+    ]
   ]

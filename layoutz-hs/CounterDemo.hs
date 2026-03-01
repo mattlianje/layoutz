@@ -17,16 +17,16 @@ data CounterMsg = Inc | Dec
 -- | The counter application
 counterApp :: LayoutzApp Int CounterMsg
 counterApp = LayoutzApp
-  { appInit = (0, None)
+  { appInit = (0, CmdNone)
   
   , appUpdate = \msg count -> case msg of
-      Inc -> (count + 1, None)
-      Dec -> (count - 1, None)
+      Inc -> (count + 1, CmdNone)
+      Dec -> (count - 1, CmdNone)
   
   , appSubscriptions = \_state ->
-      onKeyPress $ \key -> case key of
-        CharKey '+' -> Just Inc
-        CharKey '-' -> Just Dec
+      subKeyPress $ \key -> case key of
+        KeyChar '+' -> Just Inc
+        KeyChar '-' -> Just Dec
         _           -> Nothing
   
   , appView = \count ->

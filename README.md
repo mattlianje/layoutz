@@ -7,6 +7,8 @@
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala.
 
+Part of [d4](https://github.com/mattlianje/d4) · Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
+
 ## Features
 - Pure Scala, zero-dependencies (JVM, Native, JS)
 - Elm-style TUIs
@@ -37,9 +39,9 @@ just bring your Elements to life Elm-style and render them inline...
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
+- [Border Styles](#border-styles)
 - [Elements](#elements)
 - [Colors & Styles](#colors)
-- [Border Styles](#border-styles)
 - [Charts & Plots](#charts--plots)
 - [Interactive Apps](#interactive-apps)
 - [Examples](#examples)
@@ -244,6 +246,33 @@ Both render:
 ```
 
 Available: `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.color()`, `.bg()`, `.style()`, `.border()`
+
+## Border Styles
+
+Applied via `.border()` to any element with the `HasBorder` typeclass (`box`, `statusCard`, `table`):
+```scala
+box("Title")("content").border(Border.Round)
+table(h, r).border(Border.Thick)
+
+// HasBorder typeclass for generic code
+def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
+```
+
+```scala
+Border.Single                              // ┌─┐ (default)
+Border.Double                              // ╔═╗
+Border.Thick                               // ┏━┓
+Border.Round                               // ╭─╮
+Border.Ascii                               // +-+
+Border.Block                               // ███
+Border.Dashed                              // ┌╌┐
+Border.Dotted                              // ┌┈┐
+Border.InnerHalfBlock                      // ▗▄▖
+Border.OuterHalfBlock                      // ▛▀▜
+Border.Markdown                            // |-|
+Border.Custom(corner = "+", horizontal = "=", vertical = "|")
+Border.None                                // no borders
+```
 
 ## Elements
 
@@ -560,30 +589,6 @@ Style.Bold ++ Style.Italic    // combine with ++
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
 </p>
 
-## Border Styles
-```scala
-Border.Single                              // ┌─┐ (default)
-Border.Double                              // ╔═╗
-Border.Thick                               // ┏━┓
-Border.Round                               // ╭─╮
-Border.Ascii                               // +-+
-Border.Block                               // ███
-Border.Dashed                              // ┌╌┐
-Border.Dotted                              // ┌┈┐
-Border.InnerHalfBlock                      // ▗▄▖
-Border.OuterHalfBlock                      // ▛▀▜
-Border.Markdown                            // |-|
-Border.Custom(corner = "+", horizontal = "=", vertical = "|")
-Border.None                                // no borders
-
-// Applied via .border()
-box("Title")("content").border(Border.Round)
-table(h, r).border(Border.Thick)
-
-// HasBorder typeclass for generic code
-def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
-```
-
 ## Charts & Plots
 
 #### Line Plot
@@ -819,59 +824,6 @@ Cmd.clipboard.write(content, onResult)           // Write clipboard
 ## Examples
 
 Interactive TUI apps using `LayoutzApp` with built-in `Cmd` and `Sub`.
-
-### Showcase TUI
-
-<details>
-<summary>Multi-scene feature showcase with navigation</summary>
-
-A navigable TUI that cycles through 7 scenes demonstrating spinners, text input, lists, tables, charts, bar charts, and selections.
-
-See [ShowcaseApp.scala](examples/ShowcaseApp.scala) for the full source.
-
-Navigate with `←`/`→` arrow keys or number keys `1`-`7`. Each scene has its own interactive controls.
-</details>
-
-### Self-terminating loading bar
-
-<details>
-<summary>Auto-exit when tasks complete using <code>Cmd.exit</code></summary>
-
-```scala
-import layoutz._
-
-case class State(progress: Double, done: Boolean)
-sealed trait Msg
-case object Tick extends Msg
-
-object LoadingApp extends LayoutzApp[State, Msg] {
-  def init = (State(0, false), Cmd.none)
-
-  def update(msg: Msg, state: State) = msg match {
-    case Tick =>
-      if (state.done) (state, Cmd.exit)
-      else {
-        val next = state.progress + 0.02
-        if (next >= 1.0) (State(1.0, true), Cmd.none)
-        else (state.copy(progress = next), Cmd.none)
-      }
-  }
-
-  def subscriptions(state: State) = Sub.time.everyMs(50, Tick)
-
-  def view(state: State) = layout(
-    inlineBar("Loading", state.progress),
-    f"${state.progress * 100}%.0f%% complete"
-  )
-}
-
-LoadingApp.run(clearOnExit = false, showQuitMessage = false)
-println("Done!")
-```
-
-See [LoadingApp.scala](examples/LoadingApp.scala) for a multi-task version.
-
-</details>
 
 ### File viewer
 

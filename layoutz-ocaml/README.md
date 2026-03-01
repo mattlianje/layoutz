@@ -8,7 +8,7 @@
 
 A tiny, zero-dep lib for building composable sections, trees, tables, dashboards for your console.
 
-Part of [d4](https://github.com/mattlianje/d4)
+Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
 
 ## Installation
 

@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          layoutz
-version:       0.1.0.0
+version:       0.3.0.0
 synopsis:      Simple, beautiful CLI output for Haskell
 description:   
   Build declarative and composable sections, trees, tables, dashboards for your Haskell applications.
@@ -30,6 +30,22 @@ library
   exposed-modules:     Layoutz
   build-depends:       base >= 4.7 && < 5
   hs-source-dirs:      .
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable inline-bar
+  main-is:             InlineBar.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable showcase-app
+  main-is:             ShowcaseApp.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
   default-language:    Haskell2010
   ghc-options:         -Wall
 

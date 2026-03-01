@@ -51,6 +51,13 @@ module Layoutz
     -- * Spinners
   , spinner
   , SpinnerStyle(..)
+    -- * Visualizations
+  , plotSparkline
+  , Series(..), plotLine
+  , Slice(..), plotPie
+  , BarItem(..), plotBar
+  , StackedBarGroup(..), plotStackedBar
+  , HeatmapData(..), plotHeatmap, plotHeatmap'
     -- * Border utilities
   , withBorder
     -- * Color utilities
@@ -63,18 +70,24 @@ module Layoutz
   , LayoutzApp(..)
   , Key(..)
   , Cmd(..)
-  , cmd
-  , cmdMsg
+  , cmdFire
+  , cmdTask
+  , cmdAfterMs
   , executeCmd
   , Sub(..)
+  , AppOptions(..)
+  , defaultAppOptions
+  , AppAlignment(..)
   , runApp
+  , runAppWith
     -- * Subscriptions
-  , onKeyPress
-  , onTick
-  , batch
+  , subKeyPress
+  , subEveryMs
+  , subBatch
   ) where
 
-import Data.List (intercalate, transpose)
+import Data.List (intercalate, transpose, nub)
+import Data.Bits ((.|.))
 import Data.String (IsString(..))
 import Data.Char (ord, chr)
 import Text.Printf (printf)
@@ -83,7 +96,7 @@ import System.Exit (exitSuccess)
 import Control.Exception (catch, AsyncException(..))
 import System.Timeout (timeout)
 import Control.Monad (when, forever)
-import Control.Concurrent (forkIO, threadDelay, killThread, Chan, newChan, writeChan, readChan)
+import Control.Concurrent (forkIO, threadDelay, killThread, newChan, writeChan, readChan)
 import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
 
 -- | Strip ANSI escape codes from a string for accurate width calculation
@@ -189,13 +202,13 @@ render :: Element a => a -> String
 render = renderElement
 
 -- | L is the universal layout element type - a type-erased wrapper for the DSL.
--- 
+--
 -- This allows mixing different element types in layouts while providing a common interface.
 -- Uses existential quantification to store any Element type inside L.
 --
 -- Constructors:
 --   * L a          - Wraps any Element (Text, Box, Table, etc.)
---   * UL [L]       - Special case for unordered lists (allows nesting)  
+--   * UL [L]       - Special case for unordered lists (allows nesting)
 --   * AutoCenter L - Smart centering that adapts to layout context width
 --   * LBox, LStatusCard, LTable - Specialized constructors for bordered elements
 --
@@ -254,7 +267,20 @@ instance IsString L where
   fromString = text
 
 -- Border styles
-data Border = BorderNormal | BorderDouble | BorderThick | BorderRound | BorderNone
+data Border
+  = BorderNormal
+  | BorderDouble
+  | BorderThick
+  | BorderRound
+  | BorderAscii
+  | BorderBlock
+  | BorderDashed
+  | BorderDotted
+  | BorderInnerHalfBlock
+  | BorderOuterHalfBlock
+  | BorderMarkdown
+  | BorderCustom String String String  -- corner, horizontal, vertical
+  | BorderNone
   deriving (Show, Eq)
 
 -- | Typeclass for elements that support customizable borders
@@ -271,7 +297,7 @@ instance HasBorder L where
   setBorder _ other = other  -- Non-bordered elements remain unchanged
 
 -- Color support with ANSI codes
-data Color = ColorNoColor | ColorBlack | ColorRed | ColorGreen | ColorYellow 
+data Color = ColorDefault | ColorBlack | ColorRed | ColorGreen | ColorYellow 
            | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
            | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow 
            | ColorBrightBlue | ColorBrightMagenta | ColorBrightCyan | ColorBrightWhite
@@ -281,7 +307,7 @@ data Color = ColorNoColor | ColorBlack | ColorRed | ColorGreen | ColorYellow
 
 -- | Get ANSI foreground color code
 colorCode :: Color -> String
-colorCode ColorNoColor       = ""
+colorCode ColorDefault       = ""
 colorCode ColorBlack         = "30"
 colorCode ColorRed           = "31"
 colorCode ColorGreen         = "32"
@@ -312,26 +338,26 @@ wrapAnsi color str
   | otherwise = "\ESC[" ++ colorCode color ++ "m" ++ str ++ "\ESC[0m"
 
 -- Style support with ANSI codes
-data Style = StyleNoStyle | StyleBold | StyleDim | StyleItalic | StyleUnderline
+data Style = StyleDefault | StyleBold | StyleDim | StyleItalic | StyleUnderline
            | StyleBlink | StyleReverse | StyleHidden | StyleStrikethrough
            | StyleCombined [Style]  -- ^ Combine multiple styles
   deriving (Show, Eq)
 
 -- | Combine styles using ++
 instance Semigroup Style where
-  StyleNoStyle <> other = other
-  other <> StyleNoStyle = other
+  StyleDefault <> other = other
+  other <> StyleDefault = other
   StyleCombined styles1 <> StyleCombined styles2 = StyleCombined (styles1 ++ styles2)
   StyleCombined styles <> style = StyleCombined (styles ++ [style])
   style <> StyleCombined styles = StyleCombined (style : styles)
   style1 <> style2 = StyleCombined [style1, style2]
 
 instance Monoid Style where
-  mempty = StyleNoStyle
+  mempty = StyleDefault
 
 -- | Get ANSI style code
 styleCode :: Style -> String
-styleCode StyleNoStyle       = ""
+styleCode StyleDefault       = ""
 styleCode StyleBold          = "1"
 styleCode StyleDim           = "2"
 styleCode StyleItalic        = "3"
@@ -350,12 +376,52 @@ wrapStyle style str
   | null (styleCode style) = str
   | otherwise = "\ESC[" ++ styleCode style ++ "m" ++ str ++ "\ESC[0m"
 
-borderChars :: Border -> (String, String, String, String, String, String, String, String, String)
-borderChars BorderNormal = ("┌", "┐", "└", "┘", "─", "│", "├", "┤", "┼")
-borderChars BorderDouble = ("╔", "╗", "╚", "╝", "═", "║", "╠", "╣", "╬") 
-borderChars BorderThick  = ("┏", "┓", "┗", "┛", "━", "┃", "┣", "┫", "╋")
-borderChars BorderRound  = ("╭", "╮", "╰", "╯", "─", "│", "├", "┤", "┼")
-borderChars BorderNone   = (" ", " ", " ", " ", " ", " ", " ", " ", " ")
+-- | Border character set supporting asymmetric borders (e.g. half-block styles)
+data BorderChars = BorderChars
+  { bcTL, bcTR, bcBL, bcBR             :: String   -- corners
+  , bcHTop, bcHBottom                   :: String   -- horizontal (top vs bottom)
+  , bcVLeft, bcVRight                   :: String   -- vertical (left vs right)
+  , bcLeftTee, bcRightTee, bcCross      :: String   -- separator connectors
+  , bcTopTee, bcBottomTee               :: String   -- top/bottom column connectors
+  }
+
+-- | Helper for symmetric borders (hTop == hBottom, vLeft == vRight)
+mkSymmetric :: String -> String -> String -> String -> String -> String
+            -> String -> String -> String -> String -> String -> BorderChars
+mkSymmetric tl tr bl br' h v lt rt cross tt bt = BorderChars
+  { bcTL = tl, bcTR = tr, bcBL = bl, bcBR = br'
+  , bcHTop = h, bcHBottom = h
+  , bcVLeft = v, bcVRight = v
+  , bcLeftTee = lt, bcRightTee = rt, bcCross = cross
+  , bcTopTee = tt, bcBottomTee = bt
+  }
+
+borderChars :: Border -> BorderChars
+borderChars BorderNormal = mkSymmetric "┌" "┐" "└" "┘" "─" "│" "├" "┤" "┼" "┬" "┴"
+borderChars BorderDouble = mkSymmetric "╔" "╗" "╚" "╝" "═" "║" "╠" "╣" "╬" "╦" "╩"
+borderChars BorderThick  = mkSymmetric "┏" "┓" "┗" "┛" "━" "┃" "┣" "┫" "╋" "┳" "┻"
+borderChars BorderRound  = mkSymmetric "╭" "╮" "╰" "╯" "─" "│" "├" "┤" "┼" "┬" "┴"
+borderChars BorderAscii  = mkSymmetric "+" "+" "+" "+" "-" "|" "+" "+" "+" "+" "+"
+borderChars BorderBlock  = mkSymmetric "█" "█" "█" "█" "█" "█" "█" "█" "█" "█" "█"
+borderChars BorderDashed = mkSymmetric "┌" "┐" "└" "┘" "╌" "╎" "├" "┤" "┼" "┬" "┴"
+borderChars BorderDotted = mkSymmetric "┌" "┐" "└" "┘" "┈" "┊" "├" "┤" "┼" "┬" "┴"
+borderChars BorderInnerHalfBlock = BorderChars
+  { bcTL = "▗", bcTR = "▖", bcBL = "▝", bcBR = "▘"
+  , bcHTop = "▄", bcHBottom = "▀"
+  , bcVLeft = "▐", bcVRight = "▌"
+  , bcLeftTee = "▐", bcRightTee = "▌", bcCross = "▄"
+  , bcTopTee = "▄", bcBottomTee = "▀"
+  }
+borderChars BorderOuterHalfBlock = BorderChars
+  { bcTL = "▛", bcTR = "▜", bcBL = "▙", bcBR = "▟"
+  , bcHTop = "▀", bcHBottom = "▄"
+  , bcVLeft = "▌", bcVRight = "▐"
+  , bcLeftTee = "▌", bcRightTee = "▐", bcCross = "▀"
+  , bcTopTee = "▀", bcBottomTee = "▄"
+  }
+borderChars BorderMarkdown = mkSymmetric "|" "|" "|" "|" "-" "|" "|" "|" "|" "|" "|"
+borderChars (BorderCustom corner h v) = mkSymmetric corner corner corner corner h v corner corner corner corner corner
+borderChars BorderNone = mkSymmetric " " " " " " " " " " " " " " " " " " " " " "
 
 -- Elements
 newtype Text = Text String
@@ -445,24 +511,25 @@ instance Element Box where
   renderElement (Box title elements border) =
     let elementStrings = map render elements
         content = intercalate "\n" elementStrings
-        contentLines = if null content then [""] else lines content  
-        contentWidth = maximum (0 : map length contentLines)
-        titleWidth = if null title then 0 else length title + 2
+        contentLines = if null content then [""] else lines content
+        contentWidth = maximum (0 : map visibleLength contentLines)
+        titleWidth = if null title then 0 else visibleLength title + 2
         innerWidth = max contentWidth titleWidth
         totalWidth = innerWidth + 4
-        (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical, _, _, _) = borderChars border
-        hChar = head horizontal
-        
-        topBorder 
-          | null title = topLeft ++ replicate (totalWidth - 2) hChar ++ topRight
-          | otherwise  = let titlePadding = totalWidth - length title - 2
-                             leftPad = titlePadding `div` 2  
+        BorderChars{..} = borderChars border
+        hTopChar = head bcHTop
+        hBottomChar = head bcHBottom
+
+        topBorder
+          | null title = bcTL ++ replicate (totalWidth - 2) hTopChar ++ bcTR
+          | otherwise  = let titlePadding = totalWidth - visibleLength title - 2
+                             leftPad = titlePadding `div` 2
                              rightPad = titlePadding - leftPad
-                         in topLeft ++ replicate leftPad hChar ++ title ++ replicate rightPad hChar ++ topRight
-               
-        bottomBorder = bottomLeft ++ replicate (totalWidth - 2) hChar ++ bottomRight
-        paddedContent = map (\line -> vertical ++ " " ++ padRight innerWidth line ++ " " ++ vertical) contentLines
-          
+                         in bcTL ++ replicate leftPad hTopChar ++ title ++ replicate rightPad hTopChar ++ bcTR
+
+        bottomBorder = bcBL ++ replicate (totalWidth - 2) hBottomChar ++ bcBR
+        paddedContent = map (\line -> bcVLeft ++ " " ++ padRight innerWidth line ++ " " ++ bcVRight) contentLines
+
     in intercalate "\n" (topBorder : paddedContent ++ [bottomBorder])
 
 data StatusCard = StatusCard String String Border
@@ -475,15 +542,16 @@ instance Element StatusCard where
     let labelLines = lines label
         contentLines = lines content
         allLines = labelLines ++ contentLines
-        maxWidth = maximum (0 : map length allLines)
+        maxWidth = maximum (0 : map visibleLength allLines)
         contentWidth = maxWidth + 2
-        (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical, _, _, _) = borderChars border
-        hChar = head horizontal
-        
-        topBorder = topLeft ++ replicate (contentWidth + 2) hChar ++ topRight
-        bottomBorder = bottomLeft ++ replicate (contentWidth + 2) hChar ++ bottomRight
-        createCardLine line = vertical ++ " " ++ padRight contentWidth line ++ " " ++ vertical
-        
+        BorderChars{..} = borderChars border
+        hTopChar = head bcHTop
+        hBottomChar = head bcHBottom
+
+        topBorder = bcTL ++ replicate (contentWidth + 2) hTopChar ++ bcTR
+        bottomBorder = bcBL ++ replicate (contentWidth + 2) hBottomChar ++ bcBR
+        createCardLine line = bcVLeft ++ " " ++ padRight contentWidth line ++ " " ++ bcVRight
+
     in intercalate "\n" $ [topBorder] ++ map createCardLine allLines ++ [bottomBorder]
 
 -- | Margin element that adds prefix to each line
@@ -550,67 +618,56 @@ instance HasBorder Table where
   setBorder border (Table headers rows _) = Table headers rows border
 
 instance Element Table where
-  renderElement (Table headers rows border) = 
+  renderElement (Table headers rows border) =
     let normalizedRows = map (normalizeRow (length headers)) rows
         columnWidths = calculateColumnWidths headers normalizedRows
-        (topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical, leftTee, rightTee, cross) = borderChars border
-        hChar = head horizontal
-        
-        -- Fixed border construction with proper connectors
-        topConnector = case border of
-          BorderRound -> "┬"
-          BorderNormal -> "┬"
-          BorderDouble -> "╦" 
-          BorderThick -> "┳"
-          BorderNone -> " "
-        topParts = map (\w -> replicate w hChar) columnWidths
-        topBorder = topLeft ++ [hChar] ++ intercalate ([hChar] ++ topConnector ++ [hChar]) topParts ++ [hChar] ++ topRight
-        
-        -- Create proper separator with tee connectors
-        separatorParts = map (\w -> replicate w hChar) columnWidths
-        separatorBorder = leftTee ++ [hChar] ++ intercalate ([hChar] ++ cross ++ [hChar]) separatorParts ++ [hChar] ++ rightTee
-        
-        -- Create proper bottom border with bottom connectors
-        bottomConnector = case border of
-          BorderRound -> "┴"  -- Special case for round borders
-          BorderNormal -> "┴"
-          BorderDouble -> "╩" 
-          BorderThick -> "┻"
-          BorderNone -> " "
-        bottomParts = map (\w -> replicate w hChar) columnWidths  
-        bottomBorder = bottomLeft ++ [hChar] ++ intercalate ([hChar] ++ bottomConnector ++ [hChar]) bottomParts ++ [hChar] ++ bottomRight
-        
-        -- Create header row
+        BorderChars{..} = borderChars border
+        hTopChar = head bcHTop
+        hBottomChar = head bcHBottom
+
+        -- Top border
+        topParts = map (\w -> replicate w hTopChar) columnWidths
+        topBorder = bcTL ++ [hTopChar] ++ intercalate ([hTopChar] ++ bcTopTee ++ [hTopChar]) topParts ++ [hTopChar] ++ bcTR
+
+        -- Separator (between header and data)
+        separatorParts = map (\w -> replicate w hTopChar) columnWidths
+        separatorBorder = bcLeftTee ++ [hTopChar] ++ intercalate ([hTopChar] ++ bcCross ++ [hTopChar]) separatorParts ++ [hTopChar] ++ bcRightTee
+
+        -- Bottom border
+        bottomParts = map (\w -> replicate w hBottomChar) columnWidths
+        bottomBorder = bcBL ++ [hBottomChar] ++ intercalate ([hBottomChar] ++ bcBottomTee ++ [hBottomChar]) bottomParts ++ [hBottomChar] ++ bcBR
+
+        -- Header row
         headerCells = zipWith padRight columnWidths headers
-        headerRow = vertical ++ " " ++ intercalate (" " ++ vertical ++ " ") headerCells ++ " " ++ vertical
-        
-        -- Create data rows
-        dataRows = concatMap (renderTableRow columnWidths vertical) normalizedRows
-        
+        headerRow = bcVLeft ++ " " ++ intercalate (" " ++ bcVLeft ++ " ") headerCells ++ " " ++ bcVRight
+
+        -- Data rows
+        dataRows = concatMap (renderTableRow columnWidths bcVLeft bcVRight) normalizedRows
+
     in intercalate "\n" ([topBorder, headerRow, separatorBorder] ++ dataRows ++ [bottomBorder])
     where
       normalizeRow :: Int -> [L] -> [L]
-      normalizeRow expectedLen rowData 
+      normalizeRow expectedLen rowData
         | currentLen >= expectedLen = take expectedLen rowData
         | otherwise = rowData ++ replicate (expectedLen - currentLen) (text "")
         where currentLen = length rowData
-      
+
       calculateColumnWidths :: [String] -> [[L]] -> [Int]
-      calculateColumnWidths hdrs rws = 
+      calculateColumnWidths hdrs rws =
         let headerWidths = map visibleLength hdrs
             rowWidths = map (map (maximum . (0:) . map visibleLength . lines . render)) rws
             allWidths = headerWidths : rowWidths
         in map (maximum . (0:)) (transpose allWidths)
-      
-      renderTableRow :: [Int] -> String -> [L] -> [String]
-      renderTableRow widths vChars rowData = 
+
+      renderTableRow :: [Int] -> String -> String -> [L] -> [String]
+      renderTableRow widths vLeft vRight rowData =
         let cellContents = map render rowData
             cellLines = map lines cellContents
             maxCellHeight = maximum (1 : map length cellLines)
             paddedCells = zipWith (padCell maxCellHeight) widths cellLines
             tableRows = transpose paddedCells
-        in map (\rowCells -> vChars ++ " " ++ intercalate (" " ++ vChars ++ " ") rowCells ++ " " ++ vChars) tableRows
-      
+        in map (\rowCells -> vLeft ++ " " ++ intercalate (" " ++ vLeft ++ " ") rowCells ++ " " ++ vRight) tableRows
+
       padCell :: Int -> Int -> [String] -> [String]
       padCell cellHeight cellWidth cellLines =
         let paddedLines = cellLines ++ replicate (cellHeight - length cellLines) ""
@@ -966,43 +1023,426 @@ spinner :: String -> Int -> SpinnerStyle -> L
 spinner label frame style = L (Spinner label frame style)
 
 -- ============================================================================
+-- Visualization Primitives
+-- ============================================================================
+
+-- | Block characters for sparklines and bar charts (indices 0–8)
+blockChars :: String
+blockChars = " ▁▂▃▄▅▆▇█"
+
+-- | Braille dot bit flag for position (row 0–3, col 0–1) in a 2×4 braille cell
+brailleDot :: Int -> Int -> Int
+brailleDot 0 0 = 0x01
+brailleDot 1 0 = 0x02
+brailleDot 2 0 = 0x04
+brailleDot 3 0 = 0x40
+brailleDot 0 1 = 0x08
+brailleDot 1 1 = 0x10
+brailleDot 2 1 = 0x20
+brailleDot 3 1 = 0x80
+brailleDot _ _ = 0
+
+-- | Default color palette for cycling through series/slices
+defaultPalette :: [Color]
+defaultPalette = [ ColorBrightCyan, ColorBrightMagenta, ColorBrightYellow
+                 , ColorBrightGreen, ColorBrightRed, ColorBrightBlue ]
+
+-- | Use explicit color if not ColorDefault, else cycle palette by index
+pickColor :: Int -> Color -> Color
+pickColor idx ColorDefault = defaultPalette !! (idx `mod` length defaultPalette)
+pickColor _   c            = c
+
+-- | Format number for axis labels: "3" for integers, "3.5" for decimals
+formatAxisNum :: Double -> String
+formatAxisNum v
+  | v == fromInteger (round v) = show (round v :: Integer)
+  | otherwise                  = printf "%.1f" v
+
+-- | ANSI 256-color background escape sequence
+bgColor256 :: Int -> String
+bgColor256 n = "\ESC[48;5;" ++ show n ++ "m"
+
+-- | ANSI reset sequence
+ansiReset :: String
+ansiReset = "\ESC[0m"
+
+-- Sparkline ------------------------------------------------------------------
+
+data SparklineData = SparklineData [Double]
+
+instance Element SparklineData where
+  renderElement (SparklineData []) = ""
+  renderElement (SparklineData vals) =
+    let mn  = minimum vals
+        mx  = maximum vals
+        rng = mx - mn
+        idx v | rng == 0  = 4
+              | otherwise = max 1 $ min 8 $ floor ((v - mn) / rng * 8)
+    in map (\v -> blockChars !! idx v) vals
+
+-- | Create a sparkline from a list of values
+plotSparkline :: [Double] -> L
+plotSparkline = L . SparklineData
+
+-- Line Plot (Braille) --------------------------------------------------------
+
+-- | A data series for line plots: points, label, color
+data Series = Series [(Double, Double)] String Color
+
+data PlotData = PlotData [Series] Int Int  -- series, width, height
+
+instance Element PlotData where
+  renderElement (PlotData ss w h)
+    | null ss || all (\(Series ps _ _) -> null ps) ss = "No data"
+    | otherwise =
+      let allPts = concatMap (\(Series ps _ _) -> ps) ss
+          (xs, ys) = unzip allPts
+          xMin = minimum xs; xMax = maximum xs
+          yMin = minimum ys; yMax = maximum ys
+          xRng = if xMax == xMin then 1.0 else xMax - xMin
+          yRng = if yMax == yMin then 1.0 else yMax - yMin
+          pxW  = w * 2; pxH = h * 4
+
+          toPixel (x, y) =
+            ( clampI 0 (pxW - 1) $ round ((x - xMin) / xRng * fromIntegral (pxW - 1))
+            , clampI 0 (pxH - 1) $ round ((yMax - y) / yRng * fromIntegral (pxH - 1))
+            )
+          clampI lo hi = max lo . min hi
+
+          emptyGrid = replicate h (replicate w (0 :: Int, -1 :: Int))
+
+          plotSeries grd sIdx (Series ps _ _) =
+            foldl (\g p ->
+              let (px, py) = toPixel p
+                  cx = px `div` 2; cy = py `div` 4
+                  dx = px `mod` 2; dy = py `mod` 4
+                  bit = brailleDot dy dx
+              in updGrid cy cx (\(b, si) -> (b .|. bit, if si < 0 then sIdx else si)) g
+            ) grd ps
+
+          updGrid r c f g =
+            [ if ri == r
+              then [ if ci == c then f cell else cell | (ci, cell) <- zip [0..] row' ]
+              else row'
+            | (ri, row') <- zip [0..] g ]
+
+          grid = foldl (\g (i, s) -> plotSeries g i s) emptyGrid (zip [0..] ss)
+
+          yTicks  = [ yMax - yRng * fromIntegral i / fromIntegral (max 1 (h - 1)) | i <- [0 .. h-1] ]
+          yLabels = map formatAxisNum yTicks
+          yLabelW = maximum (0 : map length yLabels)
+
+          gridLines = zipWith (\yLbl row' ->
+            padLeft yLabelW yLbl ++ " │" ++
+            concatMap (\(bits, si) ->
+              let ch = if bits == 0 then ' ' else chr (0x2800 + bits)
+                  c  = if si >= 0 then pickColor si (sColor (ss !! si)) else ColorDefault
+              in if c == ColorDefault then [ch] else wrapAnsi c [ch]
+            ) row'
+            ) yLabels grid
+
+          xAxis   = replicate (yLabelW + 2) ' ' ++ replicate w '─'
+          xMinL   = formatAxisNum xMin
+          xMaxL   = formatAxisNum xMax
+          xLabels = replicate (yLabelW + 2) ' ' ++ xMinL
+                    ++ replicate (max 1 (w - length xMinL - length xMaxL)) ' '
+                    ++ xMaxL
+
+          legend
+            | length ss <= 1 = []
+            | otherwise      = ["", intercalate "  " $
+                zipWith (\i (Series _ nm cl) ->
+                  wrapAnsi (pickColor i cl) "●" ++ " " ++ nm
+                ) [0..] ss]
+
+      in intercalate "\n" (gridLines ++ [xAxis, xLabels] ++ legend)
+    where sColor (Series _ _ c) = c
+
+-- | Create a braille line plot
+plotLine :: Int -> Int -> [Series] -> L
+plotLine w h ss = L (PlotData ss w h)
+
+-- Pie Chart (Braille) --------------------------------------------------------
+
+-- | A slice of a pie chart: value, label, color
+data Slice = Slice Double String Color
+
+data PieData = PieData [Slice] Int Int
+
+instance Element PieData where
+  renderElement (PieData [] _ _) = "No data"
+  renderElement (PieData slices w h) =
+    let total   = sum [ v | Slice v _ _ <- slices ]
+        cumAngs = scanl (+) 0 [ v / total * 2 * pi | Slice v _ _ <- slices ]
+
+        cxF    = fromIntegral w                   :: Double
+        cyF    = fromIntegral (h * 4) / 2.0       :: Double
+        radius = min cxF (cyF * 0.9)
+
+        findSlice ang = go 0 (tail cumAngs)
+          where go i []      = max 0 (i - 1)
+                go i (a:as') = if ang < a then i else go (i + 1) as'
+
+        renderCell gcx gcy =
+          let subPx = [ (dy, dx, dist, nAng)
+                      | dy <- [0..3], dx <- [0..1]
+                      , let dpx  = fromIntegral (gcx * 2 + dx) :: Double
+                            dpy  = fromIntegral (gcy * 4 + dy) :: Double
+                            relX = dpx - cxF
+                            relY = (dpy - cyF) * 2.0
+                            dist = sqrt (relX * relX + relY * relY)
+                            ang  = atan2 relY relX
+                            nAng = if ang < 0 then ang + 2 * pi else ang
+                      ]
+              inside = [ (dy, dx, nAng) | (dy, dx, dist, nAng) <- subPx, dist <= radius ]
+              bits   = foldl (\acc (dy, dx, _) -> acc .|. brailleDot dy dx) 0 inside
+              domSi  = case inside of
+                         []            -> -1
+                         ((_, _, a):_) -> findSlice a
+              ch     = if bits == 0 then ' ' else chr (0x2800 + bits)
+              color  = if domSi >= 0 && domSi < length slices
+                       then pickColor domSi (slColor (slices !! domSi))
+                       else ColorDefault
+          in if bits == 0 then " " else wrapAnsi color [ch]
+
+        gridLines = [ concatMap (\gcx -> renderCell gcx gcy) [0..w-1] | gcy <- [0..h-1] ]
+
+        legendLines = zipWith (\i (Slice v nm cl) ->
+          let c   = pickColor i cl
+              pct = printf "%.0f" (v / total * 100) :: String
+          in "  " ++ wrapAnsi c "●" ++ " " ++ nm ++ " (" ++ pct ++ "%)"
+          ) [0..] slices
+
+    in intercalate "\n" (gridLines ++ [""] ++ legendLines)
+    where slColor (Slice _ _ c) = c
+
+-- | Create a braille pie chart
+plotPie :: Int -> Int -> [Slice] -> L
+plotPie w h sl = L (PieData sl w h)
+
+-- Bar Chart (Vertical) -------------------------------------------------------
+
+-- | A bar item: value, label, color
+data BarItem = BarItem Double String Color
+
+data BarChartData = BarChartData [BarItem] Int Int
+
+instance Element BarChartData where
+  renderElement (BarChartData [] _ _) = "No data"
+  renderElement (BarChartData items w h) =
+    let maxVal   = maximum [ v | BarItem v _ _ <- items ]
+        nBars    = length items
+        barW     = max 1 $ (w - nBars + 1) `div` nBars
+        totalSub = h * 8
+        barHts   = [ round (v / maxVal * fromIntegral totalSub) :: Int | BarItem v _ _ <- items ]
+
+        yTicks  = [ maxVal * fromIntegral (h - 1 - i) / fromIntegral (max 1 (h - 1)) | i <- [0..h-1] ]
+        yLabels = map formatAxisNum yTicks
+        yLabelW = maximum (0 : map length yLabels)
+
+        gridLines =
+          [ let r = h - 1 - rowIdx
+                barCells = intercalate " " $
+                  map (\(i, (bh, BarItem _ _ cl)) ->
+                    let filled = min 8 $ max 0 (bh - r * 8)
+                        color' = pickColor i cl
+                        barStr = replicate barW (blockChars !! filled)
+                    in if filled > 0 then wrapAnsi color' barStr else barStr
+                  ) (zip [0..] (zip barHts items))
+            in padLeft yLabelW (yLabels !! rowIdx) ++ " │" ++ barCells
+          | rowIdx <- [0..h-1]
+          ]
+
+        xAxisW    = nBars * barW + nBars - 1
+        xAxis     = replicate (yLabelW + 2) ' ' ++ replicate xAxisW '─'
+        barLabels = replicate (yLabelW + 2) ' ' ++
+                    intercalate " " [ take barW (nm ++ replicate barW ' ') | BarItem _ nm _ <- items ]
+
+    in intercalate "\n" (gridLines ++ [xAxis, barLabels])
+
+-- | Create a vertical bar chart
+plotBar :: Int -> Int -> [BarItem] -> L
+plotBar w h items = L (BarChartData items w h)
+
+-- Stacked Bar Chart -----------------------------------------------------------
+
+-- | A group of stacked bars: segments and group label
+data StackedBarGroup = StackedBarGroup [BarItem] String
+
+data StackedBarChartData = StackedBarChartData [StackedBarGroup] Int Int
+
+instance Element StackedBarChartData where
+  renderElement (StackedBarChartData [] _ _) = "No data"
+  renderElement (StackedBarChartData groups w h) =
+    let maxTotal  = maximum [ sum [ v | BarItem v _ _ <- segs ] | StackedBarGroup segs _ <- groups ]
+        nGroups   = length groups
+        barW      = max 1 $ (w - nGroups + 1) `div` nGroups
+        totalSub  = h * 8
+
+        groupBounds = map (\(StackedBarGroup segs _) ->
+          let vals    = [ v | BarItem v _ _ <- segs ]
+              subHts  = map (\v -> round (v / maxTotal * fromIntegral totalSub) :: Int) vals
+              cumHts  = scanl (+) 0 subHts
+              bottoms = init cumHts
+              tops    = tail cumHts
+          in zip segs (zip bottoms tops)
+          ) groups
+
+        allLabels = nub [ nm | StackedBarGroup segs _ <- groups, BarItem _ nm _ <- segs ]
+        labelIdx nm = case lookup nm (zip allLabels [0..]) of
+          Just i  -> i
+          Nothing -> 0
+
+        yTicks  = [ maxTotal * fromIntegral (h - 1 - i) / fromIntegral (max 1 (h - 1)) | i <- [0..h-1] ]
+        yLabels = map formatAxisNum yTicks
+        yLabelW = maximum (0 : map length yLabels)
+
+        gridLines =
+          [ let r = h - 1 - rowIdx
+                subBot = r * 8
+                subTop = r * 8 + 8
+                barCells = intercalate " " $
+                  map (\bounds ->
+                    let overlapping = [ (bi, bot, top)
+                                      | (bi, (bot, top)) <- bounds
+                                      , top > subBot, bot < subTop ]
+                        topSeg = case overlapping of
+                          [] -> Nothing
+                          _  -> Just $ foldl1 (\a@(_, _, t1) b@(_, _, t2) ->
+                                  if t2 > t1 then b else a) overlapping
+                    in case topSeg of
+                      Nothing -> replicate barW ' '
+                      Just (BarItem _ nm cl, _, top) ->
+                        let filled = min 8 $ max 0 (top - subBot)
+                            color' = case cl of
+                              ColorDefault -> pickColor (labelIdx nm) ColorDefault
+                              _            -> cl
+                            barStr = replicate barW (blockChars !! filled)
+                        in if filled > 0 then wrapAnsi color' barStr else barStr
+                  ) groupBounds
+            in padLeft yLabelW (yLabels !! rowIdx) ++ " │" ++ barCells
+          | rowIdx <- [0..h-1]
+          ]
+
+        xAxisW    = nGroups * barW + nGroups - 1
+        xAxis     = replicate (yLabelW + 2) ' ' ++ replicate xAxisW '─'
+        grpLabels = replicate (yLabelW + 2) ' ' ++
+                    intercalate " " [ take barW (nm ++ replicate barW ' ')
+                                    | StackedBarGroup _ nm <- groups ]
+
+        legendItems = map (\nm ->
+          let i = labelIdx nm
+              c = defaultPalette !! (i `mod` length defaultPalette)
+          in wrapAnsi c "█" ++ " " ++ nm
+          ) allLabels
+        legendLine
+          | length allLabels <= 1 = []
+          | otherwise             = ["", intercalate "  " legendItems]
+
+    in intercalate "\n" (gridLines ++ [xAxis, grpLabels] ++ legendLine)
+
+-- | Create a stacked vertical bar chart
+plotStackedBar :: Int -> Int -> [StackedBarGroup] -> L
+plotStackedBar w h groups = L (StackedBarChartData groups w h)
+
+-- Heatmap --------------------------------------------------------------------
+
+-- | Heatmap data: grid of values, row labels, column labels
+data HeatmapData = HeatmapData [[Double]] [String] [String]
+
+data HeatmapElement = HeatmapElement HeatmapData Int  -- data, cellWidth
+
+instance Element HeatmapElement where
+  renderElement (HeatmapElement (HeatmapData [] _ _) _) = "No data"
+  renderElement (HeatmapElement (HeatmapData grid rowLbls colLbls) cellW) =
+    let allVals = concat grid
+        mn  = minimum allVals
+        mx  = maximum allVals
+        rng = if mx == mn then 1.0 else mx - mn
+        normalize v = (v - mn) / rng
+
+        toColor256 :: Double -> Int
+        toColor256 t
+          | t <= 0.0  = 21
+          | t >= 1.0  = 196
+          | t < 0.25  = let s = t / 0.25      in round (21.0  + s * 30.0)
+          | t < 0.5   = let s = (t-0.25)/0.25 in round (51.0  + s * (-5.0))
+          | t < 0.75  = let s = (t-0.5)/0.25  in round (46.0  + s * 180.0)
+          | otherwise  = let s = (t-0.75)/0.25 in round (226.0 + s * (-30.0))
+
+        rowLblW = maximum (0 : map length rowLbls)
+
+        header = replicate (rowLblW + 1) ' ' ++
+                 intercalate " " (map (\l -> padRight cellW (take cellW l)) colLbls)
+
+        dataRows = zipWith (\lbl rowVals ->
+          padRight rowLblW (take rowLblW lbl) ++ " " ++
+          intercalate " " (map (\v ->
+            let n    = normalize v
+                c256 = toColor256 n
+                vs   = formatAxisNum v
+            in bgColor256 c256 ++ padRight cellW (take cellW vs) ++ ansiReset
+          ) rowVals)
+          ) rowLbls grid
+
+        legendCs   = map (\i -> toColor256 (fromIntegral i / 10.0)) [0..10 :: Int]
+        legendBar  = concatMap (\c -> bgColor256 c ++ " " ++ ansiReset) legendCs
+        legendLine = replicate (rowLblW + 1) ' ' ++
+                     formatAxisNum mn ++ " " ++ legendBar ++ " " ++ formatAxisNum mx
+
+    in intercalate "\n" ([header] ++ dataRows ++ ["", legendLine])
+
+-- | Create a heatmap with default cell width (6)
+plotHeatmap :: HeatmapData -> L
+plotHeatmap dat = L (HeatmapElement dat 6)
+
+-- | Create a heatmap with custom cell width
+plotHeatmap' :: Int -> HeatmapData -> L
+plotHeatmap' cellW dat = L (HeatmapElement dat cellW)
+
+-- ============================================================================
 -- TUI Runtime - Simple event loop for interactive terminal applications
 -- ============================================================================
 
 -- | Keyboard input representation
 data Key
-  = CharKey Char           -- ^ Regular character keys: 'a', '1', ' ', etc.
-  | EnterKey               -- ^ Enter/Return key
-  | BackspaceKey           -- ^ Backspace key
-  | TabKey                 -- ^ Tab key
-  | EscapeKey              -- ^ Escape key
-  | DeleteKey              -- ^ Delete key
-  | ArrowUpKey             -- ^ Up arrow
-  | ArrowDownKey           -- ^ Down arrow
-  | ArrowLeftKey           -- ^ Left arrow
-  | ArrowRightKey          -- ^ Right arrow
-  | SpecialKey String      -- ^ Ctrl+X, etc.
+  = KeyChar Char           -- ^ Regular character keys: 'a', '1', ' ', etc.
+  | KeyCtrl Char           -- ^ Ctrl+key: KeyCtrl 'C', KeyCtrl 'Q', etc.
+  | KeyEnter               -- ^ Enter/Return key
+  | KeyBackspace           -- ^ Backspace key
+  | KeyTab                 -- ^ Tab key
+  | KeyEscape              -- ^ Escape key
+  | KeyDelete              -- ^ Delete key
+  | KeyUp                  -- ^ Up arrow
+  | KeyDown                -- ^ Down arrow
+  | KeyLeft                -- ^ Left arrow
+  | KeyRight               -- ^ Right arrow
+  | KeySpecial String      -- ^ Other unrecognized escape sequences
   deriving (Show, Eq)
 
 -- | Commands - side effects the runtime will execute after each update
 data Cmd msg
-  = None                        -- ^ No effect
-  | Cmd (IO (Maybe msg))        -- ^ Run IO, optionally produce a message
-  | Batch [Cmd msg]             -- ^ Combine multiple commands
+  = CmdNone                     -- ^ No effect
+  | CmdRun (IO (Maybe msg))    -- ^ Run IO, optionally produce a message
+  | CmdBatch [Cmd msg]         -- ^ Combine multiple commands
 
 -- | Create a command from an IO action (fire and forget)
-cmd :: IO () -> Cmd msg
-cmd io = Cmd (io >> pure Nothing)
+cmdFire :: IO () -> Cmd msg
+cmdFire io = CmdRun (io >> pure Nothing)
 
 -- | Create a command that produces a message after IO completes
-cmdMsg :: IO msg -> Cmd msg
-cmdMsg io = Cmd (Just <$> io)
+cmdTask :: IO msg -> Cmd msg
+cmdTask io = CmdRun (Just <$> io)
+
+-- | Create a command that fires a message after a delay
+cmdAfterMs :: Int -> msg -> Cmd msg
+cmdAfterMs delayMs msg = CmdRun (threadDelay (delayMs * 1000) >> pure (Just msg))
 
 -- | Execute a command and return any resulting message
 executeCmd :: Cmd msg -> IO (Maybe msg)
-executeCmd None = pure Nothing
-executeCmd (Cmd io) = io
-executeCmd (Batch cmds) = do
+executeCmd CmdNone = pure Nothing
+executeCmd (CmdRun io) = io
+executeCmd (CmdBatch cmds) = do
   results <- mapM executeCmd cmds
   pure $ foldr pickFirst Nothing results
   where 
@@ -1010,23 +1450,23 @@ executeCmd (Batch cmds) = do
     pickFirst Nothing  r = r
 
 -- | Subscriptions - event sources your app listens to
-data Sub msg 
+data Sub msg
   = SubNone                                    -- ^ No subscriptions
   | SubKeyPress (Key -> Maybe msg)             -- ^ Subscribe to keyboard input
-  | SubTick msg                                -- ^ Subscribe to periodic ticks (~100ms)
+  | SubEveryMs Int msg                         -- ^ Subscribe to periodic ticks (interval in ms + message)
   | SubBatch [Sub msg]                         -- ^ Combine multiple subscriptions
 
 -- | Combine multiple subscriptions
-batch :: [Sub msg] -> Sub msg
-batch = SubBatch
+subBatch :: [Sub msg] -> Sub msg
+subBatch = SubBatch
 
 -- | Subscribe to keyboard events
-onKeyPress :: (Key -> Maybe msg) -> Sub msg
-onKeyPress = SubKeyPress
+subKeyPress :: (Key -> Maybe msg) -> Sub msg
+subKeyPress = SubKeyPress
 
--- | Subscribe to periodic ticks for animations
-onTick :: msg -> Sub msg
-onTick = SubTick
+-- | Subscribe to periodic ticks with custom interval (milliseconds)
+subEveryMs :: Int -> msg -> Sub msg
+subEveryMs = SubEveryMs
 
 -- | The core application structure - Elm Architecture style
 --
@@ -1042,13 +1482,13 @@ onTick = SubTick
 --
 -- counterApp :: LayoutzApp Int CounterMsg
 -- counterApp = LayoutzApp
---   { appInit = (0, None)
+--   { appInit = (0, CmdNone)
 --   , appUpdate = \\msg count -> case msg of
---       Inc -> (count + 1, None)
---       Dec -> (count - 1, None)
---   , appSubscriptions = \\_ -> onKeyPress $ \\key -> case key of
---       CharKey '+' -> Just Inc
---       CharKey '-' -> Just Dec
+--       Inc -> (count + 1, CmdNone)
+--       Dec -> (count - 1, CmdNone)
+--   , appSubscriptions = \\_ -> subKeyPress $ \\key -> case key of
+--       KeyChar '+' -> Just Inc
+--       KeyChar '-' -> Just Dec
 --       _           -> Nothing
 --   , appView = \\count -> layout [text $ "Count: " <> show count]
 --   }
@@ -1060,12 +1500,61 @@ data LayoutzApp state msg = LayoutzApp
   , appView          :: state -> L                       -- ^ Render state to UI
   }
 
--- | Run an interactive TUI application
+-- | App-level alignment within the terminal window
+data AppAlignment = AppAlignLeft | AppAlignCenter | AppAlignRight
+  deriving (Show, Eq)
+
+-- | Options for running a 'LayoutzApp'. Use 'defaultAppOptions' and override
+-- the fields you care about:
+--
+-- @
+-- runAppWith defaultAppOptions { optAlignment = AppAlignCenter } myApp
+-- @
+data AppOptions = AppOptions
+  { optAlignment :: AppAlignment   -- ^ Alignment of the app block in the terminal (default: 'AppAlignLeft')
+  } deriving (Show, Eq)
+
+-- | Sensible defaults: left-aligned.
+defaultAppOptions :: AppOptions
+defaultAppOptions = AppOptions
+  { optAlignment = AppAlignLeft
+  }
+
+-- | Get terminal width via ANSI cursor position report (zero dependencies).
+-- Moves cursor to far bottom-right, queries position, restores cursor.
+-- Falls back to 80 columns on timeout or parse failure.
+getTerminalWidth :: IO Int
+getTerminalWidth = do
+  -- Save cursor, move to 999;999, query position, restore cursor
+  putStr "\ESC7\ESC[999;999H\ESC[6n\ESC8"
+  hFlush stdout
+  -- Terminal responds with: ESC [ rows ; cols R
+  result <- timeout 100000 readCPR   -- 100ms timeout
+  pure $ maybe 80 id result
+  where
+    readCPR = do
+      c <- getChar
+      if c == '\ESC' then do
+        c2 <- getChar
+        if c2 == '[' then parseResponse ""
+        else pure 80
+      else pure 80
+    parseResponse acc = do
+      c <- getChar
+      if c == 'R' then
+        let resp = reverse acc
+        in pure $ case break (== ';') resp of
+             (_, ';':cols) -> case reads cols of
+               [(n, "")] -> n
+               _         -> 80
+             _ -> 80
+      else parseResponse (c : acc)
+
+-- | Run an interactive TUI application with default options.
 --
 -- This function:
 --   * Sets up raw terminal mode (no echo, no buffering)
 --   * Clears screen and hides cursor
---   * Renders initial view
 --   * Enters event loop that:
 --       - Listens to subscribed events (keyboard, ticks, etc.)
 --       - Dispatches messages to update function
@@ -1074,7 +1563,15 @@ data LayoutzApp state msg = LayoutzApp
 --
 -- Press ESC, Ctrl+C, or Ctrl+D to quit the application.
 runApp :: LayoutzApp state msg -> IO ()
-runApp LayoutzApp{..} = do
+runApp = runAppWith defaultAppOptions
+
+-- | Run an interactive TUI application with custom options.
+--
+-- @
+-- runAppWith defaultAppOptions { optAlignment = AppAlignCenter } myApp
+-- @
+runAppWith :: AppOptions -> LayoutzApp state msg -> IO ()
+runAppWith opts LayoutzApp{..} = do
   oldBuffering <- hGetBuffering stdin
   oldEcho <- hGetEcho stdin
   
@@ -1085,9 +1582,12 @@ runApp LayoutzApp{..} = do
   enterAltScreen
   clearScreen
   hideCursor
-  
+
+  -- Query terminal width once, after raw mode is set, before threads
+  termWidth <- getTerminalWidth
+
   let (initialState, initialCmd) = appInit
-  
+
   stateRef <- newIORef initialState
   cmdChan <- newChan  -- Channel for commands to execute
   
@@ -1096,8 +1596,8 @@ runApp LayoutzApp{..} = do
         cmdToRun <- atomicModifyIORef' stateRef $ \s -> 
           let (newState, c) = appUpdate msg s in (newState, c)
         case cmdToRun of
-          None -> pure ()
-          _    -> writeChan cmdChan cmdToRun
+          CmdNone -> pure ()
+          _       -> writeChan cmdChan cmdToRun
   
   -- Command thread: executes commands async, feeds results back
   cmdThread <- forkIO $ forever $ do
@@ -1109,8 +1609,8 @@ runApp LayoutzApp{..} = do
   
   -- Execute initial command
   case initialCmd of
-    None -> pure ()
-    _    -> writeChan cmdChan initialCmd
+    CmdNone -> pure ()
+    _       -> writeChan cmdChan initialCmd
   
   lastLineCount <- newIORef 0
   lastRendered <- newIORef ""
@@ -1119,63 +1619,65 @@ runApp LayoutzApp{..} = do
     state <- readIORef stateRef
     let rendered = render (appView state)
     lastRender <- readIORef lastRendered
-    
+
     when (rendered /= lastRender) $ do
       prevLineCount <- readIORef lastLineCount
       let renderedLines = lines rendered
           currentLineCount = length renderedLines
-          -- Move cursor home, then write each line with clear-to-end-of-line
-          output = "\ESC[H" ++ concatMap (\l -> l ++ "\ESC[K\n") renderedLines -- TODO refactor
-                   ++ concat (replicate (max 0 (prevLineCount - currentLineCount)) "\ESC[K\n") -- clears lines from previous render
+          maxLineWidth = maximum (0 : map visibleLength renderedLines)
+          blockPad = case optAlignment opts of
+            AppAlignLeft   -> 0
+            AppAlignCenter -> max 0 ((termWidth - maxLineWidth) `div` 2)
+            AppAlignRight  -> max 0 (termWidth - maxLineWidth)
+          padding = replicate blockPad ' '
+          alignedLines = if blockPad > 0
+                         then map (padding ++) renderedLines
+                         else renderedLines
+          output = "\ESC[H" ++ concatMap (\l -> l ++ "\ESC[K\n") alignedLines
+                   ++ concat (replicate (max 0 (prevLineCount - currentLineCount)) "\ESC[K\n")
       putStr output
       hFlush stdout
       writeIORef lastRendered rendered
       writeIORef lastLineCount currentLineCount
-    
+
     threadDelay 33333
   
-  let hasTick sub = case sub of
-        SubTick _ -> True
-        SubBatch subs -> any hasTick subs
-        _ -> False
-      
-      getKeyHandler sub = case sub of
+  let getKeyHandler sub = case sub of
         SubKeyPress handler -> Just handler
         SubBatch subs -> case [h | SubKeyPress h <- subs] of
           (h:_) -> Just h
           [] -> Nothing
         _ -> Nothing
-      
-      getTickMsg sub = case sub of
-        SubTick msg -> Just msg
-        SubBatch subs -> case [msg | SubTick msg <- subs] of
-          (msg:_) -> Just msg
+
+      getTickInfo sub = case sub of
+        SubEveryMs interval msg -> Just (interval, msg)
+        SubBatch subs -> case [(i, m) | SubEveryMs i m <- subs] of
+          ((i,m):_) -> Just (i, m)
           [] -> Nothing
         _ -> Nothing
-  
+
   let killThreads = killThread renderThread >> killThread cmdThread
-  
+
       inputLoop = do
         state <- readIORef stateRef
         let subs = appSubscriptions state
-            hasTickSub = hasTick subs
             keyHandler = getKeyHandler subs
-            tickMsg = getTickMsg subs
-        
-        maybeKey <- if hasTickSub 
-                    then timeout 100000 readKey
-                    else Just <$> readKey
-        
+            tickInfo = getTickInfo subs
+
+        maybeKey <- case tickInfo of
+          Just (intervalMs, _) -> timeout (intervalMs * 1000) readKey
+          Nothing              -> Just <$> readKey
+
         case maybeKey of
           Nothing -> do
-            case tickMsg of
-              Just msg -> updateState msg >> inputLoop
+            case tickInfo of
+              Just (_, msg) -> updateState msg >> inputLoop
               Nothing -> inputLoop
           
           Just key -> case key of
-            EscapeKey           -> killThreads >> cleanup oldBuffering oldEcho
-            SpecialKey "Ctrl+C" -> killThreads >> cleanup oldBuffering oldEcho
-            SpecialKey "Ctrl+D" -> killThreads >> cleanup oldBuffering oldEcho
+            KeyEscape           -> killThreads >> cleanup oldBuffering oldEcho
+            KeyCtrl 'C' -> killThreads >> cleanup oldBuffering oldEcho
+            KeyCtrl 'D' -> killThreads >> cleanup oldBuffering oldEcho
             
             _ -> case keyHandler of
               Just handler -> case handler key of
@@ -1222,15 +1724,15 @@ readKey :: IO Key
 readKey = do
   c <- getChar
   case ord c of
-    10  -> return EnterKey         -- LF (Unix)
-    13  -> return EnterKey         -- CR (Windows/Mac)
+    10  -> return KeyEnter         -- LF (Unix)
+    13  -> return KeyEnter         -- CR (Windows/Mac)
     27  -> readEscapeSequence      -- ESC - might be arrow key
-    9   -> return TabKey
-    127 -> return BackspaceKey     -- DEL (often used as backspace)
-    8   -> return BackspaceKey     -- BS
-    n | n >= 32 && n <= 126 -> return $ CharKey (chr n)  -- Printable ASCII
-      | n < 32 -> return $ SpecialKey ("Ctrl+" ++ [chr (n + 64)])  -- Ctrl+Key
-      | otherwise -> return $ CharKey (chr n)
+    9   -> return KeyTab
+    127 -> return KeyBackspace     -- DEL (often used as backspace)
+    8   -> return KeyBackspace     -- BS
+    n | n >= 32 && n <= 126 -> return $ KeyChar (chr n)  -- Printable ASCII
+      | n < 32 -> return $ KeyCtrl (chr (n + 64))  -- Ctrl+Key
+      | otherwise -> return $ KeyChar (chr n)
 
 -- | Read escape sequence for arrow keys and other special keys
 -- Uses a small timeout to distinguish between ESC key and ESC sequences
@@ -1240,20 +1742,20 @@ readEscapeSequence = do
   -- If timeout, it's just ESC key; if character arrives, it's an escape sequence
   maybeChar <- timeout 50000 getChar  -- 50000 microseconds = 50ms
   case maybeChar of
-    Nothing -> return EscapeKey  -- Timeout - just ESC key pressed
+    Nothing -> return KeyEscape  -- Timeout - just ESC key pressed
     Just '[' -> do
       -- It's an escape sequence, read the command character
       c2 <- getChar
       case c2 of
-        'A' -> return ArrowUpKey
-        'B' -> return ArrowDownKey
-        'C' -> return ArrowRightKey
-        'D' -> return ArrowLeftKey
+        'A' -> return KeyUp
+        'B' -> return KeyDown
+        'C' -> return KeyRight
+        'D' -> return KeyLeft
         '3' -> do
           c3 <- getChar  -- Read the '~'
           if c3 == '~'
-            then return DeleteKey
-            else return EscapeKey
-        _ -> return EscapeKey
-    Just _ -> return EscapeKey  -- Some other character after ESC
+            then return KeyDelete
+            else return KeyEscape
+        _ -> return KeyEscape
+    Just _ -> return KeyEscape  -- Some other character after ESC
 

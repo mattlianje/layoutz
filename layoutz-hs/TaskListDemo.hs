@@ -74,7 +74,7 @@ taskListApp = LayoutzApp
           , loadProgress = 0
           , loadingTaskIdx = -1
           }
-      , None
+      , CmdNone
       )
   
   , appView = \state ->
@@ -201,37 +201,37 @@ taskListApp = LayoutzApp
                  }
       
       _ -> state
-    , None)
+    , CmdNone)
   
   , appSubscriptions = \state ->
       if isLoading state then
-        batch
-          [ onTick AdvanceProgress
-          , onKeyPress $ \_ -> Nothing
+        subBatch
+          [ subEveryMs 100 AdvanceProgress
+          , subKeyPress $ \_ -> Nothing
           ]
       else if addingTask state then
-        onKeyPress $ \key -> case key of
-          EnterKey     -> Just ConfirmTask
-          TabKey       -> Just ConfirmTask
-          EscapeKey    -> Just CancelAdd
-          BackspaceKey -> Just DeleteChar
-          CharKey c | c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == ' ' -> Just (TypeChar c)
-          CharKey c | c >= '0' && c <= '9' -> Just (TypeDigit c)
+        subKeyPress $ \key -> case key of
+          KeyEnter     -> Just ConfirmTask
+          KeyTab       -> Just ConfirmTask
+          KeyEscape    -> Just CancelAdd
+          KeyBackspace -> Just DeleteChar
+          KeyChar c | c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == ' ' -> Just (TypeChar c)
+          KeyChar c | c >= '0' && c <= '9' -> Just (TypeDigit c)
           _            -> Nothing
       else
-        onKeyPress $ \key -> case key of
-          CharKey 'w'  -> Just MoveUp
-          CharKey 'W'  -> Just MoveUp
-          ArrowUpKey   -> Just MoveUp
+        subKeyPress $ \key -> case key of
+          KeyChar 'w'  -> Just MoveUp
+          KeyChar 'W'  -> Just MoveUp
+          KeyUp   -> Just MoveUp
           
-          CharKey 's'  -> Just MoveDown
-          CharKey 'S'  -> Just MoveDown
-          ArrowDownKey -> Just MoveDown
+          KeyChar 's'  -> Just MoveDown
+          KeyChar 'S'  -> Just MoveDown
+          KeyDown -> Just MoveDown
           
-          EnterKey     -> Just StartTask
+          KeyEnter     -> Just StartTask
           
-          CharKey 'a'  -> Just ToggleAddTask
-          CharKey 'A'  -> Just ToggleAddTask
+          KeyChar 'a'  -> Just ToggleAddTask
+          KeyChar 'A'  -> Just ToggleAddTask
           
           _            -> Nothing
   }

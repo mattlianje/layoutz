@@ -39,7 +39,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
 
   private val totalScenes = 7
   private val sceneNames = Seq(
-    "Bouncing Ball",
+    "Physics Game",
     "Text Input & Lists",
     "Borders & Styles",
     "Tables",
@@ -161,7 +161,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
   override def view(state: ShowcaseState): Element = {
     val header = renderHeader(state)
     val content = state.scene match {
-      case 0 => sceneBouncingBall(state)
+      case 0 => scenePhysicsGame(state)
       case 1 => sceneTextInput(state)
       case 2 => sceneBordersStyles(state)
       case 3 => sceneTables(state)
@@ -211,8 +211,8 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     hints.color(Color.BrightBlack).style(Style.Dim)
   }
 
-  /* -- Scene 1: Bouncing Ball -- */
-  private def sceneBouncingBall(state: ShowcaseState): Element = {
+  /* -- Scene 1: Physics Game -- */
+  private def scenePhysicsGame(state: ShowcaseState): Element = {
     val trailPoints = state.ballTrail.zipWithIndex.map { case (y, i) =>
       (i.toDouble, y)
     }
@@ -249,7 +249,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
           }.color(Color.BrightGreen),
           br,
           spinner("Simulating", state.tick / 3, SpinnerStyle.Earth).color(Color.BrightCyan),
-          "Space to kick!".color(Color.BrightYellow).style(Style.Bold)
+          "Press Space to kick ball!".color(Color.BrightYellow).style(Style.Bold)
         ), 28)
       ).border(Border.Round).color(Color.BrightMagenta)
     )
