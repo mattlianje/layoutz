@@ -460,10 +460,16 @@ chart("Web" -> 10, "Mobile" -> 20, "API" -> 15)
 ```
 
 ### Spinner: `spinner`
-Styles: `Dots` (default), `Line`, `Clock`, `Bounce`
+8 built-in styles:
 ```scala
-spinner("Loading...", frame = 3)             // ⠸ Loading...
-spinner("Work", frame = 0, SpinnerStyle.Line) // | Work
+spinner("Loading", frame, SpinnerStyle.Dots)   // ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+spinner("Loading", frame, SpinnerStyle.Line)   // | / - \
+spinner("Loading", frame, SpinnerStyle.Clock)  // 🕐 🕑 🕒 🕓 🕔 🕕 🕖 🕗 🕘 🕙 🕚 🕛
+spinner("Loading", frame, SpinnerStyle.Bounce) // ⠁ ⠂ ⠄ ⠂
+spinner("Loading", frame, SpinnerStyle.Earth)  // 🌍 🌎 🌏
+spinner("Loading", frame, SpinnerStyle.Moon)   // 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘
+spinner("Loading", frame, SpinnerStyle.Grow)   // ▏ ▎ ▍ ▌ ▋ ▊ ▉ █ ▉ ▊ ▋ ▌ ▍ ▎
+spinner("Loading", frame, SpinnerStyle.Arrow)  // ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
 ### Alignment: `center`, `leftAlign`, `rightAlign`, `justify`, `wrap`
