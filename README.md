@@ -24,7 +24,7 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
-Layoutz can also drop animations into build scripts or any stdout, without heavy "frameworks",
+Layoutz also lets you drop animations into build scripts or any stdout, without heavy "frameworks",
 just bring your Elements to life Elm-style and render them inline...
 
 <p align="center">
