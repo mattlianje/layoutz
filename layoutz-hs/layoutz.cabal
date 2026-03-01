@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          layoutz
-version:       0.1.0.0
+version:       0.3.0.0
 synopsis:      Simple, beautiful CLI output for Haskell
 description:   
   Build declarative and composable sections, trees, tables, dashboards for your Haskell applications.

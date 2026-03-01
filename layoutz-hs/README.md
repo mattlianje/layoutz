@@ -4,9 +4,10 @@
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 
-**Simple, beautiful CLI output for Haskell 🪶**
+**Simple, beautiful CLI output 🪶**
 
-Build declarative and composable sections, trees, tables, dashboards, and interactive Elm-style TUI's.
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, 
+and interactive Elm-style TUI's in pure Haskell.
 
 Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
@@ -17,6 +18,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
+- Implement `Element` to add your own primitives
 - Easy porting to MicroHs
 
 <p align="center">
@@ -29,7 +31,7 @@ Layoutz also lets you drop animations into build scripts or any stdout, without 
 just bring your Elements to life Elm-style and render them inline...
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="550">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
 <br>
 <sub><a href="examples/InlineBar.hs">InlineBar.hs</a></sub>
 </p>
