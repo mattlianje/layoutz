@@ -24,10 +24,11 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
-You can also drop animations into build scripts or any stdout - no alternate screen, no TUI framework, it just renders inline:
+Layoutz can also drop animations into build scripts or any stdout, without heavy "frameworks",
+just bring your Elements to life Elm-style and render them inline...
 
 <p align="center">
-<img src="pix/inline-demo.gif" width="550">
+<img src="pix/inline-demo.gif" width="650">
 <br>
 <sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
 </p>
