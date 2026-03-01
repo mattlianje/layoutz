@@ -6,7 +6,7 @@ import Layoutz
 import Data.List (isInfixOf)
 import Data.IORef (newIORef, readIORef, writeIORef)
 
--- Helper to strip ANSI codes for testing (re-export from Layoutz would be better, but this works)
+-- Helper to strip ANSI codes for testing
 stripAnsiTest :: String -> String
 stripAnsiTest [] = []
 stripAnsiTest ('\ESC':'[':rest) = stripAnsiTest (dropAfterM rest)
