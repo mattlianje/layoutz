@@ -514,7 +514,7 @@ plotHeatmap $ HeatmapData
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
 </p>
 
-## Colors (ANSI Support)
+## Colors
 
 Add ANSI colors to any element:
 
