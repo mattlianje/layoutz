@@ -5,7 +5,7 @@
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 **Simple, beautiful CLI output 🪶**
 
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala. Easily create new primitives (no component-library limitations).
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala.
 
 ## Features
 - Pure Scala, zero-dependencies (JVM, Native, JS)
@@ -14,6 +14,8 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
+- Extend `Element` and easily create new primitives
+   - (No component library limitations)
 - Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 <p align="center">
