@@ -26,8 +26,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Haskell](https://gith
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
-Layoutz also lets you drop animations into build scripts or any stdout, without heavy "frameworks",
-just bring your Elements to life Elm-style and render them inline...
+Layoutz also lets you inline animations into build scripts or anything that hits stdout without any heavy "frameworks":
 
 <p align="center">
 <img src="pix/inline-demo.gif" width="650">
