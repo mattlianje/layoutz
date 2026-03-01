@@ -24,6 +24,14 @@ A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
+You can also drop animations into build scripts or any stdout - no alternate screen, no TUI framework, it just renders inline:
+
+<p align="center">
+<img src="pix/inline-demo.gif" width="550">
+<br>
+<sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
+</p>
+
 ## Table of Contents
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -187,14 +195,6 @@ CounterApp.run
 ```
 <p align="center">
   <img src="pix/counter-demo.gif" width="550">
-</p>
-
-`LayoutzApp`s can also run inline without clearing the screen, animating in place within existing output:
-
-<p align="center">
-<img src="pix/inline-demo.gif" width="550">
-<br>
-<sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
 </p>
 
 ## Why layoutz?
