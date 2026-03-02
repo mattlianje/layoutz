@@ -27,8 +27,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
 
-Layoutz also lets you drop animations into build scripts or any stdout, without heavy "frameworks",
-just bring your Elements to life Elm-style and render them inline...
+Layoutz also lets you easily drop animations into build scripts or any processes that use Stdout:
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
