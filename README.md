@@ -26,7 +26,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Haskell](https://gith
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
-Layoutz also lets you inline animations into build scripts or anything that hits stdout without any heavy "frameworks":
+Layoutz also lets you easily drop animations into build scripts or any processes using Stdout:
 
 <p align="center">
 <img src="pix/inline-demo.gif" width="650">
