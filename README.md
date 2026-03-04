@@ -804,7 +804,8 @@ Options: `cellWidth`, `cellHeight`, `showLegend`, row/column labels via `Heatmap
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
 view is simply a `layoutz.Element`
 
-⚠️ `LayoutzApp` is JVM + Native only
+> [!WARNING]
+> `LayoutzApp` is currently JVM + Native only
 
 ```scala
 trait LayoutzApp[State, Message] {
