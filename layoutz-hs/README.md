@@ -6,7 +6,7 @@
 
 **Simple, beautiful CLI output 🪶**
 
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, 
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in pure Haskell.
 
 Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
@@ -79,7 +79,7 @@ demo = layout
     , withBorder BorderDouble $ statusCard "API" "UP"
     , withColor ColorRed $ withBorder BorderThick $ statusCard "CPU" "23%"
     , withStyle StyleReverse $ withBorder BorderRound $ table ["Name", "Role", "Skills"]
-	[ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
+        [ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
         , ["Eve", "QA", "Testing"]
         ]
     ]
