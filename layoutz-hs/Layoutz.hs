@@ -74,12 +74,14 @@ module Layoutz
   , cmdTask
   , cmdAfterMs
   , executeCmd
+  , cmdIsExit
   , Sub(..)
   , AppOptions(..)
   , defaultAppOptions
   , AppAlignment(..)
   , runApp
   , runAppWith
+  , runInline
     -- * Subscriptions
   , subKeyPress
   , subEveryMs
@@ -92,7 +94,6 @@ import Data.String (IsString(..))
 import Data.Char (ord, chr)
 import Text.Printf (printf)
 import System.IO
-import System.Exit (exitSuccess)
 import Control.Exception (catch, AsyncException(..))
 import System.Timeout (timeout)
 import Control.Monad (when, forever)
@@ -1438,6 +1439,7 @@ data Cmd msg
   = CmdNone                     -- ^ No effect
   | CmdRun (IO (Maybe msg))    -- ^ Run IO, optionally produce a message
   | CmdBatch [Cmd msg]         -- ^ Combine multiple commands
+  | CmdExit                    -- ^ Gracefully quit the application
 
 -- | Create a command from an IO action (fire and forget)
 cmdFire :: IO () -> Cmd msg
@@ -1451,9 +1453,11 @@ cmdTask io = CmdRun (Just <$> io)
 cmdAfterMs :: Int -> msg -> Cmd msg
 cmdAfterMs delayMs msg = CmdRun (threadDelay (delayMs * 1000) >> pure (Just msg))
 
--- | Execute a command and return any resulting message
+-- | Execute a command and return any resulting message.
+-- Returns 'Nothing' for 'CmdExit' — the exit signal is handled by the runtime.
 executeCmd :: Cmd msg -> IO (Maybe msg)
 executeCmd CmdNone = pure Nothing
+executeCmd CmdExit = pure Nothing
 executeCmd (CmdRun io) = io
 executeCmd (CmdBatch cmds) = do
   results <- mapM executeCmd cmds
@@ -1461,6 +1465,12 @@ executeCmd (CmdBatch cmds) = do
   where
     pickFirst (Just m) _ = Just m
     pickFirst Nothing  r = r
+
+-- | Check whether a command (or any sub-command in a batch) is 'CmdExit'.
+cmdIsExit :: Cmd msg -> Bool
+cmdIsExit CmdExit = True
+cmdIsExit (CmdBatch cmds) = any cmdIsExit cmds
+cmdIsExit _ = False
 
 -- | Subscriptions - event sources your app listens to
 data Sub msg
@@ -1526,13 +1536,17 @@ data AppAlignment = AppAlignLeft | AppAlignCenter | AppAlignRight
 -- 'runAppWith' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
 -- @
 data AppOptions = AppOptions
-  { optAlignment :: AppAlignment   -- ^ Alignment of the app block in the terminal (default: 'AppAlignLeft')
+  { optAlignment    :: AppAlignment -- ^ Alignment of the app block in the terminal (default: 'AppAlignLeft')
+  , optClearOnStart :: Bool         -- ^ Enter alt screen and clear on start (default: 'True')
+  , optClearOnExit  :: Bool         -- ^ Exit alt screen on quit (default: 'True')
   } deriving (Show, Eq)
 
--- | Sensible defaults: left-aligned.
+-- | Sensible defaults: left-aligned, full-screen (alt screen on start\/exit).
 defaultAppOptions :: AppOptions
 defaultAppOptions = AppOptions
-  { optAlignment = AppAlignLeft
+  { optAlignment    = AppAlignLeft
+  , optClearOnStart = True
+  , optClearOnExit  = True
   }
 
 -- | Get terminal width via ANSI cursor position report (zero dependencies).
@@ -1583,6 +1597,13 @@ getTerminalWidth = do
 runApp :: LayoutzApp state msg -> IO ()
 runApp = runAppWith defaultAppOptions
 
+-- | Run an app inline — no alt screen, no clearing. The app renders in-place
+-- below whatever is already on screen and returns when it issues 'CmdExit'.
+-- Useful for embedding animated progress bars or spinners in scripts.
+runInline :: LayoutzApp state msg -> IO ()
+runInline = runAppWith defaultAppOptions
+  { optClearOnStart = False, optClearOnExit = False }
+
 -- | Run an interactive TUI application with custom options.
 --
 -- @
@@ -1597,8 +1618,9 @@ runAppWith opts LayoutzApp{..} = do
   hSetBuffering stdout NoBuffering
   hSetEcho stdin False
 
-  enterAltScreen
-  clearScreen
+  when (optClearOnStart opts) $ do
+    enterAltScreen
+    clearScreen
   hideCursor
 
   -- Query terminal width once, after raw mode is set, before threads
@@ -1607,19 +1629,23 @@ runAppWith opts LayoutzApp{..} = do
   let (initialState, initialCmd) = appInit
 
   stateRef <- newIORef initialState
-  cmdChan <- newChan  -- Channel for commands to execute
+  exitRef  <- newIORef False
+  cmdChan  <- newChan  -- Channel for commands to execute
 
   -- Helper to update state and queue commands
   let updateState msg = do
         cmdToRun <- atomicModifyIORef' stateRef $ \s ->
           let (newState, c) = appUpdate msg s in (newState, c)
+        when (cmdIsExit cmdToRun) $ writeIORef exitRef True
         case cmdToRun of
           CmdNone -> pure ()
+          CmdExit -> pure ()
           _       -> writeChan cmdChan cmdToRun
 
   -- Command thread: executes commands async, feeds results back
   cmdThread <- forkIO $ forever $ do
     cmdToRun <- readChan cmdChan
+    when (cmdIsExit cmdToRun) $ writeIORef exitRef True
     maybeMsg <- executeCmd cmdToRun
     case maybeMsg of
       Just msg -> updateState msg  -- Feed message back into app
@@ -1651,7 +1677,12 @@ runAppWith opts LayoutzApp{..} = do
           alignedLines = if blockPad > 0
                          then map (padding ++) renderedLines
                          else renderedLines
-          output = "\ESC[H" ++ concatMap (\l -> l ++ "\ESC[K\n") alignedLines
+          moveUp = if optClearOnStart opts
+                     then "\ESC[H"
+                     else if prevLineCount > 0
+                       then "\ESC[" ++ show prevLineCount ++ "A\r"
+                       else ""
+          output = moveUp ++ concatMap (\l -> l ++ "\ESC[K\n") alignedLines
                    ++ concat (replicate (max 0 (prevLineCount - currentLineCount)) "\ESC[K\n")
       putStr output
       hFlush stdout
@@ -1676,6 +1707,18 @@ runAppWith opts LayoutzApp{..} = do
 
   let killThreads = killThread renderThread >> killThread cmdThread
 
+      doCleanup = do
+        killThreads
+        showCursor
+        when (optClearOnExit opts) exitAltScreen
+        hFlush stdout
+        hSetBuffering stdin oldBuffering
+        hSetEcho stdin oldEcho
+
+      checkExit cont = do
+        exiting <- readIORef exitRef
+        if exiting then doCleanup else cont
+
       inputLoop = do
         state <- readIORef stateRef
         let subs = appSubscriptions state
@@ -1689,33 +1732,23 @@ runAppWith opts LayoutzApp{..} = do
         case maybeKey of
           Nothing -> do
             case tickInfo of
-              Just (_, msg) -> updateState msg >> inputLoop
+              Just (_, msg) -> updateState msg >> checkExit inputLoop
               Nothing -> inputLoop
 
           Just key -> case key of
-            KeyEscape           -> killThreads >> cleanup oldBuffering oldEcho
-            KeyCtrl 'C' -> killThreads >> cleanup oldBuffering oldEcho
-            KeyCtrl 'D' -> killThreads >> cleanup oldBuffering oldEcho
+            KeyEscape    -> doCleanup
+            KeyCtrl 'C'  -> doCleanup
+            KeyCtrl 'D'  -> doCleanup
 
             _ -> case keyHandler of
               Just handler -> case handler key of
-                Just msg -> updateState msg >> inputLoop
-                Nothing -> inputLoop
-              Nothing -> inputLoop
+                Just msg -> updateState msg >> checkExit inputLoop
+                Nothing -> checkExit inputLoop
+              Nothing -> checkExit inputLoop
 
   inputLoop `catch` \ex -> case ex of
-    UserInterrupt -> killThreads >> cleanup oldBuffering oldEcho
-    _             -> killThreads >> cleanup oldBuffering oldEcho
-
--- | Clean up terminal and exit
-cleanup :: BufferMode -> Bool -> IO ()
-cleanup oldBuffering oldEcho = do
-  showCursor
-  exitAltScreen
-  hFlush stdout
-  hSetBuffering stdin oldBuffering
-  hSetEcho stdin oldEcho
-  exitSuccess
+    UserInterrupt -> doCleanup
+    _             -> doCleanup
 
 -- | Clear the screen and move cursor to top-left
 clearScreen :: IO ()
