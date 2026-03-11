@@ -1668,3 +1668,379 @@ let height = height_el
 
 (** Print element to stdout *)
 let print element = print_endline (render element)
+
+(* ============================================================================
+   TUI Runtime - Elm Architecture for interactive terminal applications
+   ============================================================================ *)
+
+(** Keyboard input representation *)
+type key =
+  | KeyChar of char           (** Regular character keys: 'a', '1', ' ', etc. *)
+  | KeyCtrl of char           (** Ctrl+key: KeyCtrl 'C', KeyCtrl 'Q', etc. *)
+  | KeyEnter                  (** Enter/Return key *)
+  | KeyBackspace              (** Backspace key *)
+  | KeyTab                    (** Tab key *)
+  | KeyEscape                 (** Escape key *)
+  | KeyDelete                 (** Delete key *)
+  | KeyUp                     (** Up arrow *)
+  | KeyDown                   (** Down arrow *)
+  | KeyLeft                   (** Left arrow *)
+  | KeyRight                  (** Right arrow *)
+  | KeyHome                   (** Home key *)
+  | KeyEnd                    (** End key *)
+  | KeyPageUp                 (** Page Up *)
+  | KeyPageDown               (** Page Down *)
+
+(** Commands - side effects the runtime will execute after each update *)
+type 'msg cmd =
+  | CmdNone                         (** No effect *)
+  | CmdBatch of 'msg cmd list       (** Combine multiple commands *)
+  | CmdTask of (unit -> 'msg option) (** Run a task, optionally produce a message *)
+  | CmdAfterMs of int * 'msg        (** Fire a message after a delay *)
+  | CmdExit                         (** Exit the application *)
+
+(** Subscriptions - event sources your app listens to *)
+type 'msg sub =
+  | SubNone                                (** No subscriptions *)
+  | SubKeyPress of (key -> 'msg option)    (** Subscribe to keyboard input *)
+  | SubEveryMs of int * 'msg               (** Subscribe to periodic ticks (ms interval + message) *)
+  | SubBatch of 'msg sub list              (** Combine multiple subscriptions *)
+
+(** App-level alignment within the terminal window *)
+type alignment = AlignLeft | AlignCenter | AlignRight
+
+(** Options for running a LayoutzApp *)
+type app_options = {
+  alignment : alignment;
+  quit_key : key;
+  clear_on_start : bool;
+  clear_on_exit : bool;
+  render_interval_ms : int;
+}
+
+(** Sensible defaults: left-aligned, Ctrl+Q to quit *)
+let default_options = {
+  alignment = AlignLeft;
+  quit_key = KeyCtrl 'Q';
+  clear_on_start = true;
+  clear_on_exit = true;
+  render_interval_ms = 33;
+}
+
+(** The core application structure - Elm Architecture style.
+
+    Build interactive TUI apps by defining:
+    - Initial state and startup commands
+    - How to update state based on messages
+    - What events to subscribe to
+    - How to render state to UI
+
+    Example:
+    {[
+      type msg = Inc | Dec
+
+      let counter_app = {
+        init = (0, CmdNone);
+        update = (fun msg count -> match msg with
+          | Inc -> (count + 1, CmdNone)
+          | Dec -> (count - 1, CmdNone));
+        subscriptions = (fun _ -> sub_key_press (fun key -> match key with
+          | KeyChar '+' -> Some Inc
+          | KeyChar '-' -> Some Dec
+          | _ -> None));
+        view = (fun count ->
+          layout [ s ("Count: " ^ string_of_int count) ]);
+      }
+
+      let () = run_app counter_app
+    ]}
+*)
+type ('state, 'msg) app = {
+  init : 'state * 'msg cmd;
+  update : 'msg -> 'state -> 'state * 'msg cmd;
+  subscriptions : 'state -> 'msg sub;
+  view : 'state -> element;
+}
+
+(* -- Convenience constructors -- *)
+
+let cmd_none = CmdNone
+let cmd_batch cmds = CmdBatch cmds
+let cmd_task f = CmdTask f
+let cmd_after_ms ms msg = CmdAfterMs (ms, msg)
+let cmd_exit = CmdExit
+
+let sub_none = SubNone
+let sub_key_press handler = SubKeyPress handler
+let sub_every_ms ms msg = SubEveryMs (ms, msg)
+let sub_batch subs = SubBatch subs
+
+(* -- Terminal control -- *)
+
+let _enter_alt_screen () = Printf.printf "\027[?1049h%!"
+let _exit_alt_screen () = Printf.printf "\027[?1049l%!"
+let _clear_screen () = Printf.printf "\027[2J\027[H%!"
+let _hide_cursor () = Printf.printf "\027[?25l%!"
+let _show_cursor () = Printf.printf "\027[?25h%!"
+
+let _terminal_width () =
+  try
+    let ic = Unix.open_process_in "stty size < /dev/tty 2>/dev/null" in
+    let line = (try input_line ic with End_of_file -> "24 80") in
+    let _ = Unix.close_process_in ic in
+    match String.split_on_char ' ' (String.trim line) with
+    | [_; cols] -> (try int_of_string cols with _ -> 80)
+    | _ -> 80
+  with _ -> 80
+
+(* -- Raw terminal mode via tcsetattr (zero dependencies) -- *)
+
+let _enter_raw_mode () =
+  let fd = Unix.stdin in
+  let old_attr = Unix.tcgetattr fd in
+  let new_attr = { old_attr with
+    Unix.c_icanon = false;
+    Unix.c_echo = false;
+    Unix.c_isig = false;
+    Unix.c_ixon = false;
+    Unix.c_vmin = 1;
+    Unix.c_vtime = 0;
+  } in
+  Unix.tcsetattr fd Unix.TCSANOW new_attr;
+  old_attr
+
+let _exit_raw_mode attr =
+  Unix.tcsetattr Unix.stdin Unix.TCSANOW attr
+
+(* -- Key reading and escape sequence parsing -- *)
+
+let _read_byte_timeout_ms ms =
+  let timeout = float_of_int ms /. 1000.0 in
+  match Unix.select [Unix.stdin] [] [] timeout with
+  | [], _, _ -> None
+  | _ ->
+    let buf = Bytes.create 1 in
+    let n = Unix.read Unix.stdin buf 0 1 in
+    if n = 0 then None else Some (Bytes.get buf 0)
+
+let _read_byte () =
+  let buf = Bytes.create 1 in
+  let _ = Unix.read Unix.stdin buf 0 1 in
+  Bytes.get buf 0
+
+let rec _read_escape_sequence () =
+  match _read_byte_timeout_ms 50 with
+  | None -> KeyEscape
+  | Some '[' -> _parse_csi ()
+  | Some _ -> KeyEscape
+and _parse_csi () =
+  match _read_byte_timeout_ms 50 with
+  | Some 'A' -> KeyUp
+  | Some 'B' -> KeyDown
+  | Some 'C' -> KeyRight
+  | Some 'D' -> KeyLeft
+  | Some 'H' -> KeyHome
+  | Some 'F' -> KeyEnd
+  | Some '3' -> _consume_tilde KeyDelete
+  | Some '5' -> _consume_tilde KeyPageUp
+  | Some '6' -> _consume_tilde KeyPageDown
+  | _ -> KeyEscape
+and _consume_tilde key =
+  match _read_byte_timeout_ms 50 with
+  | Some '~' -> key
+  | _ -> KeyEscape
+
+let _read_key () =
+  let c = _read_byte () in
+  match Char.code c with
+  | 10 | 13 -> KeyEnter
+  | 27 -> _read_escape_sequence ()
+  | 9 -> KeyTab
+  | 127 | 8 -> KeyBackspace
+  | n when n >= 32 && n <= 126 -> KeyChar c
+  | n when n >= 1 && n < 32 -> KeyCtrl (Char.chr (n + 64))
+  | _ -> KeyChar c
+
+(* -- Subscription helpers -- *)
+
+let rec _get_key_handlers = function
+  | SubKeyPress handler -> [handler]
+  | SubBatch subs -> List.concat_map _get_key_handlers subs
+  | _ -> []
+
+let rec _get_tick_subs = function
+  | SubEveryMs (ms, msg) -> [(ms, msg)]
+  | SubBatch subs -> List.concat_map _get_tick_subs subs
+  | _ -> []
+
+(* -- Text input helper -- *)
+
+(** Handle a key for a text field.
+
+    Returns [Some new_value] if the key was handled, [None] if not.
+    Only handles keys when [field_id = active_field].
+
+    Example:
+    {[
+      match input_handle key ~field_id:0 ~active_field:state.active
+              ~current_value:state.name with
+      | Some v -> Some (UpdateName v)
+      | None -> None
+    ]}
+*)
+let input_handle key ~field_id ~active_field ~current_value =
+  if field_id <> active_field then None
+  else match key with
+    | KeyChar c when (c >= ' ' && c <= '~') ->
+      Some (current_value ^ String.make 1 c)
+    | KeyBackspace when String.length current_value > 0 ->
+      Some (String.sub current_value 0 (String.length current_value - 1))
+    | _ -> None
+
+(* -- The runtime -- *)
+
+(** Run an interactive TUI application.
+
+    Sets up raw terminal mode, enters the event loop, and restores terminal on exit.
+    Uses differential rendering - only redraws when the view output changes.
+
+    Press the quit key (default: Ctrl+Q) to exit.
+*)
+let run_app ?(options = default_options) (app : ('state, 'msg) app) =
+  let old_attr = _enter_raw_mode () in
+  if options.clear_on_start then begin
+    _enter_alt_screen ();
+    _clear_screen ()
+  end;
+  _hide_cursor ();
+
+  let term_width = _terminal_width () in
+  let (initial_state, initial_cmd) = app.init in
+
+  let state = ref initial_state in
+  let state_mutex = Mutex.create () in
+  let should_continue = ref true in
+  let last_rendered = ref "" in
+  let last_line_count = ref 0 in
+
+  let with_state f =
+    Mutex.lock state_mutex;
+    Fun.protect ~finally:(fun () -> Mutex.unlock state_mutex) f
+  in
+
+  let rec process_cmd cmd =
+    match cmd with
+    | CmdNone -> ()
+    | CmdExit -> should_continue := false
+    | CmdBatch cmds -> List.iter process_cmd cmds
+    | CmdTask f ->
+      ignore (Thread.create (fun () ->
+        match (try f () with _ -> None) with
+        | Some msg -> update_state msg
+        | None -> ()
+      ) ())
+    | CmdAfterMs (ms, msg) ->
+      ignore (Thread.create (fun () ->
+        Thread.delay (float_of_int ms /. 1000.0);
+        update_state msg
+      ) ())
+
+  and update_state msg =
+    with_state (fun () ->
+      let (new_state, cmd) = app.update msg !state in
+      state := new_state;
+      process_cmd cmd)
+  in
+
+  process_cmd initial_cmd;
+
+  (* Render thread: periodically re-renders if state changed *)
+  let render_thread = Thread.create (fun () ->
+    while !should_continue do
+      let rendered = with_state (fun () ->
+        render_el (app.view !state))
+      in
+      if rendered <> !last_rendered then begin
+        let rendered_lines = String.split_on_char '\n' rendered in
+        let current_line_count = List.length rendered_lines in
+        let max_line_width = List.fold_left
+          (fun acc l -> max acc (visible_length l)) 0 rendered_lines in
+        let block_pad = match options.alignment with
+          | AlignLeft -> 0
+          | AlignCenter -> max 0 ((term_width - max_line_width) / 2)
+          | AlignRight -> max 0 (term_width - max_line_width)
+        in
+        let padding = String.make block_pad ' ' in
+        let aligned_lines = if block_pad > 0
+          then List.map (fun l -> padding ^ l) rendered_lines
+          else rendered_lines
+        in
+        let buf = Buffer.create (String.length rendered + 256) in
+        Buffer.add_string buf "\027[H";
+        List.iter (fun l ->
+          Buffer.add_string buf l;
+          Buffer.add_string buf "\027[K\n"
+        ) aligned_lines;
+        for _ = 1 to max 0 (!last_line_count - current_line_count) do
+          Buffer.add_string buf "\027[K\n"
+        done;
+        Stdlib.print_string (Buffer.contents buf);
+        flush stdout;
+        last_rendered := rendered;
+        last_line_count := current_line_count
+      end;
+      Thread.delay (float_of_int options.render_interval_ms /. 1000.0)
+    done
+  ) () in
+
+  (* Tick thread: fires timer subscriptions *)
+  let last_tick_times = Hashtbl.create 4 in
+  let tick_thread = Thread.create (fun () ->
+    while !should_continue do
+      let now = Unix.gettimeofday () *. 1000.0 in
+      let tick_subs = with_state (fun () ->
+        _get_tick_subs (app.subscriptions !state))
+      in
+      List.iter (fun (interval_ms, msg) ->
+        let last_time =
+          try Hashtbl.find last_tick_times interval_ms
+          with Not_found -> 0.0
+        in
+        if now -. last_time >= float_of_int interval_ms then begin
+          Hashtbl.replace last_tick_times interval_ms now;
+          update_state msg
+        end
+      ) tick_subs;
+      Thread.delay 0.01
+    done
+  ) () in
+
+  (* Input loop (main thread) *)
+  let cleanup () =
+    should_continue := false;
+    (try Thread.join render_thread with _ -> ());
+    (try Thread.join tick_thread with _ -> ());
+    _show_cursor ();
+    if options.clear_on_exit then _exit_alt_screen ();
+    flush stdout;
+    _exit_raw_mode old_attr
+  in
+
+  (try
+    while !should_continue do
+      let key = _read_key () in
+      if key = options.quit_key then
+        should_continue := false
+      else begin
+        let handlers = with_state (fun () ->
+          _get_key_handlers (app.subscriptions !state))
+        in
+        List.iter (fun handler ->
+          match handler key with
+          | Some msg -> update_state msg
+          | None -> ()
+        ) handlers
+      end
+    done
+  with _ -> ());
+  cleanup ()
