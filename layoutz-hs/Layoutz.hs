@@ -80,7 +80,9 @@ module Layoutz
   , defaultAppOptions
   , AppAlignment(..)
   , runApp
+  , runAppFinal
   , runAppWith
+  , runAppWithFinal
   , runInline
     -- * Subscriptions
   , subKeyPress
@@ -114,17 +116,17 @@ stripAnsi (c:rest) = c : stripAnsi rest
 -- characters, 1 for regular characters, 2 for East Asian wide and emoji.
 charWidth :: Char -> Int
 charWidth c
-  | c < '\x0300' = 1  -- Fast path for ASCII and common Latin
-  | c >= '\x0300' && c < '\x0370' = 0  -- Combining diacriticals
-  | c >= '\x1100' && c < '\x1200' = 2  -- Hangul Jamo
-  | c >= '\x2E80' && c < '\x9FFF' = 2  -- CJK
-  | c >= '\xAC00' && c < '\xD7A4' = 2  -- Hangul Syllables
-  | c >= '\xF900' && c < '\xFB00' = 2  -- CJK Compatibility Ideographs
-  | c >= '\xFE10' && c < '\xFE20' = 2  -- Vertical forms
-  | c >= '\xFE30' && c < '\xFE70' = 2  -- CJK Compatibility Forms
-  | c >= '\xFF00' && c < '\xFF61' = 2  -- Fullwidth Forms
-  | c >= '\xFFE0' && c < '\xFFE7' = 2  -- Fullwidth symbols
-  | c >= '\x1F000' = 2  -- Emoji, symbols, supplementary ideographs
+  | c < '\x0300' = 1                     -- Fast path for ASCII and common Latin
+  | c >= '\x0300' && c < '\x0370' = 0    -- Combining diacriticals
+  | c >= '\x1100' && c < '\x1200' = 2    -- Hangul Jamo
+  | c >= '\x2E80' && c < '\x9FFF' = 2    -- CJK
+  | c >= '\xAC00' && c < '\xD7A4' = 2    -- Hangul Syllables
+  | c >= '\xF900' && c < '\xFB00' = 2    -- CJK Compatibility Ideographs
+  | c >= '\xFE10' && c < '\xFE20' = 2    -- Vertical forms
+  | c >= '\xFE30' && c < '\xFE70' = 2    -- CJK Compatibility Forms
+  | c >= '\xFF00' && c < '\xFF61' = 2    -- Fullwidth Forms
+  | c >= '\xFFE0' && c < '\xFFE7' = 2    -- Fullwidth symbols
+  | c >= '\x1F000' = 2                   -- Emoji, symbols, supplementary ideographs
   | c >= '\x20000' && c < '\x2FFFF' = 2  -- Supplementary ideographs
   | c >= '\x30000' && c < '\x3FFFF' = 2  -- Tertiary ideographs
   | otherwise = 1
@@ -384,7 +386,7 @@ wrapStyle style str
 
 -- | Border character set supporting asymmetric borders (e.g. half-block styles)
 data BorderChars = BorderChars
-  { bcTL, bcTR, bcBL, bcBR             :: String   -- corners
+  { bcTL, bcTR, bcBL, bcBR              :: String   -- corners
   , bcHTop, bcHBottom                   :: String   -- horizontal (top vs bottom)
   , bcVLeft, bcVRight                   :: String   -- vertical (left vs right)
   , bcLeftTee, bcRightTee, bcCross      :: String   -- separator connectors
@@ -1080,7 +1082,7 @@ bgColor256 n = "\ESC[48;5;" ++ show n ++ "m"
 ansiReset :: String
 ansiReset = "\ESC[0m"
 
--- Sparkline ------------------------------------------------------------------
+-- Sparkline --------------------------------------------------
 
 data SparklineData = SparklineData [Double]
 
@@ -1098,7 +1100,7 @@ instance Element SparklineData where
 plotSparkline :: [Double] -> L
 plotSparkline = L . SparklineData
 
--- Line Plot (Braille) --------------------------------------------------------
+-- Line Plot (Braille) --------------------------------------------------
 
 -- | A data series for line plots: points, label, color
 data Series = Series [(Double, Double)] String Color
@@ -1176,7 +1178,7 @@ instance Element PlotData where
 plotLine :: Int -> Int -> [Series] -> L
 plotLine w h ss = L (PlotData ss w h)
 
--- Pie Chart (Braille) --------------------------------------------------------
+-- Pie Chart (Braille) --------------------------------------------------
 
 -- | A slice of a pie chart: value, label, color
 data Slice = Slice Double String Color
@@ -1234,7 +1236,7 @@ instance Element PieData where
 plotPie :: Int -> Int -> [Slice] -> L
 plotPie w h sl = L (PieData sl w h)
 
--- Bar Chart (Vertical) -------------------------------------------------------
+-- Bar Chart (Vertical) --------------------------------------------------------
 
 -- | A bar item: value, label, color
 data BarItem = BarItem Double String Color
@@ -1278,7 +1280,7 @@ instance Element BarChartData where
 plotBar :: Int -> Int -> [BarItem] -> L
 plotBar w h items = L (BarChartData items w h)
 
--- Stacked Bar Chart -----------------------------------------------------------
+-- Stacked Bar Chart -------------------------------------------------------
 
 -- | A group of stacked bars: segments and group label
 data StackedBarGroup = StackedBarGroup [BarItem] String
@@ -1359,7 +1361,7 @@ instance Element StackedBarChartData where
 plotStackedBar :: Int -> Int -> [StackedBarGroup] -> L
 plotStackedBar w h groups = L (StackedBarChartData groups w h)
 
--- Heatmap --------------------------------------------------------------------
+-- Heatmap -----------------------------------------------------------
 
 -- | Heatmap data: grid of values, row labels, column labels
 data HeatmapData = HeatmapData [[Double]] [String] [String]
@@ -1595,14 +1597,19 @@ getTerminalWidth = do
 --
 -- Press ESC, Ctrl+C, or Ctrl+D to quit the application.
 runApp :: LayoutzApp state msg -> IO ()
-runApp = runAppWith defaultAppOptions
+runApp app = runAppWithFinal defaultAppOptions app >> pure ()
+
+-- | Like 'runApp', but returns the final application state after exit.
+-- Useful for interactive tweaking of state followed by further processing.
+runAppFinal :: LayoutzApp state msg -> IO state
+runAppFinal = runAppWithFinal defaultAppOptions
 
 -- | Run an app inline — no alt screen, no clearing. The app renders in-place
 -- below whatever is already on screen and returns when it issues 'CmdExit'.
 -- Useful for embedding animated progress bars or spinners in scripts.
 runInline :: LayoutzApp state msg -> IO ()
-runInline = runAppWith defaultAppOptions
-  { optClearOnStart = False, optClearOnExit = False }
+runInline app = runAppWithFinal defaultAppOptions
+  { optClearOnStart = False, optClearOnExit = False } app >> pure ()
 
 -- | Run an interactive TUI application with custom options.
 --
@@ -1610,7 +1617,16 @@ runInline = runAppWith defaultAppOptions
 -- 'runAppWith' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
 -- @
 runAppWith :: AppOptions -> LayoutzApp state msg -> IO ()
-runAppWith opts LayoutzApp{..} = do
+runAppWith opts app = runAppWithFinal opts app >> pure ()
+
+-- | Like 'runAppWith', but returns the final application state after exit.
+-- Useful for interactive tweaking of state followed by further processing.
+--
+-- @
+-- finalState <- 'runAppWithFinal' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
+-- @
+runAppWithFinal :: AppOptions -> LayoutzApp state msg -> IO state
+runAppWithFinal opts LayoutzApp{..} = do
   oldBuffering <- hGetBuffering stdin
   oldEcho <- hGetEcho stdin
 
@@ -1746,9 +1762,11 @@ runAppWith opts LayoutzApp{..} = do
                 Nothing -> checkExit inputLoop
               Nothing -> checkExit inputLoop
 
-  inputLoop `catch` \ex -> case ex of
+  (inputLoop `catch` \ex -> case ex of
     UserInterrupt -> doCleanup
-    _             -> doCleanup
+    _             -> doCleanup)
+
+  readIORef stateRef
 
 -- | Clear the screen and move cursor to top-left
 clearScreen :: IO ()
