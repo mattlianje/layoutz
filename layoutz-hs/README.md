@@ -6,7 +6,7 @@
 
 **Simple, beautiful CLI output 🪶**
 
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, 
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in pure Haskell.
 
 Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
@@ -79,7 +79,7 @@ demo = layout
     , withBorder BorderDouble $ statusCard "API" "UP"
     , withColor ColorRed $ withBorder BorderThick $ statusCard "CPU" "23%"
     , withStyle StyleReverse $ withBorder BorderRound $ table ["Name", "Role", "Skills"]
-	[ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
+        [ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
         , ["Eve", "QA", "Testing"]
         ]
     ]
@@ -709,8 +709,10 @@ Customise how your app runs with `runAppWith` and the `AppOptions` record. Overr
 ```haskell
 runApp app                                                          -- Default options
 runAppWith defaultAppOptions { optAlignment = AppAlignCenter } app  -- Centered in terminal
-runAppWith defaultAppOptions { optAlignment = AppAlignRight } app   -- Right-aligned
+runInline app                                                       -- Animate in-place, no alt screen
 ```
+
+`runInline` renders the app below existing terminal output without clearing the screen. Useful for embedding progress bars or spinners in build scripts... use `CmdExit` to quit programmatically.
 
 Terminal width is detected once at startup via ANSI cursor position report (zero dependencies).
 
@@ -726,6 +728,7 @@ subBatch [sub1, sub2, ...]             -- Combine subscriptions
 
 ```haskell
 CmdNone                                -- No effect
+CmdExit                                -- Quit the app gracefully
 cmdFire (writeFile "log.txt" "entry")  -- Fire and forget IO
 cmdTask (readFile "data.txt")          -- IO that returns a message
 cmdAfterMs 500 msg                     -- Fire a message after delay (ms)
@@ -787,6 +790,7 @@ KeySpecial String             -- Other unrecognized sequences
 - [ShowcaseApp.hs](examples/ShowcaseApp.hs) - Tours every layoutz element and visualization across 7 scenes
 - [SimpleGame.hs](SimpleGame.hs) - Grid game where you collect gems and dodge enemies with WASD
 - [InlineBar.hs](examples/InlineBar.hs) - Renders a gradient progress bar in-place
+- [InlineLoadingDemo.hs](examples/InlineLoadingDemo.hs) - Chained inline progress bars in a simulated build script
 
 ## Contributing
 

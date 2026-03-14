@@ -1,17 +1,8 @@
 cabal-version: 3.0
 name:          layoutz
-version:       0.3.2.0
+version:       0.3.3.0
 synopsis:      Simple, beautiful CLI output
-description:
-  Zero-dep, compositional terminal output. Use @Layoutz.hs@ like a header file.
-  .
-  * Tables, trees, lists, boxes, key-value pairs
-  * Charts: line, pie, bar, stacked bar, sparkline, heatmap
-  * ANSI colors (256 + truecolor), styles, borders
-  * Spinners, progress bars, CJK-aware alignment
-  .
-  Includes an Elm-style TUI runtime with subscriptions, commands, and keyboard handling.
-  Apps can also animate inline without taking over the terminal.
+description:   Zero-dep, compositional terminal output
 homepage:      https://github.com/mattlianje/layoutz
 bug-reports:   https://github.com/mattlianje/layoutz/issues
 license:       Apache-2.0
@@ -40,6 +31,14 @@ library
 
 executable inline-bar
   main-is:             InlineBar.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable inline-loading-demo
+  main-is:             InlineLoadingDemo.hs
   build-depends:       base >= 4.7 && < 5
                      , layoutz
   hs-source-dirs:      examples

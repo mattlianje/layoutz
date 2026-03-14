@@ -4,7 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 
-{- | 
+{- |
 Module      : Layoutz
 Description : Friendly, expressive print-layout DSL for Haskell
 Copyright   : (c) 2025 Matthieu Court
@@ -26,7 +26,7 @@ module Layoutz
   , layout
   , text
   , br
-    -- * Layout Functions  
+    -- * Layout Functions
   , center, center'
   , row, tightRow
   , underline, underline', underlineColored
@@ -74,12 +74,16 @@ module Layoutz
   , cmdTask
   , cmdAfterMs
   , executeCmd
+  , cmdIsExit
   , Sub(..)
   , AppOptions(..)
   , defaultAppOptions
   , AppAlignment(..)
   , runApp
+  , runAppFinal
   , runAppWith
+  , runAppWithFinal
+  , runInline
     -- * Subscriptions
   , subKeyPress
   , subEveryMs
@@ -92,7 +96,6 @@ import Data.String (IsString(..))
 import Data.Char (ord, chr)
 import Text.Printf (printf)
 import System.IO
-import System.Exit (exitSuccess)
 import Control.Exception (catch, AsyncException(..))
 import System.Timeout (timeout)
 import Control.Monad (when, forever)
@@ -103,7 +106,7 @@ import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
 stripAnsi :: String -> String
 stripAnsi [] = []
 stripAnsi ('\ESC':'[':rest) = stripAnsi (dropAfterM rest)
-  where 
+  where
     dropAfterM [] = []
     dropAfterM ('m':xs) = xs
     dropAfterM (_:xs) = dropAfterM xs
@@ -113,17 +116,17 @@ stripAnsi (c:rest) = c : stripAnsi rest
 -- characters, 1 for regular characters, 2 for East Asian wide and emoji.
 charWidth :: Char -> Int
 charWidth c
-  | c < '\x0300' = 1  -- Fast path for ASCII and common Latin
-  | c >= '\x0300' && c < '\x0370' = 0  -- Combining diacriticals
-  | c >= '\x1100' && c < '\x1200' = 2  -- Hangul Jamo
-  | c >= '\x2E80' && c < '\x9FFF' = 2  -- CJK
-  | c >= '\xAC00' && c < '\xD7A4' = 2  -- Hangul Syllables
-  | c >= '\xF900' && c < '\xFB00' = 2  -- CJK Compatibility Ideographs
-  | c >= '\xFE10' && c < '\xFE20' = 2  -- Vertical forms
-  | c >= '\xFE30' && c < '\xFE70' = 2  -- CJK Compatibility Forms
-  | c >= '\xFF00' && c < '\xFF61' = 2  -- Fullwidth Forms
-  | c >= '\xFFE0' && c < '\xFFE7' = 2  -- Fullwidth symbols
-  | c >= '\x1F000' = 2  -- Emoji, symbols, supplementary ideographs
+  | c < '\x0300' = 1                     -- Fast path for ASCII and common Latin
+  | c >= '\x0300' && c < '\x0370' = 0    -- Combining diacriticals
+  | c >= '\x1100' && c < '\x1200' = 2    -- Hangul Jamo
+  | c >= '\x2E80' && c < '\x9FFF' = 2    -- CJK
+  | c >= '\xAC00' && c < '\xD7A4' = 2    -- Hangul Syllables
+  | c >= '\xF900' && c < '\xFB00' = 2    -- CJK Compatibility Ideographs
+  | c >= '\xFE10' && c < '\xFE20' = 2    -- Vertical forms
+  | c >= '\xFE30' && c < '\xFE70' = 2    -- CJK Compatibility Forms
+  | c >= '\xFF00' && c < '\xFF61' = 2    -- Fullwidth Forms
+  | c >= '\xFFE0' && c < '\xFFE7' = 2    -- Fullwidth symbols
+  | c >= '\x1F000' = 2                   -- Emoji, symbols, supplementary ideographs
   | c >= '\x20000' && c < '\x2FFFF' = 2  -- Supplementary ideographs
   | c >= '\x30000' && c < '\x3FFFF' = 2  -- Tertiary ideographs
   | otherwise = 1
@@ -138,7 +141,7 @@ mapLines f str
   | null str  = str
   | otherwise = let ls = lines str
                     hasTrailingNewline = last str == '\n'
-                in if hasTrailingNewline 
+                in if hasTrailingNewline
                    then unlines (map f ls)
                    else intercalate "\n" (map f ls)
 
@@ -175,23 +178,23 @@ justifyString targetWidth str
     gaps = length ws - 1
     baseSpaces = totalSpaces `div` gaps
     extraSpaces = totalSpaces `mod` gaps
-    spaces = replicate extraSpaces (replicate (baseSpaces + 1) ' ') 
+    spaces = replicate extraSpaces (replicate (baseSpaces + 1) ' ')
              ++ replicate (gaps - extraSpaces) (replicate baseSpaces ' ')
              ++ [""]  -- No space after last word
 
--- Core Element typeclass
+-- | Core Element typeclass
 class Element a where
   renderElement :: a -> String
-  
-  -- Calculate element width (longest line)
+
+  -- | Calculate element width (longest line)
   width :: a -> Int
-  width element = 
+  width element =
     let rendered = renderElement element
         renderedLines = lines rendered
     in if null renderedLines then 0
        else maximum $ 0 : map visibleLength renderedLines
-  
-  -- Calculate element height (number of lines)
+
+  -- | Calculate element height (number of lines)
   height :: a -> Int
   height element =
     let rendered = renderElement element
@@ -207,16 +210,21 @@ render = renderElement
 -- Uses existential quantification to store any Element type inside L.
 --
 -- Constructors:
---   * L a          - Wraps any Element (Text, Box, Table, etc.)
---   * UL [L]       - Special case for unordered lists (allows nesting)
---   * AutoCenter L - Smart centering that adapts to layout context width
---   * LBox, LStatusCard, LTable - Specialized constructors for bordered elements
+--
+-- * @L a@          - Wraps any Element (Text, Box, Table, etc.)
+-- * @UL [L]@       - Special case for unordered lists (allows nesting)
+-- * @AutoCenter L@ - Smart centering that adapts to layout context width
+-- * @LBox@, @LStatusCard@, @LTable@ - Specialized constructors for bordered elements
 --
 -- Example usage:
---   layout [text "title", box "content" [...], center (text "footer")]
---   All different types unified as L, so they can be composed together.
-data L = forall a. Element a => L a 
-       | UL [L] 
+--
+-- @
+-- 'layout' ['text' "title", 'box' "content" [...], 'center' ('text' "footer")]
+-- @
+--
+-- All different types unified as L, so they can be composed together.
+data L = forall a. Element a => L a
+       | UL [L]
        | OL [L]
        | AutoCenter L
        | Colored Color L
@@ -235,7 +243,7 @@ instance Element L where
   renderElement (LBox title elements border) = render (Box title elements border)
   renderElement (LStatusCard label content border) = render (StatusCard label content border)
   renderElement (LTable headers rows border) = render (Table headers rows border)
-  
+
   width (L x) = width x
   width (UL items) = width (UnorderedList items)
   width (OL items) = width (OrderedList items)
@@ -245,8 +253,8 @@ instance Element L where
   width (LBox title elements border) = width (Box title elements border)
   width (LStatusCard label content border) = width (StatusCard label content border)
   width (LTable headers rows border) = width (Table headers rows border)
-  
-  height (L x) = height x  
+
+  height (L x) = height x
   height (UL items) = height (UnorderedList items)
   height (OL items) = height (OrderedList items)
   height (AutoCenter element) = height element
@@ -260,13 +268,13 @@ instance Show L where
   show = render
 
 -- | Enable string literals to be used directly as elements with OverloadedStrings
--- 
--- With OverloadedStrings enabled, you can write:
---   layout ["Hello", "World"]  instead of  layout [text "Hello", text "World"]
+--
+-- With OverloadedStrings enabled, you can write @layout [\"Hello\", \"World\"]@
+-- instead of @layout [text \"Hello\", text \"World\"]@.
 instance IsString L where
   fromString = text
 
--- Border styles
+-- | Border styles
 data Border
   = BorderNormal
   | BorderDouble
@@ -279,7 +287,7 @@ data Border
   | BorderInnerHalfBlock
   | BorderOuterHalfBlock
   | BorderMarkdown
-  | BorderCustom String String String  -- corner, horizontal, vertical
+  | BorderCustom String String String  -- ^ corner, horizontal, vertical
   | BorderNone
   deriving (Show, Eq)
 
@@ -296,10 +304,10 @@ instance HasBorder L where
   setBorder border (Styled style element) = Styled style (setBorder border element)
   setBorder _ other = other  -- Non-bordered elements remain unchanged
 
--- Color support with ANSI codes
-data Color = ColorDefault | ColorBlack | ColorRed | ColorGreen | ColorYellow 
+-- | Color support with ANSI codes
+data Color = ColorDefault | ColorBlack | ColorRed | ColorGreen | ColorYellow
            | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
-           | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow 
+           | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow
            | ColorBrightBlue | ColorBrightMagenta | ColorBrightCyan | ColorBrightWhite
            | ColorFull Int           -- ^ 256-color palette (0-255)
            | ColorTrue Int Int Int   -- ^ 24-bit RGB true color (r, g, b)
@@ -333,17 +341,17 @@ clamp = max 0 . min 255
 
 -- | Wrap text with ANSI color codes
 wrapAnsi :: Color -> String -> String
-wrapAnsi color str 
+wrapAnsi color str
   | null (colorCode color) = str
   | otherwise = "\ESC[" ++ colorCode color ++ "m" ++ str ++ "\ESC[0m"
 
--- Style support with ANSI codes
+-- | Style support with ANSI codes
 data Style = StyleDefault | StyleBold | StyleDim | StyleItalic | StyleUnderline
            | StyleBlink | StyleReverse | StyleHidden | StyleStrikethrough
            | StyleCombined [Style]  -- ^ Combine multiple styles
   deriving (Show, Eq)
 
--- | Combine styles using ++
+-- | Combine styles using @<>@
 instance Semigroup Style where
   StyleDefault <> other = other
   other <> StyleDefault = other
@@ -366,7 +374,7 @@ styleCode StyleBlink         = "5"
 styleCode StyleReverse       = "7"
 styleCode StyleHidden        = "8"
 styleCode StyleStrikethrough = "9"
-styleCode (StyleCombined styles) = 
+styleCode (StyleCombined styles) =
   let codes = filter (not . null) (map styleCode styles)
   in if null codes then "" else intercalate ";" codes
 
@@ -378,7 +386,7 @@ wrapStyle style str
 
 -- | Border character set supporting asymmetric borders (e.g. half-block styles)
 data BorderChars = BorderChars
-  { bcTL, bcTR, bcBL, bcBR             :: String   -- corners
+  { bcTL, bcTR, bcBL, bcBR              :: String   -- corners
   , bcHTop, bcHBottom                   :: String   -- horizontal (top vs bottom)
   , bcVLeft, bcVRight                   :: String   -- vertical (left vs right)
   , bcLeftTee, bcRightTee, bcCross      :: String   -- separator connectors
@@ -432,36 +440,36 @@ instance Element LineBreak where renderElement _ = ""
 
 data Layout = Layout [L]
 instance Element Layout where
-  renderElement (Layout elements) = 
+  renderElement (Layout elements) =
     let -- Calculate max width of all non-AutoCenter elements
         nonAutoCenterElements = [e | e <- elements, not (isAutoCenter e)]
-        maxWidth = if null nonAutoCenterElements 
+        maxWidth = if null nonAutoCenterElements
                   then 80  -- fallback
                   else maximum (0 : map width nonAutoCenterElements)
-        
+
         -- Render elements, providing context width to AutoCenter elements
         renderedElements = map (renderWithContext maxWidth) elements
     in intercalate "\n" renderedElements
     where
       isAutoCenter (AutoCenter _) = True
       isAutoCenter _ = False
-      
-      renderWithContext contextWidth (AutoCenter element) = 
+
+      renderWithContext contextWidth (AutoCenter element) =
         render (Centered (render element) contextWidth)
       renderWithContext _ element = render element
 
 -- | Centered element with custom width
 data Centered = Centered String Int  -- content, target_width
 instance Element Centered where
-  renderElement (Centered content targetWidth) = 
+  renderElement (Centered content targetWidth) =
     intercalate "\n" $ map (centerString targetWidth) (lines content)
 
 -- | Underlined element with custom character
 data Underlined = Underlined String String (Maybe Color)  -- content, underline_char, optional color
 instance Element Underlined where
-  renderElement (Underlined content underlineChar maybeColor) = 
+  renderElement (Underlined content underlineChar maybeColor) =
     let contentLines = lines content
-        maxWidth = if null contentLines then 0 
+        maxWidth = if null contentLines then 0
                    else maximum (map visibleLength contentLines)
         repeats = maxWidth `div` length underlineChar
         remainder = maxWidth `mod` length underlineChar
@@ -470,8 +478,8 @@ instance Element Underlined where
     in content ++ "\n" ++ coloredUnderline
 
 data Row = Row [L] Bool  -- elements, tight (no spacing)
-instance Element Row where  
-  renderElement (Row elements tight) 
+instance Element Row where
+  renderElement (Row elements tight)
     | null elements = ""
     | otherwise = intercalate "\n" $ map (intercalate separator) (transpose paddedElements)
     where
@@ -481,9 +489,9 @@ instance Element Row where
       maxHeight = maximum (map length elementLines)
       elementWidths = map (maximum . map visibleLength) elementLines
       paddedElements = zipWith padElement elementWidths elementLines
-      
+
       padElement :: Int -> [String] -> [String]
-      padElement cellWidth linesList = 
+      padElement cellWidth linesList =
         let currentLines = linesList ++ replicate (maxHeight - length linesList) ""
         in map (padRight cellWidth) currentLines
 
@@ -494,7 +502,7 @@ data Alignment = AlignLeft | AlignRight | AlignCenter | Justify
 -- | Aligned text with specified width and alignment
 data AlignedText = AlignedText String Int Alignment  -- content, width, alignment
 instance Element AlignedText where
-  renderElement (AlignedText content targetWidth alignment) = 
+  renderElement (AlignedText content targetWidth alignment) =
     let alignFn = case alignment of
           AlignLeft   -> padRight targetWidth
           AlignRight  -> padLeft targetWidth
@@ -557,13 +565,13 @@ instance Element StatusCard where
 -- | Margin element that adds prefix to each line
 data Margin = Margin String [L]  -- prefix, elements
 instance Element Margin where
-  renderElement (Margin prefix elements) = 
+  renderElement (Margin prefix elements) =
     let content = case elements of
                     [single] -> render single
                     _        -> render (Layout elements)
     in intercalate "\n" $ map ((prefix ++ " ") ++) (lines content)
 
--- | Horizontal rule with custom character and width  
+-- | Horizontal rule with custom character and width
 data HorizontalRule = HorizontalRule String Int  -- char, width
 instance Element HorizontalRule where
   renderElement (HorizontalRule char ruleWidth) = concat (replicate ruleWidth char)
@@ -576,7 +584,7 @@ instance Element VerticalRule where
 -- | Padded element with padding around all sides
 data Padded = Padded String Int  -- content, padding
 instance Element Padded where
-  renderElement (Padded content padding) = 
+  renderElement (Padded content padding) =
     let contentLines = lines content
         maxWidth = maximum (0 : map length contentLines)
         horizontalPad = replicate padding ' '
@@ -589,24 +597,24 @@ instance Element Padded where
 -- | Chart for data visualization
 data Chart = Chart [(String, Double)]  -- (label, value) pairs
 instance Element Chart where
-  renderElement (Chart dataPoints) 
+  renderElement (Chart dataPoints)
     | null dataPoints = "No data"
     | otherwise = intercalate "\n" $ map renderBar dataPoints
     where
       maxValue = maximum (0 : map snd dataPoints)
       maxLabelWidth = minimum [15, maximum (0 : map (length . fst) dataPoints)]
       chartWidth = 40
-      
+
       renderBar :: (String, Double) -> String
-      renderBar (label, value) = 
-        let truncatedLabel 
+      renderBar (label, value) =
+        let truncatedLabel
               | length label > maxLabelWidth = take (maxLabelWidth - 3) label ++ "..."
               | otherwise = label
             paddedLabel = padRight maxLabelWidth truncatedLabel
             percentage = value / maxValue
             barLength = floor (percentage * fromIntegral chartWidth)
             bar = replicate barLength '█' ++ replicate (chartWidth - barLength) '─'
-            valueStr 
+            valueStr
               | value == fromInteger (round value) = show (round value :: Integer)
               | otherwise = printf "%.1f" value
         in paddedLabel ++ " │" ++ bar ++ "│ " ++ valueStr
@@ -676,7 +684,7 @@ instance Element Table where
 -- | Section with decorative header
 data Section = Section String [L] String Int  -- title, content, glyph, flanking_chars
 instance Element Section where
-  renderElement (Section title content glyph flankingChars) = 
+  renderElement (Section title content glyph flankingChars) =
     let header = replicate flankingChars (head glyph) ++ " " ++ title ++ " " ++ replicate flankingChars (head glyph)
         body = render (Layout content)
     in header ++ "\n" ++ body
@@ -684,13 +692,13 @@ instance Element Section where
 -- | Key-value pairs with alignment
 data KeyValue = KeyValue [(String, String)]
 instance Element KeyValue where
-  renderElement (KeyValue pairs) = 
+  renderElement (KeyValue pairs) =
     if null pairs then ""
     else let maxKeyLength = maximum (map (visibleLength . fst) pairs)
              alignmentPosition = maxKeyLength + 2
          in intercalate "\n" $ map (renderPair alignmentPosition) pairs
     where
-      renderPair alignPos (key, value) = 
+      renderPair alignPos (key, value) =
         let keyWithColon = key ++ ":"
             spacesNeeded = alignPos - visibleLength keyWithColon
             padding = replicate (max 1 spacesNeeded) ' '
@@ -703,13 +711,13 @@ instance Element Tree where
   renderElement treeData = renderTree treeData "" True []
     where
       renderTree (Tree name children) prefix isLast parentPrefixes =
-        let nodeLine = if null parentPrefixes 
+        let nodeLine = if null parentPrefixes
                       then name
                       else prefix ++ (if isLast then "└── " else "├── ") ++ name
             childPrefix = if null parentPrefixes
                          then ""
                          else prefix ++ (if isLast then "    " else "│   ")
-            childLines = zipWith (\child idx -> 
+            childLines = zipWith (\child idx ->
                           renderTree child childPrefix (idx == length children - 1) (parentPrefixes ++ [not isLast])
                         ) children [0..]
         in if null children
@@ -722,19 +730,19 @@ instance Element UnorderedList where
   renderElement (UnorderedList items) = renderAtLevel 0 items
     where
       bulletStyles = ["•", "◦", "▪"]
-      
-      renderAtLevel level itemList = 
+
+      renderAtLevel level itemList =
         let currentBullet = bulletStyles !! (level `mod` length bulletStyles)
             indent = replicate (level * 2) ' '
         in intercalate "\n" $ map (renderItem level indent currentBullet) itemList
-      
+
       renderItem level indent bullet item = case item of
         UL nested -> renderAtLevel (level + 1) nested
         _ -> let content = render item
                  contentLines = lines content
              in case contentLines of
                [singleLine] -> indent ++ bullet ++ " " ++ singleLine
-               (firstLine:restLines) -> 
+               (firstLine:restLines) ->
                  let firstOutput = indent ++ bullet ++ " " ++ firstLine
                      restIndent = replicate (length indent + length bullet + 1) ' '
                      restOutput = map (restIndent ++) restLines
@@ -749,7 +757,7 @@ instance Element OrderedList where
         let indent = replicate (level * 2) ' '
             numbered = zip [startNum..] itemList
         in intercalate "\n" $ map (renderItem level indent) numbered
-      
+
       renderItem level indent (num, item) = case item of
         OL nested -> renderAtLevel 1 (level + 1) nested
         _ -> let numStr = formatNumber level num ++ ". "
@@ -763,13 +771,13 @@ instance Element OrderedList where
                      restOutput = map ((indent ++ restIndent) ++) restLines
                  in intercalate "\n" (firstOutput : restOutput)
                [] -> indent ++ numStr
-      
+
       formatNumber :: Int -> Int -> String
       formatNumber lvl num = case lvl `mod` 3 of
         0 -> show num              -- 1, 2, 3
         1 -> [toEnum (96 + num)]   -- a, b, c
         _ -> toRoman num           -- i, ii, iii
-      
+
       toRoman :: Int -> String
       toRoman = \case
         1  -> "i";   2  -> "ii";  3  -> "iii"; 4  -> "iv"; 5  -> "v"
@@ -791,7 +799,7 @@ instance Element InlineBar where
 text :: String -> L
 text s = L (Text s)
 
-br :: L  
+br :: L
 br = L LineBreak
 
 center :: Element a => a -> L
@@ -810,10 +818,11 @@ underline' char element = L (Underlined (render element) char Nothing)
 
 -- | Add colored underline with custom character and color
 --
--- Example usage:
---   underlineColored "=" ColorRed $ text "Error Section"
---   underlineColored "~" ColorGreen $ text "Success"
---   underlineColored "─" ColorBrightCyan $ text "Info"
+-- @
+-- 'underlineColored' "=" 'ColorRed' $ 'text' "Error Section"
+-- 'underlineColored' "~" 'ColorGreen' $ 'text' "Success"
+-- 'underlineColored' "─" 'ColorBrightCyan' $ 'text' "Info"
+-- @
 underlineColored :: Element a => String -> Color -> a -> L
 underlineColored char color element = L (Underlined (render element) char (Just color))
 
@@ -832,7 +841,7 @@ statusCard label content = LStatusCard label content BorderNormal
 layout :: [L] -> L
 layout elements = L (Layout elements)
 
-row :: [L] -> L  
+row :: [L] -> L
 row elements = L (Row elements False)
 
 -- | Create horizontal row with no spacing between elements (for gradients, etc.)
@@ -867,7 +876,7 @@ wrap targetWidth content =
     wrapWords maxWidth wordsList =
       let (line, rest) = takeLine maxWidth wordsList
       in line : wrapWords maxWidth rest
-    
+
     takeLine :: Int -> [String] -> (String, [String])
     takeLine _ [] = ("", [])
     takeLine maxWidth (firstWord:restWords)
@@ -883,10 +892,11 @@ box :: String -> [L] -> L
 box title elements = LBox title elements BorderNormal
 
 -- | Create margin with custom prefix
--- 
--- Example usage:
---   margin "[error]" [text "Something went wrong"]
---   margin "[info]" [text "FYI: Check the logs"]
+--
+-- @
+-- 'margin' "[error]" ['text' "Something went wrong"]
+-- 'margin' "[info]" ['text' "FYI: Check the logs"]
+-- @
 margin :: String -> [L] -> L
 margin prefix elements = L (Margin prefix elements)
 
@@ -894,7 +904,7 @@ margin prefix elements = L (Margin prefix elements)
 hr :: L
 hr = L (HorizontalRule "─" 50)
 
--- | Horizontal rule with custom character  
+-- | Horizontal rule with custom character
 hr' :: String -> L
 hr' char = L (HorizontalRule char 50)
 
@@ -915,7 +925,7 @@ vr'' :: String -> Int -> L
 vr'' char ruleHeight = L (VerticalRule char ruleHeight)
 
 -- | Add padding around element
-pad :: Element a => Int -> a -> L  
+pad :: Element a => Int -> a -> L
 pad padding element = L (Padded (render element) padding)
 
 -- | Create horizontal bar chart
@@ -943,25 +953,29 @@ kv :: [(String, String)] -> L
 kv pairs = L (KeyValue pairs)
 
 -- | Apply a border style to elements that support borders
--- 
--- Elements that support borders: box, statusCard, table
--- Other elements are returned unchanged
 --
--- Example usage:
---   withBorder BorderDouble $ table ["Name"] [[text "Alice"]]
+-- Elements that support borders: 'box', 'statusCard', 'table'.
+-- Other elements are returned unchanged.
+--
+-- @
+-- withBorder BorderDouble $ table [\"Name\"] [[text \"Alice\"]]
+-- @
 withBorder :: Border -> L -> L
 withBorder = setBorder
 
 -- | Apply a color to an element
 --
--- Example usage:
---   withColor ColorBrightYellow $ box "Warning" [text "Check logs"]
+-- @
+-- withColor ColorBrightYellow $ box \"Warning\" [text "Check logs"]
+-- @
 withColor :: Color -> L -> L
 withColor = Colored
 
 -- | Apply a style to an element
--- Example usage:
---   withStyle StyleBold $ text "Important!"
+--
+-- @
+-- withStyle StyleBold $ text "Important!"
+-- @
 withStyle :: Style -> L -> L
 withStyle = Styled
 
@@ -1010,14 +1024,16 @@ instance Element Spinner where
 -- | Create an animated spinner
 --
 -- Example usage:
+--
 -- @
--- spinner "Loading" 5 SpinnerDots   -- Shows the 5th frame of dots spinner
--- spinner "Processing" 0 SpinnerLine  -- Shows first frame with label
+-- 'spinner' \"Loading\" 5 'SpinnerDots'   -- Shows the 5th frame of dots spinner
+-- 'spinner' \"Processing\" 0 'SpinnerLine'  -- Shows first frame with label
 -- @
 --
 -- Increment the frame number each render to animate:
+--
 -- @
--- layout [spinner "Working" (tickCount `mod` 10) SpinnerDots]
+-- 'layout' ['spinner' \"Working\" (tickCount \`mod\` 10) 'SpinnerDots']
 -- @
 spinner :: String -> Int -> SpinnerStyle -> L
 spinner label frame style = L (Spinner label frame style)
@@ -1066,7 +1082,7 @@ bgColor256 n = "\ESC[48;5;" ++ show n ++ "m"
 ansiReset :: String
 ansiReset = "\ESC[0m"
 
--- Sparkline ------------------------------------------------------------------
+-- Sparkline --------------------------------------------------
 
 data SparklineData = SparklineData [Double]
 
@@ -1084,7 +1100,7 @@ instance Element SparklineData where
 plotSparkline :: [Double] -> L
 plotSparkline = L . SparklineData
 
--- Line Plot (Braille) --------------------------------------------------------
+-- Line Plot (Braille) --------------------------------------------------
 
 -- | A data series for line plots: points, label, color
 data Series = Series [(Double, Double)] String Color
@@ -1162,7 +1178,7 @@ instance Element PlotData where
 plotLine :: Int -> Int -> [Series] -> L
 plotLine w h ss = L (PlotData ss w h)
 
--- Pie Chart (Braille) --------------------------------------------------------
+-- Pie Chart (Braille) --------------------------------------------------
 
 -- | A slice of a pie chart: value, label, color
 data Slice = Slice Double String Color
@@ -1220,7 +1236,7 @@ instance Element PieData where
 plotPie :: Int -> Int -> [Slice] -> L
 plotPie w h sl = L (PieData sl w h)
 
--- Bar Chart (Vertical) -------------------------------------------------------
+-- Bar Chart (Vertical) --------------------------------------------------------
 
 -- | A bar item: value, label, color
 data BarItem = BarItem Double String Color
@@ -1264,7 +1280,7 @@ instance Element BarChartData where
 plotBar :: Int -> Int -> [BarItem] -> L
 plotBar w h items = L (BarChartData items w h)
 
--- Stacked Bar Chart -----------------------------------------------------------
+-- Stacked Bar Chart -------------------------------------------------------
 
 -- | A group of stacked bars: segments and group label
 data StackedBarGroup = StackedBarGroup [BarItem] String
@@ -1345,7 +1361,7 @@ instance Element StackedBarChartData where
 plotStackedBar :: Int -> Int -> [StackedBarGroup] -> L
 plotStackedBar w h groups = L (StackedBarChartData groups w h)
 
--- Heatmap --------------------------------------------------------------------
+-- Heatmap -----------------------------------------------------------
 
 -- | Heatmap data: grid of values, row labels, column labels
 data HeatmapData = HeatmapData [[Double]] [String] [String]
@@ -1425,6 +1441,7 @@ data Cmd msg
   = CmdNone                     -- ^ No effect
   | CmdRun (IO (Maybe msg))    -- ^ Run IO, optionally produce a message
   | CmdBatch [Cmd msg]         -- ^ Combine multiple commands
+  | CmdExit                    -- ^ Gracefully quit the application
 
 -- | Create a command from an IO action (fire and forget)
 cmdFire :: IO () -> Cmd msg
@@ -1438,16 +1455,24 @@ cmdTask io = CmdRun (Just <$> io)
 cmdAfterMs :: Int -> msg -> Cmd msg
 cmdAfterMs delayMs msg = CmdRun (threadDelay (delayMs * 1000) >> pure (Just msg))
 
--- | Execute a command and return any resulting message
+-- | Execute a command and return any resulting message.
+-- Returns 'Nothing' for 'CmdExit' — the exit signal is handled by the runtime.
 executeCmd :: Cmd msg -> IO (Maybe msg)
 executeCmd CmdNone = pure Nothing
+executeCmd CmdExit = pure Nothing
 executeCmd (CmdRun io) = io
 executeCmd (CmdBatch cmds) = do
   results <- mapM executeCmd cmds
   pure $ foldr pickFirst Nothing results
-  where 
+  where
     pickFirst (Just m) _ = Just m
     pickFirst Nothing  r = r
+
+-- | Check whether a command (or any sub-command in a batch) is 'CmdExit'.
+cmdIsExit :: Cmd msg -> Bool
+cmdIsExit CmdExit = True
+cmdIsExit (CmdBatch cmds) = any cmdIsExit cmds
+cmdIsExit _ = False
 
 -- | Subscriptions - event sources your app listens to
 data Sub msg
@@ -1471,26 +1496,28 @@ subEveryMs = SubEveryMs
 -- | The core application structure - Elm Architecture style
 --
 -- Build interactive TUI apps by defining:
---   * Initial state and startup commands
---   * How to update state based on messages
---   * What events to subscribe to
---   * How to render state to UI
+--
+-- * Initial state and startup commands
+-- * How to update state based on messages
+-- * What events to subscribe to
+-- * How to render state to UI
 --
 -- Example:
+--
 -- @
 -- data CounterMsg = Inc | Dec
 --
--- counterApp :: LayoutzApp Int CounterMsg
--- counterApp = LayoutzApp
---   { appInit = (0, CmdNone)
---   , appUpdate = \\msg count -> case msg of
---       Inc -> (count + 1, CmdNone)
---       Dec -> (count - 1, CmdNone)
---   , appSubscriptions = \\_ -> subKeyPress $ \\key -> case key of
---       KeyChar '+' -> Just Inc
---       KeyChar '-' -> Just Dec
+-- counterApp :: 'LayoutzApp' Int CounterMsg
+-- counterApp = 'LayoutzApp'
+--   { 'appInit' = (0, 'CmdNone')
+--   , 'appUpdate' = \\msg count -> case msg of
+--       'Inc' -> (count + 1, 'CmdNone')
+--       'Dec' -> (count - 1, 'CmdNone')
+--   , 'appSubscriptions' = \\_ -> 'subKeyPress' $ \\key -> case key of
+--       'KeyChar' \'+\' -> Just 'Inc'
+--       'KeyChar' \'-\' -> Just 'Dec'
 --       _           -> Nothing
---   , appView = \\count -> layout [text $ "Count: " <> show count]
+--   , 'appView' = \\count -> 'layout' ['text' $ "Count: " <> show count]
 --   }
 -- @
 data LayoutzApp state msg = LayoutzApp
@@ -1508,16 +1535,20 @@ data AppAlignment = AppAlignLeft | AppAlignCenter | AppAlignRight
 -- the fields you care about:
 --
 -- @
--- runAppWith defaultAppOptions { optAlignment = AppAlignCenter } myApp
+-- 'runAppWith' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
 -- @
 data AppOptions = AppOptions
-  { optAlignment :: AppAlignment   -- ^ Alignment of the app block in the terminal (default: 'AppAlignLeft')
+  { optAlignment    :: AppAlignment -- ^ Alignment of the app block in the terminal (default: 'AppAlignLeft')
+  , optClearOnStart :: Bool         -- ^ Enter alt screen and clear on start (default: 'True')
+  , optClearOnExit  :: Bool         -- ^ Exit alt screen on quit (default: 'True')
   } deriving (Show, Eq)
 
--- | Sensible defaults: left-aligned.
+-- | Sensible defaults: left-aligned, full-screen (alt screen on start\/exit).
 defaultAppOptions :: AppOptions
 defaultAppOptions = AppOptions
-  { optAlignment = AppAlignLeft
+  { optAlignment    = AppAlignLeft
+  , optClearOnStart = True
+  , optClearOnExit  = True
   }
 
 -- | Get terminal width via ANSI cursor position report (zero dependencies).
@@ -1553,34 +1584,59 @@ getTerminalWidth = do
 -- | Run an interactive TUI application with default options.
 --
 -- This function:
---   * Sets up raw terminal mode (no echo, no buffering)
---   * Clears screen and hides cursor
---   * Enters event loop that:
---       - Listens to subscribed events (keyboard, ticks, etc.)
---       - Dispatches messages to update function
---       - Updates state and re-renders
---   * Restores terminal on exit (ESC, Ctrl+C, or Ctrl+D)
+--
+-- * Sets up raw terminal mode (no echo, no buffering)
+-- * Clears screen and hides cursor
+-- * Enters event loop that:
+--
+--     * Listens to subscribed events (keyboard, ticks, etc.)
+--     * Dispatches messages to update function
+--     * Updates state and re-renders
+--
+-- * Restores terminal on exit (ESC, Ctrl+C, or Ctrl+D)
 --
 -- Press ESC, Ctrl+C, or Ctrl+D to quit the application.
 runApp :: LayoutzApp state msg -> IO ()
-runApp = runAppWith defaultAppOptions
+runApp app = runAppWithFinal defaultAppOptions app >> pure ()
+
+-- | Like 'runApp', but returns the final application state after exit.
+-- Useful for interactive tweaking of state followed by further processing.
+runAppFinal :: LayoutzApp state msg -> IO state
+runAppFinal = runAppWithFinal defaultAppOptions
+
+-- | Run an app inline — no alt screen, no clearing. The app renders in-place
+-- below whatever is already on screen and returns when it issues 'CmdExit'.
+-- Useful for embedding animated progress bars or spinners in scripts.
+runInline :: LayoutzApp state msg -> IO ()
+runInline app = runAppWithFinal defaultAppOptions
+  { optClearOnStart = False, optClearOnExit = False } app >> pure ()
 
 -- | Run an interactive TUI application with custom options.
 --
 -- @
--- runAppWith defaultAppOptions { optAlignment = AppAlignCenter } myApp
+-- 'runAppWith' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
 -- @
 runAppWith :: AppOptions -> LayoutzApp state msg -> IO ()
-runAppWith opts LayoutzApp{..} = do
+runAppWith opts app = runAppWithFinal opts app >> pure ()
+
+-- | Like 'runAppWith', but returns the final application state after exit.
+-- Useful for interactive tweaking of state followed by further processing.
+--
+-- @
+-- finalState <- 'runAppWithFinal' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
+-- @
+runAppWithFinal :: AppOptions -> LayoutzApp state msg -> IO state
+runAppWithFinal opts LayoutzApp{..} = do
   oldBuffering <- hGetBuffering stdin
   oldEcho <- hGetEcho stdin
-  
+
   hSetBuffering stdin NoBuffering
   hSetBuffering stdout NoBuffering
   hSetEcho stdin False
-  
-  enterAltScreen
-  clearScreen
+
+  when (optClearOnStart opts) $ do
+    enterAltScreen
+    clearScreen
   hideCursor
 
   -- Query terminal width once, after raw mode is set, before threads
@@ -1589,32 +1645,36 @@ runAppWith opts LayoutzApp{..} = do
   let (initialState, initialCmd) = appInit
 
   stateRef <- newIORef initialState
-  cmdChan <- newChan  -- Channel for commands to execute
-  
+  exitRef  <- newIORef False
+  cmdChan  <- newChan  -- Channel for commands to execute
+
   -- Helper to update state and queue commands
   let updateState msg = do
-        cmdToRun <- atomicModifyIORef' stateRef $ \s -> 
+        cmdToRun <- atomicModifyIORef' stateRef $ \s ->
           let (newState, c) = appUpdate msg s in (newState, c)
+        when (cmdIsExit cmdToRun) $ writeIORef exitRef True
         case cmdToRun of
           CmdNone -> pure ()
+          CmdExit -> pure ()
           _       -> writeChan cmdChan cmdToRun
-  
+
   -- Command thread: executes commands async, feeds results back
   cmdThread <- forkIO $ forever $ do
     cmdToRun <- readChan cmdChan
+    when (cmdIsExit cmdToRun) $ writeIORef exitRef True
     maybeMsg <- executeCmd cmdToRun
     case maybeMsg of
       Just msg -> updateState msg  -- Feed message back into app
       Nothing  -> pure ()
-  
+
   -- Execute initial command
   case initialCmd of
     CmdNone -> pure ()
     _       -> writeChan cmdChan initialCmd
-  
+
   lastLineCount <- newIORef 0
   lastRendered <- newIORef ""
-  
+
   renderThread <- forkIO $ forever $ do
     state <- readIORef stateRef
     let rendered = render (appView state)
@@ -1633,7 +1693,12 @@ runAppWith opts LayoutzApp{..} = do
           alignedLines = if blockPad > 0
                          then map (padding ++) renderedLines
                          else renderedLines
-          output = "\ESC[H" ++ concatMap (\l -> l ++ "\ESC[K\n") alignedLines
+          moveUp = if optClearOnStart opts
+                     then "\ESC[H"
+                     else if prevLineCount > 0
+                       then "\ESC[" ++ show prevLineCount ++ "A\r"
+                       else ""
+          output = moveUp ++ concatMap (\l -> l ++ "\ESC[K\n") alignedLines
                    ++ concat (replicate (max 0 (prevLineCount - currentLineCount)) "\ESC[K\n")
       putStr output
       hFlush stdout
@@ -1641,7 +1706,7 @@ runAppWith opts LayoutzApp{..} = do
       writeIORef lastLineCount currentLineCount
 
     threadDelay 33333
-  
+
   let getKeyHandler sub = case sub of
         SubKeyPress handler -> Just handler
         SubBatch subs -> case [h | SubKeyPress h <- subs] of
@@ -1658,6 +1723,18 @@ runAppWith opts LayoutzApp{..} = do
 
   let killThreads = killThread renderThread >> killThread cmdThread
 
+      doCleanup = do
+        killThreads
+        showCursor
+        when (optClearOnExit opts) exitAltScreen
+        hFlush stdout
+        hSetBuffering stdin oldBuffering
+        hSetEcho stdin oldEcho
+
+      checkExit cont = do
+        exiting <- readIORef exitRef
+        if exiting then doCleanup else cont
+
       inputLoop = do
         state <- readIORef stateRef
         let subs = appSubscriptions state
@@ -1671,33 +1748,25 @@ runAppWith opts LayoutzApp{..} = do
         case maybeKey of
           Nothing -> do
             case tickInfo of
-              Just (_, msg) -> updateState msg >> inputLoop
+              Just (_, msg) -> updateState msg >> checkExit inputLoop
               Nothing -> inputLoop
-          
+
           Just key -> case key of
-            KeyEscape           -> killThreads >> cleanup oldBuffering oldEcho
-            KeyCtrl 'C' -> killThreads >> cleanup oldBuffering oldEcho
-            KeyCtrl 'D' -> killThreads >> cleanup oldBuffering oldEcho
-            
+            KeyEscape    -> doCleanup
+            KeyCtrl 'C'  -> doCleanup
+            KeyCtrl 'D'  -> doCleanup
+
             _ -> case keyHandler of
               Just handler -> case handler key of
-                Just msg -> updateState msg >> inputLoop
-                Nothing -> inputLoop
-              Nothing -> inputLoop
-  
-  inputLoop `catch` \ex -> case ex of
-    UserInterrupt -> killThreads >> cleanup oldBuffering oldEcho
-    _             -> killThreads >> cleanup oldBuffering oldEcho
+                Just msg -> updateState msg >> checkExit inputLoop
+                Nothing -> checkExit inputLoop
+              Nothing -> checkExit inputLoop
 
--- | Clean up terminal and exit
-cleanup :: BufferMode -> Bool -> IO ()
-cleanup oldBuffering oldEcho = do
-  showCursor
-  exitAltScreen
-  hFlush stdout
-  hSetBuffering stdin oldBuffering
-  hSetEcho stdin oldEcho
-  exitSuccess
+  (inputLoop `catch` \ex -> case ex of
+    UserInterrupt -> doCleanup
+    _             -> doCleanup)
+
+  readIORef stateRef
 
 -- | Clear the screen and move cursor to top-left
 clearScreen :: IO ()

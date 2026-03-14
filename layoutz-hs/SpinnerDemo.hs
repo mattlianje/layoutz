@@ -22,14 +22,14 @@ data SpinnerMsg = NextFrame
 -- | The spinner demo application
 spinnerDemo :: LayoutzApp SpinnerState SpinnerMsg
 spinnerDemo = LayoutzApp
-  { appInit = (SpinnerState 0, None)
-  
+  { appInit = (SpinnerState 0, CmdNone)
+
   , appUpdate = \msg state -> case msg of
-      NextFrame -> (state { frameCount = frameCount state + 1 }, None)
-  
+      NextFrame -> (state { frameCount = frameCount state + 1 }, CmdNone)
+
   , appSubscriptions = \_state ->
-      onTick NextFrame
-  
+      subEveryMs 100 NextFrame
+
   , appView = \state ->
       layout
         [ section "Spinner Styles"
