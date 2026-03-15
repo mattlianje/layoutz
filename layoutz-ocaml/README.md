@@ -646,41 +646,59 @@ run_app_final app                            (* returns final state *)
 
 ### Key Types
 ```ocaml
+(* Printable *)
 KeyChar c                                    (* regular character *)
-KeyCtrl c                                    (* Ctrl+key *)
-KeyEnter | KeyBackspace | KeyTab | KeyEscape | KeyDelete
-KeyUp | KeyDown | KeyLeft | KeyRight
-KeyHome | KeyEnd | KeyPageUp | KeyPageDown
+
+(* Editing *)
+KeyEnter
+KeyBackspace
+KeyTab
+KeyEscape
+KeyDelete
+
+(* Navigation *)
+KeyUp
+KeyDown
+KeyLeft
+KeyRight
+KeyHome
+KeyEnd
+KeyPageUp
+KeyPageDown
+
+(* Modifiers *)
+KeyCtrl c                                    (* Ctrl+A, Ctrl+S, etc. *)
 ```
 
 ### Subscriptions
-```ocaml
-SubNone                                      (* no subscriptions *)
-SubKeyPress handler                          (* keyboard input *)
-SubEveryMs (ms, msg)                         (* periodic ticks *)
-SubBatch [sub1; sub2]                        (* combine multiple *)
 
-(* convenience constructors *)
-sub_none
-sub_key_press (fun key -> match key with ...)
-sub_every_ms 100 Tick
-sub_batch [sub1; sub2]
+```ocaml
+sub_none                                     (* no subscriptions *)
+sub_key_press (fun key ->                    (* keyboard input *)
+  match key with
+  | KeyChar 'q' -> Some Quit
+  | _ -> None)
+sub_every_ms 100 Tick                        (* periodic ticks *)
+sub_batch [sub1; sub2]                       (* combine multiple *)
+```
+
+```ocaml
+let subscriptions state = sub_batch [
+  sub_every_ms 100 Tick;
+  sub_key_press (fun key -> match key with
+    | KeyChar 'q' -> Some Quit
+    | _ -> None);
+]
 ```
 
 ### Commands
-```ocaml
-CmdNone                                      (* no-op *)
-CmdBatch [cmd1; cmd2]                        (* execute multiple *)
-CmdTask (fun () -> Some msg)                 (* run a task *)
-CmdAfterMs (ms, msg)                         (* delayed message *)
-CmdExit                                      (* exit the application *)
 
-(* convenience constructors *)
-cmd_none
-cmd_batch [cmd1; cmd2]
-cmd_task (fun () -> Some msg)
-cmd_after_ms 500 msg
-cmd_exit
+```ocaml
+cmd_none                                     (* no-op *)
+cmd_exit                                     (* exit the application *)
+cmd_batch [cmd1; cmd2]                       (* execute multiple *)
+cmd_task (fun () -> Some msg)                (* async task *)
+cmd_after_ms 500 msg                         (* one-shot delayed message *)
 ```
 
 ## Custom Elements
