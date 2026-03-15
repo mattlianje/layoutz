@@ -6,35 +6,68 @@
 
 **Simple, beautiful CLI output for OCaml**
 
-A tiny, zero-dep lib for building composable sections, trees, tables, dashboards for your console.
+A tiny, zero-dep lib for building composable ANSI strings, terminal plots, and interactive Elm-style TUIs in pure OCaml.
 
 Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
+
+## Features
+- Zero dependencies (just stdlib)
+- Use [`layoutz.ml`](lib/layoutz.ml) like a header file
+- Elm-style TUIs (`run_app`, `run_app_final`)
+- Layout primitives, tables, trees, lists
+- Colors, ANSI styles, rich formatting
+- Terminal charts and plots
+- Border styles, spinners
+- Extend `ELEMENT` and easily create new primitives
+  - (No component library limitations)
+- Thread-safe, purely functional rendering
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="650">
+<br>
+<sub><a href="showcase_app.ml">showcase_app.ml</a></sub>
+</p>
+
+Layoutz also lets you easily drop animations into build scripts or any processes that use Stdout:
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
+<br>
+<sub><a href="inline_loading_demo.ml">inline_loading_demo.ml</a></sub>
+</p>
+
+## Table of Contents
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [Border Styles](#border-styles)
+- [Elements](#elements)
+- [Colors & Styles](#colors--styles)
+- [Charts & Plots](#charts--plots)
+- [Interactive Apps](#interactive-apps)
+- [Custom Elements](#custom-elements)
 
 ## Installation
 
 ```bash
 opam install layoutz
 ```
-
 ```dune
 (libraries layoutz)
 ```
 
 Or just drop the zero-dep [`lib/layoutz.ml`](lib/layoutz.ml) into your project like a header file.
 
-## Features
+## Quick Start
 
-- Use **Layoutz.ml** like a header-file
-- Zero dependencies
-- Effortless composition of elements
-- Rich text formatting: alignment, wrapping, padding, truncation
-- ANSI colors and styles
-- Lists, trees, tables, charts, progress bars
-- Easy creation of custom elements
-  - (No component library limitations)
-- Thread-safe, purely functional rendering
+There are two usage paths:
 
-## Quickstart
+**(1/2) Static rendering**
+
+Beautiful + compositional strings
+
+<details>
+<summary>show code</summary>
 
 ```ocaml
 open Layoutz
@@ -65,62 +98,105 @@ let demo =
 let () = print demo
 ```
 
+</details>
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-intro.png" width="700">
 </p>
 
-## Why layoutz?
+**(2/2) Interactive apps**
 
+Build Elm-style TUIs
+
+```ocaml
+open Layoutz
+
+type msg = Inc | Dec
+
+let counter_app = {
+  init = (0, CmdNone);
+  update = (fun msg count -> match msg with
+    | Inc -> (count + 1, CmdNone)
+    | Dec -> (count - 1, CmdNone));
+  subscriptions = (fun _ -> sub_key_press (fun key -> match key with
+    | KeyChar '+' -> Some Inc
+    | KeyChar '-' -> Some Dec
+    | _ -> None));
+  view = (fun count ->
+    layout [
+      section ~title:"Counter" [ s ("Count: " ^ string_of_int count) ];
+      br;
+      ul [ li (s "Press `+` or `-`") ]
+    ]);
+}
+
+let () = run_app counter_app
+```
+
+## Why layoutz?
+- We have `Printf` and full-blown TUI libraries - but there is a gap in-between
 - With LLMs, boilerplate "pretty-print" code is cheaper than ever to generate...
 - ...which means more formatting code spawning and polluting domain logic
 - **layoutz** is a tiny, declarative DSL to combat this
-- Everything is an `Element` - immutable and composable
-- Since you can implement the `ELEMENT` signature, you can create any elements you imagine... and they compose with all built-ins
+- Everything is an `element` - immutable and composable
+- Implement the `ELEMENT` signature to create any elements you imagine - they compose with all built-ins
 
 ## Core Concepts
 
-- Every piece of content is an `element`
-- Elements are **immutable** and **composable** - build complex layouts by combining simple ones
-- A `layout` arranges elements **vertically**, a `row` arranges them **horizontally**
-- Call `render` to get a string, or `print` to print directly
-- The power comes from **uniform composition** - everything is an element, everything combines
+Every piece of content is an `element`. Elements are immutable and composable.
+
+```ocaml
+layout [ elem1; elem2; elem3 ]   (* vertical *)
+row [ elem1; elem2 ]             (* horizontal *)
+render elem                      (* -> string *)
+print elem                       (* render + print *)
+```
+
+Styles and borders compose via `|>`:
+```ocaml
+s "Hello" |> borderRound |> colorCyan |> styleBold
+s "Fancy!" |> (styleBold ++ styleItalic ++ styleUnderline)
+```
+
+## Border Styles
+
+Applied via `|>` to any element:
+```ocaml
+box ~title:"Title" [ s "content" ] |> borderRound
+table ~headers:[...] [...] |> borderThick
+s "Hello" |> borderDouble
+```
+
+```
+borderNormal                               (* ┌─┐ (default) *)
+borderDouble                               (* ╔═╗ *)
+borderThick                                (* ┏━┓ *)
+borderRound                                (* ╭─╮ *)
+borderAscii                                (* +-+ *)
+borderBlock                                (* ███ *)
+borderDashed                               (* ┌╌┐ *)
+borderDotted                               (* ┌┈┐ *)
+borderInnerHalfBlock                       (* ▗▄▖ *)
+borderOuterHalfBlock                       (* ▛▀▜ *)
+borderMarkdown                             (* |-| *)
+borderCustom ~corner:"+" ~h:"=" ~v:"|"     (* custom *)
+borderNone                                 (* no borders *)
+```
 
 ## Elements
 
-### Text: `s`, `text`
-
+### Text
 ```ocaml
-s "hello"           (* short form *)
-text "hello"        (* verbose *)
+s "hello"                                    (* short form *)
+text "hello"                                 (* verbose *)
 ```
 
 ### Line Break: `br`, `br'`
-
 ```ocaml
 layout [ s "Line 1"; br; s "Line 2" ]
 layout [ s "Top"; br' 3; s "3 lines down" ]
 ```
 
-### Space: `space`, `space'`
-
-```ocaml
-row [ s "Left"; space; s "Right" ]         (* single space *)
-row [ s "Left"; space' 10; s "Right" ]     (* 10 spaces *)
-```
-
-### Empty: `empty`
-
-Useful for conditional rendering:
-```ocaml
-layout [
-  s "Always shown";
-  (if has_error then s "Error!" |> colorRed else empty);
-  s "Footer"
-]
-```
-
 ### Layout (vertical): `layout`
-
 ```ocaml
 layout [ s "First"; s "Second"; s "Third" ]
 ```
@@ -131,11 +207,9 @@ Third
 ```
 
 ### Row (horizontal): `row`, `tightRow`
-
 ```ocaml
 row [ s "Left"; s "Middle"; s "Right" ]
-row ~tight:true [ s "["; s "no"; s "gaps"; s "]" ]
-tightRow [ s "["; s "same"; s "thing"; s "]" ]  (* convenience *)
+tightRow [ s "["; s "no"; s "gaps"; s "]" ]
 ```
 ```
 Left Middle Right
@@ -143,62 +217,72 @@ Left Middle Right
 ```
 
 ### Horizontal Rule: `hr`, `hr'`
-
 ```ocaml
 hr
 hr' ~width:20 ()
 hr' ~char:"=" ~width:20 ()
 ```
-```
-──────────────────────────────────────────────────
-────────────────────
-====================
-```
 
 ### Vertical Rule: `vr`
-
 ```ocaml
-vr ()                      (* default: 10 high with │ *)
+vr ()                                        (* default: 10 high with │ *)
 vr ~height:5 ()
-vr ~char:"┃" ~height:3 ()
+```
+
+### Section: `section`
+```ocaml
+section ~title:"Config" [ kv [ ("env", "prod") ] ]
 ```
 ```
-│
-│
-│
-│
-│
+=== Config ===
+env : prod
 ```
 
 ### Box: `box`
-
 ```ocaml
-box ~title:"Status" [ s "All systems go" ]
-box ~title:"Fancy" [ s "Double border" ] |> borderDouble
-box ~title:"Smooth" [ s "Rounded corners" ] |> borderRound
+box ~title:"Summary" [ s "All systems go" ]
+box ~title:"Fancy" [ s "content" ] |> borderDouble
+box ~title:"Smooth" [ s "content" ] |> borderRound
 ```
 ```
-┌──Status───────┐
-│ All systems go│
-└───────────────┘
-╔══Fancy════════╗
-║ Double border ║
-╚═══════════════╝
-╭──Smooth─────────╮
-│ Rounded corners │
-╰─────────────────╯
+┌──Summary─────────┐
+│ All systems go   │
+└──────────────────┘
+╔══Fancy═══════╗
+║ content      ║
+╚══════════════╝
+╭──Smooth──────╮
+│ content      │
+╰──────────────╯
 ```
 
-Pipe any element through `borderRound`, `borderDouble`, `borderThick`, `borderNormal`, `borderNone`:
-
+### Status Card: `statusCard`
 ```ocaml
-s "Hello" |> borderRound
-box ~title:"X" [ s "content" ] |> borderDouble
-table ~headers:[...] [...] |> borderThick
+row [
+  statusCard ~label:(s "CPU") ~content:(s "45%") |> colorGreen;
+  statusCard ~label:(s "MEM") ~content:(s "2.1G") |> colorCyan
+]
+```
+```
+┌──────┐ ┌───────┐
+│ CPU  │ │ MEM   │
+│ 45%  │ │ 2.1G  │
+└──────┘ └───────┘
+```
+
+### Banner: `banner`
+```ocaml
+banner (s "System Dashboard") |> borderDouble
+```
+```
+╔════════════════════╗
+║                    ║
+║  System Dashboard  ║
+║                    ║
+╚════════════════════╝
 ```
 
 ### Table: `table`
-
 ```ocaml
 table
   ~headers:[ s "Name"; s "Age" ]
@@ -214,16 +298,11 @@ table
 ```
 
 ### Columns: `columns`
-
-Multi-column layout with automatic height alignment:
-
 ```ocaml
 columns [
   layout [ s "Left Column"; s "Line 2"; s "Line 3" ];
   layout [ s "Right Column"; s "More text" ]
 ]
-
-columns ~spacing:4 [ s "Wide"; s "Gaps" ]
 ```
 ```
 Left Column   Right Column
@@ -231,95 +310,7 @@ Line 2        More text
 Line 3
 ```
 
-### Banner: `banner`
-
-Decorative bordered banner (double border by default):
-
-```ocaml
-banner (s "Welcome!")
-banner (s "System Status") |> borderRound
-```
-```
-╔═════════════╗
-║             ║
-║  Welcome!   ║
-║             ║
-╚═════════════╝
-```
-
-### Status Card: `statusCard`
-
-Compact label-value display in a box:
-
-```ocaml
-row [
-  statusCard ~label:(s "CPU") ~content:(s "45%") |> colorGreen;
-  statusCard ~label:(s "MEM") ~content:(s "2.1G") |> colorCyan
-]
-```
-```
-┌──────┐ ┌───────┐
-│ CPU  │ │ MEM   │
-│ 45%  │ │ 2.1G  │
-└──────┘ └───────┘
-```
-
-### Unordered List: `ul`
-
-```ocaml
-ul [ li (s "First"); li (s "Second"); li (s "Third") ]
-ul ~bullet:"-" [ li (s "Custom"); li (s "Bullet") ]
-```
-```
-• First
-• Second
-• Third
-
-- Custom
-- Bullet
-```
-
-### Ordered List: `ol`
-
-```ocaml
-ol [ li (s "Step one"); li (s "Step two"); li (s "Step three") ]
-```
-```
-1. Step one
-2. Step two
-3. Step three
-```
-
-### Nested Lists
-
-```ocaml
-ul [
-  li ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "Item 1");
-  li (s "Item 2")
-]
-```
-```
-• Item 1
-  • Nested A
-  • Nested B
-• Item 2
-```
-
-### Tree: `tree`
-
-```ocaml
-tree
-  (node ~c:[ node (s "src"); node (s "test"); node (s "README.md") ] (s "project"))
-```
-```
-project
-├── src
-├── test
-└── README.md
-```
-
 ### Key-Value: `kv`
-
 ```ocaml
 kv [ ("Name", "Alice"); ("Age", "30"); ("City", "NYC") ]
 ```
@@ -329,18 +320,44 @@ Age:  30
 City: NYC
 ```
 
-### Section: `section`
-
+### Unordered List: `ul`
 ```ocaml
-section ~title:"Status" [ s "All systems operational" ]
+ul [ li (s "First"); li (s "Second"); li (s "Third") ]
+ul [ li ~c:[ li (s "Nested A"); li (s "Nested B") ] (s "Item 1"); li (s "Item 2") ]
 ```
 ```
-=== Status ===
-All systems operational
+• First
+• Second
+• Third
+
+• Item 1
+  • Nested A
+  • Nested B
+• Item 2
+```
+
+### Ordered List: `ol`
+```ocaml
+ol [ li (s "Step one"); li (s "Step two"); li (s "Step three") ]
+```
+```
+1. Step one
+2. Step two
+3. Step three
+```
+
+### Tree: `tree`
+```ocaml
+tree (node ~c:[ node (s "src"); node (s "test"); node (s "README.md") ] (s "project"))
+```
+```
+project
+├── src
+├── test
+└── README.md
 ```
 
 ### Progress Bar: `inline_bar`
-
 ```ocaml
 inline_bar ~label:"Download" ~progress:0.75
 ```
@@ -349,7 +366,6 @@ Download [███████████████─────] 75%
 ```
 
 ### Chart: `chart`
-
 ```ocaml
 chart [ ("OCaml", 85.0); ("Haskell", 72.0); ("Scala", 90.0) ]
 ```
@@ -359,64 +375,42 @@ Haskell │█████████████ 72.0
 Scala   │█████████████████ 90.0
 ```
 
-### Alignment
-
+### Spinner: `spinner`
+8 built-in styles:
 ```ocaml
-(* Auto-center - width computed from siblings *)
-layout [ s "A long title here"; center (s "Auto centered!"); s "Footer" ]
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Dots     (* ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏ *)
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Line     (* | / - \ *)
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Clock    (* 🕐 🕑 🕒 ... *)
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Bounce   (* ⠁ ⠂ ⠄ ⠂ *)
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Earth    (* 🌍 🌎 🌏 *)
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Moon     (* 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘 *)
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Grow     (* ▏ ▎ ▍ ▌ ▋ ▊ ▉ █ ... *)
+spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Arrow    (* ← ↖ ↑ ↗ → ↘ ↓ ↙ *)
+```
 
-(* Explicit width *)
+### Alignment: `center`, `left_align`, `right_align`, `justify`, `wrap`
+```ocaml
 center ~width:30 (s "Centered")
 left_align ~width:30 (s "Left")
 right_align ~width:30 (s "Right")
+justify ~width:30 (s "Spread this out")
+wrap ~max_width:20 (s "Long text that should wrap")
 ```
 
-### Truncation: `truncate`
-
+### Underline: `underline`, `underlineColored`
 ```ocaml
-truncate ~max_width:15 (s "This is a very long text")
-truncate ~max_width:20 ~ellipsis:"…" (s "Custom ellipsis example")
+underline (s "Title")
+underline ~char:"=" (s "Double")
+underlineColored ~char:"~" ~color:Color.cyan (s "Fancy")
 ```
 ```
-This is a ve...
-Custom ellipsis e…
-```
-
-### Word Wrap: `wrap`
-
-```ocaml
-wrap ~max_width:20 (s "This is a long line that will be wrapped at word boundaries")
-```
-```
-This is a long line
-that will be wrapped
-at word boundaries
-```
-
-### Justification: `justify`, `justifyAll`
-
-```ocaml
-justify ~width:30 (s "Spaces are\ndistributed evenly")
-justifyAll ~width:30 (s "Even the\nlast line")  (* justifies last line too *)
-```
-```
-Spaces          are
-distributed   evenly
-```
-
-### Padding: `pad`
-
-Add uniform padding around any element:
-
-```ocaml
-pad ~padding:2 (s "Padded content")
-box ~title:"Box" [ s "content" ] |> pad ~padding:1
+Title
+─────
+Double
+======
 ```
 
 ### Margin: `margin`, `marginColor`
-
-Prefix each line with a string (great for compiler-style output):
-
 ```ocaml
 margin ~prefix:"[info]" (layout [ s "Line 1"; s "Line 2" ])
 marginColor ~prefix:"[error]" ~color:Color.red (s "Something failed")
@@ -426,95 +420,74 @@ marginColor ~prefix:"[error]" ~color:Color.red (s "Something failed")
 [info] Line 2
 ```
 
-### Underline: `underline`, `underlineColored`
-
+### Padding & Truncation: `pad`, `truncate`
 ```ocaml
-underline (s "Title")
-underline ~char:"=" (s "Double")
-underlineColored ~char:"~" ~color:Color.cyan (s "Fancy")
+pad ~padding:2 (s "Padded content")
+truncate ~max_width:15 (s "This is a very long text")
+truncate ~max_width:20 ~ellipsis:"…" (s "Custom ellipsis example")
 ```
-```
-Title
-─────
 
-Double
-======
+### Spacing: `space`, `empty`
+```ocaml
+row [ s "Left"; space; s "Right" ]           (* single space *)
+row [ s "Left"; space' 10; s "Right" ]       (* 10 spaces *)
+empty                                         (* no-op, conditional rendering *)
 ```
 
 ## Colors & Styles
 
-### Colors
-
-Colors apply directly via piping - foreground with `color*`, background with `bg*`:
+Foreground with `color*`, background with `bg*`:
 
 ```ocaml
-let colors =
-  layout
-    [ s "The quick brown fox..." |> colorRed
-    ; s "The quick brown fox..." |> colorBrightCyan
-    ; underlineColored ~char:"~" ~color:Color.red (s "The quick brown fox...")
-    ; marginColor ~prefix:"[INFO]" ~color:Color.cyan (s "The quick brown fox...")
-    ]
-
-let () = print colors
+s "Error!" |> colorRed
+s "Warning" |> colorBrightCyan |> styleBold
+s "Alert" |> bgRed |> colorWhite
 ```
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-colour-2.png" width="700">
 </p>
 
-**Available Colors:**
-- Foreground: `colorBlack`, `colorRed`, `colorGreen`, `colorYellow`, `colorBlue`, `colorMagenta`, `colorCyan`, `colorWhite`
-- Bright foreground: `colorBrightBlack`, `colorBrightRed`, `colorBrightGreen`, `colorBrightCyan`, etc.
-- Background: `bgBlack`, `bgRed`, `bgGreen`, `bgYellow`, `bgBlue`, `bgMagenta`, `bgCyan`, `bgWhite`, etc.
-- 256 palette: `color256 201` (foreground), `bg256 201` (background)
-- True color: `colorRGB 255 128 0` (foreground), `bgRGB 255 128 0` (background)
-- Raw values (for `marginColor`, `underlineColored`): `Color.red`, `Color.cyan`, `Color.rgb 255 128 0`, etc.
+```ocaml
+(* Standard 16 *)
+colorBlack, colorRed, colorGreen, colorYellow, colorBlue, colorMagenta, colorCyan, colorWhite
+colorBrightBlack, colorBrightRed, colorBrightGreen, colorBrightYellow, ...
+bgBlack, bgRed, bgGreen, bgYellow, bgBlue, bgMagenta, bgCyan, bgWhite, ...
+
+(* 256-color palette *)
+color256 201                                 (* foreground *)
+bg256 201                                    (* background *)
+
+(* 24-bit RGB *)
+colorRGB 255 128 0                           (* foreground *)
+bgRGB 255 128 0                              (* background *)
+
+(* Raw values for marginColor, underlineColored *)
+Color.red, Color.cyan, Color.rgb 255 128 0, Color.None
+```
 
 ### Styles
-
-ANSI styles are added the same way with `|> style<...>`:
-
 ```ocaml
-let styles =
-  layout
-    [ s "The quick brown fox..." |> styleBold
-    ; s "The quick brown fox..." |> colorRed |> styleBold
-    ; s "The quick brown fox..." |> styleReverse |> styleItalic
-    ]
-
-let () = print styles
+s "text" |> styleBold
+s "text" |> colorRed |> styleBold
+s "text" |> (styleBold ++ styleItalic ++ styleUnderline)
 ```
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-styles.png" width="700">
 </p>
 
-**Available Styles:** `styleBold`, `styleDim`, `styleItalic`, `styleUnderline`, `styleBlink`, `styleReverse`, `styleHidden`, `styleStrikethrough`
-
-### Combining Styles
-
-Use `++` to combine multiple styles at once:
-
 ```ocaml
-let combined =
-  layout
-    [ s "Fancy!" |> (styleBold ++ styleItalic ++ styleUnderline)
-    ; table
-        ~headers:[ s "Name"; s "Role"; s "Status" ]
-        [ [ s "Alice"; s "Engineer"; s "Online" ]
-        ; [ s "Eve"; s "QA"; s "Away" ]
-        ; [ ul [ li ~c:[ li ~c:[ li (s "was a BAD man") ] (s "Mousasi") ] (s "Gegard") ]
-          ; s "Fighter"
-          ; s "Nasty"
-          ]
-        ]
-      |> borderRound |> (styleBold ++ styleReverse)
-    ]
-
-let () = print combined
+styleBold
+styleDim
+styleItalic
+styleUnderline
+styleBlink
+styleReverse
+styleHidden
+styleStrikethrough
+styleBold ++ styleItalic                     (* combine with ++ *)
 ```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-combined.png" width="700">
-</p>
 
 ### Color Gradients
 
@@ -525,12 +498,6 @@ let palette =
   |> tightRow
 
 (* RGB gradients *)
-let red_to_blue =
-  List.init 32 (fun i ->
-    let v = i * 8 in
-    s "█" |> colorRGB v 100 (255 - v))
-  |> tightRow
-
 let rainbow =
   List.init 32 (fun i ->
     let v = i * 8 in
@@ -539,17 +506,140 @@ let rainbow =
     let b = if v > 128 then (v - 128) * 2 else 0 in
     s "█" |> colorRGB r g b)
   |> tightRow
-
-let () = print (layout [ palette; red_to_blue; rainbow ])
 ```
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-colour.png" width="700">
 </p>
 
+## Charts & Plots
+
+### Sparkline
+```ocaml
+sparkline [1.0; 3.0; 5.0; 7.0; 2.0; 4.0; 8.0; 1.0]
+```
+```
+▁▃▅▇▂▄█▁
+```
+
+### Line Plot
+```ocaml
+let s1 = series ~points:[(0.,0.); (1.,1.); (2.,4.); (3.,9.)] ~label:"x^2" ~color:Color.None in
+plotLine ~width:30 ~height:10 [s1]
+```
+
+### Pie Chart
+```ocaml
+plotPie ~width:20 ~height:10 [
+  slice ~value:40.0 ~label:"OCaml" ~color:Color.None;
+  slice ~value:30.0 ~label:"Haskell" ~color:Color.None;
+  slice ~value:30.0 ~label:"Scala" ~color:Color.None;
+]
+```
+
+### Bar Chart
+```ocaml
+plotBar ~width:20 ~height:8 [
+  bar_item ~value:80.0 ~label:"A" ~color:Color.None;
+  bar_item ~value:60.0 ~label:"B" ~color:Color.None;
+  bar_item ~value:40.0 ~label:"C" ~color:Color.None;
+]
+```
+
+### Stacked Bar Chart
+```ocaml
+plotStackedBar ~width:20 ~height:8 [
+  stacked_group ~segments:[
+    bar_item ~value:30.0 ~label:"X" ~color:Color.None;
+    bar_item ~value:20.0 ~label:"Y" ~color:Color.None;
+  ] ~label:"G1";
+  stacked_group ~segments:[
+    bar_item ~value:20.0 ~label:"X" ~color:Color.None;
+    bar_item ~value:40.0 ~label:"Y" ~color:Color.None;
+  ] ~label:"G2";
+]
+```
+
+### Heatmap
+```ocaml
+plotHeatmap (heatmap_data
+  ~grid:[[1.0; 2.0; 3.0]; [4.0; 5.0; 6.0]; [7.0; 8.0; 9.0]]
+  ~row_labels:["R1"; "R2"; "R3"]
+  ~col_labels:["C1"; "C2"; "C3"])
+
+plotHeatmap ~cell_width:10 data              (* custom cell width *)
+```
+
+## Interactive Apps
+
+The runtime uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your view is simply a layoutz `element`.
+
+```ocaml
+type ('state, 'msg) app = {
+  init : 'state * 'msg cmd;
+  update : 'msg -> 'state -> 'state * 'msg cmd;
+  subscriptions : 'state -> 'msg sub;
+  view : 'state -> element;
+}
+```
+
+Three daemon threads coordinate rendering, tick/timers, and input capture. State updates flow through `update` synchronously. Rendering uses incremental line-diffing: only changed lines are redrawn.
+
+```ocaml
+run_app ~options:{
+  alignment = AlignCenter;
+  quit_key = KeyCtrl 'Q';
+  clear_on_start = true;
+  clear_on_exit = true;
+  render_interval_ms = 33;
+} app
+
+run_app app                                  (* default options *)
+run_app_final app                            (* returns final state *)
+```
+
+### Key Types
+```ocaml
+KeyChar c                                    (* regular character *)
+KeyCtrl c                                    (* Ctrl+key *)
+KeyEnter | KeyBackspace | KeyTab | KeyEscape | KeyDelete
+KeyUp | KeyDown | KeyLeft | KeyRight
+KeyHome | KeyEnd | KeyPageUp | KeyPageDown
+```
+
+### Subscriptions
+```ocaml
+SubNone                                      (* no subscriptions *)
+SubKeyPress handler                          (* keyboard input *)
+SubEveryMs (ms, msg)                         (* periodic ticks *)
+SubBatch [sub1; sub2]                        (* combine multiple *)
+
+(* convenience constructors *)
+sub_none
+sub_key_press (fun key -> match key with ...)
+sub_every_ms 100 Tick
+sub_batch [sub1; sub2]
+```
+
+### Commands
+```ocaml
+CmdNone                                      (* no-op *)
+CmdBatch [cmd1; cmd2]                        (* execute multiple *)
+CmdTask (fun () -> Some msg)                 (* run a task *)
+CmdAfterMs (ms, msg)                         (* delayed message *)
+CmdExit                                      (* exit the application *)
+
+(* convenience constructors *)
+cmd_none
+cmd_batch [cmd1; cmd2]
+cmd_task (fun () -> Some msg)
+cmd_after_ms 500 msg
+cmd_exit
+```
+
 ## Custom Elements
 
-Create your own by implementing the `ELEMENT` signature:
-
+Implement `ELEMENT` to create reusable components:
 ```ocaml
 module Square : ELEMENT with type t = int = struct
   type t = int
@@ -567,7 +657,6 @@ let square size = el (module Square) size
 ```
 
 Then use it like any built-in:
-
 ```ocaml
 row [ square 3; square 5; square 7 ]
 ```

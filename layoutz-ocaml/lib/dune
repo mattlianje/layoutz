@@ -1,3 +1,4 @@
 (library
  (name layoutz)
- (public_name layoutz))
+ (public_name layoutz)
+ (libraries unix threads.posix))
