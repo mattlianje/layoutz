@@ -449,20 +449,30 @@ s "Alert" |> bgRed |> colorWhite
 </p>
 
 ```ocaml
-(* Standard 16 *)
-colorBlack, colorRed, colorGreen, colorYellow, colorBlue, colorMagenta, colorCyan, colorWhite
-colorBrightBlack, colorBrightRed, colorBrightGreen, colorBrightYellow, ...
-bgBlack, bgRed, bgGreen, bgYellow, bgBlue, bgMagenta, bgCyan, bgWhite, ...
+colorBlack
+colorRed
+colorGreen
+colorYellow
+colorBlue
+colorMagenta
+colorCyan
+colorWhite
+colorBrightBlack                             (* Bright 8 *)
+colorBrightRed
+colorBrightGreen
+colorBrightYellow
+colorBrightBlue
+colorBrightMagenta
+colorBrightCyan
+colorBrightWhite
+color256 201                                 (* 256-color palette *)
+colorRGB 255 128 0                           (* 24-bit RGB *)
+```
 
-(* 256-color palette *)
-color256 201                                 (* foreground *)
-bg256 201                                    (* background *)
+Background variants: `bgBlack`, `bgRed`, ... `bg256 201`, `bgRGB 255 128 0`
 
-(* 24-bit RGB *)
-colorRGB 255 128 0                           (* foreground *)
-bgRGB 255 128 0                              (* background *)
-
-(* Raw values for marginColor, underlineColored *)
+Raw values for `marginColor`, `underlineColored`:
+```ocaml
 Color.red, Color.cyan, Color.rgb 255 128 0, Color.None
 ```
 
@@ -522,11 +532,31 @@ sparkline [1.0; 3.0; 5.0; 7.0; 2.0; 4.0; 8.0; 1.0]
 ▁▃▅▇▂▄█▁
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-sparkline.png" width="500">
+</p>
+
 ### Line Plot
 ```ocaml
 let s1 = series ~points:[(0.,0.); (1.,1.); (2.,4.); (3.,9.)] ~label:"x^2" ~color:Color.None in
 plotLine ~width:30 ~height:10 [s1]
 ```
+
+Multiple series:
+```ocaml
+let sin_pts = List.init 50 (fun i ->
+  let x = float_of_int i in (x, sin (x *. 0.15) *. 5.0)) in
+let cos_pts = List.init 50 (fun i ->
+  let x = float_of_int i in (x, cos (x *. 0.15) *. 5.0)) in
+plotLine ~width:50 ~height:12 [
+  series ~points:sin_pts ~label:"sin(x)" ~color:(Color.rgb 0 255 255);
+  series ~points:cos_pts ~label:"cos(x)" ~color:(Color.rgb 255 0 255);
+]
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="500">
+</p>
 
 ### Pie Chart
 ```ocaml
@@ -537,6 +567,10 @@ plotPie ~width:20 ~height:10 [
 ]
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="500">
+</p>
+
 ### Bar Chart
 ```ocaml
 plotBar ~width:20 ~height:8 [
@@ -545,6 +579,10 @@ plotBar ~width:20 ~height:8 [
   bar_item ~value:40.0 ~label:"C" ~color:Color.None;
 ]
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="500">
+</p>
 
 ### Stacked Bar Chart
 ```ocaml
@@ -560,6 +598,10 @@ plotStackedBar ~width:20 ~height:8 [
 ]
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-stacked.png" width="500">
+</p>
+
 ### Heatmap
 ```ocaml
 plotHeatmap (heatmap_data
@@ -569,6 +611,10 @@ plotHeatmap (heatmap_data
 
 plotHeatmap ~cell_width:10 data              (* custom cell width *)
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
+</p>
 
 ## Interactive Apps
 
