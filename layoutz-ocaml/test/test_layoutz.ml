@@ -1,6 +1,21 @@
 open Alcotest
 open Layoutz
 
+let contains haystack needle =
+  let nlen = String.length needle in
+  let hlen = String.length haystack in
+  if nlen > hlen
+  then false
+  else
+    let rec check i =
+      if i > hlen - nlen
+      then false
+      else if String.sub haystack i nlen = needle
+      then true
+      else check (i + 1)
+    in
+    check 0
+
 let test_text_rendering () =
   check string "text renders correctly" "Hello World"
     (render (text "Hello World"))
@@ -356,6 +371,373 @@ let tree_tests =
     ("tree connectors", `Quick, test_tree_connectors);
   ]
 
+(* ============================================================================
+   New Border Style Tests
+   ============================================================================ *)
+
+let test_ascii_border () =
+  let output = render (box ~title:"" [ s "X" ] |> borderAscii) in
+  check bool "ascii border starts with +" true (output.[0] = '+')
+
+let test_block_border () =
+  let output = render (box ~title:"" [ s "X" ] |> borderBlock) in
+  check bool "block border starts with block char" true
+    (String.length output >= 3 && String.sub output 0 3 = "\xe2\x96\x88")
+
+let test_dashed_border () =
+  let output = render (box ~title:"" [ s "X" ] |> borderDashed) in
+  check bool "dashed border starts with ┌" true
+    (String.length output >= 3 && String.sub output 0 3 = "\xe2\x94\x8c")
+
+let test_dotted_border () =
+  let output = render (box ~title:"" [ s "X" ] |> borderDotted) in
+  check bool "dotted border renders" true (String.length output > 5)
+
+let test_inner_half_block_border () =
+  let output = render (box ~title:"" [ s "X" ] |> borderInnerHalfBlock) in
+  check bool "inner half block renders" true (String.length output > 5)
+
+let test_outer_half_block_border () =
+  let output = render (box ~title:"" [ s "X" ] |> borderOuterHalfBlock) in
+  check bool "outer half block renders" true (String.length output > 5)
+
+let test_markdown_border () =
+  let output = render (box ~title:"" [ s "X" ] |> borderMarkdown) in
+  check bool "markdown border starts with |" true (output.[0] = '|')
+
+let test_custom_border () =
+  let output =
+    render (box ~title:"" [ s "X" ] |> borderCustom ~corner:"*" ~h:"~" ~v:"!")
+  in
+  check bool "custom border starts with *" true (output.[0] = '*')
+
+let test_table_ascii_border () =
+  let output = render (table ~headers:[ s "H" ] [ [ s "V" ] ] |> borderAscii) in
+  check bool "table ascii starts with +" true (output.[0] = '+')
+
+let test_table_markdown_border () =
+  let output =
+    render (table ~headers:[ s "H" ] [ [ s "V" ] ] |> borderMarkdown)
+  in
+  check bool "table markdown starts with |" true (output.[0] = '|')
+
+let border_style_tests =
+  [
+    ("ascii border", `Quick, test_ascii_border);
+    ("block border", `Quick, test_block_border);
+    ("dashed border", `Quick, test_dashed_border);
+    ("dotted border", `Quick, test_dotted_border);
+    ("inner half block border", `Quick, test_inner_half_block_border);
+    ("outer half block border", `Quick, test_outer_half_block_border);
+    ("markdown border", `Quick, test_markdown_border);
+    ("custom border", `Quick, test_custom_border);
+    ("table ascii border", `Quick, test_table_ascii_border);
+    ("table markdown border", `Quick, test_table_markdown_border);
+  ]
+
+(* ============================================================================
+   Spinner Tests
+   ============================================================================ *)
+
+let test_spinner_dots () =
+  let output =
+    render (spinner ~label:"Loading" ~frame:0 ~style:SpinnerStyle.Dots)
+  in
+  check bool "spinner dots renders" true (String.length output > 5);
+  check bool "spinner contains label" true
+    (let len = String.length output in
+     len > 7 && String.sub output (len - 7) 7 = "Loading")
+
+let test_spinner_line () =
+  let output = render (spinner ~label:"" ~frame:0 ~style:SpinnerStyle.Line) in
+  check string "spinner line frame 0" "|" output
+
+let test_spinner_frame_cycles () =
+  let f0 = render (spinner ~label:"" ~frame:0 ~style:SpinnerStyle.Line) in
+  let f4 = render (spinner ~label:"" ~frame:4 ~style:SpinnerStyle.Line) in
+  check string "spinner cycles" f0 f4
+
+let test_spinner_all_styles () =
+  let styles =
+    SpinnerStyle.[ Dots; Line; Clock; Bounce; Earth; Moon; Grow; Arrow ]
+  in
+  List.iter
+    (fun style ->
+      let output = render (spinner ~label:"test" ~frame:0 ~style) in
+      check bool "spinner style renders" true (String.length output > 0))
+    styles
+
+let test_spinner_width () =
+  let w = width (spinner ~label:"Hi" ~frame:0 ~style:SpinnerStyle.Line) in
+  check bool "spinner width > 0" true (w > 0)
+
+let spinner_tests =
+  [
+    ("spinner dots", `Quick, test_spinner_dots);
+    ("spinner line", `Quick, test_spinner_line);
+    ("spinner frame cycles", `Quick, test_spinner_frame_cycles);
+    ("spinner all styles", `Quick, test_spinner_all_styles);
+    ("spinner width", `Quick, test_spinner_width);
+  ]
+
+(* ============================================================================
+   Sparkline Tests
+   ============================================================================ *)
+
+let test_sparkline_basic () =
+  let output = render (sparkline [ 1.0; 3.0; 5.0; 7.0; 2.0; 4.0; 8.0; 1.0 ]) in
+  check bool "sparkline renders" true (String.length output > 0)
+
+let test_sparkline_width () =
+  let w = width (sparkline [ 1.0; 2.0; 3.0; 4.0; 5.0 ]) in
+  check int "sparkline width = num values" 5 w
+
+let test_sparkline_height () =
+  let h = height (sparkline [ 1.0; 2.0; 3.0 ]) in
+  check int "sparkline height = 1" 1 h
+
+let test_sparkline_empty () =
+  let output = render (sparkline []) in
+  check string "sparkline empty" "" output
+
+let test_sparkline_constant () =
+  let output = render (sparkline [ 5.0; 5.0; 5.0 ]) in
+  check bool "sparkline constant renders" true (String.length output > 0)
+
+let sparkline_tests =
+  [
+    ("sparkline basic", `Quick, test_sparkline_basic);
+    ("sparkline width", `Quick, test_sparkline_width);
+    ("sparkline height", `Quick, test_sparkline_height);
+    ("sparkline empty", `Quick, test_sparkline_empty);
+    ("sparkline constant", `Quick, test_sparkline_constant);
+  ]
+
+(* ============================================================================
+   Braille Line Plot Tests
+   ============================================================================ *)
+
+let test_plot_line_basic () =
+  let s1 =
+    series
+      ~points:[ (0., 0.); (1., 1.); (2., 4.); (3., 9.) ]
+      ~label:"x^2" ~color:Color.None
+  in
+  let output = render (plotLine ~width:20 ~height:8 [ s1 ]) in
+  check bool "plot line renders" true (String.length output > 20);
+  let output_lines = lines output in
+  check bool "plot line has expected lines" true (List.length output_lines >= 10)
+
+let test_plot_line_multi_series () =
+  let s1 =
+    series
+      ~points:[ (0., 0.); (1., 1.); (2., 2.) ]
+      ~label:"linear" ~color:Color.None
+  in
+  let s2 =
+    series
+      ~points:[ (0., 0.); (1., 1.); (2., 4.) ]
+      ~label:"quad" ~color:Color.None
+  in
+  let output = render (plotLine ~width:20 ~height:8 [ s1; s2 ]) in
+  check bool "multi series renders" true (String.length output > 20);
+  (* Should have legend *)
+  let output_str = output in
+  let has_linear = contains output_str "linear" in
+  check bool "legend has label" true has_linear
+
+let test_plot_line_empty () =
+  let output = render (plotLine ~width:20 ~height:8 []) in
+  check string "empty plot" "No data" output
+
+let test_plot_line_single_point () =
+  let s1 = series ~points:[ (5., 5.) ] ~label:"pt" ~color:Color.red in
+  let output = render (plotLine ~width:10 ~height:5 [ s1 ]) in
+  check bool "single point renders" true (String.length output > 0)
+
+let plot_line_tests =
+  [
+    ("plot line basic", `Quick, test_plot_line_basic);
+    ("plot line multi series", `Quick, test_plot_line_multi_series);
+    ("plot line empty", `Quick, test_plot_line_empty);
+    ("plot line single point", `Quick, test_plot_line_single_point);
+  ]
+
+(* ============================================================================
+   Pie Chart Tests
+   ============================================================================ *)
+
+let test_pie_basic () =
+  let sl =
+    [
+      slice ~value:40.0 ~label:"OCaml" ~color:Color.None;
+      slice ~value:30.0 ~label:"Haskell" ~color:Color.None;
+      slice ~value:30.0 ~label:"Scala" ~color:Color.None;
+    ]
+  in
+  let output = render (plotPie ~width:15 ~height:8 sl) in
+  check bool "pie renders" true (String.length output > 20);
+  let has_ocaml = contains output "OCaml" in
+  check bool "pie legend has OCaml" true has_ocaml
+
+let test_pie_empty () =
+  let output = render (plotPie ~width:10 ~height:5 []) in
+  check string "empty pie" "No data" output
+
+let test_pie_single_slice () =
+  let sl = [ slice ~value:100.0 ~label:"All" ~color:Color.green ] in
+  let output = render (plotPie ~width:10 ~height:5 sl) in
+  check bool "single slice renders" true (String.length output > 0)
+
+let pie_tests =
+  [
+    ("pie basic", `Quick, test_pie_basic);
+    ("pie empty", `Quick, test_pie_empty);
+    ("pie single slice", `Quick, test_pie_single_slice);
+  ]
+
+(* ============================================================================
+   Vertical Bar Chart Tests
+   ============================================================================ *)
+
+let test_bar_basic () =
+  let items =
+    [
+      bar_item ~value:80.0 ~label:"A" ~color:Color.None;
+      bar_item ~value:60.0 ~label:"B" ~color:Color.None;
+      bar_item ~value:40.0 ~label:"C" ~color:Color.None;
+    ]
+  in
+  let output = render (plotBar ~width:20 ~height:8 items) in
+  check bool "bar chart renders" true (String.length output > 20);
+  let output_lines = lines output in
+  check bool "bar chart has lines" true (List.length output_lines >= 10)
+
+let test_bar_empty () =
+  let output = render (plotBar ~width:20 ~height:8 []) in
+  check string "empty bar" "No data" output
+
+let test_bar_single () =
+  let items = [ bar_item ~value:50.0 ~label:"Only" ~color:Color.blue ] in
+  let output = render (plotBar ~width:10 ~height:5 items) in
+  check bool "single bar renders" true (String.length output > 0)
+
+let bar_tests =
+  [
+    ("bar basic", `Quick, test_bar_basic);
+    ("bar empty", `Quick, test_bar_empty);
+    ("bar single", `Quick, test_bar_single);
+  ]
+
+(* ============================================================================
+   Stacked Bar Chart Tests
+   ============================================================================ *)
+
+let test_stacked_bar_basic () =
+  let g1 =
+    stacked_group
+      ~segments:
+        [
+          bar_item ~value:30.0 ~label:"X" ~color:Color.None;
+          bar_item ~value:20.0 ~label:"Y" ~color:Color.None;
+        ]
+      ~label:"G1"
+  in
+  let g2 =
+    stacked_group
+      ~segments:
+        [
+          bar_item ~value:20.0 ~label:"X" ~color:Color.None;
+          bar_item ~value:40.0 ~label:"Y" ~color:Color.None;
+        ]
+      ~label:"G2"
+  in
+  let output = render (plotStackedBar ~width:20 ~height:8 [ g1; g2 ]) in
+  check bool "stacked bar renders" true (String.length output > 20)
+
+let test_stacked_bar_empty () =
+  let output = render (plotStackedBar ~width:20 ~height:8 []) in
+  check string "empty stacked bar" "No data" output
+
+let test_stacked_bar_legend () =
+  let g1 =
+    stacked_group
+      ~segments:
+        [
+          bar_item ~value:10.0 ~label:"Alpha" ~color:Color.None;
+          bar_item ~value:10.0 ~label:"Beta" ~color:Color.None;
+        ]
+      ~label:"G1"
+  in
+  let output = render (plotStackedBar ~width:20 ~height:8 [ g1 ]) in
+  let has_alpha = contains output "Alpha" in
+  check bool "stacked bar has legend" true has_alpha
+
+let stacked_bar_tests =
+  [
+    ("stacked bar basic", `Quick, test_stacked_bar_basic);
+    ("stacked bar empty", `Quick, test_stacked_bar_empty);
+    ("stacked bar legend", `Quick, test_stacked_bar_legend);
+  ]
+
+(* ============================================================================
+   Heatmap Tests
+   ============================================================================ *)
+
+let test_heatmap_basic () =
+  let hm =
+    heatmap_data
+      ~grid:[ [ 1.0; 2.0; 3.0 ]; [ 4.0; 5.0; 6.0 ]; [ 7.0; 8.0; 9.0 ] ]
+      ~row_labels:[ "R1"; "R2"; "R3" ] ~col_labels:[ "C1"; "C2"; "C3" ]
+  in
+  let output = render (plotHeatmap hm) in
+  check bool "heatmap renders" true (String.length output > 20);
+  let has_r1 = contains output "R1" in
+  check bool "heatmap has row label" true has_r1;
+  let has_c1 = contains output "C1" in
+  check bool "heatmap has col label" true has_c1
+
+let test_heatmap_empty () =
+  let hm = heatmap_data ~grid:[] ~row_labels:[] ~col_labels:[] in
+  let output = render (plotHeatmap hm) in
+  check string "empty heatmap" "No data" output
+
+let test_heatmap_custom_cell_width () =
+  let hm =
+    heatmap_data
+      ~grid:[ [ 1.0; 2.0 ]; [ 3.0; 4.0 ] ]
+      ~row_labels:[ "A"; "B" ] ~col_labels:[ "X"; "Y" ]
+  in
+  let output = render (plotHeatmap ~cell_width:10 hm) in
+  check bool "custom cell width renders" true (String.length output > 20)
+
+let test_heatmap_single_cell () =
+  let hm =
+    heatmap_data ~grid:[ [ 42.0 ] ] ~row_labels:[ "R" ] ~col_labels:[ "C" ]
+  in
+  let output = render (plotHeatmap hm) in
+  check bool "single cell renders" true (String.length output > 0)
+
+let heatmap_tests =
+  [
+    ("heatmap basic", `Quick, test_heatmap_basic);
+    ("heatmap empty", `Quick, test_heatmap_empty);
+    ("heatmap custom cell width", `Quick, test_heatmap_custom_cell_width);
+    ("heatmap single cell", `Quick, test_heatmap_single_cell);
+  ]
+
+(* ============================================================================
+   run_app_final type check (compile-time only, can't run TUI in test)
+   ============================================================================ *)
+
+let test_run_app_final_exists () =
+  (* Just verify run_app_final is callable - it returns 'state *)
+  let _f : ?options:app_options -> (int, unit) app -> int = run_app_final in
+  check bool "run_app_final exists" true true
+
+let runtime_tests =
+  [ ("run_app_final exists", `Quick, test_run_app_final_exists) ]
+
 let () =
   run "Layoutz"
     [
@@ -372,4 +754,13 @@ let () =
       ("Styles", style_tests);
       ("Misc", misc_tests);
       ("Operators", operator_tests);
+      ("Border Styles", border_style_tests);
+      ("Spinner", spinner_tests);
+      ("Sparkline", sparkline_tests);
+      ("Plot Line", plot_line_tests);
+      ("Pie Chart", pie_tests);
+      ("Bar Chart", bar_tests);
+      ("Stacked Bar", stacked_bar_tests);
+      ("Heatmap", heatmap_tests);
+      ("Runtime", runtime_tests);
     ]

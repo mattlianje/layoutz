@@ -2,9 +2,8 @@
  * +==========================================================================+
  * |                               layoutz                                    |
  * |               Friendly, expressive print-layout DSL                      |
- * |                           Version 0.0.1                                  |
  * |                                                                          |
- * | Copyright 2025 Matthieu Court (matthieu.court@protonmail.com)            |
+ * | Copyright 2026 Matthieu Court (matthieu.court@protonmail.com)            |
  * | Apache License 2.0                                                       |
  * +==========================================================================+
  *)
@@ -29,14 +28,94 @@ module Border = struct
     | Double
     | Thick
     | Round
+    | Ascii
+    | Block
+    | Dashed
+    | Dotted
+    | InnerHalfBlock
+    | OuterHalfBlock
+    | Markdown
+    | Custom of string * string * string  (** corner, horizontal, vertical *)
     | None
 
-  let chars = function
-    | Normal -> ("┌", "┐", "└", "┘", "─", "│")
-    | Double -> ("╔", "╗", "╚", "╝", "═", "║")
-    | Thick -> ("┏", "┓", "┗", "┛", "━", "┃")
-    | Round -> ("╭", "╮", "╰", "╯", "─", "│")
-    | None -> (" ", " ", " ", " ", " ", " ")
+  type border_chars = {
+    tl: string;
+    tr: string;
+    bl: string;
+    br: string;
+    h_top: string;
+    h_bottom: string;
+    v_left: string;
+    v_right: string;
+    left_tee: string;
+    right_tee: string;
+    cross: string;
+    top_tee: string;
+    bottom_tee: string;
+  }
+
+  let mk tl tr bl br h v lt rt cross tt bt =
+    {
+      tl;
+      tr;
+      bl;
+      br;
+      h_top = h;
+      h_bottom = h;
+      v_left = v;
+      v_right = v;
+      left_tee = lt;
+      right_tee = rt;
+      cross;
+      top_tee = tt;
+      bottom_tee = bt;
+    }
+
+  let all_chars = function
+    | Normal -> mk "┌" "┐" "└" "┘" "─" "│" "├" "┤" "┼" "┬" "┴"
+    | Double -> mk "╔" "╗" "╚" "╝" "═" "║" "╠" "╣" "╬" "╦" "╩"
+    | Thick -> mk "┏" "┓" "┗" "┛" "━" "┃" "┣" "┫" "╋" "┳" "┻"
+    | Round -> mk "╭" "╮" "╰" "╯" "─" "│" "├" "┤" "┼" "┬" "┴"
+    | Ascii -> mk "+" "+" "+" "+" "-" "|" "+" "+" "+" "+" "+"
+    | Block -> mk "█" "█" "█" "█" "█" "█" "█" "█" "█" "█" "█"
+    | Dashed -> mk "┌" "┐" "└" "┘" "╌" "╎" "├" "┤" "┼" "┬" "┴"
+    | Dotted -> mk "┌" "┐" "└" "┘" "┈" "┊" "├" "┤" "┼" "┬" "┴"
+    | InnerHalfBlock ->
+      {
+        tl = "▗";
+        tr = "▖";
+        bl = "▝";
+        br = "▘";
+        h_top = "▄";
+        h_bottom = "▀";
+        v_left = "▐";
+        v_right = "▌";
+        left_tee = "▐";
+        right_tee = "▌";
+        cross = "▄";
+        top_tee = "▄";
+        bottom_tee = "▀";
+      }
+    | OuterHalfBlock ->
+      {
+        tl = "▛";
+        tr = "▜";
+        bl = "▙";
+        br = "▟";
+        h_top = "▀";
+        h_bottom = "▄";
+        v_left = "▌";
+        v_right = "▐";
+        left_tee = "▌";
+        right_tee = "▐";
+        cross = "▀";
+        top_tee = "▀";
+        bottom_tee = "▄";
+      }
+    | Markdown -> mk "|" "|" "|" "|" "-" "|" "|" "|" "|" "|" "|"
+    | Custom (corner, h, v) ->
+      mk corner corner corner corner h v corner corner corner corner corner
+    | None -> mk " " " " " " " " " " " " " " " " " " " " " "
 end
 
 type border = Border.t
@@ -93,9 +172,71 @@ let utf8_length s =
   in
   count 0 0
 
-(** Calculate visible length of a string (ignoring ANSI codes, counting UTF-8
-    chars) *)
-let visible_length s = utf8_length (strip_ansi s)
+(** Check if a Unicode codepoint is double-width in terminals (emojis, CJK,
+    fullwidth) *)
+let is_wide_codepoint cp =
+  (cp >= 0x1100 && cp <= 0x115F)
+  (* Hangul Jamo *)
+  || (cp >= 0x2E80 && cp <= 0x9FFF)
+  (* CJK radicals through Unified Ideographs *)
+  || (cp >= 0xAC00 && cp <= 0xD7AF)
+  (* Hangul Syllables *)
+  || (cp >= 0xF900 && cp <= 0xFAFF)
+  (* CJK Compatibility Ideographs *)
+  || (cp >= 0xFE30 && cp <= 0xFE4F)
+  (* CJK Compatibility Forms *)
+  || (cp >= 0xFF01 && cp <= 0xFF60)
+  (* Fullwidth Forms *)
+  || (cp >= 0xFFE0 && cp <= 0xFFE6)
+  (* Fullwidth Signs *)
+  || (cp >= 0x1F000 && cp <= 0x1FFFF)
+  (* Emojis, Mahjong, Playing Cards *)
+  || (cp >= 0x20000 && cp <= 0x2FA1F)
+  ||
+  (* CJK Ext B-F, Compat Supplement *)
+  (cp >= 0x2600 && cp <= 0x27BF)
+(* Misc Symbols, Dingbats *)
+
+(** Calculate display width of a string, accounting for double-width characters
+*)
+let display_width s =
+  let len = String.length s in
+  let rec count i acc =
+    if i >= len
+    then acc
+    else
+      let c = Char.code s.[i] in
+      if c < 128
+      then count (i + 1) (acc + 1)
+      else if c land 0xC0 = 0x80
+      then count (i + 1) acc (* continuation byte *)
+      else
+        let cp, next =
+          if c < 0xE0 && i + 1 < len
+          then (((c land 0x1F) lsl 6) lor (Char.code s.[i + 1] land 0x3F), i + 2)
+          else if c < 0xF0 && i + 2 < len
+          then
+            ( ((c land 0x0F) lsl 12)
+              lor ((Char.code s.[i + 1] land 0x3F) lsl 6)
+              lor (Char.code s.[i + 2] land 0x3F),
+              i + 3 )
+          else if i + 3 < len
+          then
+            ( ((c land 0x07) lsl 18)
+              lor ((Char.code s.[i + 1] land 0x3F) lsl 12)
+              lor ((Char.code s.[i + 2] land 0x3F) lsl 6)
+              lor (Char.code s.[i + 3] land 0x3F),
+              i + 4 )
+          else (c, i + 1)
+        in
+        let w = if is_wide_codepoint cp then 2 else 1 in
+        count next (acc + w)
+  in
+  count 0 0
+
+(** Calculate visible length of a string (ignoring ANSI codes, accounting for
+    double-width characters) *)
+let visible_length s = display_width (strip_ansi s)
 
 (** Split a string into lines *)
 let lines s =
@@ -182,6 +323,14 @@ let borderNormal e = set_border Border.Normal e
 let borderDouble e = set_border Border.Double e
 let borderThick e = set_border Border.Thick e
 let borderRound e = set_border Border.Round e
+let borderAscii e = set_border Border.Ascii e
+let borderBlock e = set_border Border.Block e
+let borderDashed e = set_border Border.Dashed e
+let borderDotted e = set_border Border.Dotted e
+let borderInnerHalfBlock e = set_border Border.InnerHalfBlock e
+let borderOuterHalfBlock e = set_border Border.OuterHalfBlock e
+let borderMarkdown e = set_border Border.Markdown e
+let borderCustom ~corner ~h ~v e = set_border (Border.Custom (corner, h, v)) e
 
 let borderNone = function
   | B ((module M), v) -> B ((module M), M.with_border v Border.None)
@@ -193,11 +342,7 @@ let borderNone = function
    ============================================================================ *)
 
 module Color = struct
-  type t =
-    | None
-    | Code of int
-    | C256 of int
-    | RGB of int * int * int
+  type t = None | Code of int | C256 of int | RGB of int * int * int
 
   let fg_code = function
     | None -> ""
@@ -263,12 +408,7 @@ let ( ++ ) f g x = g (f x)
 
 (** Styled element wrapper *)
 module Styled = struct
-  type t = {
-    fg: Color.t;
-    bg: Color.t;
-    style: Style.t;
-    inner: element;
-  }
+  type t = { fg: Color.t; bg: Color.t; style: Style.t; inner: element }
 
   let create ?(fg = Color.None) ?(bg = Color.None) ?(style = Style.none) inner =
     { fg; bg; style; inner }
@@ -284,10 +424,31 @@ module Styled = struct
     else
       let start_code = "\027[" ^ String.concat ";" codes ^ "m" in
       let end_code = "\027[0m" in
-      (* Apply to each line to handle multiline elements *)
+      let reset = "\027[0m" in
+      (* Re-apply outer style after any inner reset so border chars stay colored *)
+      let reapply line =
+        let rlen = String.length reset in
+        let buf = Buffer.create (String.length line + 64) in
+        let rec scan i =
+          if i >= String.length line
+          then ()
+          else if
+            i + rlen <= String.length line && String.sub line i rlen = reset
+          then begin
+            Buffer.add_string buf reset;
+            Buffer.add_string buf start_code;
+            scan (i + rlen)
+          end
+          else begin
+            Buffer.add_char buf line.[i];
+            scan (i + 1)
+          end
+        in
+        scan 0; Buffer.contents buf
+      in
       let content = render_el t.inner in
       let ls = lines content in
-      unlines (List.map (fun line -> start_code ^ line ^ end_code) ls)
+      unlines (List.map (fun line -> start_code ^ reapply line ^ end_code) ls)
 
   let width t = width_el t.inner
   let height t = height_el t.inner
@@ -343,10 +504,7 @@ end
 
 (** Horizontal rule *)
 module HorizontalRule = struct
-  type t = {
-    char: string;
-    rule_width: int;
-  }
+  type t = { char: string; rule_width: int }
 
   let create ?(char = "─") ?(rule_width = 50) () = { char; rule_width }
 
@@ -364,10 +522,7 @@ end
 
 (** Vertical rule *)
 module VerticalRule = struct
-  type t = {
-    char: string;
-    rule_height: int;
-  }
+  type t = { char: string; rule_height: int }
 
   let create ?(char = "│") ?(rule_height = 10) () = { char; rule_height }
   let render t = String.concat "\n" (List.init t.rule_height (fun _ -> t.char))
@@ -377,10 +532,7 @@ end
 
 (** Centered element *)
 module Centered = struct
-  type t = {
-    inner: element;
-    target_width: int;
-  }
+  type t = { inner: element; target_width: int }
 
   let create ~width inner = { inner; target_width = width }
 
@@ -395,10 +547,7 @@ end
 
 (** Left-aligned element *)
 module LeftAligned = struct
-  type t = {
-    inner: element;
-    target_width: int;
-  }
+  type t = { inner: element; target_width: int }
 
   let create ~width inner = { inner; target_width = width }
 
@@ -413,10 +562,7 @@ end
 
 (** Right-aligned element *)
 module RightAligned = struct
-  type t = {
-    inner: element;
-    target_width: int;
-  }
+  type t = { inner: element; target_width: int }
 
   let create ~width inner = { inner; target_width = width }
 
@@ -431,11 +577,7 @@ end
 
 (** Truncated element *)
 module Truncated = struct
-  type t = {
-    inner: element;
-    max_width: int;
-    ellipsis: string;
-  }
+  type t = { inner: element; max_width: int; ellipsis: string }
 
   let create ~max_width ?(ellipsis = "...") inner =
     { inner; max_width; ellipsis }
@@ -450,7 +592,7 @@ module Truncated = struct
       if target <= 0
       then String.sub ellipsis 0 (min max_w (String.length ellipsis))
       else
-        (* Byte truncation - TODO check if this works for all UTF-8, ASCII should be fine *)
+        (* Byte truncation... TODO check if this works for all UTF-8, ASCII should be fine *)
         let rec find_cut i vis =
           if i >= String.length line || vis >= target
           then i
@@ -478,10 +620,7 @@ end
 
 (** Wrapped element - word wrap *)
 module Wrapped = struct
-  type t = {
-    inner: element;
-    max_width: int;
-  }
+  type t = { inner: element; max_width: int }
 
   let create ~max_width inner = { inner; max_width }
 
@@ -519,11 +658,7 @@ end
 
 (** Justified element *)
 module Justified = struct
-  type t = {
-    inner: element;
-    target_width: int;
-    justify_last: bool;
-  }
+  type t = { inner: element; target_width: int; justify_last: bool }
 
   let create ~target_width ?(justify_last = false) inner =
     { inner; target_width; justify_last }
@@ -571,10 +706,7 @@ end
 
 (** Padded element *)
 module Padded = struct
-  type t = {
-    inner: element;
-    padding: int;
-  }
+  type t = { inner: element; padding: int }
 
   let create ~padding inner = { inner; padding }
 
@@ -601,11 +733,7 @@ end
 
 (** Margin - prefix each line *)
 module Margin = struct
-  type t = {
-    prefix: string;
-    color: Color.t option;
-    inner: element;
-  }
+  type t = { prefix: string; color: Color.t option; inner: element }
 
   let create ~prefix ?color inner = { prefix; color; inner }
 
@@ -625,11 +753,7 @@ end
 
 (** Underline - add underline below element *)
 module Underline = struct
-  type t = {
-    inner: element;
-    char: string;
-    color: Color.t option;
-  }
+  type t = { inner: element; char: string; color: Color.t option }
 
   let create ?(char = "─") ?color inner = { inner; char; color }
 
@@ -650,10 +774,7 @@ end
 
 (** Columns - multi-column layout *)
 module Columns = struct
-  type t = {
-    elements: element list;
-    spacing: int;
-  }
+  type t = { elements: element list; spacing: int }
 
   let create ?(spacing = 2) elements = { elements; spacing }
 
@@ -681,9 +802,11 @@ module Columns = struct
             padded_lines @ List.init missing (fun _ -> String.make w ' '))
           widths element_lines
       in
+      let padded_arr = Array.of_list (List.map Array.of_list padded) in
       let transposed =
         List.init max_height (fun row ->
-            String.concat sep (List.map (fun col -> List.nth col row) padded))
+            String.concat sep
+              (Array.to_list (Array.map (fun col -> col.(row)) padded_arr)))
       in
       unlines transposed
 
@@ -695,24 +818,6 @@ module Columns = struct
 
   let height t =
     List.fold_left (fun acc e -> max acc (height_el e)) 0 t.elements
-end
-
-(** StatusCard - label with content *)
-module StatusCard = struct
-  type t = {
-    label: element;
-    content: element;
-  }
-
-  let create ~label ~content = { label; content }
-
-  let render t =
-    let label_str = render_el t.label in
-    let content_str = render_el t.content in
-    label_str ^ ": " ^ content_str
-
-  let width t = width_el t.label + 2 + width_el t.content
-  let height _ = 1
 end
 
 (** Key-value pairs *)
@@ -753,27 +858,30 @@ end
 
 (** Inline progress bar *)
 module InlineBar = struct
-  type t = {
-    label: string;
-    progress: float;
-  }
+  let bar_width = 20
+
+  type t = { label: string; progress: float }
 
   let create ~label ~progress = { label; progress = max 0.0 (min 1.0 progress) }
 
   let render t =
-    let bar_width = 20 in
     let filled = int_of_float (t.progress *. float_of_int bar_width) in
     let empty = bar_width - filled in
     let bar = repeat_str filled "█" ^ repeat_str empty "─" in
     let pct = int_of_float (t.progress *. 100.0) in
     Printf.sprintf "%s [%s] %d%%" t.label bar pct
 
-  let width t = visible_length t.label + 3 + 20 + 5
+  (* " [" = 2, "] " = 2, "100%" = 4 *)
+  let width t = visible_length t.label + 2 + bar_width + 2 + 4
   let height _ = 1
 end
 
 (** Chart - horizontal bar chart *)
 module Chart = struct
+  let label_cap = 15
+  let bar_width = 40
+  let value_col_width = 10
+
   type t = (string * float) list
 
   let create data = data
@@ -784,10 +892,9 @@ module Chart = struct
     else
       let max_value = List.fold_left (fun acc (_, v) -> max acc v) 0.0 t in
       let max_label_width =
-        min 15
+        min label_cap
           (List.fold_left (fun acc (l, _) -> max acc (String.length l)) 0 t)
       in
-      let chart_width = 40 in
       let render_bar (label, value) =
         let truncated_label =
           if String.length label > max_label_width
@@ -796,9 +903,9 @@ module Chart = struct
         in
         let padded_label = pad_right max_label_width truncated_label in
         let pct = if max_value = 0.0 then 0.0 else value /. max_value in
-        let bar_len = int_of_float (pct *. float_of_int chart_width) in
+        let bar_len = int_of_float (pct *. float_of_int bar_width) in
         let bar =
-          repeat_str bar_len "█" ^ repeat_str (chart_width - bar_len) "─"
+          repeat_str bar_len "█" ^ repeat_str (bar_width - bar_len) "─"
         in
         let value_str =
           if value = floor value
@@ -809,8 +916,765 @@ module Chart = struct
       in
       unlines (List.map render_bar t)
 
-  let width _ = 15 + 3 + 40 + 10
+  (* label " │" bar "│ " value *)
+  let width _ = label_cap + 3 + bar_width + value_col_width
   let height t = max 1 (List.length t)
+end
+
+(* ============================================================================
+   Visualization Helpers
+   ============================================================================ *)
+
+let default_palette =
+  [|
+    Color.red;
+    Color.green;
+    Color.blue;
+    Color.yellow;
+    Color.magenta;
+    Color.cyan;
+    Color.brightRed;
+    Color.brightGreen;
+    Color.brightBlue;
+    Color.brightYellow;
+    Color.brightMagenta;
+    Color.brightCyan;
+  |]
+
+let pick_color idx default_c =
+  match default_c with
+  | Color.None ->
+    let n = Array.length default_palette in
+    default_palette.(idx mod n)
+  | c -> c
+
+let wrap_ansi_fg color text =
+  match color with
+  | Color.None -> text
+  | c -> "\027[" ^ Color.fg_code c ^ "m" ^ text ^ "\027[0m"
+
+let wrap_ansi_bg_256 c256 text =
+  "\027[48;5;" ^ string_of_int c256 ^ "m" ^ text ^ "\027[0m"
+
+(* Format a number for chart axis labels: integer when possible,
+   1 decimal for normal range, scientific for extreme values *)
+let format_axis_num v =
+  let abs_v = Float.abs v in
+  if v = Float.round v && abs_v < 1e9
+  then string_of_int (int_of_float v)
+  else if abs_v >= 0.01 && abs_v < 1e6
+  then Printf.sprintf "%.1f" v
+  else Printf.sprintf "%.1e" v
+
+let braille_dot dy dx =
+  match (dy, dx) with
+  | 0, 0 -> 0x01
+  | 1, 0 -> 0x02
+  | 2, 0 -> 0x04
+  | 3, 0 -> 0x40
+  | 0, 1 -> 0x08
+  | 1, 1 -> 0x10
+  | 2, 1 -> 0x20
+  | 3, 1 -> 0x80
+  | _ -> 0
+
+let braille_str bits =
+  if bits = 0
+  then " "
+  else
+    let cp = 0x2800 + bits in
+    let buf = Bytes.create 3 in
+    Bytes.set buf 0 (Char.chr (0xE0 lor (cp lsr 12)));
+    Bytes.set buf 1 (Char.chr (0x80 lor ((cp lsr 6) land 0x3F)));
+    Bytes.set buf 2 (Char.chr (0x80 lor (cp land 0x3F)));
+    Bytes.to_string buf
+
+let block_chars = [| " "; "▁"; "▂"; "▃"; "▄"; "▅"; "▆"; "▇"; "█" |]
+
+(* ============================================================================
+   Spinner
+   ============================================================================ *)
+
+module SpinnerStyle = struct
+  type t = Dots | Line | Clock | Bounce | Earth | Moon | Grow | Arrow
+
+  let frames = function
+    | Dots -> [| "⠋"; "⠙"; "⠹"; "⠸"; "⠼"; "⠴"; "⠦"; "⠧"; "⠇"; "⠏" |]
+    | Line -> [| "|"; "/"; "-"; "\\" |]
+    | Clock -> [| "🕐"; "🕑"; "🕒"; "🕓"; "🕔"; "🕕"; "🕖"; "🕗"; "🕘"; "🕙"; "🕚"; "🕛" |]
+    | Bounce -> [| "⠁"; "⠂"; "⠄"; "⠂" |]
+    | Earth -> [| "🌍"; "🌎"; "🌏" |]
+    | Moon -> [| "🌑"; "🌒"; "🌓"; "🌔"; "🌕"; "🌖"; "🌗"; "🌘" |]
+    | Grow -> [| "▏"; "▎"; "▍"; "▌"; "▋"; "▊"; "▉"; "█" |]
+    | Arrow -> [| "←"; "↖"; "↑"; "↗"; "→"; "↘"; "↓"; "↙" |]
+end
+
+type spinner_style = SpinnerStyle.t
+
+module Spinner = struct
+  type t = { label: string; frame: int; style: SpinnerStyle.t }
+
+  let create ~label ~frame ~style = { label; frame; style }
+
+  let render t =
+    let frames = SpinnerStyle.frames t.style in
+    let spin_char = frames.(t.frame mod Array.length frames) in
+    if t.label = "" then spin_char else spin_char ^ " " ^ t.label
+
+  let width t =
+    let frames = SpinnerStyle.frames t.style in
+    let spin_w = visible_length frames.(0) in
+    if t.label = "" then spin_w else spin_w + 1 + visible_length t.label
+
+  let height _ = 1
+end
+
+(* ============================================================================
+   Sparkline
+   ============================================================================ *)
+
+module Sparkline = struct
+  type t = float list
+
+  let create vals = vals
+
+  let render t =
+    match t with
+    | [] -> ""
+    | _ ->
+      let mn = List.fold_left min infinity t in
+      let mx = List.fold_left max neg_infinity t in
+      let rng = mx -. mn in
+      let idx v =
+        if rng = 0.0
+        then 4
+        else
+          max 1 (min 8 (int_of_float (Float.round ((v -. mn) /. rng *. 8.0))))
+      in
+      String.concat "" (List.map (fun v -> block_chars.(idx v)) t)
+
+  let width t = List.length t
+  let height _ = 1
+end
+
+(* ============================================================================
+   Braille Line/Scatter Plot
+   ============================================================================ *)
+
+type series = {
+  points: (float * float) list;
+  label: string;
+  series_color: Color.t;
+}
+
+module PlotLine = struct
+  type t = { series: series list; plot_width: int; plot_height: int }
+
+  let create ~width ~height series =
+    { series; plot_width = width; plot_height = height }
+
+  let render t =
+    let all_pts = List.concat_map (fun s -> s.points) t.series in
+    match all_pts with
+    | [] -> "No data"
+    | _ ->
+      let xs = List.map fst all_pts in
+      let ys = List.map snd all_pts in
+      let x_min = List.fold_left min infinity xs in
+      let x_max = List.fold_left max neg_infinity xs in
+      let y_min = List.fold_left min infinity ys in
+      let y_max = List.fold_left max neg_infinity ys in
+      let x_rng = if x_max = x_min then 1.0 else x_max -. x_min in
+      let y_rng = if y_max = y_min then 1.0 else y_max -. y_min in
+      let px_w = t.plot_width * 2 in
+      let px_h = t.plot_height * 4 in
+      let clamp lo hi v = max lo (min hi v) in
+      let to_pixel (x, y) =
+        let px =
+          clamp 0 (px_w - 1)
+            (int_of_float
+               (Float.round ((x -. x_min) /. x_rng *. float_of_int (px_w - 1))))
+        in
+        let py =
+          clamp 0 (px_h - 1)
+            (int_of_float
+               (Float.round ((y_max -. y) /. y_rng *. float_of_int (px_h - 1))))
+        in
+        (px, py)
+      in
+      (* Grid: array of (bits, series_index) *)
+      let grid =
+        Array.init t.plot_height (fun _ ->
+            Array.init t.plot_width (fun _ -> (0, -1)))
+      in
+      let series_arr = Array.of_list t.series in
+      List.iteri
+        (fun si s ->
+          List.iter
+            (fun pt ->
+              let px, py = to_pixel pt in
+              let cx = px / 2 and cy = py / 4 in
+              let dx = px mod 2 and dy = py mod 4 in
+              let bit = braille_dot dy dx in
+              if cy >= 0 && cy < t.plot_height && cx >= 0 && cx < t.plot_width
+              then begin
+                let old_bits, old_si = grid.(cy).(cx) in
+                grid.(cy).(cx) <-
+                  (old_bits lor bit, if old_si < 0 then si else old_si)
+              end)
+            s.points)
+        t.series;
+      let y_ticks =
+        List.init t.plot_height (fun i ->
+            y_max
+            -. y_rng
+               *. float_of_int i
+               /. float_of_int (max 1 (t.plot_height - 1)))
+      in
+      let y_labels = List.map format_axis_num y_ticks in
+      let y_label_w =
+        List.fold_left (fun acc l -> max acc (String.length l)) 0 y_labels
+      in
+      let grid_lines =
+        List.mapi
+          (fun row_idx y_lbl ->
+            let label_padded = pad_left y_label_w y_lbl in
+            let cells =
+              Array.to_list
+                (Array.mapi
+                   (fun col _ ->
+                     let bits, si = grid.(row_idx).(col) in
+                     let ch = braille_str bits in
+                     if si >= 0
+                     then
+                       let c = pick_color si series_arr.(si).series_color in
+                       wrap_ansi_fg c ch
+                     else ch)
+                   grid.(row_idx))
+            in
+            label_padded ^ " │" ^ String.concat "" cells)
+          y_labels
+      in
+      (* X axis *)
+      let x_axis =
+        String.make y_label_w ' ' ^ " └" ^ repeat_str t.plot_width "─"
+      in
+      let x_min_l = format_axis_num x_min in
+      let x_max_l = format_axis_num x_max in
+      let x_labels =
+        String.make (y_label_w + 2) ' '
+        ^ x_min_l
+        ^ String.make
+            (max 1
+               (t.plot_width - String.length x_min_l - String.length x_max_l))
+            ' '
+        ^ x_max_l
+      in
+      (* Legend *)
+      let legend =
+        if List.length t.series <= 1
+        then []
+        else
+          let items =
+            List.mapi
+              (fun i s ->
+                let c = pick_color i s.series_color in
+                wrap_ansi_fg c "●" ^ " " ^ s.label)
+              t.series
+          in
+          [ ""; String.concat "  " items ]
+      in
+      unlines (grid_lines @ [ x_axis; x_labels ] @ legend)
+
+  let width t = 8 + t.plot_width
+  let height t = t.plot_height + 2
+end
+
+(* ============================================================================
+   Braille Pie Chart
+   ============================================================================ *)
+
+type slice = { value: float; slice_label: string; slice_color: Color.t }
+
+module PlotPie = struct
+  type t = { slices: slice list; pie_width: int; pie_height: int }
+
+  let create ~width ~height slices =
+    { slices; pie_width = width; pie_height = height }
+
+  let render t =
+    match t.slices with
+    | [] -> "No data"
+    | _ ->
+      let pi = Float.pi in
+      let total = List.fold_left (fun acc s -> acc +. s.value) 0.0 t.slices in
+      if total = 0.0
+      then "No data"
+      else
+        let angles =
+          List.map (fun s -> s.value /. total *. 2.0 *. pi) t.slices
+        in
+        let cum_angles =
+          let rec scan acc = function
+            | [] -> List.rev acc
+            | a :: rest ->
+              let next = List.hd acc +. a in
+              scan (next :: acc) rest
+          in
+          scan [ 0.0 ] angles
+        in
+        let find_slice ang =
+          let rec go i = function
+            | [] -> max 0 (i - 1)
+            | a :: rest -> if ang < a then i else go (i + 1) rest
+          in
+          go 0 (List.tl cum_angles)
+        in
+        let slices_arr = Array.of_list t.slices in
+        let n_slices = Array.length slices_arr in
+        let cx_f = float_of_int t.pie_width in
+        let cy_f = float_of_int (t.pie_height * 4) /. 2.0 in
+        let radius = min cx_f (cy_f *. 0.9) in
+        let grid_lines =
+          List.init t.pie_height (fun gcy ->
+              String.concat ""
+                (List.init t.pie_width (fun gcx ->
+                     let sub_px =
+                       List.init 8 (fun idx ->
+                           let dy = idx / 2 and dx = idx mod 2 in
+                           let dpx = float_of_int ((gcx * 2) + dx) in
+                           let dpy = float_of_int ((gcy * 4) + dy) in
+                           let rel_x = dpx -. cx_f in
+                           let rel_y = (dpy -. cy_f) *. 2.0 in
+                           let dist =
+                             sqrt ((rel_x *. rel_x) +. (rel_y *. rel_y))
+                           in
+                           let ang = atan2 rel_y rel_x in
+                           let n_ang =
+                             if ang < 0.0 then ang +. (2.0 *. pi) else ang
+                           in
+                           (dy, dx, dist, n_ang))
+                     in
+                     let inside =
+                       List.filter_map
+                         (fun (dy, dx, dist, n_ang) ->
+                           if dist <= radius then Some (dy, dx, n_ang) else None)
+                         sub_px
+                     in
+                     let bits =
+                       List.fold_left
+                         (fun acc (dy, dx, _) -> acc lor braille_dot dy dx)
+                         0 inside
+                     in
+                     let dom_si =
+                       match inside with
+                       | [] -> -1
+                       | (_, _, a) :: _ -> find_slice a
+                     in
+                     if bits = 0
+                     then " "
+                     else
+                       let ch = braille_str bits in
+                       if dom_si >= 0 && dom_si < n_slices
+                       then
+                         let sl = slices_arr.(dom_si) in
+                         let c = pick_color dom_si sl.slice_color in
+                         wrap_ansi_fg c ch
+                       else ch)))
+        in
+        let legend_lines =
+          List.mapi
+            (fun i sl ->
+              let c = pick_color i sl.slice_color in
+              let pct = Printf.sprintf "%.0f" (sl.value /. total *. 100.0) in
+              "  "
+              ^ wrap_ansi_fg c "●"
+              ^ " "
+              ^ sl.slice_label
+              ^ " ("
+              ^ pct
+              ^ "%)")
+            t.slices
+        in
+        unlines (grid_lines @ [ "" ] @ legend_lines)
+
+  let width t = t.pie_width
+  let height t = t.pie_height + 1 + List.length t.slices
+end
+
+(* ============================================================================
+   Vertical Bar Chart
+   ============================================================================ *)
+
+type bar_item = { bar_value: float; bar_label: string; bar_color: Color.t }
+
+module PlotBar = struct
+  type t = { items: bar_item list; chart_width: int; chart_height: int }
+
+  let create ~width ~height items =
+    { items; chart_width = width; chart_height = height }
+
+  let render t =
+    match t.items with
+    | [] -> "No data"
+    | _ ->
+      let max_val =
+        List.fold_left (fun acc b -> max acc b.bar_value) 0.0 t.items
+      in
+      if max_val = 0.0
+      then "No data"
+      else
+        let n_bars = List.length t.items in
+        let bar_w = max 1 ((t.chart_width - n_bars + 1) / n_bars) in
+        let total_sub = t.chart_height * 8 in
+        let bar_hts =
+          List.map
+            (fun b ->
+              int_of_float
+                (Float.round (b.bar_value /. max_val *. float_of_int total_sub)))
+            t.items
+        in
+        let y_ticks =
+          List.init t.chart_height (fun i ->
+              max_val
+              *. float_of_int (t.chart_height - 1 - i)
+              /. float_of_int (max 1 (t.chart_height - 1)))
+        in
+        let y_labels = List.map format_axis_num y_ticks in
+        let y_label_w =
+          List.fold_left (fun acc l -> max acc (String.length l)) 0 y_labels
+        in
+        let bars_with_hts = List.combine t.items bar_hts in
+        let grid_lines =
+          List.mapi
+            (fun row_idx y_lbl ->
+              let r = t.chart_height - 1 - row_idx in
+              let bar_cells =
+                String.concat " "
+                  (List.mapi
+                     (fun i (b, bh) ->
+                       let filled = min 8 (max 0 (bh - (r * 8))) in
+                       let color = pick_color i b.bar_color in
+                       let bar_str = repeat_str bar_w block_chars.(filled) in
+                       if filled > 0
+                       then wrap_ansi_fg color bar_str
+                       else bar_str)
+                     bars_with_hts)
+              in
+              pad_left y_label_w y_lbl ^ " │" ^ bar_cells)
+            y_labels
+        in
+        let x_axis_w = (n_bars * bar_w) + n_bars - 1 in
+        let x_axis =
+          String.make y_label_w ' ' ^ " └" ^ repeat_str x_axis_w "─"
+        in
+        let bar_labels =
+          String.make (y_label_w + 2) ' '
+          ^ String.concat " "
+              (List.map
+                 (fun b ->
+                   let lbl = b.bar_label in
+                   if String.length lbl >= bar_w
+                   then String.sub lbl 0 bar_w
+                   else lbl ^ String.make (bar_w - String.length lbl) ' ')
+                 t.items)
+        in
+        unlines (grid_lines @ [ x_axis; bar_labels ])
+
+  let width t = 8 + t.chart_width
+  let height t = t.chart_height + 2
+end
+
+(* ============================================================================
+   Stacked Bar Chart
+   ============================================================================ *)
+
+type stacked_bar_group = { segments: bar_item list; group_label: string }
+
+module PlotStackedBar = struct
+  type t = {
+    groups: stacked_bar_group list;
+    chart_width: int;
+    chart_height: int;
+  }
+
+  let create ~width ~height groups =
+    { groups; chart_width = width; chart_height = height }
+
+  let render t =
+    match t.groups with
+    | [] -> "No data"
+    | _ ->
+      let max_total =
+        List.fold_left
+          (fun acc g ->
+            max acc
+              (List.fold_left (fun a s -> a +. s.bar_value) 0.0 g.segments))
+          0.0 t.groups
+      in
+      if max_total = 0.0
+      then "No data"
+      else
+        let n_groups = List.length t.groups in
+        let bar_w = max 1 ((t.chart_width - n_groups + 1) / n_groups) in
+        let total_sub = t.chart_height * 8 in
+        (* For each group, compute cumulative sub-pixel heights *)
+        let group_bounds =
+          List.map
+            (fun g ->
+              let sub_hts =
+                List.map
+                  (fun s ->
+                    int_of_float
+                      (Float.round
+                         (s.bar_value /. max_total *. float_of_int total_sub)))
+                  g.segments
+              in
+              let rec cumulate acc = function
+                | [] -> List.rev acc
+                | h :: rest ->
+                  let next = List.hd acc + h in
+                  cumulate (next :: acc) rest
+              in
+              let cum = cumulate [ 0 ] sub_hts in
+              let bottoms =
+                List.filteri (fun i _ -> i < List.length g.segments) cum
+              in
+              let tops = List.tl cum in
+              List.map2
+                (fun seg (bot, top) -> (seg, bot, top))
+                g.segments
+                (List.combine bottoms tops))
+            t.groups
+        in
+        (* Collect all unique segment labels *)
+        let all_labels =
+          let seen = Hashtbl.create 8 in
+          List.concat_map
+            (fun g ->
+              List.filter_map
+                (fun s ->
+                  if Hashtbl.mem seen s.bar_label
+                  then None
+                  else begin
+                    Hashtbl.add seen s.bar_label ();
+                    Some s.bar_label
+                  end)
+                g.segments)
+            t.groups
+        in
+        let label_idx_tbl = Hashtbl.create (List.length all_labels) in
+        List.iteri (fun i nm -> Hashtbl.replace label_idx_tbl nm i) all_labels;
+        let label_idx nm =
+          try Hashtbl.find label_idx_tbl nm with Not_found -> 0
+        in
+        let y_ticks =
+          List.init t.chart_height (fun i ->
+              max_total
+              *. float_of_int (t.chart_height - 1 - i)
+              /. float_of_int (max 1 (t.chart_height - 1)))
+        in
+        let y_labels = List.map format_axis_num y_ticks in
+        let y_label_w =
+          List.fold_left (fun acc l -> max acc (String.length l)) 0 y_labels
+        in
+        let grid_lines =
+          List.mapi
+            (fun row_idx y_lbl ->
+              let r = t.chart_height - 1 - row_idx in
+              let sub_bot = r * 8 in
+              let sub_top = (r * 8) + 8 in
+              let bar_cells =
+                String.concat " "
+                  (List.map
+                     (fun bounds ->
+                       let overlapping =
+                         List.filter
+                           (fun (_, bot, top) -> top > sub_bot && bot < sub_top)
+                           bounds
+                       in
+                       match overlapping with
+                       | [] -> String.make bar_w ' '
+                       | _ ->
+                         let top_seg, _, top_val =
+                           List.fold_left
+                             (fun ((_, _, best_top) as best) ((_, _, t) as cur)
+                                -> if t > best_top then cur else best)
+                             (List.hd overlapping) overlapping
+                         in
+                         let filled = min 8 (max 0 (top_val - sub_bot)) in
+                         let color =
+                           match top_seg.bar_color with
+                           | Color.None ->
+                             pick_color (label_idx top_seg.bar_label) Color.None
+                           | c -> c
+                         in
+                         let bar_str = repeat_str bar_w block_chars.(filled) in
+                         if filled > 0
+                         then wrap_ansi_fg color bar_str
+                         else bar_str)
+                     group_bounds)
+              in
+              pad_left y_label_w y_lbl ^ " │" ^ bar_cells)
+            y_labels
+        in
+        let x_axis_w = (n_groups * bar_w) + n_groups - 1 in
+        let x_axis =
+          String.make y_label_w ' ' ^ " └" ^ repeat_str x_axis_w "─"
+        in
+        let grp_labels =
+          String.make (y_label_w + 2) ' '
+          ^ String.concat " "
+              (List.map
+                 (fun g ->
+                   let lbl = g.group_label in
+                   if String.length lbl >= bar_w
+                   then String.sub lbl 0 bar_w
+                   else lbl ^ String.make (bar_w - String.length lbl) ' ')
+                 t.groups)
+        in
+        let legend =
+          if List.length all_labels <= 1
+          then []
+          else
+            let items =
+              List.mapi
+                (fun i nm ->
+                  let c = pick_color i Color.None in
+                  wrap_ansi_fg c "█" ^ " " ^ nm)
+                all_labels
+            in
+            [ ""; String.concat "  " items ]
+        in
+        unlines (grid_lines @ [ x_axis; grp_labels ] @ legend)
+
+  let width t = 8 + t.chart_width
+  let height t = t.chart_height + 2
+end
+
+(* ============================================================================
+   Heatmap
+   ============================================================================ *)
+
+type heatmap_data = {
+  grid: float list list;
+  row_labels: string list;
+  col_labels: string list;
+}
+
+module Heatmap = struct
+  type t = { data: heatmap_data; cell_width: int }
+
+  let create ?(cell_width = 6) data = { data; cell_width }
+
+  let render t =
+    match t.data.grid with
+    | [] -> "No data"
+    | _ -> (
+      let all_vals = List.concat t.data.grid in
+      match all_vals with
+      | [] -> "No data"
+      | _ ->
+        let mn = List.fold_left min infinity all_vals in
+        let mx = List.fold_left max neg_infinity all_vals in
+        let rng = if mx = mn then 1.0 else mx -. mn in
+        let normalize v = (v -. mn) /. rng in
+        (* xterm-256 blue(21) -> cyan(51) -> green(46) -> yellow(226) -> red(196) *)
+        let to_color256 t =
+          let lerp a b s = int_of_float (Float.round (a +. (s *. (b -. a)))) in
+          if t <= 0.0
+          then 21
+          else if t >= 1.0
+          then 196
+          else if t < 0.25
+          then lerp 21.0 51.0 (t /. 0.25)
+          else if t < 0.5
+          then lerp 51.0 46.0 ((t -. 0.25) /. 0.25)
+          else if t < 0.75
+          then lerp 46.0 226.0 ((t -. 0.5) /. 0.25)
+          else lerp 226.0 196.0 ((t -. 0.75) /. 0.25)
+        in
+        let row_lbl_w =
+          List.fold_left
+            (fun acc l -> max acc (String.length l))
+            0 t.data.row_labels
+        in
+        let row_labels_arr = Array.of_list t.data.row_labels in
+        let header =
+          String.make (row_lbl_w + 1) ' '
+          ^ String.concat " "
+              (List.map
+                 (fun l ->
+                   let truncated =
+                     if String.length l > t.cell_width
+                     then String.sub l 0 t.cell_width
+                     else l
+                   in
+                   pad_right t.cell_width truncated)
+                 t.data.col_labels)
+        in
+        let data_rows =
+          List.mapi
+            (fun i row_vals ->
+              let lbl =
+                if i < Array.length row_labels_arr
+                then row_labels_arr.(i)
+                else ""
+              in
+              let truncated_lbl =
+                if String.length lbl > row_lbl_w
+                then String.sub lbl 0 row_lbl_w
+                else lbl
+              in
+              pad_right row_lbl_w truncated_lbl
+              ^ " "
+              ^ String.concat " "
+                  (List.map
+                     (fun v ->
+                       let n = normalize v in
+                       let c256 = to_color256 n in
+                       let vs = format_axis_num v in
+                       let truncated_vs =
+                         if String.length vs > t.cell_width
+                         then String.sub vs 0 t.cell_width
+                         else vs
+                       in
+                       wrap_ansi_bg_256 c256
+                         (pad_right t.cell_width truncated_vs))
+                     row_vals))
+            t.data.grid
+        in
+        let legend_cs =
+          List.init 11 (fun i -> to_color256 (float_of_int i /. 10.0))
+        in
+        let legend_bar =
+          String.concat ""
+            (List.map (fun c -> wrap_ansi_bg_256 c " ") legend_cs)
+        in
+        let legend_line =
+          String.make (row_lbl_w + 1) ' '
+          ^ format_axis_num mn
+          ^ " "
+          ^ legend_bar
+          ^ " "
+          ^ format_axis_num mx
+        in
+        unlines ([ header ] @ data_rows @ [ ""; legend_line ]))
+
+  let width t =
+    let n_cols =
+      match t.data.grid with
+      | [] -> 0
+      | r :: _ -> List.length r
+    in
+    let row_lbl_w =
+      List.fold_left
+        (fun acc l -> max acc (String.length l))
+        0 t.data.row_labels
+    in
+    row_lbl_w + 1 + (n_cols * (t.cell_width + 1))
+
+  let height t = List.length t.data.grid + 3
 end
 
 (** Section with decorative header *)
@@ -872,10 +1736,7 @@ end
 
 (** HStack - horizontal arrangement *)
 module HStack = struct
-  type t = {
-    elements: element list;
-    tight: bool;
-  }
+  type t = { elements: element list; tight: bool }
 
   let create ?(tight = false) elements = { elements; tight }
 
@@ -903,10 +1764,11 @@ module HStack = struct
             padded_lines @ List.init missing (fun _ -> String.make w ' '))
           widths element_lines
       in
+      let padded_arr = Array.of_list (List.map Array.of_list padded) in
       let transposed =
         List.init max_height (fun row ->
             String.concat separator
-              (List.map (fun col -> List.nth col row) padded))
+              (Array.to_list (Array.map (fun col -> col.(row)) padded_arr)))
       in
       unlines transposed
 
@@ -926,10 +1788,7 @@ end
 
 (** Banner - decorative banner with border (implements BORDERABLE) *)
 module Banner = struct
-  type t = {
-    content: element;
-    border: Border.t;
-  }
+  type t = { content: element; border: Border.t }
 
   let create ?(border = Border.Double) content = { content; border }
   let with_border t b = { t with border = b }
@@ -942,13 +1801,13 @@ module Banner = struct
       List.fold_left (fun acc l -> max acc (visible_length l)) 0 content_lines
     in
     let inner_width = max_width + 4 in
-    let tl, tr, bl, br, h, v = Border.chars t.border in
-    let top = tl ^ repeat_str inner_width h ^ tr in
-    let bot = bl ^ repeat_str inner_width h ^ br in
-    let empty_line = v ^ String.make inner_width ' ' ^ v in
+    let c = Border.all_chars t.border in
+    let top = c.tl ^ repeat_str inner_width c.h_top ^ c.tr in
+    let bot = c.bl ^ repeat_str inner_width c.h_bottom ^ c.br in
+    let empty_line = c.v_left ^ String.make inner_width ' ' ^ c.v_right in
     let content_rendered =
       List.map
-        (fun l -> v ^ "  " ^ pad_right max_width l ^ "  " ^ v)
+        (fun l -> c.v_left ^ "  " ^ pad_right max_width l ^ "  " ^ c.v_right)
         content_lines
     in
     unlines ([ top; empty_line ] @ content_rendered @ [ empty_line; bot ])
@@ -959,11 +1818,7 @@ end
 
 (** Box - bordered container (implements BORDERABLE) *)
 module Box = struct
-  type t = {
-    title: string;
-    elements: element list;
-    border: Border.t;
-  }
+  type t = { title: string; elements: element list; border: Border.t }
 
   let create ?(border = Border.Normal) ~title elements =
     { title; elements; border }
@@ -980,20 +1835,25 @@ module Box = struct
     let title_width = if t.title = "" then 0 else visible_length t.title + 2 in
     let inner_width = max content_width title_width in
     let total_width = inner_width + 4 in
-    let tl, tr, bl, br, h, v = Border.chars t.border in
+    let c = Border.all_chars t.border in
     let top_border =
       if t.title = ""
-      then tl ^ repeat_str (total_width - 2) h ^ tr
+      then c.tl ^ repeat_str (total_width - 2) c.h_top ^ c.tr
       else
         let title_padding = total_width - visible_length t.title - 2 in
         let left_pad = title_padding / 2 in
         let right_pad = title_padding - left_pad in
-        tl ^ repeat_str left_pad h ^ t.title ^ repeat_str right_pad h ^ tr
+        c.tl
+        ^ repeat_str left_pad c.h_top
+        ^ t.title
+        ^ repeat_str right_pad c.h_top
+        ^ c.tr
     in
-    let bottom_border = bl ^ repeat_str (total_width - 2) h ^ br in
+    let bottom_border = c.bl ^ repeat_str (total_width - 2) c.h_bottom ^ c.br in
     let padded_content =
       List.map
-        (fun line -> v ^ " " ^ pad_right inner_width line ^ " " ^ v)
+        (fun line ->
+          c.v_left ^ " " ^ pad_right inner_width line ^ " " ^ c.v_right)
         content_lines
     in
     unlines ((top_border :: padded_content) @ [ bottom_border ])
@@ -1015,11 +1875,7 @@ end
 
 (** Table - bordered table with element cells (implements BORDERABLE) *)
 module Table = struct
-  type t = {
-    headers: element list;
-    rows: element list list;
-    border: Border.t;
-  }
+  type t = { headers: element list; rows: element list list; border: Border.t }
 
   let create ?(border = Border.Normal) ~headers rows = { headers; rows; border }
   let with_border t b = { t with border = b }
@@ -1039,68 +1895,39 @@ module Table = struct
     in
     let col_widths =
       let header_widths = List.map visible_length header_strs in
-      let row_widths =
-        List.map
-          (fun row ->
-            List.map
-              (fun cell ->
-                List.fold_left
-                  (fun acc l -> max acc (visible_length l))
-                  0 (lines cell))
-              row)
-          rendered_rows
+      let row_widths_arr =
+        Array.of_list
+          (List.map
+             (fun row ->
+               Array.of_list
+                 (List.map
+                    (fun cell ->
+                      List.fold_left
+                        (fun acc l -> max acc (visible_length l))
+                        0 (lines cell))
+                    row))
+             rendered_rows)
       in
       List.mapi
         (fun i hw ->
-          List.fold_left (fun acc row -> max acc (List.nth row i)) hw row_widths)
+          Array.fold_left (fun acc row -> max acc row.(i)) hw row_widths_arr)
         header_widths
     in
-    let tl, tr, bl, br, h, v = Border.chars t.border in
-    let top_conn =
-      match t.border with
-      | Border.Round | Border.Normal -> "┬"
-      | Border.Double -> "╦"
-      | Border.Thick -> "┳"
-      | Border.None -> " "
-    in
-    let mid_conn =
-      match t.border with
-      | Border.Round | Border.Normal -> "┼"
-      | Border.Double -> "╬"
-      | Border.Thick -> "╋"
-      | Border.None -> " "
-    in
-    let bot_conn =
-      match t.border with
-      | Border.Round | Border.Normal -> "┴"
-      | Border.Double -> "╩"
-      | Border.Thick -> "┻"
-      | Border.None -> " "
-    in
-    let left_tee =
-      match t.border with
-      | Border.Round | Border.Normal -> "├"
-      | Border.Double -> "╠"
-      | Border.Thick -> "┣"
-      | Border.None -> " "
-    in
-    let right_tee =
-      match t.border with
-      | Border.Round | Border.Normal -> "┤"
-      | Border.Double -> "╣"
-      | Border.Thick -> "┫"
-      | Border.None -> " "
-    in
-    let make_border left conn right =
+    let c = Border.all_chars t.border in
+    let make_border left h conn right =
       let parts = List.map (fun w -> repeat_str w h) col_widths in
       left ^ h ^ String.concat (h ^ conn ^ h) parts ^ h ^ right
     in
-    let top_border = make_border tl top_conn tr in
-    let sep_border = make_border left_tee mid_conn right_tee in
-    let bot_border = make_border bl bot_conn br in
+    let top_border = make_border c.tl c.h_top c.top_tee c.tr in
+    let sep_border = make_border c.left_tee c.h_top c.cross c.right_tee in
+    let bot_border = make_border c.bl c.h_bottom c.bottom_tee c.br in
     let make_row cells =
       let padded = List.map2 pad_right col_widths cells in
-      v ^ " " ^ String.concat (" " ^ v ^ " ") padded ^ " " ^ v
+      c.v_left
+      ^ " "
+      ^ String.concat (" " ^ c.v_left ^ " ") padded
+      ^ " "
+      ^ c.v_right
     in
     let header_row = make_row header_strs in
     let data_rows =
@@ -1110,23 +1937,29 @@ module Table = struct
           let max_h =
             List.fold_left (fun acc ls -> max acc (List.length ls)) 1 cell_lines
           in
-          let padded_cells =
-            List.map2
-              (fun w cls ->
-                let padded = List.map (pad_right w) cls in
-                padded
-                @ List.init
-                    (max_h - List.length cls)
-                    (fun _ -> String.make w ' '))
-              col_widths cell_lines
+          let padded_cells_arr =
+            Array.of_list
+              (List.map Array.of_list
+                 (List.map2
+                    (fun w cls ->
+                      let padded = List.map (pad_right w) cls in
+                      padded
+                      @ List.init
+                          (max_h - List.length cls)
+                          (fun _ -> String.make w ' '))
+                    col_widths cell_lines))
           in
           let transposed =
             List.init max_h (fun r ->
-                List.map (fun col -> List.nth col r) padded_cells)
+                Array.to_list (Array.map (fun col -> col.(r)) padded_cells_arr))
           in
           List.map
             (fun row_cells ->
-              v ^ " " ^ String.concat (" " ^ v ^ " ") row_cells ^ " " ^ v)
+              c.v_left
+              ^ " "
+              ^ String.concat (" " ^ c.v_left ^ " ") row_cells
+              ^ " "
+              ^ c.v_right)
             transposed)
         rendered_rows
     in
@@ -1150,20 +1983,22 @@ module Table = struct
     in
     let col_widths =
       let header_widths = List.map visible_length header_strs in
-      let row_widths =
-        List.map
-          (fun row ->
-            List.map
-              (fun cell ->
-                List.fold_left
-                  (fun acc l -> max acc (visible_length l))
-                  0 (lines cell))
-              row)
-          rendered_rows
+      let row_widths_arr =
+        Array.of_list
+          (List.map
+             (fun row ->
+               Array.of_list
+                 (List.map
+                    (fun cell ->
+                      List.fold_left
+                        (fun acc l -> max acc (visible_length l))
+                        0 (lines cell))
+                    row))
+             rendered_rows)
       in
       List.mapi
         (fun i hw ->
-          List.fold_left (fun acc row -> max acc (List.nth row i)) hw row_widths)
+          Array.fold_left (fun acc row -> max acc row.(i)) hw row_widths_arr)
         header_widths
     in
     let total = List.fold_left ( + ) 0 col_widths in
@@ -1187,42 +2022,32 @@ let () =
       let max_width =
         List.fold_left (fun acc l -> max acc (visible_length l)) 0 content_lines
       in
-      let tl, tr, bl, br, h, v = Border.chars border in
-      let top = tl ^ repeat_str (max_width + 2) h ^ tr in
-      let bot = bl ^ repeat_str (max_width + 2) h ^ br in
+      let c = Border.all_chars border in
+      let top = c.tl ^ repeat_str (max_width + 2) c.h_top ^ c.tr in
+      let bot = c.bl ^ repeat_str (max_width + 2) c.h_bottom ^ c.br in
       let body =
         List.map
-          (fun line -> v ^ " " ^ pad_right max_width line ^ " " ^ v)
+          (fun line ->
+            c.v_left ^ " " ^ pad_right max_width line ^ " " ^ c.v_right)
           content_lines
       in
       unlines ([ top ] @ body @ [ bot ])
 
-type list_item = {
-  content: element;
-  children: list_item list;
-}
+type list_item = { content: element; children: list_item list }
 (** List item type - recursive for deep nesting *)
 
-type tree_node = {
-  label: element;
-  branches: tree_node list;
-}
+type tree_node = { label: element; branches: tree_node list }
 (** Tree node type - recursive *)
 
 (** Unordered list - items are (element, children) pairs *)
 module UList = struct
-  type t = {
-    items: list_item list;
-    bullet: string;
-  }
+  type t = { items: list_item list; bullet: string }
 
   let create ?(bullet = "•") items = { items; bullet }
 
   let rec render_with_indent indent level t =
     let prefix_indent = String.make indent ' ' in
     let bullet = t.bullet in
-    let _ = level in
-    (* same bullet at all levels *)
     let bullet_width = visible_length bullet + 1 in
     let format_item item =
       let rendered = render_el item.content in
@@ -1264,10 +2089,7 @@ end
 
 (** Ordered list - items are (element, children) pairs *)
 module OList = struct
-  type t = {
-    items: list_item list;
-    start: int;
-  }
+  type t = { items: list_item list; start: int }
 
   (* Convert number to letter (a, b, c, ..., z, aa, ab, ...) *)
   let to_letter n =
@@ -1556,6 +2378,51 @@ let inline_bar ~label ~progress =
 (** Horizontal bar chart *)
 let chart data = el (module Chart) (Chart.create data)
 
+(** Spinner - animated loading indicator *)
+let spinner ~label ~frame ~style =
+  el (module Spinner) (Spinner.create ~label ~frame ~style)
+
+(** Sparkline - inline spark chart from values *)
+let sparkline vals = el (module Sparkline) (Sparkline.create vals)
+
+(** Series constructor for line/scatter plots *)
+let series ~points ~label ~color = { points; label; series_color = color }
+
+(** Braille line/scatter plot *)
+let plotLine ~width ~height series_list =
+  el (module PlotLine) (PlotLine.create ~width ~height series_list)
+
+(** Slice constructor for pie charts *)
+let slice ~value ~label ~color =
+  { value; slice_label = label; slice_color = color }
+
+(** Braille pie chart *)
+let plotPie ~width ~height slices =
+  el (module PlotPie) (PlotPie.create ~width ~height slices)
+
+(** Bar item constructor for bar charts *)
+let bar_item ~value ~label ~color =
+  { bar_value = value; bar_label = label; bar_color = color }
+
+(** Vertical bar chart *)
+let plotBar ~width ~height items =
+  el (module PlotBar) (PlotBar.create ~width ~height items)
+
+(** Stacked bar group constructor *)
+let stacked_group ~segments ~label = { segments; group_label = label }
+
+(** Stacked vertical bar chart *)
+let plotStackedBar ~width ~height groups =
+  el (module PlotStackedBar) (PlotStackedBar.create ~width ~height groups)
+
+(** Heatmap data constructor *)
+let heatmap_data ~grid ~row_labels ~col_labels =
+  { grid; row_labels; col_labels }
+
+(** Heatmap visualization *)
+let plotHeatmap ?(cell_width = 6) data =
+  el (module Heatmap) (Heatmap.create ~cell_width data)
+
 (** Section with title and content *)
 let section ?(glyph = "=") ?(flanking = 3) ~title content =
   el (module Section) (Section.create ~glyph ~flanking ~title content)
@@ -1675,58 +2542,67 @@ let print element = print_endline (render element)
 
 (** Keyboard input representation *)
 type key =
-  | KeyChar of char           (** Regular character keys: 'a', '1', ' ', etc. *)
-  | KeyCtrl of char           (** Ctrl+key: KeyCtrl 'C', KeyCtrl 'Q', etc. *)
-  | KeyEnter                  (** Enter/Return key *)
-  | KeyBackspace              (** Backspace key *)
-  | KeyTab                    (** Tab key *)
-  | KeyEscape                 (** Escape key *)
-  | KeyDelete                 (** Delete key *)
-  | KeyUp                     (** Up arrow *)
-  | KeyDown                   (** Down arrow *)
-  | KeyLeft                   (** Left arrow *)
-  | KeyRight                  (** Right arrow *)
-  | KeyHome                   (** Home key *)
-  | KeyEnd                    (** End key *)
-  | KeyPageUp                 (** Page Up *)
-  | KeyPageDown               (** Page Down *)
+  | KeyChar of char  (** Regular character keys: 'a', '1', ' ', etc. *)
+  | KeyCtrl of char  (** Ctrl+key: KeyCtrl 'C', KeyCtrl 'Q', etc. *)
+  | KeyEnter  (** Enter/Return key *)
+  | KeyBackspace  (** Backspace key *)
+  | KeyTab  (** Tab key *)
+  | KeyEscape  (** Escape key *)
+  | KeyDelete  (** Delete key *)
+  | KeyUp  (** Up arrow *)
+  | KeyDown  (** Down arrow *)
+  | KeyLeft  (** Left arrow *)
+  | KeyRight  (** Right arrow *)
+  | KeyHome  (** Home key *)
+  | KeyEnd  (** End key *)
+  | KeyPageUp  (** Page Up *)
+  | KeyPageDown  (** Page Down *)
 
 (** Commands - side effects the runtime will execute after each update *)
 type 'msg cmd =
-  | CmdNone                         (** No effect *)
-  | CmdBatch of 'msg cmd list       (** Combine multiple commands *)
-  | CmdTask of (unit -> 'msg option) (** Run a task, optionally produce a message *)
-  | CmdAfterMs of int * 'msg        (** Fire a message after a delay *)
-  | CmdExit                         (** Exit the application *)
+  | CmdNone  (** No effect *)
+  | CmdBatch of 'msg cmd list  (** Combine multiple commands *)
+  | CmdTask of (unit -> 'msg option)
+      (** Run a task, optionally produce a message *)
+  | CmdAfterMs of int * 'msg  (** Fire a message after a delay *)
+  | CmdExit  (** Exit the application *)
 
 (** Subscriptions - event sources your app listens to *)
 type 'msg sub =
-  | SubNone                                (** No subscriptions *)
-  | SubKeyPress of (key -> 'msg option)    (** Subscribe to keyboard input *)
-  | SubEveryMs of int * 'msg               (** Subscribe to periodic ticks (ms interval + message) *)
-  | SubBatch of 'msg sub list              (** Combine multiple subscriptions *)
+  | SubNone  (** No subscriptions *)
+  | SubKeyPress of (key -> 'msg option)  (** Subscribe to keyboard input *)
+  | SubEveryMs of int * 'msg
+      (** Subscribe to periodic ticks (ms interval + message) *)
+  | SubBatch of 'msg sub list  (** Combine multiple subscriptions *)
 
 (** App-level alignment within the terminal window *)
 type alignment = AlignLeft | AlignCenter | AlignRight
 
-(** Options for running a LayoutzApp *)
 type app_options = {
-  alignment : alignment;
-  quit_key : key;
-  clear_on_start : bool;
-  clear_on_exit : bool;
-  render_interval_ms : int;
+  alignment: alignment;
+  quit_key: key;
+  clear_on_start: bool;
+  clear_on_exit: bool;
+  render_interval_ms: int;
 }
+(** Options for running a LayoutzApp *)
 
 (** Sensible defaults: left-aligned, Ctrl+Q to quit *)
-let default_options = {
-  alignment = AlignLeft;
-  quit_key = KeyCtrl 'Q';
-  clear_on_start = true;
-  clear_on_exit = true;
-  render_interval_ms = 33;
-}
+let default_options =
+  {
+    alignment = AlignLeft;
+    quit_key = KeyCtrl 'Q';
+    clear_on_start = true;
+    clear_on_exit = true;
+    render_interval_ms = 33;
+  }
 
+type ('state, 'msg) app = {
+  init: 'state * 'msg cmd;
+  update: 'msg -> 'state -> 'state * 'msg cmd;
+  subscriptions: 'state -> 'msg sub;
+  view: 'state -> element;
+}
 (** The core application structure - Elm Architecture style.
 
     Build interactive TUI apps by defining:
@@ -1739,28 +2615,26 @@ let default_options = {
     {[
       type msg = Inc | Dec
 
-      let counter_app = {
-        init = (0, CmdNone);
-        update = (fun msg count -> match msg with
-          | Inc -> (count + 1, CmdNone)
-          | Dec -> (count - 1, CmdNone));
-        subscriptions = (fun _ -> sub_key_press (fun key -> match key with
-          | KeyChar '+' -> Some Inc
-          | KeyChar '-' -> Some Dec
-          | _ -> None));
-        view = (fun count ->
-          layout [ s ("Count: " ^ string_of_int count) ]);
-      }
+      let counter_app =
+        {
+          init = (0, CmdNone);
+          update =
+            (fun msg count ->
+              match msg with
+              | Inc -> (count + 1, CmdNone)
+              | Dec -> (count - 1, CmdNone));
+          subscriptions =
+            (fun _ ->
+              sub_key_press (fun key ->
+                  match key with
+                  | KeyChar '+' -> Some Inc
+                  | KeyChar '-' -> Some Dec
+                  | _ -> None));
+          view = (fun count -> layout [ s ("Count: " ^ string_of_int count) ]);
+        }
 
       let () = run_app counter_app
-    ]}
-*)
-type ('state, 'msg) app = {
-  init : 'state * 'msg cmd;
-  update : 'msg -> 'state -> 'state * 'msg cmd;
-  subscriptions : 'state -> 'msg sub;
-  view : 'state -> element;
-}
+    ]} *)
 
 (* -- Convenience constructors -- *)
 
@@ -1769,7 +2643,6 @@ let cmd_batch cmds = CmdBatch cmds
 let cmd_task f = CmdTask f
 let cmd_after_ms ms msg = CmdAfterMs (ms, msg)
 let cmd_exit = CmdExit
-
 let sub_none = SubNone
 let sub_key_press handler = SubKeyPress handler
 let sub_every_ms ms msg = SubEveryMs (ms, msg)
@@ -1786,10 +2659,10 @@ let _show_cursor () = Printf.printf "\027[?25h%!"
 let _terminal_width () =
   try
     let ic = Unix.open_process_in "stty size < /dev/tty 2>/dev/null" in
-    let line = (try input_line ic with End_of_file -> "24 80") in
+    let line = try input_line ic with End_of_file -> "24 80" in
     let _ = Unix.close_process_in ic in
     match String.split_on_char ' ' (String.trim line) with
-    | [_; cols] -> (try int_of_string cols with _ -> 80)
+    | [ _; cols ] -> ( try int_of_string cols with _ -> 80)
     | _ -> 80
   with _ -> 80
 
@@ -1798,25 +2671,31 @@ let _terminal_width () =
 let _enter_raw_mode () =
   let fd = Unix.stdin in
   let old_attr = Unix.tcgetattr fd in
-  let new_attr = { old_attr with
-    Unix.c_icanon = false;
-    Unix.c_echo = false;
-    Unix.c_isig = false;
-    Unix.c_ixon = false;
-    Unix.c_vmin = 1;
-    Unix.c_vtime = 0;
-  } in
+  let new_attr =
+    {
+      old_attr with
+      Unix.c_icanon = false;
+      Unix.c_echo = false;
+      Unix.c_isig = false;
+      Unix.c_ixon = false;
+      Unix.c_vmin = 1;
+      Unix.c_vtime = 0;
+    }
+  in
   Unix.tcsetattr fd Unix.TCSANOW new_attr;
   old_attr
 
-let _exit_raw_mode attr =
-  Unix.tcsetattr Unix.stdin Unix.TCSANOW attr
+let _exit_raw_mode attr = Unix.tcsetattr Unix.stdin Unix.TCSANOW attr
 
 (* -- Key reading and escape sequence parsing -- *)
 
+(* Time to wait for subsequent bytes of an escape sequence before
+   treating ESC as a standalone keypress. *)
+let _esc_timeout_ms = 50
+
 let _read_byte_timeout_ms ms =
   let timeout = float_of_int ms /. 1000.0 in
-  match Unix.select [Unix.stdin] [] [] timeout with
+  match Unix.select [ Unix.stdin ] [] [] timeout with
   | [], _, _ -> None
   | _ ->
     let buf = Bytes.create 1 in
@@ -1829,12 +2708,13 @@ let _read_byte () =
   Bytes.get buf 0
 
 let rec _read_escape_sequence () =
-  match _read_byte_timeout_ms 50 with
+  match _read_byte_timeout_ms _esc_timeout_ms with
   | None -> KeyEscape
   | Some '[' -> _parse_csi ()
   | Some _ -> KeyEscape
+
 and _parse_csi () =
-  match _read_byte_timeout_ms 50 with
+  match _read_byte_timeout_ms _esc_timeout_ms with
   | Some 'A' -> KeyUp
   | Some 'B' -> KeyDown
   | Some 'C' -> KeyRight
@@ -1845,8 +2725,9 @@ and _parse_csi () =
   | Some '5' -> _consume_tilde KeyPageUp
   | Some '6' -> _consume_tilde KeyPageDown
   | _ -> KeyEscape
+
 and _consume_tilde key =
-  match _read_byte_timeout_ms 50 with
+  match _read_byte_timeout_ms _esc_timeout_ms with
   | Some '~' -> key
   | _ -> KeyEscape
 
@@ -1864,12 +2745,12 @@ let _read_key () =
 (* -- Subscription helpers -- *)
 
 let rec _get_key_handlers = function
-  | SubKeyPress handler -> [handler]
+  | SubKeyPress handler -> [ handler ]
   | SubBatch subs -> List.concat_map _get_key_handlers subs
   | _ -> []
 
 let rec _get_tick_subs = function
-  | SubEveryMs (ms, msg) -> [(ms, msg)]
+  | SubEveryMs (ms, msg) -> [ (ms, msg) ]
   | SubBatch subs -> List.concat_map _get_tick_subs subs
   | _ -> []
 
@@ -1877,21 +2758,24 @@ let rec _get_tick_subs = function
 
 (** Handle a key for a text field.
 
-    Returns [Some new_value] if the key was handled, [None] if not.
-    Only handles keys when [field_id = active_field].
+    Returns [Some new_value] if the key was handled, [None] if not. Only handles
+    keys when [field_id = active_field].
 
     Example:
     {[
-      match input_handle key ~field_id:0 ~active_field:state.active
-              ~current_value:state.name with
+      match
+        input_handle key ~field_id:0 ~active_field:state.active
+          ~current_value:state.name
+      with
       | Some v -> Some (UpdateName v)
       | None -> None
-    ]}
-*)
+    ]} *)
 let input_handle key ~field_id ~active_field ~current_value =
-  if field_id <> active_field then None
-  else match key with
-    | KeyChar c when (c >= ' ' && c <= '~') ->
+  if field_id <> active_field
+  then None
+  else
+    match key with
+    | KeyChar c when c >= ' ' && c <= '~' ->
       Some (current_value ^ String.make 1 c)
     | KeyBackspace when String.length current_value > 0 ->
       Some (String.sub current_value 0 (String.length current_value - 1))
@@ -1901,21 +2785,21 @@ let input_handle key ~field_id ~active_field ~current_value =
 
 (** Run an interactive TUI application.
 
-    Sets up raw terminal mode, enters the event loop, and restores terminal on exit.
-    Uses differential rendering - only redraws when the view output changes.
+    Sets up raw terminal mode, enters the event loop, and restores terminal on
+    exit. Uses differential rendering - only redraws when the view output
+    changes.
 
-    Press the quit key (default: Ctrl+Q) to exit.
-*)
-let run_app ?(options = default_options) (app : ('state, 'msg) app) =
+    Press the quit key (default: Ctrl+Q) to exit. *)
+let _run_app_internal ?(options = default_options) (app : ('state, 'msg) app) =
   let old_attr = _enter_raw_mode () in
-  if options.clear_on_start then begin
-    _enter_alt_screen ();
-    _clear_screen ()
+  if options.clear_on_start
+  then begin
+    _enter_alt_screen (); _clear_screen ()
   end;
   _hide_cursor ();
 
   let term_width = _terminal_width () in
-  let (initial_state, initial_cmd) = app.init in
+  let initial_state, initial_cmd = app.init in
 
   let state = ref initial_state in
   let state_mutex = Mutex.create () in
@@ -1934,86 +2818,102 @@ let run_app ?(options = default_options) (app : ('state, 'msg) app) =
     | CmdExit -> should_continue := false
     | CmdBatch cmds -> List.iter process_cmd cmds
     | CmdTask f ->
-      ignore (Thread.create (fun () ->
-        match (try f () with _ -> None) with
-        | Some msg -> update_state msg
-        | None -> ()
-      ) ())
+      ignore
+        (Thread.create
+           (fun () ->
+             match try f () with _ -> None with
+             | Some msg -> update_state msg
+             | None -> ())
+           ())
     | CmdAfterMs (ms, msg) ->
-      ignore (Thread.create (fun () ->
-        Thread.delay (float_of_int ms /. 1000.0);
-        update_state msg
-      ) ())
-
+      ignore
+        (Thread.create
+           (fun () ->
+             Thread.delay (float_of_int ms /. 1000.0);
+             update_state msg)
+           ())
   and update_state msg =
     with_state (fun () ->
-      let (new_state, cmd) = app.update msg !state in
-      state := new_state;
-      process_cmd cmd)
+        let new_state, cmd = app.update msg !state in
+        state := new_state;
+        process_cmd cmd)
   in
 
   process_cmd initial_cmd;
 
   (* Render thread: periodically re-renders if state changed *)
-  let render_thread = Thread.create (fun () ->
-    while !should_continue do
-      let rendered = with_state (fun () ->
-        render_el (app.view !state))
-      in
-      if rendered <> !last_rendered then begin
-        let rendered_lines = String.split_on_char '\n' rendered in
-        let current_line_count = List.length rendered_lines in
-        let max_line_width = List.fold_left
-          (fun acc l -> max acc (visible_length l)) 0 rendered_lines in
-        let block_pad = match options.alignment with
-          | AlignLeft -> 0
-          | AlignCenter -> max 0 ((term_width - max_line_width) / 2)
-          | AlignRight -> max 0 (term_width - max_line_width)
-        in
-        let padding = String.make block_pad ' ' in
-        let aligned_lines = if block_pad > 0
-          then List.map (fun l -> padding ^ l) rendered_lines
-          else rendered_lines
-        in
-        let buf = Buffer.create (String.length rendered + 256) in
-        Buffer.add_string buf "\027[H";
-        List.iter (fun l ->
-          Buffer.add_string buf l;
-          Buffer.add_string buf "\027[K\n"
-        ) aligned_lines;
-        for _ = 1 to max 0 (!last_line_count - current_line_count) do
-          Buffer.add_string buf "\027[K\n"
-        done;
-        Stdlib.print_string (Buffer.contents buf);
-        flush stdout;
-        last_rendered := rendered;
-        last_line_count := current_line_count
-      end;
-      Thread.delay (float_of_int options.render_interval_ms /. 1000.0)
-    done
-  ) () in
+  let render_thread =
+    Thread.create
+      (fun () ->
+        while !should_continue do
+          let rendered = with_state (fun () -> render_el (app.view !state)) in
+          if rendered <> !last_rendered
+          then begin
+            let rendered_lines = String.split_on_char '\n' rendered in
+            let current_line_count = List.length rendered_lines in
+            let max_line_width =
+              List.fold_left
+                (fun acc l -> max acc (visible_length l))
+                0 rendered_lines
+            in
+            let block_pad =
+              match options.alignment with
+              | AlignLeft -> 0
+              | AlignCenter -> max 0 ((term_width - max_line_width) / 2)
+              | AlignRight -> max 0 (term_width - max_line_width)
+            in
+            let padding = String.make block_pad ' ' in
+            let aligned_lines =
+              if block_pad > 0
+              then List.map (fun l -> padding ^ l) rendered_lines
+              else rendered_lines
+            in
+            let buf = Buffer.create (String.length rendered + 256) in
+            Buffer.add_string buf "\027[H";
+            List.iter
+              (fun l ->
+                Buffer.add_string buf l;
+                Buffer.add_string buf "\027[K\n")
+              aligned_lines;
+            for _ = 1 to max 0 (!last_line_count - current_line_count) do
+              Buffer.add_string buf "\027[K\n"
+            done;
+            Stdlib.print_string (Buffer.contents buf);
+            flush stdout;
+            last_rendered := rendered;
+            last_line_count := current_line_count
+          end;
+          Thread.delay (float_of_int options.render_interval_ms /. 1000.0)
+        done)
+      ()
+  in
 
   (* Tick thread: fires timer subscriptions *)
   let last_tick_times = Hashtbl.create 4 in
-  let tick_thread = Thread.create (fun () ->
-    while !should_continue do
-      let now = Unix.gettimeofday () *. 1000.0 in
-      let tick_subs = with_state (fun () ->
-        _get_tick_subs (app.subscriptions !state))
-      in
-      List.iter (fun (interval_ms, msg) ->
-        let last_time =
-          try Hashtbl.find last_tick_times interval_ms
-          with Not_found -> 0.0
-        in
-        if now -. last_time >= float_of_int interval_ms then begin
-          Hashtbl.replace last_tick_times interval_ms now;
-          update_state msg
-        end
-      ) tick_subs;
-      Thread.delay 0.01
-    done
-  ) () in
+  let tick_thread =
+    Thread.create
+      (fun () ->
+        while !should_continue do
+          let now = Unix.gettimeofday () *. 1000.0 in
+          let tick_subs =
+            with_state (fun () -> _get_tick_subs (app.subscriptions !state))
+          in
+          List.iter
+            (fun (interval_ms, msg) ->
+              let last_time =
+                try Hashtbl.find last_tick_times interval_ms
+                with Not_found -> 0.0
+              in
+              if now -. last_time >= float_of_int interval_ms
+              then begin
+                Hashtbl.replace last_tick_times interval_ms now;
+                update_state msg
+              end)
+            tick_subs;
+          Thread.delay 0.01
+        done)
+      ()
+  in
 
   (* Input loop (main thread) *)
   let cleanup () =
@@ -2027,20 +2927,29 @@ let run_app ?(options = default_options) (app : ('state, 'msg) app) =
   in
 
   (try
-    while !should_continue do
-      let key = _read_key () in
-      if key = options.quit_key then
-        should_continue := false
-      else begin
-        let handlers = with_state (fun () ->
-          _get_key_handlers (app.subscriptions !state))
-        in
-        List.iter (fun handler ->
-          match handler key with
-          | Some msg -> update_state msg
-          | None -> ()
-        ) handlers
-      end
-    done
-  with _ -> ());
-  cleanup ()
+     while !should_continue do
+       let key = _read_key () in
+       if key = options.quit_key
+       then should_continue := false
+       else begin
+         let handlers =
+           with_state (fun () -> _get_key_handlers (app.subscriptions !state))
+         in
+         List.iter
+           (fun handler ->
+             match handler key with
+             | Some msg -> update_state msg
+             | None -> ())
+           handlers
+       end
+     done
+   with _ -> ());
+  cleanup (); !state
+
+(** Run an interactive TUI application. *)
+let run_app ?(options = default_options) app =
+  ignore (_run_app_internal ~options app)
+
+(** Run an interactive TUI application and return the final state. *)
+let run_app_final ?(options = default_options) app =
+  _run_app_internal ~options app
