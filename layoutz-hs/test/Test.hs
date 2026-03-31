@@ -4,6 +4,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Layoutz
 import Data.List (isInfixOf)
+import qualified Data.Text as T
 import Data.IORef (newIORef, readIORef, writeIORef)
 
 -- Helper to strip ANSI codes for testing
@@ -24,6 +25,7 @@ tests = testGroup "Layoutz Tests"
   [ basicElementTests
   , visualFeatureTests
   , dataVisualizationTests
+  , renderTextTests
   , containerTests
   , layoutTests
   , dimensionTests
@@ -55,6 +57,19 @@ basicElementTests = testGroup "Basic Elements"
       
   , testCase "center custom width" $
       render (center' 10 $ text "Test") @?= "   Test   "
+  ]
+
+-- renderText tests
+renderTextTests :: TestTree
+renderTextTests = testGroup "renderText"
+  [ testCase "renderText returns Text, not String" $
+      renderText (text "Hello World") @?= T.pack "Hello World"
+
+  , testCase "renderText matches render" $
+      renderText (text "Test") @?= T.pack (render (text "Test"))
+
+  , testCase "renderText on composed layout" $
+      renderText (layout [text "A", text "B"]) @?= T.pack "A\nB"
   ]
 
 -- Visual feature tests

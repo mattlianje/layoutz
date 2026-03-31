@@ -66,6 +66,7 @@ module Layoutz
   , withStyle
     -- * Rendering
   , render
+  , renderText
     -- * TUI Runtime
   , LayoutzApp(..)
   , Key(..)
@@ -91,6 +92,8 @@ module Layoutz
   ) where
 
 import Data.List (intercalate, transpose, nub)
+import qualified Data.Text
+import qualified Data.Text as T
 import Data.Bits ((.|.))
 import Data.String (IsString(..))
 import Data.Char (ord, chr)
@@ -203,6 +206,9 @@ class Element a where
 
 render :: Element a => a -> String
 render = renderElement
+
+renderText :: Element a => a -> Data.Text.Text
+renderText = T.pack . renderElement
 
 -- | L is the universal layout element type - a type-erased wrapper for the DSL.
 --
