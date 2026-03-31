@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          layoutz
-version:       0.3.3.0
+version:       0.3.4.0
 synopsis:      Simple, beautiful CLI output
 description:   Zero-dep, compositional terminal output
 homepage:      https://github.com/mattlianje/layoutz
@@ -15,6 +15,7 @@ build-type:    Simple
 
 extra-source-files:
     README.md
+    CHANGELOG.md
     pix/*.png
 
 source-repository head
