@@ -79,7 +79,7 @@ services =
 sceneWidth :: Int
 sceneWidth = 75
 
--- Helpers ---------------------------------------------------------------------
+-- Helpers
 
 toggleIn :: Int -> [Int] -> [Int]
 toggleIn x xs = if x `elem` xs then filter (/= x) xs else x : xs
@@ -154,7 +154,7 @@ bounce y vy
   | abs vy < 0.05 && y < 0.1 = (0, 0)
   | otherwise                 = (y, vy)
 
--- Subscriptions ---------------------------------------------------------------
+-- Subscriptions
 
 subscriptions :: ShowcaseState -> Sub Msg
 subscriptions s = subBatch
@@ -176,7 +176,7 @@ subscriptions s = subBatch
       _            -> Nothing
   ]
 
--- View ------------------------------------------------------------------------
+-- View
 
 view :: ShowcaseState -> L
 view s =
@@ -226,7 +226,7 @@ renderFooter s =
         _ -> "  </> scenes  ESC quit"
   in withStyle StyleDim $ withColor ColorBrightBlack $ text hints
 
--- Scene 1: Physics Game -------------------------------------------------------
+-- Scene 1: Physics Game
 
 scenePhysicsGame :: ShowcaseState -> L
 scenePhysicsGame s =
@@ -261,7 +261,7 @@ scenePhysicsGame s =
         ]
     ]
 
--- Scene 2: Text Input & Lists ------------------------------------------------
+-- Scene 2: Text Input & Lists
 
 sceneTextInput :: ShowcaseState -> L
 sceneTextInput s =
@@ -316,7 +316,7 @@ sceneTextInput s =
         ]
     ]
 
--- Scene 3: Borders & Styles --------------------------------------------------
+-- Scene 3: Borders & Styles
 
 sceneBordersStyles :: ShowcaseState -> L
 sceneBordersStyles _ =
@@ -347,7 +347,7 @@ sceneBordersStyles _ =
         ]
     ]
 
--- Scene 4: Tables -------------------------------------------------------------
+-- Scene 4: Tables
 
 sceneTables :: ShowcaseState -> L
 sceneTables s =
@@ -376,7 +376,7 @@ sceneTables s =
         ]
     ]
 
--- Scene 5: Charts & Plots ----------------------------------------------------
+-- Scene 5: Charts & Plots
 
 sceneChartsPlots :: ShowcaseState -> L
 sceneChartsPlots s =
@@ -406,7 +406,7 @@ sceneChartsPlots s =
         ]
     ]
 
--- Scene 6: Bar Charts & Sparklines -------------------------------------------
+-- Scene 6: Bar Charts & Sparklines
 
 sceneBarChartsSparklines :: ShowcaseState -> L
 sceneBarChartsSparklines s =
@@ -446,7 +446,7 @@ sceneBarChartsSparklines s =
         ]
     ]
 
--- Scene 7: Selections & Heatmap ----------------------------------------------
+-- Scene 7: Selections & Heatmap
 
 sceneSelectionsHeatmap :: ShowcaseState -> L
 sceneSelectionsHeatmap s =
@@ -492,7 +492,7 @@ sceneSelectionsHeatmap s =
         [ plotHeatmap' 5 (HeatmapData heatData days hours) ]
     ]
 
--- App -------------------------------------------------------------------------
+-- App
 
 showcaseApp :: LayoutzApp ShowcaseState Msg
 showcaseApp = LayoutzApp
