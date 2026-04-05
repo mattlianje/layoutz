@@ -440,7 +440,7 @@ private[layoutz] object LayoutzRuntime {
     terminal.orElse(SttyTerminal.create().toOption) match {
       case Some(t) =>
         Right(
-          try new RuntimeInstance(app, config, t, executionContext).run()
+          try new RuntimeInstance(app, config, t, executionContext.getOrElse(ExecutionContext.global)).run()
           finally t.close()
         )
       case None => Left(TerminalError("Failed to initialize terminal"))
@@ -450,7 +450,7 @@ private[layoutz] object LayoutzRuntime {
       app: LayoutzApp[State, Message],
       config: RuntimeConfig,
       terminal: Terminal,
-      executionContext: Option[ExecutionContext]
+      executionContext: ExecutionContext
   ) {
     @volatile private var currentState: State = _
     @volatile private var shouldContinue = true
@@ -567,7 +567,7 @@ private[layoutz] object LayoutzRuntime {
     }
 
     private def processCommand(cmd: Cmd[Message]): Unit = {
-      implicit val ec: ExecutionContext = executionContext.getOrElse(ExecutionContext.global)
+      implicit val ec: ExecutionContext = executionContext
 
       cmd match {
         case CmdNone        =>
@@ -766,7 +766,7 @@ private[layoutz] object LayoutzRuntime {
                         )
                       )
                   }
-                }(executionContext.getOrElse(scala.concurrent.ExecutionContext.global))
+                }(executionContext)
               }
           }
 
