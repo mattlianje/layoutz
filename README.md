@@ -345,27 +345,17 @@ row(
   statusCard("MEM", "2.1G").color(Color.Cyan)
 )
 ```
-```
-┌──────┐ ┌───────┐
-│ CPU  │ │ MEM   │
-│ 45%  │ │ 2.1G  │
-└──────┘ └───────┘
-```
+
 <p align="center">
-  <img src="pix/example-status-cards.png" width="650">
+  <img src="pix/example-status-cards.png" width="350">
 </p>
 
 ### Banner: `banner`
 ```scala
 banner("System Dashboard").border(Border.Double)
 ```
-```
-╔═══════════════════╗
-║ System Dashboard  ║
-╚═══════════════════╝
-```
 <p align="center">
-  <img src="pix/example-banner.png" width="650">
+  <img src="pix/example-banner.png" width="350">
 </p>
 
 ### Table: `table`
@@ -379,17 +369,9 @@ table(
   )
 )
 ```
-```
-┌─────────┬─────┬─────────┐
-│ Name    │ Age │ City    │
-├─────────┼─────┼─────────┤
-│ Alice   │ 30  │ New York│
-│ Bob     │ 25  │         │
-│ Charlie │ 35  │ London  │
-└─────────┴─────┴─────────┘
-```
+
 <p align="center">
-  <img src="pix/example-table.png" width="650">
+  <img src="pix/example-table.png" width="350">
 </p>
 
 ### Key-Value: `kv`
@@ -436,16 +418,9 @@ tree("Project")(
   )
 )
 ```
-```
-Project
-└── src/
-    ├── main/
-    │   └── App.scala
-    └── test/
-        └── AppSpec.scala
-```
+
 <p align="center">
-  <img src="pix/example-tree.png" width="650">
+  <img src="pix/example-tree.png" width="350">
 </p>
 
 ### Progress Bar: `inlineBar`
@@ -511,14 +486,9 @@ layout(
   "Expected Int, found String"
 ).margin("[error]")
 ```
-```
-[error] Ooops!
-[error] val result: Int =  getString()
-[error]                    ^^^^^^^^^^^
-[error] Expected Int, found String
-```
+
 <p align="center">
-  <img src="pix/example-compiler.png" width="650">
+  <img src="pix/example-compiler.png" width="350">
 </p>
 
 ### Padding & Truncation: `pad`, `truncate`
@@ -565,16 +535,8 @@ case class Square(size: Int) extends Element {
 
 row(Square(2), Square(4), Square(6))
 ```
-```
-┌──┐ ┌──────┐ ┌──────────┐
-└──┘ │      │ │          │
-     │      │ │          │
-     └──────┘ │          │
-              │          │
-              └──────────┘
-```
 <p align="center">
-  <img src="pix/example-custom.png" width="650">
+  <img src="pix/example-custom.png" width="350">
 </p>
 
 ### Working with Collections
