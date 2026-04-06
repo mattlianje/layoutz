@@ -310,11 +310,9 @@ hr                                           // default ────────
 hr.char("~")                                 // custom char
 hr.width(10).char("=")                       // custom char + width
 ```
-```
-──────────────────────────────────────────────────
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-==========
-```
+<p align="center">
+  <img src="pix/example-vr.png" width="650">
+</p>
 
 ### Vertical Rule: `vr`
 ```scala
@@ -336,17 +334,9 @@ box("Summary")(kv("total" -> "42"))
 box("Fancy")("content").border(Border.Double)
 box("Smooth")("content").border(Border.Round)
 ```
-```
-┌──Summary───┐
-│ total : 42 │
-└────────────┘
-╔══Fancy═════╗
-║ content    ║
-╚════════════╝
-╭──Smooth────╮
-│ content    │
-╰────────────╯
-```
+<p align="center">
+  <img src="pix/example-boxes.png" width="650">
+</p>
 
 ### Status Card: `statusCard`
 ```scala
@@ -361,6 +351,9 @@ row(
 │ 45%  │ │ 2.1G  │
 └──────┘ └───────┘
 ```
+<p align="center">
+  <img src="pix/example-status-cards.png" width="650">
+</p>
 
 ### Banner: `banner`
 ```scala
@@ -371,6 +364,9 @@ banner("System Dashboard").border(Border.Double)
 ║ System Dashboard  ║
 ╚═══════════════════╝
 ```
+<p align="center">
+  <img src="pix/example-banner.png" width="650">
+</p>
 
 ### Table: `table`
 ```scala
@@ -392,6 +388,9 @@ table(
 │ Charlie │ 35  │ London  │
 └─────────┴─────┴─────────┘
 ```
+<p align="center">
+  <img src="pix/example-table.png" width="650">
+</p>
 
 ### Key-Value: `kv`
 ```scala
@@ -445,6 +444,9 @@ Project
     └── test/
         └── AppSpec.scala
 ```
+<p align="center">
+  <img src="pix/example-tree.png" width="650">
+</p>
 
 ### Progress Bar: `inlineBar`
 ```scala
@@ -515,6 +517,9 @@ layout(
 [error]                    ^^^^^^^^^^^
 [error] Expected Int, found String
 ```
+<p align="center">
+  <img src="pix/example-compiler.png" width="650">
+</p>
 
 ### Padding & Truncation: `pad`, `truncate`
 ```scala
@@ -568,6 +573,9 @@ row(Square(2), Square(4), Square(6))
               │          │
               └──────────┘
 ```
+<p align="center">
+  <img src="pix/example-custom.png" width="650">
+</p>
 
 ### Working with Collections
 ```scala

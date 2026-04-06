@@ -5,7 +5,6 @@ val scalaVersions      = Seq("2.12.18", "2.13.11", "3.3.7")
 val scalaNativeVersion = "0.5.9"
 val scalaJSVersion     = "1.20.2"
 
-// Shared publish settings
 trait LayoutzPublishModule extends SonatypeCentralPublishModule {
   def publishVersion = "0.7.0"
   def artifactName   = "layoutz"
@@ -22,7 +21,6 @@ trait LayoutzPublishModule extends SonatypeCentralPublishModule {
   )
 }
 
-// Shared source paths
 trait LayoutzSourceModule extends CrossScalaModule {
   def layoutzRoot = Task.Source(moduleDir / os.up)
   def platformDirs: Seq[String]
@@ -40,7 +38,6 @@ trait LayoutzSourceModule extends CrossScalaModule {
 
 object layoutz extends Module {
 
-  // JVM
   object jvm      extends Cross[JvmModule](scalaVersions)
   trait JvmModule extends LayoutzSourceModule with LayoutzPublishModule {
     def platformDirs = Seq("jvm-native")
@@ -50,7 +47,6 @@ object layoutz extends Module {
     }
   }
 
-  // Scala.js
   object js      extends Cross[JsModule](scalaVersions)
   trait JsModule extends LayoutzSourceModule with ScalaJSModule with LayoutzPublishModule {
     def platformDirs   = Seq("js")
@@ -61,7 +57,6 @@ object layoutz extends Module {
     }
   }
 
-  // Scala Native
   object native      extends Cross[NativeModule](scalaVersions)
   trait NativeModule extends LayoutzSourceModule with ScalaNativeModule with LayoutzPublishModule {
     def platformDirs       = Seq("jvm-native")
