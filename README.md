@@ -371,7 +371,7 @@ table(
 ```
 
 <p align="center">
-  <img src="pix/example-table.png" width="350">
+  <img src="pix/example-table.png" width="450">
 </p>
 
 ### Key-Value: `kv`
@@ -420,7 +420,7 @@ tree("Project")(
 ```
 
 <p align="center">
-  <img src="pix/example-tree.png" width="350">
+  <img src="pix/example-tree.png" width="450">
 </p>
 
 ### Progress Bar: `inlineBar`
