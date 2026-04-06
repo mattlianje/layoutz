@@ -335,7 +335,7 @@ box("Fancy")("content").border(Border.Double)
 box("Smooth")("content").border(Border.Round)
 ```
 <p align="center">
-  <img src="pix/example-boxes.png" width="350">
+  <img src="pix/example-boxes.png" width="450">
 </p>
 
 ### Status Card: `statusCard`
