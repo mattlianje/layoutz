@@ -22,3 +22,7 @@ layoutz-ocaml/_build/
 layoutz-ocaml/*.install
 layoutz-ocaml/.merlin
 layoutz-ocaml/_opam/
+
+layoutz-clj/.cpcache/
+layoutz-clj/classes/
+layoutz-clj/target/
