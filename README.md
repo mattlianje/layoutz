@@ -135,7 +135,7 @@ val demo = layout(
           tree("App.scala")
         ),
         tree("test")(
-          tree("AppSpec.scala")
+          tree("AppTest.scala")
         )
       )
     )
@@ -432,8 +432,8 @@ ol("Setup", ol("Install deps", ol("npm", "pip"), "Configure"), "Deploy")
 ```scala
 tree("Project")(
   tree("src")(
-    tree("main")(tree("App.scala")),
-    tree("test")(tree("AppSpec.scala"))
+    tree("main")(tree("App.???")),
+    tree("test")(tree("AppTest.???"))
   )
 )
 ```
