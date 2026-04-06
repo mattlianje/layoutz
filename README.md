@@ -488,7 +488,7 @@ layout(
 ```
 
 <p align="center">
-  <img src="pix/example-compiler.png" width="350">
+  <img src="pix/example-compiler.png" width="450">
 </p>
 
 ### Padding & Truncation: `pad`, `truncate`
@@ -536,7 +536,7 @@ case class Square(size: Int) extends Element {
 row(Square(2), Square(4), Square(6))
 ```
 <p align="center">
-  <img src="pix/example-custom.png" width="350">
+  <img src="pix/example-custom.png" width="450">
 </p>
 
 ### Working with Collections
