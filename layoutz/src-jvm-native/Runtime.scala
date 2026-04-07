@@ -412,7 +412,8 @@ trait LayoutzApp[State, Message] {
       clearOnStart: Boolean = true,
       clearOnExit: Boolean = true,
       alignment: Alignment = Alignment.Left,
-      terminal: Option[Terminal] = None
+      terminal: Option[Terminal] = None,
+      executionContext: Option[ExecutionContext] = None
   ): Unit = {
     val config = RuntimeConfig(
       tickIntervalMs,
@@ -424,7 +425,7 @@ trait LayoutzApp[State, Message] {
       clearOnExit,
       alignment
     )
-    LayoutzRuntime.run(this, config, terminal)
+    LayoutzRuntime.run(this, config, terminal, executionContext)
   }
 }
 
@@ -433,12 +434,13 @@ private[layoutz] object LayoutzRuntime {
   def run[S, M](
       app: LayoutzApp[S, M],
       config: RuntimeConfig,
-      terminal: Option[Terminal] = None
+      terminal: Option[Terminal] = None,
+      executionContext: Option[ExecutionContext] = None
   ): Either[RuntimeError, Unit] =
     terminal.orElse(SttyTerminal.create().toOption) match {
       case Some(t) =>
         Right(
-          try new RuntimeInstance(app, config, t).run()
+          try new RuntimeInstance(app, config, t, executionContext.getOrElse(ExecutionContext.global)).run()
           finally t.close()
         )
       case None => Left(TerminalError("Failed to initialize terminal"))
@@ -447,7 +449,8 @@ private[layoutz] object LayoutzRuntime {
   private class RuntimeInstance[State, Message](
       app: LayoutzApp[State, Message],
       config: RuntimeConfig,
-      terminal: Terminal
+      terminal: Terminal,
+      executionContext: ExecutionContext
   ) {
     @volatile private var currentState: State = _
     @volatile private var shouldContinue = true
@@ -564,7 +567,7 @@ private[layoutz] object LayoutzRuntime {
     }
 
     private def processCommand(cmd: Cmd[Message]): Unit = {
-      implicit val ec: ExecutionContext = ExecutionContext.global
+      implicit val ec: ExecutionContext = executionContext
 
       cmd match {
         case CmdNone        =>
@@ -763,7 +766,7 @@ private[layoutz] object LayoutzRuntime {
                         )
                       )
                   }
-                }(scala.concurrent.ExecutionContext.global)
+                }(executionContext)
               }
           }
 
