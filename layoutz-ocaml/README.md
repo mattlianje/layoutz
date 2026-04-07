@@ -58,11 +58,6 @@ opam install layoutz
 
 Or just drop the zero-dep [`lib/layoutz.ml`](lib/layoutz.ml) into your project like a header file.
 
-Run the interactive showcase:
-```bash
-make showcase
-```
-
 ## Quick Start
 
 There are two usage paths:
