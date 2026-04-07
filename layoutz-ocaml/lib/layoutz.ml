@@ -239,19 +239,7 @@ let display_width s =
 let visible_length s = display_width (strip_ansi s)
 
 (** Split a string into lines *)
-let lines s =
-  let rec aux acc start i =
-    if i >= String.length s
-    then
-      let last = String.sub s start (i - start) in
-      List.rev (last :: acc)
-    else if s.[i] = '\n'
-    then
-      let line = String.sub s start (i - start) in
-      aux (line :: acc) (i + 1) (i + 1)
-    else aux acc start (i + 1)
-  in
-  if s = "" then [ "" ] else aux [] 0 0
+let lines s = String.split_on_char '\n' s
 
 (** Join lines with newlines *)
 let unlines ls = String.concat "\n" ls
@@ -278,20 +266,38 @@ let center_string target_width s =
     String.make left_pad ' ' ^ s ^ String.make right_pad ' '
 
 (** Repeat a UTF-8 string n times *)
-let repeat_str n s = String.concat "" (List.init n (fun _ -> s))
+let repeat_str n s =
+  let slen = String.length s in
+  let buf = Buffer.create (n * slen) in
+  for _ = 1 to n do
+    Buffer.add_string buf s
+  done;
+  Buffer.contents buf
 
 (* ============================================================================
    Core Operations on Elements
    ============================================================================ *)
 
-(* Forward reference for bordered wrapper rendering *)
-let render_bordered_impl = ref (fun (_ : Border.t) (_ : string) -> "")
-
 let rec render_el = function
   | E ((module M), v) -> M.render v
   | B ((module M), v) -> M.render v
   | AutoCenter inner -> render_el inner
-  | Bordered (border, inner) -> !render_bordered_impl border (render_el inner)
+  | Bordered (border, inner) ->
+    let content_str = render_el inner in
+    let content_lines = lines content_str in
+    let max_width =
+      List.fold_left (fun acc l -> max acc (visible_length l)) 0 content_lines
+    in
+    let c = Border.all_chars border in
+    let top = c.tl ^ repeat_str (max_width + 2) c.h_top ^ c.tr in
+    let bot = c.bl ^ repeat_str (max_width + 2) c.h_bottom ^ c.br in
+    let body =
+      List.map
+        (fun line ->
+          c.v_left ^ " " ^ pad_right max_width line ^ " " ^ c.v_right)
+        content_lines
+    in
+    unlines ([ top ] @ body @ [ bot ])
 
 let rec width_el = function
   | E ((module M), v) -> M.width v
@@ -423,7 +429,6 @@ module Styled = struct
     then render_el t.inner
     else
       let start_code = "\027[" ^ String.concat ";" codes ^ "m" in
-      let end_code = "\027[0m" in
       let reset = "\027[0m" in
       (* Re-apply outer style after any inner reset so border chars stay colored *)
       let reapply line =
@@ -448,7 +453,7 @@ module Styled = struct
       in
       let content = render_el t.inner in
       let ls = lines content in
-      unlines (List.map (fun line -> start_code ^ reapply line ^ end_code) ls)
+      unlines (List.map (fun line -> start_code ^ reapply line ^ reset) ls)
 
   let width t = width_el t.inner
   let height t = height_el t.inner
@@ -960,7 +965,7 @@ let wrap_ansi_bg_256 c256 text =
    1 decimal for normal range, scientific for extreme values *)
 let format_axis_num v =
   let abs_v = Float.abs v in
-  if v = Float.round v && abs_v < 1e9
+  if Float.is_integer v && abs_v < 1e9
   then string_of_int (int_of_float v)
   else if abs_v >= 0.01 && abs_v < 1e6
   then Printf.sprintf "%.1f" v
@@ -2013,25 +2018,6 @@ module Table = struct
     in
     3 + List.fold_left ( + ) 0 row_heights
 end
-
-(* Wire up the forward-declared bordered wrapper implementation *)
-let () =
-  render_bordered_impl :=
-    fun border content_str ->
-      let content_lines = lines content_str in
-      let max_width =
-        List.fold_left (fun acc l -> max acc (visible_length l)) 0 content_lines
-      in
-      let c = Border.all_chars border in
-      let top = c.tl ^ repeat_str (max_width + 2) c.h_top ^ c.tr in
-      let bot = c.bl ^ repeat_str (max_width + 2) c.h_bottom ^ c.br in
-      let body =
-        List.map
-          (fun line ->
-            c.v_left ^ " " ^ pad_right max_width line ^ " " ^ c.v_right)
-          content_lines
-      in
-      unlines ([ top ] @ body @ [ bot ])
 
 type list_item = { content: element; children: list_item list }
 (** List item type - recursive for deep nesting *)

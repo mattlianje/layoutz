@@ -58,6 +58,11 @@ opam install layoutz
 
 Or just drop the zero-dep [`lib/layoutz.ml`](lib/layoutz.ml) into your project like a header file.
 
+Run the interactive showcase:
+```bash
+make showcase
+```
+
 ## Quick Start
 
 There are two usage paths:
@@ -128,13 +133,24 @@ let counter_app = {
 let () = run_app counter_app
 ```
 
-## Why layoutz?
-- We have `Printf` and full-blown TUI libraries - but there is a gap in-between
-- With LLMs, boilerplate "pretty-print" code is cheaper than ever to generate...
-- ...which means more formatting code spawning and polluting domain logic
-- **layoutz** is a tiny, declarative DSL to combat this
-- Everything is an `element` - immutable and composable
-- Implement the `ELEMENT` signature to create any elements you imagine - they compose with all built-ins
+## FAQ
+
+**Why layoutz?**
+- Layoutz is a tiny lib to render compositional, pretty ANSI styled strings... and if you want
+you can animate them Elm-style, like a flipbook.
+
+**Why not use a proper TUI library?**
+- You have (great and capable) fully TUI-centric libraries like [Minttea](https://github.com/leostera/minttea) ...
+Layoutz says, "here is your DSL to render strings in a nice compositional way" ... "and btw you
+can bring those strings to life as TUIs or simple terminal animations just like that"
+
+**Why zero dependencies?**
+- Because a formatting lib that drags in a World view and/or deps is (debatably) purpose-defeating.
+Drop [`layoutz.ml`](lib/layoutz.ml) into your project like a header file.
+
+**What's the core idea?**
+- Everything is an `element`... immutable, composable, pipeable. Implement the `ELEMENT` signature to create
+anything you imagine and it composes with the built-ins for free.
 
 ## Core Concepts
 
@@ -225,6 +241,10 @@ vr ()                                        (* default: 10 high with │ *)
 vr ~height:5 ()
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-vr.png" width="650">
+</p>
+
 ### Section: `section`
 ```ocaml
 section ~title:"Config" [ kv [ ("env", "prod") ] ]
@@ -240,17 +260,10 @@ box ~title:"Summary" [ s "All systems go" ]
 box ~title:"Fancy" [ s "content" ] |> borderDouble
 box ~title:"Smooth" [ s "content" ] |> borderRound
 ```
-```
-┌──Summary─────────┐
-│ All systems go   │
-└──────────────────┘
-╔══Fancy═══════╗
-║ content      ║
-╚══════════════╝
-╭──Smooth──────╮
-│ content      │
-╰──────────────╯
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-boxes.png" width="450">
+</p>
 
 ### Status Card: `statusCard`
 ```ocaml
@@ -259,24 +272,19 @@ row [
   statusCard ~label:(s "MEM") ~content:(s "2.1G") |> colorCyan
 ]
 ```
-```
-┌──────┐ ┌───────┐
-│ CPU  │ │ MEM   │
-│ 45%  │ │ 2.1G  │
-└──────┘ └───────┘
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-status-cards.png" width="350">
+</p>
 
 ### Banner: `banner`
 ```ocaml
 banner (s "System Dashboard") |> borderDouble
 ```
-```
-╔════════════════════╗
-║                    ║
-║  System Dashboard  ║
-║                    ║
-╚════════════════════╝
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-banner.png" width="350">
+</p>
 
 ### Table: `table`
 ```ocaml
@@ -284,14 +292,10 @@ table
   ~headers:[ s "Name"; s "Age" ]
   [ [ s "Alice"; s "30" ]; [ s "Bob"; s "25" ] ]
 ```
-```
-┌───────┬─────┐
-│ Name  │ Age │
-├───────┼─────┤
-│ Alice │ 30  │
-│ Bob   │ 25  │
-└───────┴─────┘
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-table.png" width="450">
+</p>
 
 ### Columns: `columns`
 ```ocaml
@@ -346,12 +350,10 @@ ol [ li (s "Step one"); li (s "Step two"); li (s "Step three") ]
 ```ocaml
 tree (node ~c:[ node (s "src"); node (s "test"); node (s "README.md") ] (s "project"))
 ```
-```
-project
-├── src
-├── test
-└── README.md
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-tree.png" width="450">
+</p>
 
 ### Progress Bar: `inline_bar`
 ```ocaml
@@ -720,16 +722,9 @@ Then use it like any built-in:
 ```ocaml
 row [ square 3; square 5; square 7 ]
 ```
-```
-┌──────┐ ┌──────────┐ ┌──────────────┐
-│      │ │          │ │              │
-│      │ │          │ │              │
-│      │ │          │ │              │
-└──────┘ │          │ │              │
-         │          │ │              │
-         └──────────┘ │              │
-                      │              │
-                      └──────────────┘
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-custom.png" width="450">
+</p>
 
 For bordered custom elements, implement `BORDERABLE` instead (adds `with_border` and `get_border`).
