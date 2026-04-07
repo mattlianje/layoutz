@@ -680,7 +680,12 @@ chart("Web" -> 10, "Mobile" -> 20, "API" -> 15)
 
 #### Pie Chart
 ```scala
-pie()(Slice(50, "A"), Slice(30, "B"), Slice(20, "C"))
+pie()(
+  Slice(50, "Liquor"),
+  Slice(20, "Protein"),
+  Slice(10, "Water"),
+  Slice(20, "Fun")
+)
 ```
 <p align="center">
   <img src="pix/chart-pie.png" width="500">
@@ -689,7 +694,8 @@ pie()(Slice(50, "A"), Slice(30, "B"), Slice(20, "C"))
 #### Bar Chart
 ```scala
 bar(width = 40, height = 10)(
-  Bar(85, "Mon"), Bar(120, "Tue"), Bar(95, "Wed")
+  Bar(100, "Mon"), Bar(120, "Tue"), Bar(110, "Wed"),
+  Bar(85, "Thu"), Bar(115, "Fri")
 )
 ```
 <p align="center">

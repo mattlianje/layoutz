@@ -528,7 +528,7 @@ let rainbow =
 
 ### Sparkline
 ```ocaml
-sparkline [1.0; 3.0; 5.0; 7.0; 2.0; 4.0; 8.0; 1.0]
+sparkline [1.0; 4.0; 2.0; 8.0; 5.0; 7.0; 3.0; 6.0]
 ```
 
 <p align="center">
@@ -560,9 +560,10 @@ plotLine ~width:50 ~height:12 [
 ### Pie Chart
 ```ocaml
 plotPie ~width:20 ~height:10 [
-  slice ~value:40.0 ~label:"OCaml" ~color:Color.None;
-  slice ~value:30.0 ~label:"Haskell" ~color:Color.None;
-  slice ~value:30.0 ~label:"Scala" ~color:Color.None;
+  slice ~value:50.0 ~label:"Liquor" ~color:Color.None;
+  slice ~value:20.0 ~label:"Protein" ~color:Color.None;
+  slice ~value:10.0 ~label:"Water" ~color:Color.None;
+  slice ~value:20.0 ~label:"Fun" ~color:Color.None;
 ]
 ```
 
@@ -572,10 +573,12 @@ plotPie ~width:20 ~height:10 [
 
 ### Bar Chart
 ```ocaml
-plotBar ~width:20 ~height:8 [
-  bar_item ~value:80.0 ~label:"A" ~color:Color.None;
-  bar_item ~value:60.0 ~label:"B" ~color:Color.None;
-  bar_item ~value:40.0 ~label:"C" ~color:Color.None;
+plotBar ~width:40 ~height:10 [
+  bar_item ~value:100.0 ~label:"Mon" ~color:Color.None;
+  bar_item ~value:120.0 ~label:"Tue" ~color:Color.None;
+  bar_item ~value:110.0 ~label:"Wed" ~color:Color.None;
+  bar_item ~value:85.0 ~label:"Thu" ~color:Color.None;
+  bar_item ~value:115.0 ~label:"Fri" ~color:Color.None;
 ]
 ```
 
@@ -585,15 +588,22 @@ plotBar ~width:20 ~height:8 [
 
 ### Stacked Bar Chart
 ```ocaml
-plotStackedBar ~width:20 ~height:8 [
+plotStackedBar ~width:40 ~height:10 [
   stacked_group ~segments:[
-    bar_item ~value:30.0 ~label:"X" ~color:Color.None;
-    bar_item ~value:20.0 ~label:"Y" ~color:Color.None;
-  ] ~label:"G1";
+    bar_item ~value:30.0 ~label:"Q1" ~color:Color.None;
+    bar_item ~value:20.0 ~label:"Q2" ~color:Color.None;
+    bar_item ~value:25.0 ~label:"Q3" ~color:Color.None;
+  ] ~label:"2022";
   stacked_group ~segments:[
-    bar_item ~value:20.0 ~label:"X" ~color:Color.None;
-    bar_item ~value:40.0 ~label:"Y" ~color:Color.None;
-  ] ~label:"G2";
+    bar_item ~value:35.0 ~label:"Q1" ~color:Color.None;
+    bar_item ~value:25.0 ~label:"Q2" ~color:Color.None;
+    bar_item ~value:30.0 ~label:"Q3" ~color:Color.None;
+  ] ~label:"2023";
+  stacked_group ~segments:[
+    bar_item ~value:40.0 ~label:"Q1" ~color:Color.None;
+    bar_item ~value:30.0 ~label:"Q2" ~color:Color.None;
+    bar_item ~value:35.0 ~label:"Q3" ~color:Color.None;
+  ] ~label:"2024";
 ]
 ```
 
@@ -604,9 +614,11 @@ plotStackedBar ~width:20 ~height:8 [
 ### Heatmap
 ```ocaml
 plotHeatmap (heatmap_data
-  ~grid:[[1.0; 2.0; 3.0]; [4.0; 5.0; 6.0]; [7.0; 8.0; 9.0]]
-  ~row_labels:["R1"; "R2"; "R3"]
-  ~col_labels:["C1"; "C2"; "C3"])
+  ~grid:[[12.0; 15.0; 22.0; 28.0; 30.0; 25.0; 18.0];
+         [14.0; 18.0; 25.0; 32.0; 35.0; 28.0; 20.0];
+         [10.0; 13.0; 20.0; 26.0; 28.0; 22.0; 15.0]]
+  ~row_labels:["Mon"; "Tue"; "Wed"]
+  ~col_labels:["6am"; "9am"; "12pm"; "3pm"; "6pm"; "9pm"; "12am"])
 
 plotHeatmap ~cell_width:10 data              (* custom cell width *)
 ```
