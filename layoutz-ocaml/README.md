@@ -66,9 +66,6 @@ There are two usage paths:
 
 Beautiful + compositional strings
 
-<details>
-<summary>show code</summary>
-
 ```ocaml
 open Layoutz
 
@@ -98,7 +95,6 @@ let demo =
 let () = print demo
 ```
 
-</details>
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-ocaml/pix/layoutz-intro.png" width="700">
 </p>
