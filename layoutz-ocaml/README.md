@@ -284,8 +284,11 @@ banner (s "System Dashboard") |> borderDouble
 ### Table: `table`
 ```ocaml
 table
-  ~headers:[ s "Name"; s "Age" ]
-  [ [ s "Alice"; s "30" ]; [ s "Bob"; s "25" ] ]
+  ~headers:[ s "Name"; s "Age"; s "City" ]
+  [ [ s "Alice"; s "30"; s "New York" ]
+  ; [ s "Bob"; s "25" ]
+  ; [ s "Charlie"; s "35"; s "London" ]
+  ]
 ```
 
 <p align="center">
@@ -343,7 +346,13 @@ ol [ li (s "Step one"); li (s "Step two"); li (s "Step three") ]
 
 ### Tree: `tree`
 ```ocaml
-tree (node ~c:[ node (s "src"); node (s "test"); node (s "README.md") ] (s "project"))
+tree
+  (node ~c:[
+    node ~c:[
+      node ~c:[ node (s "App.ml") ] (s "main");
+      node ~c:[ node (s "AppTest.ml") ] (s "test")
+    ] (s "src")
+  ] (s "Project"))
 ```
 
 <p align="center">
