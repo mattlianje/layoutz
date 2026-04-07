@@ -1,4 +1,4 @@
-.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2
+.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2 publish-site
 
 VERSION := 0.7.0
 BUNDLE_DIR := bundles
@@ -62,3 +62,8 @@ bundle:
 	@cd $(BUNDLE_DIR) && zip -r layoutz-$(VERSION)-bundle.zip xyz
 	@rm -rf $(BUNDLE_DIR)/xyz
 	@echo "\nBundle ready: $(BUNDLE_DIR)/layoutz-$(VERSION)-bundle.zip"
+
+publish-site:
+	@echo "Publishing site to layoutz.dev..."
+	rsync -avz index.html root@nargothrond.xyz:/var/www/layoutz.dev/
+	@echo "Site published to https://layoutz.dev"
