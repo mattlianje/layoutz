@@ -13,8 +13,8 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 ## Features
 - Zero dependencies (just stdlib)
 - Use [`layoutz.ml`](lib/layoutz.ml) like a header file
-- Elm-style TUIs (`run_app`, `run_app_final`)
-- Layout primitives, tables, trees, lists
+- Elm-style TUIs
+- Layout primitives (tables, trees, lists)
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Border styles, spinners
@@ -525,9 +525,6 @@ let rainbow =
 ### Sparkline
 ```ocaml
 sparkline [1.0; 3.0; 5.0; 7.0; 2.0; 4.0; 8.0; 1.0]
-```
-```
-▁▃▅▇▂▄█▁
 ```
 
 <p align="center">
