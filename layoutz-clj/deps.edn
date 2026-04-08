@@ -3,6 +3,7 @@
  :aliases
  {:demo {:main-opts ["-m" "layoutz.demo"]}
   :tui-demo {:main-opts ["-m" "layoutz.tui-demo"]}
+  :inline-demo {:main-opts ["-m" "layoutz.inline-demo"]}
   :showcase {:main-opts ["-m" "layoutz.showcase"]}
   :test {:extra-paths ["test"]
          :main-opts ["-m" "layoutz.core-test"]}

@@ -1,4 +1,4 @@
-.PHONY: build test repl clean demo tui-demo showcase fmt fmt-check
+.PHONY: build test repl clean demo tui-demo inline-demo showcase fmt fmt-check
 
 build:
 	clj -M -e "(compile 'layoutz.core)"
@@ -17,6 +17,9 @@ demo:
 
 tui-demo:
 	clojure -M:tui-demo
+
+inline-demo:
+	clojure -M:inline-demo
 
 showcase:
 	clojure -M:showcase

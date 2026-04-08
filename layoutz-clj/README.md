@@ -31,6 +31,8 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
+<br>
+<sub><a href="src/layoutz/inline_demo.clj">inline_demo.clj</a></sub>
 </p>
 
 ## Table of Contents
@@ -685,8 +687,9 @@ Press **Ctrl-Q** to exit (configurable).
 
 ```bash
 make test       # run tests
-make demo       # run demo
-make tui-demo   # run interactive TUI demo
+make demo         # run demo
+make tui-demo     # run interactive TUI demo
+make inline-demo  # run inline loading demo
 make showcase   # run showcase (all elements)
 make repl       # start REPL
 make fmt        # format code (cljfmt)
