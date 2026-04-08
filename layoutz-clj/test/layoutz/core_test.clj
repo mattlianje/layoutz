@@ -94,6 +94,12 @@
   (let [output (l/render (l/box "Title" ["Content"]))]
     (is (pos? (count output)))))
 
+(deftest test-box-single-element
+  (let [output (l/render (l/box "Title" "hello"))]
+    (is (str/includes? output "Title"))
+    (is (str/includes? output "hello"))
+    (is (str/includes? output "┌"))))
+
 (deftest test-box-contains-border-chars
   (let [output (l/render (l/box "" ["X"]))]
     (is (str/includes? output "┌"))
@@ -144,6 +150,20 @@
     (is (str/includes? output "▛"))
     (is (str/includes? output "▟"))))
 
+(deftest test-border-custom-threaded
+  (let [output (l/render (-> (l/box "" ["X"])
+                             (l/border-custom "+" "=" "|")))]
+    (is (str/includes? output "+"))
+    (is (str/includes? output "="))
+    (is (str/includes? output "|"))))
+
+(deftest test-border-custom-as-fn
+  (let [custom-border (l/border-custom "+" "=" "|")
+        output (l/render (custom-border (l/box "" ["X"])))]
+    (is (str/includes? output "+"))
+    (is (str/includes? output "="))
+    (is (str/includes? output "|"))))
+
 ;; ============================================================================
 ;; Table
 ;; ============================================================================
@@ -180,6 +200,13 @@
 (deftest test-kv-rendering
   (let [output (l/render (l/kv [["user" "alice"] ["role" "admin"] ["status" "active"]]))]
     (is (= "user:   alice\nrole:   admin\nstatus: active" output))))
+
+(deftest test-kv-with-map
+  (let [output (l/render (l/kv {"user" "alice" "role" "admin"}))]
+    (is (str/includes? output "user:"))
+    (is (str/includes? output "alice"))
+    (is (str/includes? output "role:"))
+    (is (str/includes? output "admin"))))
 
 ;; ============================================================================
 ;; Alignment
@@ -267,6 +294,11 @@
     (is (str/includes? output "Loading"))
     (is (str/includes? output "⠋"))))
 
+(deftest test-spinner-style-first
+  (let [output (l/render (l/spinner "Loading" :dots 0))]
+    (is (str/includes? output "Loading"))
+    (is (str/includes? output "⠋"))))
+
 ;; ============================================================================
 ;; Lists (ordered / unordered)
 ;; ============================================================================
@@ -277,11 +309,30 @@
     (is (str/includes? output "One"))
     (is (str/includes? output "Two"))))
 
+(deftest test-ul-auto-wrap-strings
+  (let [output (l/render (l/ul ["One" "Two" "Three"]))]
+    (is (str/includes? output "•"))
+    (is (str/includes? output "One"))
+    (is (str/includes? output "Two"))
+    (is (str/includes? output "Three"))))
+
+(deftest test-ul-mixed-li-and-strings
+  (let [output (l/render (l/ul [(l/li "Wrapped") "Plain"]))]
+    (is (str/includes? output "Wrapped"))
+    (is (str/includes? output "Plain"))))
+
 (deftest test-ordered-list
   (let [output (l/render (l/ol [(l/li "First") (l/li "Second")]))]
     (is (str/includes? output "1."))
     (is (str/includes? output "2."))
     (is (str/includes? output "First"))))
+
+(deftest test-ol-auto-wrap-strings
+  (let [output (l/render (l/ol ["First" "Second"]))]
+    (is (str/includes? output "1."))
+    (is (str/includes? output "2."))
+    (is (str/includes? output "First"))
+    (is (str/includes? output "Second"))))
 
 (deftest test-nested-list
   (let [output (l/render (l/ul [(l/li "Parent"
@@ -311,6 +362,11 @@
   (let [output (l/render (l/section "Title" ["Body"]))]
     (is (str/includes? output "=== Title ==="))
     (is (str/includes? output "Body"))))
+
+(deftest test-section-single-element
+  (let [output (l/render (l/section "Title" "body"))]
+    (is (str/includes? output "=== Title ==="))
+    (is (str/includes? output "body"))))
 
 ;; ============================================================================
 ;; Styling

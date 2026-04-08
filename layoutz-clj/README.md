@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="700">
+</p>
+
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="40"> layoutz
 
 **Simple, beautiful CLI output for Clojure**
@@ -59,6 +63,9 @@ There are two usage paths:
 
 Beautiful + compositional strings
 
+<details>
+<summary>show code</summary>
+
 ```clojure
 (require '[layoutz.core :refer :all])
 
@@ -84,6 +91,11 @@ Beautiful + compositional strings
 (print-elem demo)
 ```
 
+</details>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="700">
+</p>
+
 **(2/2) Interactive apps**
 
 Build Elm-style TUIs
@@ -104,10 +116,14 @@ Build Elm-style TUIs
                         (case type :up :inc :down :dec nil))))
    :view (fn [{:keys [n]}]
            (layout
-             [(section "Counter" [(str "Count: " n)])
+             [(section "Counter" (str "Count: " n))
               br
-              (ul [(li "Press up/down") (li "Ctrl-Q to quit")])]))})
+              (ul ["Press up/down" "Ctrl-Q to quit"])]))})
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="650">
+</p>
 
 ## Why layoutz?
 - We have `printf` and full-blown TUI libraries - but there is a gap in-between
@@ -221,6 +237,7 @@ hr                                   ;; ─────────────�
 ### Section: `section`
 ```clojure
 (section "Config" [(kv [["env" "prod"] ["region" "us-east-1"]])])
+(section "Config" (kv [["env" "prod"]]))  ;; single element, no vector needed
 ```
 ```
 === Config ===
@@ -231,6 +248,7 @@ region: us-east-1
 ### Box: `box`
 ```clojure
 (box "Summary" ["All systems go"])
+(box "Summary" "All systems go")         ;; single element, no vector needed
 (-> (box "Fancy" ["content"]) border-double)
 (-> (box "Smooth" ["content"]) border-round)
 ```
@@ -246,7 +264,7 @@ region: us-east-1
 ╰──────────────╯
 ```
 
-### Status Card: `statusCard`
+### Status Card: `status-card`
 ```clojure
 (row [(-> (status-card "CPU" "45%") color-green)
       (-> (status-card "MEM" "2.1G") color-cyan)])
@@ -297,6 +315,7 @@ Line 3
 ### Key-Value: `kv`
 ```clojure
 (kv [["Name" "Alice"] ["Age" "30"] ["City" "NYC"]])
+(kv {"Name" "Alice" "Age" "30" "City" "NYC"}) ;; maps work too
 ```
 ```
 Name: Alice
@@ -306,8 +325,9 @@ City: NYC
 
 ### Unordered List: `ul`
 ```clojure
-(ul [(li "First") (li "Second") (li "Third")])
-(ul [(li "Item 1" :c [(li "Nested A") (li "Nested B")]) (li "Item 2")])
+(ul ["First" "Second" "Third"])          ;; plain strings auto-wrapped
+(ul [(li "First") (li "Second")])        ;; explicit li also works
+(ul [(li "Item 1" :c [(li "Nested A") (li "Nested B")]) "Item 2"])
 ```
 ```
 • First
@@ -322,7 +342,8 @@ City: NYC
 
 ### Ordered List: `ol`
 ```clojure
-(ol [(li "Step one") (li "Step two") (li "Step three")])
+(ol ["Step one" "Step two" "Step three"])
+(ol [(li "Step one") (li "Step two")])   ;; explicit li also works
 ```
 ```
 1. Step one
@@ -362,14 +383,14 @@ Scala   │█████████████████ 90
 ### Spinner: `spinner`
 8 built-in styles:
 ```clojure
-(spinner "Loading" 0 :dots)          ;; ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
-(spinner "Loading" 0 :line)          ;; | / - \
-(spinner "Loading" 0 :clock)         ;; 🕐 🕑 🕒 ...
-(spinner "Loading" 0 :bounce)        ;; ⠁ ⠂ ⠄ ⠂
-(spinner "Loading" 0 :earth)         ;; 🌍 🌎 🌏
-(spinner "Loading" 0 :moon)          ;; 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘
-(spinner "Loading" 0 :grow)          ;; ▏ ▎ ▍ ▌ ▋ ▊ ▉ █
-(spinner "Loading" 0 :arrow)         ;; ← ↖ ↑ ↗ → ↘ ↓ ↙
+(spinner "Loading" :dots 0)          ;; ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
+(spinner "Loading" :line 0)          ;; | / - \
+(spinner "Loading" :clock 0)         ;; 🕐 🕑 🕒 ...
+(spinner "Loading" :bounce 0)        ;; ⠁ ⠂ ⠄ ⠂
+(spinner "Loading" :earth 0)         ;; 🌍 🌎 🌏
+(spinner "Loading" :moon 0)          ;; 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘
+(spinner "Loading" :grow 0)          ;; ▏ ▎ ▍ ▌ ▋ ▊ ▉ █
+(spinner "Loading" :arrow 0)         ;; ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
 ### Alignment: `center`, `left-align`, `right-align`, `justify`, `wrap`
@@ -501,6 +522,10 @@ style-strikethrough
 ▁▃▅▇▂▄█▁
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-sparkline.png" width="500">
+</p>
+
 ### Line Plot
 ```clojure
 (plot-line 30 10
@@ -516,6 +541,10 @@ Multiple series:
      (series cos-pts "cos(x)" bright-magenta)]))
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="500">
+</p>
+
 ### Pie Chart
 ```clojure
 (plot-pie 20 10
@@ -524,6 +553,10 @@ Multiple series:
    (slice 30 "Scala")])
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="500">
+</p>
+
 ### Bar Chart
 ```clojure
 (plot-bar 20 8
@@ -531,6 +564,10 @@ Multiple series:
    (bar-item 60 "B" bright-green)
    (bar-item 40 "C" bright-magenta)])
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="500">
+</p>
 
 ### Stacked Bar Chart
 ```clojure
@@ -543,6 +580,10 @@ Multiple series:
       (bar-item 40 "Y" bright-green)])])
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-stacked.png" width="500">
+</p>
+
 ### Heatmap
 ```clojure
 (plot-heatmap
@@ -553,6 +594,10 @@ Multiple series:
 ;; Custom cell width
 (plot-heatmap 10 (heatmap-data ...))
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
+</p>
 
 ## Interactive Apps
 

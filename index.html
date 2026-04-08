@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>layoutz</title>
+<meta charset="utf-8">
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png">
+<style>
+table { table-layout: fixed; }
+pre { overflow-x: auto; }
+</style>
+</head>
+<body>
+<table border="0" cellpadding="0" cellspacing="0" width="620" align="center"><tr><td>
+
+<h1>layoutz</h1>
+
+<p>Zero-dependency library for terminal animations, compositional ANSI strings, plots, and Elm-style TUIs.
+In <a href="https://github.com/mattlianje/layoutz">Scala</a>,
+<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-hs">Haskell</a>,
+<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml">OCaml</a>, and
+<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-clj">Clojure</a>.</p>
+
+<p>
+<input type="radio" name="lang" value="scala" onclick="sw('scala')" checked> scala
+<input type="radio" name="lang" value="haskell" onclick="sw('haskell')"> haskell
+<input type="radio" name="lang" value="ocaml" onclick="sw('ocaml')"> ocaml
+<input type="radio" name="lang" value="clojure" onclick="sw('clojure')"> clojure
+</p>
+
+<pre id="intro-scala">
+import layoutz._
+
+val demo = layout(
+  row(
+    "Layoutz".style(Style.Bold),
+    underline("^", Color.Cyan)("DEMO")
+  ).center(),
+  br,
+  row(
+    statusCard("Users", "1.2K"),
+    statusCard("API", "UP").border(Border.Double),
+    statusCard("CPU", "23%").border(Border.Thick).color(Color.Red),
+    table(
+      Seq("Name", "Role", "Skills"),
+      Seq(
+        Seq("Gegard", "Pugilist",
+          ul("Armenian", ul("bad", ul("man")))),
+        Seq("Eve", "QA", "Testing")
+      )
+    ).border(Border.Round).style(Style.Reverse)
+  )
+)
+
+demo.putStrLn
+</pre>
+
+<pre id="intro-haskell" style="display:none">
+import Layoutz
+
+demo = layout
+  [ center $ row
+      [ withStyle StyleBold $ text "Layoutz"
+      , underlineColored "^" ColorCyan $ text "DEMO"
+      ]
+  , br
+  , row
+      [ statusCard "Users" "1.2K"
+      , withBorder BorderDouble $ statusCard "API" "UP"
+      , withColor ColorRed $ withBorder BorderThick $
+          statusCard "CPU" "23%"
+      , withStyle StyleReverse $ withBorder BorderRound $
+          table ["Name", "Role", "Skills"]
+            [ [text "Gegard", text "Pugilist",
+               ul [text "Armenian",
+                   ul [text "bad", ul [text "man"]]]]
+            , [text "Eve", text "QA", text "Testing"]
+            ]
+      ]
+  ]
+
+main = putStrLn $ render demo
+</pre>
+
+<pre id="intro-ocaml" style="display:none">
+open Layoutz
+
+let demo =
+  layout
+    [ center
+        (row
+           [ s "Layoutz" |&gt; styleBold
+           ; underlineColored ~char:"^" ~color:Color.cyan (s "DEMO")
+           ])
+    ; br
+    ; row
+        [ statusCard ~label:(s "Users") ~content:(s "1.2K")
+        ; statusCard ~label:(s "API") ~content:(s "UP") |&gt; borderDouble
+        ; statusCard ~label:(s "CPU") ~content:(s "23%")
+          |&gt; borderThick |&gt; colorRed
+        ; table
+            ~headers:[ s "Name"; s "Role"; s "Skills" ]
+            [ [ s "Gegard"; s "Pugilist"
+              ; ul [ li ~c:[ li ~c:[ li (s "man") ]
+                  (s "bad") ] (s "Armenian") ] ]
+            ; [ s "Eve"; s "QA"; s "Testing" ] ]
+          |&gt; borderRound |&gt; styleReverse
+        ]
+    ]
+
+let () = print demo
+</pre>
+
+<pre id="intro-clojure" style="display:none">
+(require '[layoutz.core :refer :all])
+
+(def demo
+  (layout
+    [(center
+       (row
+         [(-&gt; "Layoutz" style-bold)
+          (underline-colored "DEMO" "^" bright-magenta)]))
+     br
+     (row
+       [(status-card "Users" "1.2K")
+        (-&gt; (status-card "API" "UP") border-double)
+        (-&gt; (status-card "CPU" "23%") border-thick color-red)
+        (-&gt; (table ["Name" "Role" "Skills"]
+                   [["Gegard" "Pugilist"
+                     (ul [(li "Armenian"
+                              :c [(li "bad"
+                                      :c [(li "man")])])])]
+                    ["Eve" "QA" "Testing"]])
+            border-round style-reverse)])]))
+
+(print-elem demo)
+</pre>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="620">
+</p>
+
+<script>
+function sw(lang) {
+  var groups = ['intro','counter'];
+  var langs = ['scala','haskell','ocaml','clojure'];
+  for (var g = 0; g < groups.length; g++)
+    for (var i = 0; i < langs.length; i++) {
+      var el = document.getElementById(groups[g] + '-' + langs[i]);
+      if (el) el.style.display = langs[i] === lang ? '' : 'none';
+    }
+  var radios = document.querySelectorAll('input[type=radio]');
+  for (var r = 0; r < radios.length; r++)
+    radios[r].checked = radios[r].value === lang;
+}
+</script>
+
+<h2>Showcase</h2>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="620">
+</p>
+<p><small>src:
+<a href="https://github.com/mattlianje/layoutz/blob/master/examples/ShowcaseApp.scala">scala</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-hs/examples/ShowcaseApp.hs">haskell</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-ocaml/showcase_app.ml">ocaml</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-clj/src/layoutz/showcase.clj">clojure</a>
+</small></p>
+
+<h2>Inline animations</h2>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="620">
+</p>
+<p><small>src:
+<a href="https://github.com/mattlianje/layoutz/blob/master/examples/InlineDemo.scala">scala</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-hs/examples/InlineBar.hs">haskell</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-ocaml/inline_loading_demo.ml">ocaml</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-clj/src/layoutz/demo.clj">clojure</a>
+</small></p>
+
+<h2>Interactive TUIs</h2>
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="620">
+</p>
+<p>
+<input type="radio" name="lang2" value="scala" onclick="sw('scala')" checked> scala
+<input type="radio" name="lang2" value="haskell" onclick="sw('haskell')"> haskell
+<input type="radio" name="lang2" value="ocaml" onclick="sw('ocaml')"> ocaml
+<input type="radio" name="lang2" value="clojure" onclick="sw('clojure')"> clojure
+</p>
+
+<pre id="counter-scala">
+import layoutz._
+
+object CounterApp extends LayoutzApp[Int, String] {
+  def init = (0, Cmd.none)
+
+  def update(msg: String, count: Int) = msg match {
+    case "inc" =&gt; (count + 1, Cmd.none)
+    case "dec" =&gt; (count - 1, Cmd.none)
+    case _     =&gt; (count, Cmd.none)
+  }
+
+  def subscriptions(count: Int) =
+    Sub.onKeyPress {
+      case Key.Char('+') =&gt; Some("inc")
+      case Key.Char('-') =&gt; Some("dec")
+      case _             =&gt; None
+    }
+
+  def view(count: Int) = layout(
+    section("Counter")(s"Count: $count"),
+    br,
+    ul("Press `+` or `-`")
+  )
+
+}
+
+CounterApp.run
+</pre>
+
+<pre id="counter-haskell" style="display:none">
+import Layoutz
+
+data CounterMsg = Inc | Dec
+
+counterApp :: LayoutzApp Int CounterMsg
+counterApp = LayoutzApp
+  { appInit = (0, CmdNone)
+
+  , appUpdate = \msg count -&gt; case msg of
+      Inc -&gt; (count + 1, CmdNone)
+      Dec -&gt; (count - 1, CmdNone)
+
+  , appSubscriptions = \_state -&gt;
+      subKeyPress $ \key -&gt; case key of
+        KeyChar '+' -&gt; Just Inc
+        KeyChar '-' -&gt; Just Dec
+        _           -&gt; Nothing
+
+  , appView = \count -&gt;
+      layout
+        [ section "Counter" [text $ "Count: " &lt;&gt; show count]
+        , br
+        , ul ["Press '+' or '-'", "Press ESC to quit"]
+        ]
+  }
+
+main = runApp counterApp
+</pre>
+
+<pre id="counter-ocaml" style="display:none">
+open Layoutz
+
+type msg = Inc | Dec
+
+let () =
+  run_app
+    { init = (0, CmdNone);
+      update =
+        (fun msg count -&gt;
+          match msg with
+          | Inc -&gt; (count + 1, CmdNone)
+          | Dec -&gt; (count - 1, CmdNone));
+      subscriptions =
+        (fun _ -&gt;
+          sub_key_press (fun key -&gt;
+            match key with
+            | KeyChar '+' -&gt; Some Inc
+            | KeyChar '-' -&gt; Some Dec
+            | _ -&gt; None));
+      view =
+        (fun count -&gt;
+          layout
+            [ section ~title:"Counter"
+                [ s ("Count: " ^ string_of_int count) ];
+              br;
+              ul [ li (s "Press `+` or `-`") ]
+            ]);
+    }
+</pre>
+
+<pre id="counter-clojure" style="display:none">
+(require '[layoutz.core :refer :all])
+
+(run-app
+  {:init (fn [] [{:n 0} (cmd-none)])
+   :update (fn [msg state]
+             (case msg
+               :inc [(update state :n inc) (cmd-none)]
+               :dec [(update state :n dec) (cmd-none)]
+               [state (cmd-none)]))
+   :subscriptions (fn [_]
+                    (sub-key-press
+                      (fn [{:keys [type]}]
+                        (case type :up :inc :down :dec nil))))
+   :view (fn [{:keys [n]}]
+           (layout
+             [(section "Counter" (str "Count: " n))
+              br
+              (ul ["Press up/down" "Ctrl-Q to quit"])]))})
+</pre>
+
+<h2>Links</h2>
+
+<p><a href="https://github.com/mattlianje/layoutz">GitHub</a></p>
+
+<hr>
+<p><small>&copy; 2025&ndash;2026 Matthieu Court</small></p>
+
+</td></tr></table>
+</body>
+</html>

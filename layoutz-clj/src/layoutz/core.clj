@@ -1326,9 +1326,9 @@
   (->BannerElement content :double))
 
 (defn kv
-  "Key-value pairs."
+  "Key-value pairs. Accepts a seq of [k v] pairs or a map."
   [pairs]
-  (->KeyValueElement pairs))
+  (->KeyValueElement (if (map? pairs) (vec pairs) pairs)))
 
 (defn inline-bar
   "Inline progress bar."
@@ -1341,9 +1341,12 @@
   (->ChartElement data))
 
 (defn spinner
-  "Spinner - animated loading indicator."
-  [label frame style]
-  (->SpinnerElement label frame style))
+  "Spinner - animated loading indicator.
+   (spinner label frame style) or (spinner label style frame)"
+  [label a b]
+  (if (keyword? a)
+    (->SpinnerElement label b a)
+    (->SpinnerElement label a b)))
 
 (defn sparkline
   "Sparkline - inline spark chart from values."
@@ -1404,9 +1407,9 @@
    (->HeatmapElement (:grid data) (:row-labels data) (:col-labels data) cell-w)))
 
 (defn section
-  "Section with title and content."
+  "Section with title and content. Content can be a vector or a single element."
   [title content & {:keys [glyph flanking] :or {glyph "=" flanking 3}}]
-  (->SectionElement title glyph flanking content))
+  (->SectionElement title glyph flanking (if (sequential? content) content [content])))
 
 (defn layout
   "Vertical layout."
@@ -1424,9 +1427,9 @@
   (->HStackElement elements true))
 
 (defn box
-  "Bordered box."
+  "Bordered box. Elements can be a vector or a single element."
   [title elements]
-  (->BoxElement title elements :normal))
+  (->BoxElement title (if (sequential? elements) elements [elements]) :normal))
 
 (defn table
   "Table with element headers and rows."
@@ -1438,15 +1441,20 @@
   ([item]   {:content item :children []})
   ([item & {:keys [c] :or {c []}}] {:content item :children c}))
 
+(defn- normalize-li [item]
+  (if (and (map? item) (contains? item :content))
+    item
+    {:content item :children []}))
+
 (defn ul
-  "Unordered list."
-  ([items]        (->UListElement items "•"))
-  ([bullet items] (->UListElement items bullet)))
+  "Unordered list. Items can be li maps or plain strings/elements (auto-wrapped)."
+  ([items]        (->UListElement (mapv normalize-li items) "•"))
+  ([bullet items] (->UListElement (mapv normalize-li items) bullet)))
 
 (defn ol
-  "Ordered list."
-  ([items]       (->OListElement items 1))
-  ([start items] (->OListElement items start)))
+  "Ordered list. Items can be li maps or plain strings/elements (auto-wrapped)."
+  ([items]       (->OListElement (mapv normalize-li items) 1))
+  ([start items] (->OListElement (mapv normalize-li items) start)))
 
 (defn node
   "Tree node constructor."
@@ -1479,7 +1487,12 @@
 (defn border-inner-half-block [e] (set-border :inner-half-block e))
 (defn border-outer-half-block [e] (set-border :outer-half-block e))
 (defn border-markdown [e]         (set-border :markdown e))
-(defn border-custom [e corner h v] (set-border {:corner corner :h h :v v} e))
+(defn border-custom
+  "Custom border. Returns a 1-arg fn, or applies directly when threaded."
+  ([corner h v]
+   (fn [e] (set-border {:corner corner :h h :v v} e)))
+  ([e corner h v]
+   (set-border {:corner corner :h h :v v} e)))
 
 (defn border-none [e]
   (cond
