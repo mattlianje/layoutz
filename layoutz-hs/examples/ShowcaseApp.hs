@@ -17,7 +17,7 @@ import Layoutz
 import Text.Printf (printf)
 import Data.Char (isAlphaNum)
 
--- State -----------------------------------------------------------------------
+-- State
 
 data ShowcaseState = ShowcaseState
   { scene         :: Int
@@ -47,7 +47,7 @@ initialState = ShowcaseState
   , ballTrail = replicate 80 10.0
   }
 
--- Messages --------------------------------------------------------------------
+-- Messages
 
 data Msg
   = NextScene | PrevScene | GoScene Int | Tick
@@ -55,7 +55,7 @@ data Msg
   | ToggleSelect | CursorUp | CursorDown
   | AdjustUp | AdjustDown | ToggleBarMode | KickBall
 
--- Constants -------------------------------------------------------------------
+-- Constants
 
 totalScenes :: Int
 totalScenes = 7
@@ -84,7 +84,7 @@ sceneWidth = 75
 toggleIn :: Int -> [Int] -> [Int]
 toggleIn x xs = if x `elem` xs then filter (/= x) xs else x : xs
 
--- Update ----------------------------------------------------------------------
+-- Update
 
 update :: Msg -> ShowcaseState -> (ShowcaseState, Cmd Msg)
 update msg s = case msg of

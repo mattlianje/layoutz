@@ -2,7 +2,7 @@
   (:require [layoutz.core :refer :all]
             [clojure.string :as str]))
 
-;; Constants -------------------------------------------------------------------
+;; Constants
 
 (def total-scenes 7)
 
@@ -21,7 +21,7 @@
 
 (def scene-width 75)
 
-;; Helpers ---------------------------------------------------------------------
+;; Helpers
 
 (defn- toggle-in [x xs]
   (if (some #{x} xs) (filterv #(not= % x) xs) (conj xs x)))
@@ -34,7 +34,7 @@
          (< y 0.1))                   [0.0 0.0]
     :else                             [y vy]))
 
-;; Initial state ---------------------------------------------------------------
+;; Initial state
 
 (def initial-state
   {:scene 0 :tick 0 :text-value "" :items []
@@ -43,7 +43,7 @@
    :bar-mode 0 :ball-y 10.0 :ball-vy 0.0 :gravity 5
    :ball-trail (vec (repeat 80 10.0))})
 
-;; Update ----------------------------------------------------------------------
+;; Update
 
 (defn- update-tick [s]
   (let [;; Text input adding animation
@@ -124,7 +124,7 @@
 
       :else [s (cmd-none)])))
 
-;; Subscriptions ---------------------------------------------------------------
+;; Subscriptions
 
 (defn- app-subscriptions [s]
   (sub-batch
@@ -155,7 +155,7 @@
                      :else nil)
         nil)))))
 
-;; View ------------------------------------------------------------------------
+;; View
 
 (defn- render-header [s]
   (let [scene-dots (str/join " " (map #(if (= % (:scene s)) "●" "○") (range total-scenes)))
@@ -186,7 +186,7 @@
                 "  </> scenes  Ctrl-Q quit")]
     (-> hints style-dim color-bright-black)))
 
-;; Scene 1: Physics Game -------------------------------------------------------
+;; Scene 1: Physics Game
 
 (defn- scene-physics-game [s]
   (let [trail-points (mapv (fn [i] [(double i) (nth (:ball-trail s) i)])
@@ -220,7 +220,7 @@
                                    (-> "Press Space to kick ball!" style-bold color-bright-yellow)])))])
               border-round color-bright-magenta)])))
 
-;; Scene 2: Text Input & Lists ------------------------------------------------
+;; Scene 2: Text Input & Lists
 
 (defn- scene-text-input [s]
   (let [input-line
@@ -282,7 +282,7 @@
                      (repeat right-pad ""))))
               border-round)])))
 
-;; Scene 3: Borders & Styles --------------------------------------------------
+;; Scene 3: Borders & Styles
 
 (defn- scene-borders-styles [_s]
   (let [mk-box (fn [border-fn name color]
@@ -308,7 +308,7 @@
                       (-> "Bold+Italic" style-bold style-italic color-bright-white)])
                 border-round)])])))
 
-;; Scene 4: Tables -------------------------------------------------------------
+;; Scene 4: Tables
 
 (defn- scene-tables [s]
   (let [colored-rows
@@ -337,7 +337,7 @@
             color-bright-black)
         sel-info])])))
 
-;; Scene 5: Charts & Plots ----------------------------------------------------
+;; Scene 5: Charts & Plots
 
 (defn- scene-charts-plots [s]
   (let [sin-points  (mapv (fn [i]
@@ -364,7 +364,7 @@
                        (slice 15 "Licensing" bright-yellow)
                        (slice 10 "Other"     bright-green)])])])))
 
-;; Scene 6: Bar Charts & Sparklines -------------------------------------------
+;; Scene 6: Bar Charts & Sparklines
 
 (defn- scene-bar-sparklines [s]
   (let [spark-data (mapv (fn [i]
@@ -402,7 +402,7 @@
            [(-> (str mode-name "  [Tab to cycle]") color-bright-yellow)
             chart-elem])])))
 
-;; Scene 7: Selections & Heatmap -----------------------------------------------
+;; Scene 7: Selections & Heatmap
 
 (defn- scene-selections-heatmap [s]
   (let [days  ["Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"]
@@ -449,7 +449,7 @@
                                   (heatmap-data heat-data days hours))])
               border-round)])))
 
-;; View dispatch ---------------------------------------------------------------
+;; View dispatch
 
 (defn- app-view [s]
   (let [header  (render-header s)
@@ -466,7 +466,7 @@
     (left-align scene-width
                 (render (layout [header br content br footer])))))
 
-;; App -------------------------------------------------------------------------
+;; App
 
 (def showcase-app
   {:init          (fn [] [initial-state (cmd-none)])
