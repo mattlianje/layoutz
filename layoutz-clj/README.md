@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-clj/pix/clojure-demo.png" width="700">
 </p>
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="40"> layoutz
@@ -14,12 +14,12 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 - Zero dependencies
 - Use [`core.clj`](src/layoutz/core.clj) like a header file
 - Elm-style TUIs (`run-app`, `run-inline`)
-- Layout primitives, tables, trees, lists
+- Layout primitives, tables, trees, lists, CJK-aware
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
-- Border styles, spinners
+- Widgets: spinners, progress bars, text input
 - Implement `Element` protocol to create new primitives
-- Thread-safe, purely functional rendering
+   - (No component library limitations)
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="650">
@@ -95,7 +95,7 @@ Beautiful + compositional strings
 
 </details>
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="700">
+  <img src="pix/clojure-demo.png" width="700">
 </p>
 
 **(2/2) Interactive apps**
@@ -131,7 +131,8 @@ Build Elm-style TUIs
 - We have `printf` and full-blown TUI libraries - but there is a gap in-between
 - **layoutz** is a tiny, declarative DSL to combat this
 - Everything is an `Element` - immutable and composable
-- Implement the `Element` protocol to create any elements you imagine - they compose with all built-ins
+- On the side, **layoutz** has an Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook
+- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
 
 ## Core Concepts
 
@@ -157,7 +158,6 @@ Applied via `->` to any element:
 ```clojure
 (-> (box "Title" ["content"]) border-round)
 (-> (table headers rows) border-thick)
-(-> "Hello" border-double)
 ```
 
 ```
@@ -174,18 +174,7 @@ border-outer-half-block              ;; ▛▀▜
 border-markdown                      ;; |-|
 (border-custom "+" "=" "|")          ;; custom
 border-none                          ;; no borders
-```
-
-```clojure
-(-> (box "Status" ["All systems go"]) border-round)
-;; ╭──Status──────────╮
-;; │ All systems go   │
-;; ╰──────────────────╯
-
-(-> (box "Fancy" ["Double border"]) border-double)
-;; ╔══Fancy═══════════╗
-;; ║ Double border    ║
-;; ╚══════════════════╝
+(set-border :round elem)             ;; programmatic border selection
 ```
 
 ## Elements
@@ -197,10 +186,9 @@ border-none                          ;; no borders
 "hello"                              ;; strings are elements
 ```
 
-### Line Break: `br`, `br'`
+### Line Break: `br`
 ```clojure
 (layout ["Line 1" br "Line 2"])
-(layout ["Top" (br' 3) "3 lines down"])
 ```
 
 ### Layout (vertical): `layout`
@@ -216,18 +204,14 @@ Third
 ### Row (horizontal): `row`, `tight-row`
 ```clojure
 (row ["Left" "Middle" "Right"])
-(tight-row ["[" "no" "gaps" "]"])
-```
-```
-Left Middle Right
-[nogaps]
+(columns [(layout ["A" "B"]) (layout ["C" "D"])])  ;; side-by-side columns
 ```
 
 ### Horizontal Rule: `hr`, `hr'`
 ```clojure
-hr                                   ;; ──────────────────────────────
-(hr' :width 20)                      ;; ────────────────────
-(hr' :char "=" :width 20)            ;; ====================
+hr                                   ;; default ──────────
+(hr' :char "~")                      ;; custom char
+(hr' :char "=" :width 10)            ;; custom char + width
 ```
 
 ### Vertical Rule: `vr`
@@ -238,131 +222,100 @@ hr                                   ;; ─────────────�
 
 ### Section: `section`
 ```clojure
-(section "Config" [(kv [["env" "prod"] ["region" "us-east-1"]])])
-(section "Config" (kv [["env" "prod"]]))  ;; single element, no vector needed
+(section "Config" (kv [["env" "prod"]]))
 ```
 ```
 === Config ===
-env:    prod
-region: us-east-1
+env: prod
 ```
 
 ### Box: `box`
 ```clojure
-(box "Summary" ["All systems go"])
-(box "Summary" "All systems go")         ;; single element, no vector needed
+(box "Summary" (kv [["total" "42"]]))
 (-> (box "Fancy" ["content"]) border-double)
 (-> (box "Smooth" ["content"]) border-round)
 ```
-```
-┌──Summary─────────┐
-│ All systems go   │
-└──────────────────┘
-╔══Fancy═══════╗
-║ content      ║
-╚══════════════╝
-╭──Smooth──────╮
-│ content      │
-╰──────────────╯
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-boxes.png" width="450">
+</p>
 
 ### Status Card: `status-card`
 ```clojure
 (row [(-> (status-card "CPU" "45%") color-green)
       (-> (status-card "MEM" "2.1G") color-cyan)])
 ```
-```
-┌──────┐ ┌───────┐
-│ CPU  │ │ MEM   │
-│ 45%  │ │ 2.1G  │
-└──────┘ └───────┘
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-status-cards.png" width="350">
+</p>
 
 ### Banner: `banner`
 ```clojure
 (banner "System Dashboard")
 ```
-```
-╔════════════════════╗
-║                    ║
-║  System Dashboard  ║
-║                    ║
-╚════════════════════╝
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-banner.png" width="350">
+</p>
 
 ### Table: `table`
 ```clojure
-(table ["Name" "Age"] [["Alice" "30"] ["Bob" "25"]])
-```
-```
-┌───────┬─────┐
-│ Name  │ Age │
-├───────┼─────┤
-│ Alice │ 30  │
-│ Bob   │ 25  │
-└───────┴─────┘
+(table ["Name" "Age" "City"]
+       [["Alice" "30" "New York"]
+        ["Bob" "25"]
+        ["Charlie" "35" "London"]])
 ```
 
-### Columns: `columns`
-```clojure
-(columns [(layout ["Left Column" "Line 2" "Line 3"])
-          (layout ["Right Column" "More text"])])
-```
-```
-Left Column   Right Column
-Line 2        More text
-Line 3
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-table.png" width="450">
+</p>
 
 ### Key-Value: `kv`
 ```clojure
-(kv [["Name" "Alice"] ["Age" "30"] ["City" "NYC"]])
-(kv {"Name" "Alice" "Age" "30" "City" "NYC"}) ;; maps work too
+(kv [["name" "Alice"] ["role" "admin"]])
+(kv {"name" "Alice" "role" "admin"})     ;; maps work too
 ```
 ```
-Name: Alice
-Age:  30
-City: NYC
+name: Alice
+role: admin
 ```
 
 ### Unordered List: `ul`
 ```clojure
-(ul ["First" "Second" "Third"])          ;; plain strings auto-wrapped
-(ul [(li "First") (li "Second")])        ;; explicit li also works
-(ul [(li "Item 1" :c [(li "Nested A") (li "Nested B")]) "Item 2"])
+(ul ["Backend"
+     (li "API" :c [(li "REST") (li "GraphQL")])
+     "Frontend"])
 ```
 ```
-• First
-• Second
-• Third
-
-• Item 1
-  • Nested A
-  • Nested B
-• Item 2
+• Backend
+• API
+  • REST
+  • GraphQL
+• Frontend
 ```
 
 ### Ordered List: `ol`
 ```clojure
-(ol ["Step one" "Step two" "Step three"])
-(ol [(li "Step one") (li "Step two")])   ;; explicit li also works
+(ol [(li "Setup" :c [(li "Install deps") (li "Configure")])
+     "Deploy"])
 ```
 ```
-1. Step one
-2. Step two
-3. Step three
+1. Setup
+   a. Install deps
+   b. Configure
+2. Deploy
 ```
 
 ### Tree: `tree`
 ```clojure
-(tree (node "project" :c [(node "src") (node "test") (node "README.md")]))
+(tree (node "Project"
+            :c [(node "src"
+                      :c [(node "main.clj")
+                          (node "test.clj")])]))
 ```
-```
-project
-├── src
-├── test
-└── README.md
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-tree.png" width="450">
+</p>
 
 ### Progress Bar: `inline-bar`
 ```clojure
@@ -374,12 +327,7 @@ Download [███████████████─────] 75%
 
 ### Chart: `chart`
 ```clojure
-(chart [["OCaml" 85.0] ["Haskell" 72.0] ["Scala" 90.0]])
-```
-```
-OCaml   │████████████████ 85
-Haskell │█████████████ 72
-Scala   │█████████████████ 90
+(chart [["Web" 10] ["Mobile" 20] ["API" 15]])
 ```
 
 ### Spinner: `spinner`
@@ -395,51 +343,53 @@ Scala   │█████████████████ 90
 (spinner "Loading" :arrow 0)         ;; ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-### Alignment: `center`, `left-align`, `right-align`, `justify`, `wrap`
+### Alignment: `center`, `left-align`, `right-align`, `justify`, `justify-all`, `wrap`
 ```clojure
 (center "Auto-centered")             ;; width from siblings
 (center 30 "Fixed width")
 (left-align 30 "Left")
 (right-align 30 "Right")
-(justify 30 "Spread this out")
+(justify 30 "Spread this out")       ;; last line left-aligned
+(justify-all 30 "Spread this out")   ;; all lines justified
 (wrap 20 "Long text that should wrap")
 ```
 
 ### Underline: `underline-elem`, `underline-colored`
 ```clojure
 (underline-elem "Title")
-(underline-elem "=" "Double")
-(underline-colored "Fancy" "~" bright-cyan)
+(underline-elem "=" "Custom")
 ```
 ```
 Title
 ─────
-Double
-======
+Custom
+══════
 ```
 
 ### Margin: `margin`, `margin-color`
 ```clojure
-(margin "[info]" (layout ["Line 1" "Line 2"]))
-(margin-color "[error]" red "Something failed")
+(margin "[error]"
+  (layout ["Oops!"
+           (row ["val result: Int = " (underline-elem "^" "getString()")])
+           "Expected Int, found String"]))
 ```
-```
-[info] Line 1
-[info] Line 2
-```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-compiler.png" width="450">
+</p>
 
 ### Padding & Truncation: `pad`, `truncate`
 ```clojure
-(pad 2 "Padded content")
-(truncate 15 "This is a very long text")
-(truncate 20 "Custom ellipsis example" :ellipsis "…")
+(pad 2 "content")
+(truncate 15 "Very long text that will be cut off")
+(truncate 20 "Custom ellipsis example text here" :ellipsis "…")
 ```
 
 ### Spacing: `space`, `empty-elem`
 ```clojure
 (row ["Left" space "Right"])         ;; single space
 (row ["Left" (space' 10) "Right"])   ;; 10 spaces
-empty-elem                           ;; no-op, conditional rendering
+empty-elem                           ;; no-op (conditional rendering)
 ```
 
 ## Colors & Styles
@@ -450,9 +400,14 @@ Foreground with `color-*`, background with `bg-*`:
 (-> "Error!" color-red)
 (-> "Warning" color-bright-cyan style-bold)
 (-> "Alert" bg-red color-white)
+(-> (box "" ["warning"]) bg-yellow)
 ```
 
-```clojure
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-2.png" width="700">
+</p>
+
+```
 color-black
 color-red
 color-green
@@ -469,16 +424,51 @@ color-bright-blue
 color-bright-magenta
 color-bright-cyan
 color-bright-white
-(color-256 201)                      ;; 256-color palette
-(color-rgb 255 128 0)               ;; 24-bit RGB
+(color-256 n)                        ;; 256-color palette (0-255)
+(color-rgb r g b)                    ;; 24-bit RGB
 ```
 
-Background variants: `bg-black`, `bg-red`, ... `(bg-256 201)`, `(bg-rgb 30 30 60)`
+Background variants: `bg-black`, `bg-red`, ... `(bg-256 n)`, `(bg-rgb r g b)`
 
-Raw color values for `margin-color`, `underline-colored`:
+All color/bg functions take element first for `->` threading:
 ```clojure
-red, cyan, (rgb 255 128 0)
+(-> "text" (color-256 201))
+(-> "text" (color-rgb 255 128 0))
+(-> "text" (bg-256 17))
+(-> "text" (bg-rgb 30 30 60))
 ```
+
+Raw color values for `margin-color`, `underline-colored`, `with-style`:
+```clojure
+red, cyan, (rgb 255 128 0), (c256 201)
+```
+
+```clojure
+;; 256-color palette gradient
+(def palette
+  (tight-row (map #(color-256 "█" %) (range 16 232 7))))
+
+;; RGB gradients
+(def red-to-blue
+  (tight-row (map (fn [i] (color-rgb "█" i 100 (- 255 i))) (range 0 256 8))))
+
+(def green-fade
+  (tight-row (map (fn [i] (color-rgb "█" 0 (- 255 i) i)) (range 0 256 8))))
+
+(def rainbow
+  (tight-row (map (fn [i]
+                    (let [r (if (< i 128) (* i 2) 255)
+                          g (if (< i 128) 255 (* (- 255 i) 2))
+                          b (if (> i 128) (* (- i 128) 2) 0)]
+                      (color-rgb "█" r g b)))
+                  (range 0 256 8))))
+
+(print-elem (layout [palette red-to-blue green-fade rainbow]))
+```
+
+<p align="center">
+  <img src="pix/clojure-gradient.png" width="500">
+</p>
 
 ### Styles
 ```clojure
@@ -486,6 +476,10 @@ red, cyan, (rgb 255 128 0)
 (-> "text" color-red style-bold)
 (-> "text" style-bold style-italic style-underline-s)
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="700">
+</p>
 
 ```
 style-bold
@@ -498,20 +492,14 @@ style-hidden
 style-strikethrough
 ```
 
-### Color Gradients
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
+</p>
 
+General styling with `with-style`:
 ```clojure
-;; 256-color palette gradient
-(tight-row (map (fn [i] (-> "█" (color-256 (+ 16 (* i 7))))) (range 31)))
-
-;; RGB gradients
-(tight-row (map (fn [i]
-                  (let [v (* i 8)
-                        r (if (< v 128) (* v 2) 255)
-                        g (if (< v 128) 255 (* (- 255 v) 2))
-                        b (if (> v 128) (* (- v 128) 2) 0)]
-                    (-> "█" (color-rgb r g b))))
-                (range 32)))
+(with-style "text" :fg red :bg white :style ["1" "3"])
+(with-style "text" :fg (rgb 255 128 0))
 ```
 
 ## Charts & Plots
@@ -520,19 +508,19 @@ style-strikethrough
 ```clojure
 (sparkline [1.0 3.0 5.0 7.0 2.0 4.0 8.0 1.0])
 ```
-```
-▁▃▅▇▂▄█▁
-```
-
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-sparkline.png" width="500">
 </p>
 
 ### Line Plot
 ```clojure
-(plot-line 30 10
-  [(series [[0 0] [1 1] [2 4] [3 9]] "x^2" bright-cyan)])
+(plot-line 40 10
+  [(series (mapv (fn [i] [(double i) (Math/sin (* i 0.1))]) (range 100))
+           "sine" bright-cyan)])
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-1.png" width="500">
+</p>
 
 Multiple series:
 ```clojure
@@ -547,41 +535,54 @@ Multiple series:
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="500">
 </p>
 
+### Horizontal Chart
+```clojure
+(chart [["Web" 10] ["Mobile" 20] ["API" 15]])
+```
+
 ### Pie Chart
 ```clojure
 (plot-pie 20 10
-  [(slice 40 "OCaml")
-   (slice 30 "Haskell")
-   (slice 30 "Scala")])
+  [(slice 50 "Liquor")
+   (slice 20 "Protein")
+   (slice 10 "Water")
+   (slice 20 "Fun")])
 ```
-
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="500">
 </p>
 
 ### Bar Chart
 ```clojure
-(plot-bar 20 8
-  [(bar-item 80 "A" bright-cyan)
-   (bar-item 60 "B" bright-green)
-   (bar-item 40 "C" bright-magenta)])
+(plot-bar 40 10
+  [(bar-item 100 "Mon") (bar-item 120 "Tue") (bar-item 110 "Wed")
+   (bar-item 85 "Thu") (bar-item 115 "Fri")])
 ```
-
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="500">
 </p>
 
+Custom colors:
+```clojure
+(plot-bar 20 8
+  [(bar-item 100 "Sales" bright-magenta)
+   (bar-item 80 "Costs" bright-red)
+   (bar-item 20 "Profit" bright-cyan)])
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar-custom.png" width="500">
+</p>
+
 ### Stacked Bar Chart
 ```clojure
-(plot-stacked-bar 20 8
-  [(stacked-bar-group "G1"
-     [(bar-item 30 "X" bright-cyan)
-      (bar-item 20 "Y" bright-green)])
-   (stacked-bar-group "G2"
-     [(bar-item 20 "X" bright-cyan)
-      (bar-item 40 "Y" bright-green)])])
+(plot-stacked-bar 40 10
+  [(stacked-bar-group "2022"
+     [(bar-item 30 "Q1") (bar-item 20 "Q2") (bar-item 25 "Q3")])
+   (stacked-bar-group "2023"
+     [(bar-item 35 "Q1") (bar-item 25 "Q2") (bar-item 30 "Q3")])
+   (stacked-bar-group "2024"
+     [(bar-item 40 "Q1") (bar-item 30 "Q2") (bar-item 35 "Q3")])])
 ```
-
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-stacked.png" width="500">
 </p>
@@ -593,10 +594,15 @@ Multiple series:
                 ["R1" "R2" "R3"]
                 ["C1" "C2" "C3"]))
 
-;; Custom cell width
-(plot-heatmap 10 (heatmap-data ...))
+;; With labels and custom cell width
+(plot-heatmap 5
+  (heatmap-data
+    [[12.0 15.0 22.0 28.0 30.0 25.0 18.0]
+     [14.0 18.0 25.0 32.0 35.0 28.0 20.0]
+     [10.0 13.0 20.0 26.0 28.0 22.0 15.0]]
+    ["Mon" "Tue" "Wed"]
+    ["6am" "9am" "12pm" "3pm" "6pm" "9pm" "12am"]))
 ```
-
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
 </p>
@@ -629,27 +635,17 @@ Press **Ctrl-Q** to exit (configurable).
 ### Key Types
 ```clojure
 ;; Printable
-{:type :char :char \a}               ;; or (key-char \a)
+(key-char \a)                        ;; {:type :char :char \a}
 
 ;; Editing
-{:type :enter}                       ;; key-enter
-{:type :backspace}                   ;; key-backspace
-{:type :tab}                         ;; key-tab
-{:type :escape}                      ;; key-escape
-{:type :delete}                      ;; key-delete
+key-enter                            ;; key-backspace, key-tab, key-escape, key-delete
 
 ;; Navigation
-{:type :up}                          ;; key-up
-{:type :down}                        ;; key-down
-{:type :left}                        ;; key-left
-{:type :right}                       ;; key-right
-{:type :home}                        ;; key-home
-{:type :end}                         ;; key-end
-{:type :page-up}                     ;; key-page-up
-{:type :page-down}                   ;; key-page-down
+key-up                               ;; key-down, key-left, key-right
+key-home                             ;; key-end, key-page-up, key-page-down
 
 ;; Modifiers
-{:type :ctrl :char \C}               ;; or (key-ctrl \C)
+(key-ctrl \C)                        ;; {:type :ctrl :char \C}
 ```
 
 ### Subscriptions
@@ -683,16 +679,23 @@ Press **Ctrl-Q** to exit (configurable).
 (cmd-after-ms 500 :delayed-msg)                  ;; one-shot delayed message
 ```
 
+### Text Input Helper: `input-handle`
+```clojure
+(input-handle key field-id active-field current-value)
+;; Returns new string value, or nil if unhandled
+;; Handles :char (append) and :backspace (delete last)
+```
+
 ## Development
 
 ```bash
-make test       # run tests
+make test         # run tests
 make demo         # run demo
 make tui-demo     # run interactive TUI demo
 make inline-demo  # run inline loading demo
-make showcase   # run showcase (all elements)
-make repl       # start REPL
-make fmt        # format code (cljfmt)
-make fmt-check  # check formatting
-make clean      # clean caches
+make showcase     # run showcase (all elements)
+make repl         # start REPL with layoutz loaded
+make fmt          # format code (cljfmt)
+make fmt-check    # check formatting
+make clean        # clean caches
 ```

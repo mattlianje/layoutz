@@ -7,13 +7,13 @@ test:
 	clj -M:test
 
 repl:
-	clj
+	clj -M -e "(require '[layoutz.core :refer :all])" -r
 
 clean:
 	rm -rf .cpcache classes target
 
 demo:
-	clojure -M:demo
+	@clojure -M:demo
 
 tui-demo:
 	clojure -M:tui-demo
