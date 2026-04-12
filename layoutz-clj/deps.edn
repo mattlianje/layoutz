@@ -10,4 +10,7 @@
   :fmt  {:extra-deps {dev.weavejester/cljfmt {:mvn/version "0.13.0"}}
          :main-opts ["-m" "cljfmt.main" "fix" "src" "test"]}
   :fmt-check {:extra-deps {dev.weavejester/cljfmt {:mvn/version "0.13.0"}}
-              :main-opts ["-m" "cljfmt.main" "check" "src" "test"]}}}
+              :main-opts ["-m" "cljfmt.main" "check" "src" "test"]}
+  :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.6"}
+                 slipset/deps-deploy {:mvn/version "0.2.2"}}
+          :ns-default build}}}

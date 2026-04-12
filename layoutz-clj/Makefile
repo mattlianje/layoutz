@@ -1,4 +1,4 @@
-.PHONY: build test repl clean demo tui-demo inline-demo showcase fmt fmt-check
+.PHONY: build test repl clean demo tui-demo inline-demo showcase fmt fmt-check jar deploy release
 
 build:
 	clj -M -e "(compile 'layoutz.core)"
@@ -29,3 +29,16 @@ fmt:
 
 fmt-check:
 	clj -M:fmt-check
+
+jar:
+	clj -T:build jar
+
+deploy:
+	clj -T:build deploy
+
+# Bump version in build.clj, then: make release
+release:
+	clj -T:build deploy
+	$(eval V := $(shell grep '(def version' build.clj | sed 's/.*"\(.*\)".*/\1/'))
+	git tag -a "clj-v$(V)" -m "layoutz-clj $(V)"
+	@echo "Released $(V). Run 'git push origin clj-v$(V)' to push the tag."
