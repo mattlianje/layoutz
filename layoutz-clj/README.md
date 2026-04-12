@@ -214,6 +214,10 @@ hr                                   ;; default ──────────
 (vr :height 5)
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-vr.png" width="650">
+</p>
+
 ### Section: `section`
 ```clojure
 (section "Config" (kv [["env" "prod"]]))
