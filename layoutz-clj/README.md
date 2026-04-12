@@ -48,12 +48,12 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 
 ## Installation
 
-Add to `deps.edn`:
-
 ```clojure
-{:deps {xyz.matthieucourt/layoutz {:git/url "https://github.com/mattlianje/layoutz"
-                                    :git/sha "..."
-                                    :deps/root "layoutz-clj"}}}
+;; deps.edn
+{:deps {xyz.matthieucourt/layoutz {:mvn/version "0.1.0"}}}
+
+;; Leiningen
+[xyz.matthieucourt/layoutz "0.1.0"]
 ```
 
 Or just drop [`src/layoutz/core.clj`](src/layoutz/core.clj) into your project like a header file.
@@ -124,11 +124,9 @@ Build Elm-style TUIs
 </p>
 
 ## Why layoutz?
-- We have `printf` and full-blown TUI libraries - but there is a gap in-between
-- **layoutz** is a tiny, declarative DSL to combat this
-- Everything is an `Element` - immutable and composable
+- With LLM's, ad-hoc strings are proliferating...
+- Layoutz is a tiny DSL to combat this and let you compose Element s of ANSI strings
 - On the side, **layoutz** has an Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook
-- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
 
 ## Core Concepts
 
