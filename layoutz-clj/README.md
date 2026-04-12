@@ -66,9 +66,6 @@ There are two usage paths:
 
 Beautiful + compositional strings
 
-<details>
-<summary>show code</summary>
-
 ```clojure
 (require '[layoutz.core :refer :all])
 
@@ -93,8 +90,6 @@ Beautiful + compositional strings
 
 (print-elem demo)
 ```
-
-</details>
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="700">
 </p>
