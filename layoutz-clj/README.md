@@ -43,6 +43,7 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 - [Elements](#elements)
 - [Colors & Styles](#colors--styles)
 - [Charts & Plots](#charts--plots)
+- [Custom Elements](#custom-elements)
 - [Interactive Apps](#interactive-apps)
 
 ## Installation
@@ -95,7 +96,7 @@ Beautiful + compositional strings
 
 </details>
 <p align="center">
-  <img src="pix/clojure-demo.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="700">
 </p>
 
 **(2/2) Interactive apps**
@@ -605,6 +606,31 @@ Custom colors:
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
+</p>
+
+## Custom Elements
+
+Implement the `Element` protocol to create reusable components:
+
+```clojure
+(defrecord Square [size]
+  Element
+  (render [_]
+    (if (< size 2) ""
+      (let [w      (- (* size 2) 2)
+            top    (str "┌" (apply str (repeat w "─")) "┐")
+            middle (repeat (- size 2)
+                     (str "│" (apply str (repeat w " ")) "│"))
+            bottom (str "└" (apply str (repeat w "─")) "┘")]
+        (str/join "\n" (concat [top] middle [bottom])))))
+  (elem-width [_] (* size 2))
+  (elem-height [_] size))
+
+(print-elem (row [(->Square 2) (->Square 4) (->Square 6)]))
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-custom.png" width="450">
 </p>
 
 ## Interactive Apps
