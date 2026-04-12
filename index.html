@@ -15,16 +15,16 @@ pre { overflow-x: auto; }
 <h1>layoutz</h1>
 
 <p>Zero-dependency library for terminal animations, compositional ANSI strings, plots, and Elm-style TUIs.
-In <a href="https://github.com/mattlianje/layoutz">Scala</a>,
-<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-hs">Haskell</a>,
-<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml">OCaml</a>, and
-<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-clj">Clojure</a>.</p>
+In <a href="https://github.com/mattlianje/layoutz" target="_blank">Scala</a>,
+<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-hs" target="_blank">Haskell</a>,
+<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml" target="_blank">OCaml</a>, and
+<a href="https://github.com/mattlianje/layoutz/tree/master/layoutz-clj" target="_blank">Clojure</a>.</p>
 
 <p>
-<input type="radio" name="lang" value="scala" onclick="sw('scala')" checked> scala
-<input type="radio" name="lang" value="haskell" onclick="sw('haskell')"> haskell
-<input type="radio" name="lang" value="ocaml" onclick="sw('ocaml')"> ocaml
-<input type="radio" name="lang" value="clojure" onclick="sw('clojure')"> clojure
+<input type="radio" name="lang" value="scala" onclick="sw('scala')" checked> Scala
+<input type="radio" name="lang" value="haskell" onclick="sw('haskell')"> Haskell
+<input type="radio" name="lang" value="ocaml" onclick="sw('ocaml')"> OCaml
+<input type="radio" name="lang" value="clojure" onclick="sw('clojure')"> Clojure
 </p>
 
 <pre id="intro-scala">
@@ -141,7 +141,7 @@ let () = print demo
 
 <script>
 function sw(lang) {
-  var groups = ['intro','counter'];
+  var groups = ['intro','inline','counter'];
   var langs = ['scala','haskell','ocaml','clojure'];
   for (var g = 0; g < groups.length; g++)
     for (var i = 0; i < langs.length; i++) {
@@ -160,10 +160,10 @@ function sw(lang) {
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="620">
 </p>
 <p><small>src:
-<a href="https://github.com/mattlianje/layoutz/blob/master/examples/ShowcaseApp.scala">scala</a> |
-<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-hs/examples/ShowcaseApp.hs">haskell</a> |
-<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-ocaml/showcase_app.ml">ocaml</a> |
-<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-clj/src/layoutz/showcase.clj">clojure</a>
+<a href="https://github.com/mattlianje/layoutz/blob/master/examples/ShowcaseApp.scala" target="_blank">Scala</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-hs/examples/ShowcaseApp.hs" target="_blank">Haskell</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-ocaml/showcase_app.ml" target="_blank">OCaml</a> |
+<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-clj/src/layoutz/showcase.clj" target="_blank">Clojure</a>
 </small></p>
 
 <h2>Inline animations</h2>
@@ -171,12 +171,156 @@ function sw(lang) {
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="620">
 </p>
-<p><small>src:
-<a href="https://github.com/mattlianje/layoutz/blob/master/examples/InlineDemo.scala">scala</a> |
-<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-hs/examples/InlineBar.hs">haskell</a> |
-<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-ocaml/inline_loading_demo.ml">ocaml</a> |
-<a href="https://github.com/mattlianje/layoutz/blob/master/layoutz-clj/src/layoutz/demo.clj">clojure</a>
-</small></p>
+<p>
+<input type="radio" name="lang3" value="scala" onclick="sw('scala')" checked> Scala
+<input type="radio" name="lang3" value="haskell" onclick="sw('haskell')"> Haskell
+<input type="radio" name="lang3" value="ocaml" onclick="sw('ocaml')"> OCaml
+<input type="radio" name="lang3" value="clojure" onclick="sw('clojure')"> Clojure
+</p>
+
+<pre id="inline-scala">
+import layoutz._
+
+case class St(progress: Double, done: Int)
+case object Tick
+
+object Loader extends LayoutzApp[St, Tick.type] {
+  def init = (St(0, 0), Cmd.none)
+  def update(msg: Tick.type, s: St) = {
+    if (s.done &gt; 30) (s, Cmd.exit)
+    else if (s.progress &gt;= 1.0) (s.copy(done = s.done + 1), Cmd.none)
+    else (s.copy(progress = math.min(1.0, s.progress + 0.008)), Cmd.none)
+  }
+  def subscriptions(s: St) = Sub.time.everyMs(16, Tick)
+  def view(s: St) = {
+    val w = 40; val filled = (s.progress * w).toInt
+    val bar = (0 until w).map { i =&gt;
+      if (i &lt; filled) { val r = i.toDouble / w
+        "█".color(Color.True((r*180).toInt+50, ((1-r)*200).toInt+55, 255))
+      } else "░".color(Color.BrightBlack)
+    }
+    layout(rowTight(bar: _*),
+      s"Linking... ${(s.progress*100).toInt}%%".color(Color.BrightCyan))
+  }
+}
+
+println("hello from a normal process")
+println("doing some work...")
+println("now watch this:")
+Loader.run(clearOnStart = false, clearOnExit = false)
+println("back to normal output")
+</pre>
+
+<pre id="inline-haskell" style="display:none">
+import Layoutz
+
+data St = St { progress :: Double, done :: Int }
+data Msg = Tick
+
+app :: LayoutzApp St Msg
+app = LayoutzApp
+  { appInit = (St 0.0 0, CmdNone)
+  , appUpdate = \Tick st -&gt;
+      if done st &gt; 30 then (st, CmdExit)
+      else if progress st &gt;= 1.0
+        then (st { done = done st + 1 }, CmdNone)
+        else (st { progress = min 1.0 (progress st + 0.008) }, CmdNone)
+  , appSubscriptions = \_ -&gt; subEveryMs 16 Tick
+  , appView = \st -&gt;
+      let w = 40
+          f = floor (progress st * fromIntegral w)
+          bar = map (\i -&gt;
+            let r = fromIntegral i / fromIntegral w
+            in withColor (ColorTrue (floor(r*180)+50)
+                 (floor((1-r)*200)+55) 255) $ text "█") [0..f-1]
+          emp = replicate (w-f) (withColor ColorBrightBlack $ text "░")
+          pct = show (floor (progress st * 100)) ++ "%"
+      in layout [ tightRow (bar ++ emp)
+                , withColor ColorBrightCyan $ text $ "Linking... " &lt;&gt; pct ]
+  }
+
+main = do
+  putStrLn "hello from a normal process"
+  putStrLn "doing some work..."
+  putStrLn "now watch this:"
+  runApp app
+  putStrLn "back to normal output"
+</pre>
+
+<pre id="inline-ocaml" style="display:none">
+open Layoutz
+
+type st = { progress : float; done_ticks : int }
+type msg = Tick
+
+let loader =
+  { init = ({ progress = 0.0; done_ticks = 0 }, CmdNone);
+    update = (fun Tick st -&gt;
+      if st.done_ticks &gt; 30 then (st, CmdExit)
+      else if st.progress &gt;= 1.0
+      then ({ st with done_ticks = st.done_ticks + 1 }, CmdNone)
+      else ({ st with progress = min 1.0 (st.progress +. 0.008) }, CmdNone));
+    subscriptions = (fun _ -&gt; sub_every_ms 16 Tick);
+    view = (fun st -&gt;
+      let w = 40 in
+      let filled = int_of_float (st.progress *. float_of_int w) in
+      let bar = List.init w (fun i -&gt;
+          if i &lt; filled then
+            let r = float_of_int i /. float_of_int w in
+            s "█" |&gt; colorRGB (int_of_float (r *. 180.) + 50)
+              (int_of_float ((1. -. r) *. 200.) + 55) 255
+          else s "░" |&gt; colorBrightBlack) in
+      let pct = Printf.sprintf "%d%%" (int_of_float (st.progress *. 100.)) in
+      layout [ tightRow bar; s ("Linking... " ^ pct) |&gt; colorBrightCyan ]);
+  }
+
+let () =
+  let opts = { default_options with
+    clear_on_start = false; clear_on_exit = false } in
+  print_endline "hello from a normal process";
+  print_endline "doing some work...";
+  print_endline "now watch this:";
+  run_app ~options:opts loader;
+  print_endline "back to normal output"
+</pre>
+
+<pre id="inline-clojure" style="display:none">
+(require '[layoutz.core :refer :all])
+
+(def loader
+  {:init (fn [] [{:progress 0.0 :done 0} (cmd-none)])
+   :update
+   (fn [msg st]
+     (case msg
+       :tick (cond
+               (&gt; (:done st) 20) [st (cmd-exit)]
+               (&gt;= (:progress st) 1.0)
+               [(update st :done inc) (cmd-none)]
+               :else
+               [(update st :progress #(min 1.0 (+ % 0.008)))
+                (cmd-none)])
+       [st (cmd-none)]))
+   :subscriptions (fn [_] (sub-every-ms 16 :tick))
+   :view
+   (fn [{:keys [progress]}]
+     (let [w 40  filled (int (* progress w))
+           bar (map (fn [i]
+                  (if (&lt; i filled)
+                    (let [r (/ (double i) w)]
+                      (-&gt; "█" (color-rgb (+ (int (* r 180)) 50)
+                            (+ (int (* (- 1.0 r) 200)) 55) 255)))
+                    (-&gt; "░" color-bright-black)))
+                (range w))]
+       (layout [(tight-row bar)
+                (-&gt; (str "Linking... " (int (* progress 100)) "%")
+                    color-bright-cyan)])))})
+
+(println "hello from a normal process")
+(println "doing some work...")
+(println "now watch this:")
+(run-inline loader)
+(println "back to normal output")
+</pre>
 
 <h2>Interactive TUIs</h2>
 
@@ -184,10 +328,10 @@ function sw(lang) {
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="620">
 </p>
 <p>
-<input type="radio" name="lang2" value="scala" onclick="sw('scala')" checked> scala
-<input type="radio" name="lang2" value="haskell" onclick="sw('haskell')"> haskell
-<input type="radio" name="lang2" value="ocaml" onclick="sw('ocaml')"> ocaml
-<input type="radio" name="lang2" value="clojure" onclick="sw('clojure')"> clojure
+<input type="radio" name="lang2" value="scala" onclick="sw('scala')" checked> Scala
+<input type="radio" name="lang2" value="haskell" onclick="sw('haskell')"> Haskell
+<input type="radio" name="lang2" value="ocaml" onclick="sw('ocaml')"> OCaml
+<input type="radio" name="lang2" value="clojure" onclick="sw('clojure')"> Clojure
 </p>
 
 <pre id="counter-scala">
@@ -304,7 +448,7 @@ let () =
 
 <h2>Links</h2>
 
-<p><a href="https://github.com/mattlianje/layoutz">GitHub</a></p>
+<p><a href="https://github.com/mattlianje/layoutz" target="_blank">GitHub</a></p>
 
 <hr>
 <p><small>&copy; 2025&ndash;2026 Matthieu Court</small></p>
