@@ -50,10 +50,10 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 
 ```clojure
 ;; deps.edn
-{:deps {xyz.matthieucourt/layoutz {:mvn/version "0.1.0"}}}
+{:deps {xyz.matthieucourt/layoutz {:mvn/version "0.1.2"}}}
 
 ;; Leiningen
-[xyz.matthieucourt/layoutz "0.1.0"]
+[xyz.matthieucourt/layoutz "0.1.2"]
 ```
 
 Or just drop [core.clj](src/layoutz/core.clj) into your project like a header file.
