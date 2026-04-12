@@ -39,6 +39,6 @@ deploy:
 # Bump version in build.clj, then: make release
 release:
 	clj -T:build deploy
-	$(eval V := $(shell grep '(def version' build.clj | sed 's/.*"\(.*\)".*/\1/'))
-	git tag -a "clj-v$(V)" -m "layoutz-clj $(V)"
-	@echo "Released $(V). Run 'git push origin clj-v$(V)' to push the tag."
+	@V=$$(grep 'def version' build.clj | sed 's/.*"\(.*\)".*/\1/') && \
+	git tag -a "clj-v$$V" -m "layoutz-clj $$V" && \
+	echo "Released $$V. Run 'git push origin clj-v$$V' to push the tag."
