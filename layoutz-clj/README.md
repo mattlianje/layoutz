@@ -4,7 +4,7 @@
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="40"> layoutz
 
-**Simple, beautiful CLI output for Clojure**
+**Simple, beautiful CLI output**
 
 A tiny, zero-dep lib for building composable ANSI strings, terminal plots, and interactive Elm-style TUIs in pure Clojure.
 
@@ -12,7 +12,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 
 ## Features
 - Zero dependencies
-- Use [`core.clj`](src/layoutz/core.clj) like a header file
+- Use [core.clj](src/layoutz/core.clj) like a header file
 - Elm-style TUIs (`run-app`, `run-inline`)
 - Layout primitives, tables, trees, lists, CJK-aware
 - Colors, ANSI styles, rich formatting
