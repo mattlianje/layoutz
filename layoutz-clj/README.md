@@ -208,15 +208,15 @@ hr                                   ;; default ──────────
 (hr' :char "=" :width 10)            ;; custom char + width
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-vr.png" width="650">
+</p>
+
 ### Vertical Rule: `vr`
 ```clojure
 (vr)                                 ;; default: 10 high with │
 (vr :height 5)
 ```
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/example-vr.png" width="650">
-</p>
 
 ### Section: `section`
 ```clojure
