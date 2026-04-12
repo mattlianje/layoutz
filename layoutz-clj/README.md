@@ -8,7 +8,7 @@
 
 A tiny, zero-dep lib for building composable ANSI strings, terminal plots, and interactive Elm-style TUIs in pure Clojure.
 
-Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [TypeScript](https://github.com/mattlianje/layoutz/tree/master/layoutz-ts)
+Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml), [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs)
 
 ## Features
 - Zero dependencies
