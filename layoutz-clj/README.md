@@ -140,10 +140,10 @@ Build Elm-style TUIs
 Every piece of content is an `Element`. Elements are immutable and composable.
 
 ```clojure
-(layout [elem1 elem2 elem3])         ;; vertical
-(row [elem1 elem2])                  ;; horizontal
-(render elem)                        ;; -> string
-(print-elem elem)                    ;; render + print
+(layout [elem1 elem2 elem3])    ;; vertical
+(row [elem1 elem2])             ;; horizontal
+(render elem)                   ;; -> string
+(print-elem elem)               ;; render + print
 ```
 
 Styles and borders compose via `->`:
@@ -162,20 +162,20 @@ Applied via `->` to any element:
 ```
 
 ```
-border-normal                        ;; ┌─┐ (default)
-border-double                        ;; ╔═╗
-border-thick                         ;; ┏━┓
-border-round                         ;; ╭─╮
-border-ascii                         ;; +-+
-border-block                         ;; ███
-border-dashed                        ;; ┌╌┐
-border-dotted                        ;; ┌┈┐
-border-inner-half-block              ;; ▗▄▖
-border-outer-half-block              ;; ▛▀▜
-border-markdown                      ;; |-|
-(border-custom "+" "=" "|")          ;; custom
-border-none                          ;; no borders
-(set-border :round elem)             ;; programmatic border selection
+border-normal                    ;; ┌─┐ (default)
+border-double                    ;; ╔═╗
+border-thick                     ;; ┏━┓
+border-round                     ;; ╭─╮
+border-ascii                     ;; +-+
+border-block                     ;; ███
+border-dashed                    ;; ┌╌┐
+border-dotted                    ;; ┌┈┐
+border-inner-half-block          ;; ▗▄▖
+border-outer-half-block          ;; ▛▀▜
+border-markdown                  ;; |-|
+(border-custom "+" "=" "|")      ;; custom
+border-none                      ;; no borders
+(set-border :round elem)         ;; programmatic border selection
 ```
 
 ## Elements
@@ -346,12 +346,12 @@ Download [███████████████─────] 75%
 
 ### Alignment: `center`, `left-align`, `right-align`, `justify`, `justify-all`, `wrap`
 ```clojure
-(center "Auto-centered")             ;; width from siblings
+(center "Auto-centered")               ;; width from siblings
 (center 30 "Fixed width")
 (left-align 30 "Left")
 (right-align 30 "Right")
-(justify 30 "Spread this out")       ;; last line left-aligned
-(justify-all 30 "Spread this out")   ;; all lines justified
+(justify 30 "Spread this out")         ;; last line left-aligned
+(justify-all 30 "Spread this out")     ;; all lines justified
 (wrap 20 "Long text that should wrap")
 ```
 
@@ -397,6 +397,7 @@ empty-elem                           ;; no-op (conditional rendering)
 
 Foreground with `color-*`, background with `bg-*`:
 
+Compose via `->` threading:
 ```clojure
 (-> "Error!" color-red)
 (-> "Warning" color-bright-cyan style-bold)
@@ -404,39 +405,15 @@ Foreground with `color-*`, background with `bg-*`:
 (-> (box "" ["warning"]) bg-yellow)
 ```
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-2.png" width="700">
-</p>
-
 ```
-color-black
-color-red
-color-green
-color-yellow
-color-blue
-color-magenta
-color-cyan
-color-white
-color-bright-black                   ;; Bright 8
-color-bright-red
-color-bright-green
-color-bright-yellow
-color-bright-blue
-color-bright-magenta
-color-bright-cyan
-color-bright-white
-(color-256 n)                        ;; 256-color palette (0-255)
-(color-rgb r g b)                    ;; 24-bit RGB
-```
-
-Background variants: `bg-black`, `bg-red`, ... `(bg-256 n)`, `(bg-rgb r g b)`
-
-All color/bg functions take element first for `->` threading:
-```clojure
-(-> "text" (color-256 201))
-(-> "text" (color-rgb 255 128 0))
-(-> "text" (bg-256 17))
-(-> "text" (bg-rgb 30 30 60))
+color-black    color-bright-black        (color-256 n)
+color-red      color-bright-red          (color-rgb r g b)
+color-green    color-bright-green
+color-yellow   color-bright-yellow       bg-black ... bg-bright-white
+color-blue     color-bright-blue         (bg-256 n)
+color-magenta  color-bright-magenta      (bg-rgb r g b)
+color-cyan     color-bright-cyan
+color-white    color-bright-white
 ```
 
 Raw color values for `margin-color`, `underline-colored`, `with-style`:
@@ -444,58 +421,18 @@ Raw color values for `margin-color`, `underline-colored`, `with-style`:
 red, cyan, (rgb 255 128 0), (c256 201)
 ```
 
-```clojure
-;; 256-color palette gradient
-(def palette
-  (tight-row (map #(color-256 "█" %) (range 16 232 7))))
-
-;; RGB gradients
-(def red-to-blue
-  (tight-row (map (fn [i] (color-rgb "█" i 100 (- 255 i))) (range 0 256 8))))
-
-(def green-fade
-  (tight-row (map (fn [i] (color-rgb "█" 0 (- 255 i) i)) (range 0 256 8))))
-
-(def rainbow
-  (tight-row (map (fn [i]
-                    (let [r (if (< i 128) (* i 2) 255)
-                          g (if (< i 128) 255 (* (- 255 i) 2))
-                          b (if (> i 128) (* (- i 128) 2) 0)]
-                      (color-rgb "█" r g b)))
-                  (range 0 256 8))))
-
-(print-elem (layout [palette red-to-blue green-fade rainbow]))
-```
-
-<p align="center">
-  <img src="pix/clojure-gradient.png" width="500">
-</p>
-
 ### Styles
 ```clojure
 (-> "text" style-bold)
-(-> "text" color-red style-bold)
 (-> "text" style-bold style-italic style-underline-s)
 ```
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="700">
-</p>
-
 ```
-style-bold
-style-dim
-style-italic
-style-underline-s
-style-blink
-style-reverse
-style-hidden
-style-strikethrough
+style-bold          style-reverse
+style-dim           style-hidden
+style-italic        style-strikethrough
+style-underline-s   style-blink
 ```
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
-</p>
 
 General styling with `with-style`:
 ```clojure
@@ -651,9 +588,9 @@ Press **Ctrl-Q** to exit (configurable).
 ### App Options
 
 ```clojure
-(run-app app)                                    ;; default options
-(run-app app {:alignment :center})               ;; centered in terminal
-(run-inline app)                                 ;; animate in-place, no alt screen
+(run-app app)                          ;; default options
+(run-app app {:alignment :center})     ;; centered in terminal
+(run-inline app)                       ;; animate in-place, no alt screen
 ```
 
 `run-inline` renders below existing terminal output without clearing. Useful for progress bars in build scripts — use `(cmd-exit)` to quit programmatically.
@@ -661,26 +598,26 @@ Press **Ctrl-Q** to exit (configurable).
 ### Key Types
 ```clojure
 ;; Printable
-(key-char \a)                        ;; {:type :char :char \a}
+(key-char \a)       ;; {:type :char :char \a}
 
 ;; Editing
-key-enter                            ;; key-backspace, key-tab, key-escape, key-delete
+key-enter           ;; key-backspace, key-tab, key-escape, key-delete
 
 ;; Navigation
-key-up                               ;; key-down, key-left, key-right
-key-home                             ;; key-end, key-page-up, key-page-down
+key-up              ;; key-down, key-left, key-right
+key-home            ;; key-end, key-page-up, key-page-down
 
 ;; Modifiers
-(key-ctrl \C)                        ;; {:type :ctrl :char \C}
+(key-ctrl \C)       ;; {:type :ctrl :char \C}
 ```
 
 ### Subscriptions
 
 ```clojure
-(sub-none)                                       ;; no subscriptions
-(sub-key-press (fn [key] ...))                   ;; keyboard input
-(sub-every-ms 100 :tick)                         ;; periodic ticks
-(sub-batch sub1 sub2 ...)                        ;; combine multiple
+(sub-none)                         ;; no subscriptions
+(sub-key-press (fn [key] ...))     ;; keyboard input
+(sub-every-ms 100 :tick)           ;; periodic ticks
+(sub-batch sub1 sub2 ...)          ;; combine multiple
 ```
 
 ```clojure
@@ -713,6 +650,8 @@ key-home                             ;; key-end, key-page-up, key-page-down
 ```
 
 ## Development
+
+PR's are very welcome, just keep it zero-dep. Many thanks, Matthieu.
 
 ```bash
 make test         # run tests
