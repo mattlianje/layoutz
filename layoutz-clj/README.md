@@ -394,11 +394,16 @@ Foreground with `color-*`, background with `bg-*`:
 
 Compose via `->` threading:
 ```clojure
-(-> "Error!" color-red)
-(-> "Warning" color-bright-cyan style-bold)
-(-> "Alert" bg-red color-white)
-(-> (box "" ["warning"]) bg-yellow)
+(print-elem
+  (layout [(-> "Error!" color-red)
+           (-> "Warning" color-bright-cyan style-bold)
+           (-> "Alert" bg-red color-white)
+           (-> (box "" ["warning"]) bg-yellow color-black)]))
 ```
+
+<p align="center">
+  <img src="pix/clojure-styles.png" width="500">
+</p>
 
 ```
 color-black    color-bright-black        (color-256 n)
