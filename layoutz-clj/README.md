@@ -13,7 +13,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 ## Features
 - Zero dependencies
 - Use [core.clj](src/layoutz/core.clj) like a header file
-- Elm-style TUIs (`run-app`, `run-inline`)
+- Elm-style TUIs
 - Layout primitives, tables, trees, lists, CJK-aware
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
