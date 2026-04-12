@@ -56,7 +56,7 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 [xyz.matthieucourt/layoutz "0.1.0"]
 ```
 
-Or just drop [`src/layoutz/core.clj`](src/layoutz/core.clj) into your project like a header file.
+Or just drop [core.clj](src/layoutz/core.clj) into your project like a header file.
 
 ## Quick Start
 
