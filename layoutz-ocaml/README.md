@@ -12,7 +12,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 
 ## Features
 - Zero dependencies (just stdlib)
-- Use [`layoutz.ml`](lib/layoutz.ml) like a header file
+- Use [layoutz.ml](lib/layoutz.ml) like a header file
 - Elm-style TUIs
 - Layout primitives (tables, trees, lists)
 - Colors, ANSI styles, rich formatting
@@ -56,7 +56,7 @@ opam install layoutz
 (libraries layoutz)
 ```
 
-Or just drop the zero-dep [`lib/layoutz.ml`](lib/layoutz.ml) into your project like a header file.
+Or just drop [layoutz.ml](lib/layoutz.ml) into your project like a header file.
 
 ## Quick Start
 
