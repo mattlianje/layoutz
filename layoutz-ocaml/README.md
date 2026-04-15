@@ -12,7 +12,7 @@ Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github
 
 ## Features
 - Zero dependencies (just stdlib)
-- Use [`layoutz.ml`](lib/layoutz.ml) like a header file
+- Use [layoutz.ml](lib/layoutz.ml) like a header file
 - Elm-style TUIs
 - Layout primitives (tables, trees, lists)
 - Colors, ANSI styles, rich formatting
@@ -56,7 +56,7 @@ opam install layoutz
 (libraries layoutz)
 ```
 
-Or just drop the zero-dep [`lib/layoutz.ml`](lib/layoutz.ml) into your project like a header file.
+Or just drop [layoutz.ml](lib/layoutz.ml) into your project like a header file.
 
 ## Quick Start
 
@@ -130,10 +130,6 @@ let () = run_app counter_app
 
 ## FAQ
 
-**Why layoutz?**
-- Layoutz is a tiny lib to render compositional, pretty ANSI styled strings... and if you want
-you can animate them Elm-style, like a flipbook.
-
 **Why not use a proper TUI library?**
 - You have (great and capable) fully TUI-centric libraries like [Minttea](https://github.com/leostera/minttea) ...
 Layoutz says, "here is your DSL to render strings in a nice compositional way" ... "and btw you
@@ -143,7 +139,7 @@ can bring those strings to life as TUIs or simple terminal animations just like 
 - Because a formatting lib that drags in a World view and/or deps is (debatably) purpose-defeating.
 Drop [`layoutz.ml`](lib/layoutz.ml) into your project like a header file.
 
-**What's the core idea?**
+**What is the core idea?**
 - Everything is an `element`... immutable, composable, pipeable. Implement the `ELEMENT` signature to create
 anything you imagine and it composes with the built-ins for free.
 
