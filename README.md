@@ -1,3 +1,7 @@
+<div align="right">
+  <sub><em>part of <a href="https://github.com/mattlianje/d4"><img src="https://raw.githubusercontent.com/mattlianje/d4/master/pix/d4.png" width="14"></a> <a href="https://github.com/mattlianje/d4">d4</a></em></sub>
+</div>
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="700">
 </p>
@@ -7,7 +11,7 @@
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala.
 
-Part of [d4](https://github.com/mattlianje/d4) · Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
+Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
 ## Features
 - Pure Scala, zero-dependencies (JVM, Native, JS)
