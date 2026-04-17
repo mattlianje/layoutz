@@ -1,5 +1,5 @@
 <div align="right">
-  <sub><em>part of <a href="https://github.com/mattlianje/d4"><img src="https://raw.githubusercontent.com/mattlianje/d4/master/pix/d4.png" width="14"></a> <a href="https://github.com/mattlianje/d4">d4</a></em></sub>
+  <sub><em>part of <a href="https://github.com/mattlianje/d4"><img src="https://raw.githubusercontent.com/mattlianje/d4/master/pix/d4.png" width="25"></a> <a href="https://github.com/mattlianje/d4">d4</a></em></sub>
 </div>
 
 <p align="center">
