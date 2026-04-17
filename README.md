@@ -219,8 +219,8 @@ Every piece of content is an `Element`. Elements are immutable and composable.
 ```scala
 layout(elem1, elem2, elem3)   // vertical
 row(elem1, elem2)             // horizontal
-elem.render                   // -> String
-elem.putStrLn                 // render + print
+elem.render                   // gives a String
+elem.putStrLn                 // prints to console
 ```
 
 Implement `Element` to create custom components that compose with all built-ins.
@@ -281,7 +281,7 @@ Border.None                                // no borders
 
 ### Text
 ```scala
-"Simple text"                                // Implicit Text conversion
+"Simple text"    // Implicit conversion to `Text`
 ```
 
 ### Line Break: `br`
@@ -310,9 +310,9 @@ Left Middle Right
 
 ### Horizontal Rule: `hr`
 ```scala
-hr                                           // default ──────────
-hr.char("~")                                 // custom char
-hr.width(10).char("=")                       // custom char + width
+hr                         // default ──────────
+hr.char("~")               // custom char
+hr.width(10).char("=")     // custom char + width
 ```
 <p align="center">
   <img src="pix/example-vr.png" width="650">
@@ -320,7 +320,7 @@ hr.width(10).char("=")                       // custom char + width
 
 ### Vertical Rule: `vr`
 ```scala
-vr(3)                                        // 3-high with │
+vr(3)
 ```
 
 ### Section: `section`
