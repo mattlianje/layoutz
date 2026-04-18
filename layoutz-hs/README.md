@@ -1,3 +1,7 @@
+<div align="right">
+  <sub><em>part of <a href="https://github.com/mattlianje/d4"><img src="https://raw.githubusercontent.com/mattlianje/d4/master/pix/d4.png" width="23"></a> <a href="https://github.com/mattlianje/d4">d4</a></em></sub>
+</div>
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-demo.png" width="750">
 </p>
@@ -9,7 +13,7 @@
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in pure Haskell.
 
-Part of [d4](https://github.com/mattlianje/d4) · Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
+Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
 ## Features
 - Pure Haskell, zero dependencies (use `Layoutz.hs` like a header file)
