@@ -1770,6 +1770,7 @@
    (let [opts          (merge default-app-options opts)
          state-ref     (atom nil)
          should-run    (atom true)
+         error-log     (atom [])
          original-stty (atom nil)
          state-lock    (Object.)
 
@@ -1783,6 +1784,13 @@
                                (reset! should-run false)))))
 
          _ (reset! update-fn-ref update-state!)
+
+         ;; error handling
+         on-error (fn [phase state exception]
+                    (let [base {:phase phase, :state state}
+                          ex-w-i (ex-info (ex-message exception) base exception)]
+                      (swap! error-log conj (assoc base :exception ex-w-i)))
+                    (reset! should-run false))
 
          ;; Initialize
          _ (do (reset! original-stty (enter-raw-mode))
@@ -1835,7 +1843,8 @@
                         (.flush System/out)
                         (reset! last-rendered rendered)
                         (reset! last-line-count current-count))))
-                  (catch Exception _ nil))
+                  (catch Exception e
+                    (on-error :render @state-ref e)))
                 (Thread/sleep (:render-interval-ms opts))))))
 
          ;; Tick thread
@@ -1853,7 +1862,8 @@
                         (when (>= (- now last-time) ms)
                           (swap! last-tick-times assoc ms now)
                           (update-state! msg)))))
-                  (catch Exception _ nil))
+                  (catch Exception e
+                    (on-error :tick @state-ref e)))
                 (Thread/sleep 10)))))
 
          ;; Input thread
@@ -1871,8 +1881,8 @@
                       (when handler
                         (when-let [msg (handler key)]
                           (update-state! msg))))))
-                (catch Exception _
-                  (Thread/sleep 10))))))]
+                (catch Exception e
+                  (on-error :input @state-ref e))))))]
 
      ;; Start threads
      (.setDaemon render-thread true)
@@ -1893,7 +1903,9 @@
          (show-cursor)
          (.print System/out "\n")
          (.flush System/out)
-         (exit-raw-mode @original-stty)))
+         (exit-raw-mode @original-stty)
+         (when-let [ex (some-> @error-log (first) :exception)]
+           (throw ex))))
 
      ;; Return final state
      @state-ref)))
