@@ -1,4 +1,4 @@
-.PHONY: build test repl clean bundle
+.PHONY: build test repl clean bundle raymarcher
 
 VERSION := 0.3.3.0
 BUNDLE_DIR := bundles
@@ -11,6 +11,9 @@ test:
 
 repl:
 	cabal repl
+
+raymarcher:
+	cabal run raymarcher
 
 clean:
 	cabal clean
