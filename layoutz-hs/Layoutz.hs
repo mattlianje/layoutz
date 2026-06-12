@@ -7,7 +7,7 @@
 {- |
 Module      : Layoutz
 Description : Friendly, expressive print-layout DSL for Haskell
-Copyright   : (c) 2025 Matthieu Court
+Copyright   : (c) 2026 Matthieu Court
 License     : Apache-2.0
 
 A simple Haskell port of the layoutz library for creating structured terminal layouts.
@@ -99,11 +99,12 @@ import Data.String (IsString(..))
 import Data.Char (ord, chr)
 import Text.Printf (printf)
 import System.IO
-import Control.Exception (catch, AsyncException(..))
+import Control.Exception (catch, AsyncException(..), IOException)
 import System.Timeout (timeout)
 import Control.Monad (when, forever)
 import Control.Concurrent (forkIO, threadDelay, killThread, newChan, writeChan, readChan)
 import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
+import GHC.Clock (getMonotonicTimeNSec)
 
 -- | Strip ANSI escape codes from a string for accurate width calculation
 stripAnsi :: String -> String
@@ -1625,6 +1626,13 @@ runInline app = runAppWithFinal defaultAppOptions
 runAppWith :: AppOptions -> LayoutzApp state msg -> IO ()
 runAppWith opts app = runAppWithFinal opts app >> pure ()
 
+-- | Internal runtime event. Every source (keypresses, interval ticks, command
+-- results) is funnelled into a single channel as one of these, so there is
+-- exactly one consumer applying 'appUpdate' with no races on state
+data AppEvent msg
+  = AppMsg msg
+  | AppExit
+
 -- | Like 'runAppWith', but returns the final application state after exit.
 -- Useful for interactive tweaking of state followed by further processing.
 --
@@ -1650,30 +1658,26 @@ runAppWithFinal opts LayoutzApp{..} = do
 
   let (initialState, initialCmd) = appInit
 
-  stateRef <- newIORef initialState
-  exitRef  <- newIORef False
-  cmdChan  <- newChan  -- Channel for commands to execute
+  stateRef  <- newIORef initialState
+  eventChan <- newChan  -- Single event stream: keys, ticks, cmd results, exit
+  cmdChan   <- newChan  -- Commands awaiting async execution
 
-  -- Helper to update state and queue commands
-  let updateState msg = do
+  let applyMsg msg = do
         cmdToRun <- atomicModifyIORef' stateRef $ \s ->
           let (newState, c) = appUpdate msg s in (newState, c)
-        when (cmdIsExit cmdToRun) $ writeIORef exitRef True
         case cmdToRun of
           CmdNone -> pure ()
-          CmdExit -> pure ()
+          CmdExit -> writeChan eventChan AppExit
           _       -> writeChan cmdChan cmdToRun
 
-  -- Command thread: executes commands async, feeds results back
   cmdThread <- forkIO $ forever $ do
     cmdToRun <- readChan cmdChan
-    when (cmdIsExit cmdToRun) $ writeIORef exitRef True
+    when (cmdIsExit cmdToRun) $ writeChan eventChan AppExit
     maybeMsg <- executeCmd cmdToRun
     case maybeMsg of
-      Just msg -> updateState msg  -- Feed message back into app
+      Just msg -> writeChan eventChan (AppMsg msg)
       Nothing  -> pure ()
 
-  -- Execute initial command
   case initialCmd of
     CmdNone -> pure ()
     _       -> writeChan cmdChan initialCmd
@@ -1720,14 +1724,53 @@ runAppWithFinal opts LayoutzApp{..} = do
           [] -> Nothing
         _ -> Nothing
 
-      getTickInfo sub = case sub of
-        SubEveryMs interval msg -> Just (interval, msg)
-        SubBatch subs -> case [(i, m) | SubEveryMs i m <- subs] of
-          ((i,m):_) -> Just (i, m)
-          [] -> Nothing
-        _ -> Nothing
+      getTicks sub = case sub of
+        SubEveryMs interval msg -> [(interval, msg)]
+        SubBatch subs           -> concatMap getTicks subs
+        _                       -> []
+
+  tickThread <- forkIO $
+    let tickLoop deadlines = do
+          state <- readIORef stateRef
+          now   <- getMonotonicTimeNSec
+          let ticks     = getTicks (appSubscriptions state)
+              nsOf ms   = fromIntegral ms * 1000 * 1000
+              intervals = foldr (\i acc -> if i `elem` acc then acc else i : acc)
+                                [] (map fst ticks)
+              armed     = [ (i, maybe (now + nsOf i) id (lookup i deadlines))
+                          | i <- intervals ]
+              dueNow    = [ i | (i, d) <- armed, d <= now ]
+              fired     = [ (i, msg) | (i, msg) <- ticks, i `elem` dueNow ]
+              deadlines' = [ (i, if i `elem` dueNow
+                                   then let nd = d + nsOf i
+                                        in if nd <= now then now + nsOf i else nd
+                                   else d)
+                           | (i, d) <- armed ]
+          mapM_ (\(_, msg) -> writeChan eventChan (AppMsg msg)) fired
+          threadDelay 5000  -- 5ms poll: bounds tick jitter without busy-waiting
+          tickLoop deadlines'
+    in tickLoop []
+
+  -- Input thread: translate keypresses into events. Exit keys become AppExit;
+  -- a closed stdin (EOF) is treated as a quit request, like Ctrl-D.
+  inputThread <- forkIO $
+    let readLoop = do
+          key <- readKey
+          case key of
+            KeyEscape   -> writeChan eventChan AppExit
+            KeyCtrl 'C' -> writeChan eventChan AppExit
+            KeyCtrl 'D' -> writeChan eventChan AppExit
+            _ -> do
+              state <- readIORef stateRef
+              case getKeyHandler (appSubscriptions state) of
+                Just handler -> maybe (pure ()) (writeChan eventChan . AppMsg) (handler key)
+                Nothing      -> pure ()
+              readLoop
+    in readLoop `catch` \e ->
+         let _ = (e :: IOException) in writeChan eventChan AppExit
 
   let killThreads = killThread renderThread >> killThread cmdThread
+                 >> killThread tickThread   >> killThread inputThread
 
       doCleanup = do
         killThreads
@@ -1737,38 +1780,13 @@ runAppWithFinal opts LayoutzApp{..} = do
         hSetBuffering stdin oldBuffering
         hSetEcho stdin oldEcho
 
-      checkExit cont = do
-        exiting <- readIORef exitRef
-        if exiting then doCleanup else cont
+      dispatchLoop = do
+        ev <- readChan eventChan
+        case ev of
+          AppExit    -> doCleanup
+          AppMsg msg -> applyMsg msg >> dispatchLoop
 
-      inputLoop = do
-        state <- readIORef stateRef
-        let subs = appSubscriptions state
-            keyHandler = getKeyHandler subs
-            tickInfo = getTickInfo subs
-
-        maybeKey <- case tickInfo of
-          Just (intervalMs, _) -> timeout (intervalMs * 1000) readKey
-          Nothing              -> Just <$> readKey
-
-        case maybeKey of
-          Nothing -> do
-            case tickInfo of
-              Just (_, msg) -> updateState msg >> checkExit inputLoop
-              Nothing -> inputLoop
-
-          Just key -> case key of
-            KeyEscape    -> doCleanup
-            KeyCtrl 'C'  -> doCleanup
-            KeyCtrl 'D'  -> doCleanup
-
-            _ -> case keyHandler of
-              Just handler -> case handler key of
-                Just msg -> updateState msg >> checkExit inputLoop
-                Nothing -> checkExit inputLoop
-              Nothing -> checkExit inputLoop
-
-  (inputLoop `catch` \ex -> case ex of
+  (dispatchLoop `catch` \ex -> case ex of
     UserInterrupt -> doCleanup
     _             -> doCleanup)
 

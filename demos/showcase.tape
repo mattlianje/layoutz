@@ -1,7 +1,7 @@
 # layoutz Showcase Demo
 # Records a GIF navigating all 7 scenes of the showcase TUI
 
-Output pix/showcase-demo.gif
+Output demos/showcase.gif
 Set FontSize 28
 Set Width 1500
 Set Height 1050

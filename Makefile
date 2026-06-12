@@ -1,4 +1,4 @@
-.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2 publish-site
+.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2 publish-site examples demos demo
 
 VERSION := 0.7.0
 BUNDLE_DIR := bundles
@@ -67,3 +67,25 @@ publish-site:
 	@echo "Publishing site to layoutz.dev..."
 	rsync -avz index.html root@nargothrond.xyz:/var/www/layoutz.dev/
 	@echo "Site published to https://layoutz.dev"
+
+EXAMPLES_DEP := xyz.matthieucourt::layoutz:$(VERSION)
+examples: publish-local
+	@fail=0; \
+	for f in examples/*.scala; do \
+		printf "Checking %s ... " "$$f"; \
+		if scala-cli compile "$$f" --dep $(EXAMPLES_DEP) -S 3.3.7 >/tmp/layoutz-ex.log 2>&1; then \
+			echo "ok"; \
+		else \
+			echo "FAILED"; cat /tmp/layoutz-ex.log; fail=1; \
+		fi; \
+	done; \
+	if [ $$fail -ne 0 ]; then echo "Some examples failed to compile."; exit 1; fi; \
+	echo "All examples compiled."
+
+# Record every demo GIF into demos/
+demos:
+	./demos/generate.sh
+
+# Record a single demo ... e.g: make demo TAPE=particle-life
+demo:
+	./demos/generate.sh $(TAPE)

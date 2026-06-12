@@ -1,7 +1,7 @@
 # layoutz Inline Demo
 # Shows a LayoutzApp animating inline without clearing the screen
 
-Output pix/inline-demo.gif
+Output demos/inline.gif
 Set FontSize 28
 Set Width 1100
 Set Height 550

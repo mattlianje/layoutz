@@ -1,7 +1,7 @@
 # layoutz Counter Demo
 # Records a GIF of the simple CounterApp
 
-Output pix/counter-demo.gif
+Output demos/counter.gif
 Set FontSize 28
 Set Width 1100
 Set Height 550
