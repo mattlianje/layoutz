@@ -540,7 +540,7 @@ val pic = kittyRGBA(pixels, pxW = w, pxH = h, cols = 18, rows = 9)
 box("gradient")(pic).putStrLn
 ```
 <p align="center">
-  <img src="pix/kitty-raw.png" width="500">
+  <img src="pix/kitty-raw.png" width="600">
 </p>
 
 You needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty)..
