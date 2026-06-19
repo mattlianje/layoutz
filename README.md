@@ -70,7 +70,7 @@ import layoutz._
 
 Two usage paths.
 
-**(1/2) Static rendering** — pretty, composable strings.
+**(1/2) Static rendering**: pretty, composable strings.
 
 A few primitives composed:
 
@@ -325,15 +325,14 @@ Border.None                                // no borders
 
 #### Stacking & rows
 ```scala
-/* layout: stack vertically */
 layout("First", "Second", "Third")
 // First
 // Second
 // Third
 
-/* row: horizontal; columns: side-by-side */
 row("Left", "Middle", "Right")
 // Left Middle Right
+
 columns(layout("A", "B"), layout("C", "D"))
 // A  C
 // B  D
@@ -341,7 +340,6 @@ columns(layout("A", "B"), layout("C", "D"))
 
 #### Spacing & rules
 ```scala
-/* br: line break */
 layout("Line 1", br, "Line 2")
 
 hr                         // ──────────────...
@@ -355,7 +353,6 @@ empty
 
 #### Text transforms
 ```scala
-/* align to a width (│ marks width, not part of the output) */
 "TITLE".center(20)     // │        TITLE       │
 "Left".leftAlign(20)   // │Left                │
 "Right".rightAlign(20) // │               Right│
@@ -370,7 +367,6 @@ empty
 "Very long text that will be cut off".truncate(15)    // Very long te...
 "Custom ellipsis example text here".truncate(20, "…") // Custom ellipsis exa…
 
-/* pad: frame with blank space on every side */
 "content".pad(2)
 // │           │
 // │           │
@@ -401,7 +397,6 @@ layout(
 
 #### Basics
 ```scala
-/* text: implicit conversion to Text */
 "Simple text"
 
 section("Config")(kv("env" -> "prod"))
@@ -524,11 +519,7 @@ You needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty)..
 
 ### Widgets
 
-#### Form Widgets: `textInput`, `SingleChoice`, `MultiChoice`
-
-Pure-render widgets — they take external state and draw it. Wire them up inside a
-`LayoutzApp` `view`. For one-shot prompts that *manage their own state*, see
-[Prompts (Ask)](#prompts-ask).
+#### Form Widgets
 
 ```scala
 textInput("Username", "alice", "Enter name", active = true)
@@ -937,17 +928,17 @@ val answer   = Ask.spin("Crunching…") { Thread.sleep(1500); 42 }
 ```
 
 ```
-Call                                      Returns          Notes
-----                                      -------          -----
-Ask.input(prompt, placeholder, initial)   Option[String]   single line; Esc cancels
-Ask.confirm(q, default)                   Boolean          arrows toggle, Enter confirms
-Ask.choose(prompt, items)                 Option[A]        single-select list
-Ask.chooseMany(prompt, items, limit)      Option[Seq[A]]   multi-select, optional cap
-Ask.write(prompt, placeholder)            Option[String]   multi-line; Ctrl+D submits
-Ask.filter(prompt, items)                 Option[A]        fuzzy-match as you type
-Ask.file(start, height)                   Option[String]   tree-style file picker
-Ask.pager(content, height, lineNumbers)   Unit             scroll long output
-Ask.spin(label) { task }                  A                spinner around a blocking task; ✓/✗ on finish
+Call                                      Returns
+----                                      -------
+Ask.input(prompt, placeholder, initial)   Option[String]
+Ask.confirm(q, default)                   Boolean          
+Ask.choose(prompt, items)                 Option[A] 
+Ask.chooseMany(prompt, items, limit)      Option[Seq[A]]
+Ask.write(prompt, placeholder)            Option[String]   
+Ask.filter(prompt, items)                 Option[A]
+Ask.file(start, height)                   Option[String]
+Ask.pager(content, height, lineNumbers)   Unit
+Ask.spin(label) { task }                  A
 ```
 
 
