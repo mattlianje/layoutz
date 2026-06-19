@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="600">
 </p>
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
@@ -25,7 +25,7 @@ Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs),
 - Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 <p align="center">
-<img src="pix/showcase-demo.gif" width="650">
+<img src="pix/showcase-demo.gif" width="600">
 <br>
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
@@ -33,7 +33,7 @@ Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs),
 Layoutz also lets you easily drop animations into build scripts or any processes that use Stdout:
 
 <p align="center">
-<img src="pix/inline-demo.gif" width="650">
+<img src="pix/inline-demo.gif" width="600">
 <br>
 <sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
 </p>
@@ -101,7 +101,7 @@ val demo = layout(
 demo.putStrLn
 ```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="650">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="600">
 </p>
 
 <!-- hidden for now: "scales to" demo
@@ -199,7 +199,7 @@ println(demo.render)
 
 </details>
 <p align="center">
-  <img src="pix/main-demo-3.png" width="650">
+  <img src="pix/main-demo-3.png" width="600">
 </p>
 -->
 
@@ -236,7 +236,7 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="650">
+  <img src="pix/counter-demo.gif" width="600">
 </p>
 
 ## Why layoutz?
@@ -616,7 +616,7 @@ box()("warning").bg(Color.Yellow)
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-2.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-2.png" width="600">
 </p>
 
 ```scala
@@ -661,7 +661,7 @@ layout(palette, redToBlue, greenFade, rainbow)
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="600">
 </p>
 
 ### Styles
@@ -672,7 +672,7 @@ layout(palette, redToBlue, greenFade, rainbow)
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="600">
 </p>
 
 ```scala
@@ -689,7 +689,7 @@ Style.Bold ++ Style.Italic    // combine with ++
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="600">
 </p>
 
 ## Charts & Plots
@@ -702,7 +702,7 @@ plot(width = 40, height = 10)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-function-1.png" width="500">
+  <img src="pix/chart-function-1.png" width="600">
 </p>
 
 Multiple series:
@@ -717,7 +717,7 @@ plot(width = 50, height = 12)(
 ```
 
 <p align="center">
-  <img src="pix/chart-function-2.png" width="500">
+  <img src="pix/chart-function-2.png" width="600">
 </p>
 
 Options: `width`, `height`, `showAxes`, `showOrigin`
@@ -737,7 +737,7 @@ pie()(
 )
 ```
 <p align="center">
-  <img src="pix/chart-pie.png" width="500">
+  <img src="pix/chart-pie.png" width="600">
 </p>
 
 #### Bar Chart
@@ -748,7 +748,7 @@ bar(width = 40, height = 10)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-bar.png" width="500">
+  <img src="pix/chart-bar.png" width="600">
 </p>
 
 Custom colors:
@@ -760,7 +760,7 @@ bar()(
 )
 ```
 <p align="center">
-  <img src="pix/chart-bar-custom.png" width="500">
+  <img src="pix/chart-bar-custom.png" width="600">
 </p>
 
 #### Stacked Bar Chart
@@ -772,7 +772,7 @@ stackedBar(width = 40, height = 10)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-stacked.png" width="500">
+  <img src="pix/chart-stacked.png" width="600">
 </p>
 
 #### Sparkline
@@ -781,7 +781,7 @@ sparkline(Seq(1, 4, 2, 8, 5, 7, 3, 6))
 sparkline(Seq(10, 20, 15, 30, 25, 40, 35)).color(Color.Cyan)
 ```
 <p align="center">
-  <img src="pix/chart-sparkline.png" width="500">
+  <img src="pix/chart-sparkline.png" width="600">
 </p>
 
 #### Box Plot
@@ -793,7 +793,7 @@ boxPlot(height = 12)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-boxplot.png" width="500">
+  <img src="pix/chart-boxplot.png" width="600">
 </p>
 
 #### Heatmap
@@ -819,7 +819,7 @@ Heatmap(
 )
 ```
 <p align="center">
-  <img src="pix/chart-heatmap.png" width="500">
+  <img src="pix/chart-heatmap.png" width="600">
 </p>
 
 Options: `cellWidth`, `cellHeight`, `showLegend`, row/column labels via `HeatmapData`.
