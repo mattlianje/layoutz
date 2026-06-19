@@ -511,8 +511,37 @@ You can inline raster images via the [kitty graphics protocol](https://sw.kovidg
 
 Layoutz **KittyImage** s compose with all the other built in elements so you can drop them into boxes, tables etc.
 ```scala
-box("Sakuraba")(kitty.image("pix/sakuraba.png", cols = 24, rows = 16)).putStrLn
+layout(
+  row(
+    box("the gracie hunter")(kitty.image("pix/sakuraba.png", cols = 35, rows = 14)),
+    box("stats")(kv("flying" -> "yes", "opponent" -> "grounded", "rules" -> "PRIDE"))
+  )
+).putStrLn
 ```
+<p align="center">
+  <img src="pix/kitty-sakuraba.png" width="600">
+</p>
+
+You can also build an image straight from raw RGBA pixels with `kittyRGBA`:
+```scala
+val (w, h) = (96, 96)
+val pixels = Array.tabulate(w * h * 4) { i =>
+  val p = i / 4; val x = p % w; val y = p / w
+  (i % 4 match {
+    case 0 => x * 255 / w
+    case 1 => y * 255 / h
+    case 2 => 255 - (x * 255 / w)
+    case _ => 255
+  }).toByte
+}
+
+val pic = kittyRGBA(pixels, pxW = w, pxH = h, cols = 18, rows = 9)
+
+box("gradient")(pic).putStrLn
+```
+<p align="center">
+  <img src="pix/kitty-raw.png" width="500">
+</p>
 
 You needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty)..
 
