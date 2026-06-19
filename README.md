@@ -490,11 +490,9 @@ table(
 
 #### Progress & spinners
 ```scala
-/* inlineBar: progress bar */
 inlineBar("Download", 0.75)
 // Download [███████████████─────] 75%
 
-/* spinner: 8 built-in styles */
 spinner("Loading", frame, SpinnerStyle.Dots)   // ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
 spinner("Loading", frame, SpinnerStyle.Line)   // | / - \
 spinner("Loading", frame, SpinnerStyle.Clock)  // 🕐 🕑 🕒 🕓 🕔 🕕 🕖 🕗 🕘 🕙 🕚 🕛
@@ -644,10 +642,8 @@ Color.NoColor                 // Conditional no-op
 ```scala
 import layoutz._
 
-/* 256-color palette gradient */
 val palette = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
 
-/* RGB gradients */
 val redToBlue = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
 val greenFade = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(0, 255 - i, i))): _*)
 val rainbow = tightRow((0 to 255 by 8).map { i =>
@@ -804,7 +800,6 @@ heatmap(Seq(
   Seq(7.0, 8.0, 9.0)
 ))
 
-/* With labels and settings */
 Heatmap(
   HeatmapData(
     rows = Seq(
@@ -822,7 +817,6 @@ Heatmap(
   <img src="pix/chart-heatmap.png" width="600">
 </p>
 
-Options: `cellWidth`, `cellHeight`, `showLegend`, row/column labels via `HeatmapData`.
 
 ## Interactive Apps
 
