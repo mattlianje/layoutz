@@ -69,3 +69,7 @@ object SimpleFormExample extends LayoutzApp[SimpleFormState, SimpleFormMsg] {
   )
 
 }
+
+object SimpleFormExampleRunner {
+  def main(args: Array[String]): Unit = SimpleFormExample.run
+}

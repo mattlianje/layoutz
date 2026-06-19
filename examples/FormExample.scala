@@ -145,3 +145,7 @@ object FormExample extends LayoutzApp[FormState, FormMsg] {
     }
 
 }
+
+object FormExampleRunner {
+  def main(args: Array[String]): Unit = FormExample.run
+}

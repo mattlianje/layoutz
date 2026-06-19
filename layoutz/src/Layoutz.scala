@@ -91,8 +91,75 @@ package object layoutz {
     )
   }
 
+  private[layoutz] object Ansi {
+    val ESC = ""
+    val CSI = ESC + "["
+    val OSC = ESC + "]"
+    val APC = ESC + "_"
+    val ST = ESC + "\\"
+    val BEL = ""
+
+    def sgr(code: String): String = CSI + code + "m"
+
+    val RESET = sgr("0")
+
+    def wrap(code: String, content: String): String = sgr(code) + content + RESET
+
+    val CURSOR_HOME = CSI + "H"
+
+    def cursorUp(n: Int): String = CSI + n + "A\r"
+
+    val CLEAR_TO_EOL = CSI + "K"
+
+    def setTitle(t: String): String = OSC + "2;" + t + BEL
+  }
+
   private object Unicode {
-    val ANSI_ESCAPE_REGEX = "\u001b\\[[0-9;]*m".r
+    val ANSI_ESCAPE_REGEX = s"${Ansi.ESC}\\[[0-9;]*m".r
+
+    val APC_GRAPHICS_REGEX = s"(?s)${Ansi.ESC}_G.*?${Ansi.ESC}\\\\".r
+
+    val KITTY_PLACEHOLDER = 0x10eeee
+
+    val ROW_COLUMN_DIACRITICS: Array[Int] = Array(
+      0x0305, 0x030d, 0x030e, 0x0310, 0x0312, 0x033d, 0x033e, 0x033f, 0x0346,
+      0x034a, 0x034b, 0x034c, 0x0350, 0x0351, 0x0352, 0x0357, 0x035b, 0x0363,
+      0x0364, 0x0365, 0x0366, 0x0367, 0x0368, 0x0369, 0x036a, 0x036b, 0x036c,
+      0x036d, 0x036e, 0x036f, 0x0483, 0x0484, 0x0485, 0x0486, 0x0487, 0x0592,
+      0x0593, 0x0594, 0x0595, 0x0597, 0x0598, 0x0599, 0x059c, 0x059d, 0x059e,
+      0x059f, 0x05a0, 0x05a1, 0x05a8, 0x05a9, 0x05ab, 0x05ac, 0x05af, 0x05c4,
+      0x0610, 0x0611, 0x0612, 0x0613, 0x0614, 0x0615, 0x0616, 0x0617, 0x0657,
+      0x0658, 0x0659, 0x065a, 0x065b, 0x065d, 0x065e, 0x06d6, 0x06d7, 0x06d8,
+      0x06d9, 0x06da, 0x06db, 0x06dc, 0x06df, 0x06e0, 0x06e1, 0x06e2, 0x06e4,
+      0x06e7, 0x06e8, 0x06eb, 0x06ec, 0x0730, 0x0732, 0x0733, 0x0735, 0x0736,
+      0x073a, 0x073d, 0x073f, 0x0740, 0x0741, 0x0743, 0x0745, 0x0747, 0x0749,
+      0x074a, 0x07eb, 0x07ec, 0x07ed, 0x07ee, 0x07ef, 0x07f0, 0x07f1, 0x07f3,
+      0x0816, 0x0817, 0x0818, 0x0819, 0x081b, 0x081c, 0x081d, 0x081e, 0x081f,
+      0x0820, 0x0821, 0x0822, 0x0823, 0x0825, 0x0826, 0x0827, 0x0829, 0x082a,
+      0x082b, 0x082c, 0x082d, 0x0951, 0x0953, 0x0954, 0x0f82, 0x0f83, 0x0f86,
+      0x0f87, 0x135d, 0x135e, 0x135f, 0x17dd, 0x193a, 0x1a17, 0x1a75, 0x1a76,
+      0x1a77, 0x1a78, 0x1a79, 0x1a7a, 0x1a7b, 0x1a7c, 0x1b6b, 0x1b6d, 0x1b6e,
+      0x1b6f, 0x1b70, 0x1b71, 0x1b72, 0x1b73, 0x1cd0, 0x1cd1, 0x1cd2, 0x1cda,
+      0x1cdb, 0x1ce0, 0x1dc0, 0x1dc1, 0x1dc3, 0x1dc4, 0x1dc5, 0x1dc6, 0x1dc7,
+      0x1dc8, 0x1dc9, 0x1dcb, 0x1dcc, 0x1dd1, 0x1dd2, 0x1dd3, 0x1dd4, 0x1dd5,
+      0x1dd6, 0x1dd7, 0x1dd8, 0x1dd9, 0x1dda, 0x1ddb, 0x1ddc, 0x1ddd, 0x1dde,
+      0x1ddf, 0x1de0, 0x1de1, 0x1de2, 0x1de3, 0x1de4, 0x1de5, 0x1de6, 0x1dfe,
+      0x20d0, 0x20d1, 0x20d4, 0x20d5, 0x20d6, 0x20d7, 0x20db, 0x20dc, 0x20e1,
+      0x20e7, 0x20e9, 0x20f0, 0x2cef, 0x2cf0, 0x2cf1, 0x2de0, 0x2de1, 0x2de2,
+      0x2de3, 0x2de4, 0x2de5, 0x2de6, 0x2de7, 0x2de8, 0x2de9, 0x2dea, 0x2deb,
+      0x2dec, 0x2ded, 0x2dee, 0x2def, 0x2df0, 0x2df1, 0x2df2, 0x2df3, 0x2df4,
+      0x2df5, 0x2df6, 0x2df7, 0x2df8, 0x2df9, 0x2dfa, 0x2dfb, 0x2dfc, 0x2dfd,
+      0x2dfe, 0x2dff, 0xa66f, 0xa67c, 0xa67d, 0xa6f0, 0xa6f1, 0xa8e0, 0xa8e1,
+      0xa8e2, 0xa8e3, 0xa8e4, 0xa8e5, 0xa8e6, 0xa8e7, 0xa8e8, 0xa8e9, 0xa8ea,
+      0xa8eb, 0xa8ec, 0xa8ed, 0xa8ee, 0xa8ef, 0xa8f0, 0xa8f1, 0xaab0, 0xaab2,
+      0xaab3, 0xaab7, 0xaab8, 0xaabe, 0xaabf, 0xaac1, 0xfe20, 0xfe21, 0xfe22,
+      0xfe23, 0xfe24, 0xfe25, 0xfe26, 0x10a0f, 0x10a38, 0x1d185, 0x1d186,
+      0x1d187, 0x1d188, 0x1d189, 0x1d1aa, 0x1d1ab, 0x1d1ac, 0x1d1ad, 0x1d242,
+      0x1d243, 0x1d244
+    )
+
+    /* O(1) zero-width membership test for the diacritics above. */
+    val ROW_COLUMN_DIACRITICS_SET: Set[Int] = ROW_COLUMN_DIACRITICS.toSet
 
     /* Character width ranges for terminal display */
     val ASCII_FAST_PATH_END = 0x0300
@@ -149,18 +216,30 @@ package object layoutz {
       Margin(prefix.render, Seq(this), Some(color))
     final def color(c: Color): Colored = Colored(c, this)
     final def style(s: Style): Styled = Styled(s, this)
-    final def bg(c: Color): BgColored = BgColored(c, this)
+    final def colorBg(c: Color): BgColored = BgColored(c, this)
     final def putStrLn: Unit = println(render)
 
   }
 
-  private def stripAnsiCodes(text: String): String =
-    Unicode.ANSI_ESCAPE_REGEX.replaceAllIn(text, "")
+  private def stripAnsiCodes(text: String): String = {
+    val noGraphics =
+      if (text.indexOf('_') < 0) text // fast path: no APC graphics escape present
+      else Unicode.APC_GRAPHICS_REGEX.replaceAllIn(text, "")
+    Unicode.ANSI_ESCAPE_REGEX.replaceAllIn(noGraphics, "")
+  }
 
-  private def charWidth(c: Char): Int = {
+  /** Terminal cell width of a single Unicode code point: 0 for combining marks, 2 for wide (CJK /
+    * fullwidth / emoji), 1 otherwise.
+    *
+    * Operating on a code point (not a UTF-16 `Char`) means narrow astral characters, e.g.
+    * mathematical alphanumerics and musical symbols in U+10000..U+1EFFF.. correctly measure 1,
+    * rather than 2 as they did when each surrogate half was counted on its own.
+    */
+  private def codePointWidth(cp: Int): Int = {
     import Unicode._
-    val cp = c.toInt
     if (cp < ASCII_FAST_PATH_END) 1
+    else if (cp == KITTY_PLACEHOLDER) 1
+    else if (ROW_COLUMN_DIACRITICS_SET.contains(cp)) 0
     else if (cp >= COMBINING_DIACRITICAL._1 && cp < COMBINING_DIACRITICAL._2) 0
     else if (cp >= HANGUL_JAMO._1 && cp < HANGUL_JAMO._2) 2
     else if (cp >= CJK_MAIN._1 && cp < CJK_MAIN._2) 2
@@ -176,9 +255,24 @@ package object layoutz {
     else 1
   }
 
-  /** Calculate real terminal width of string (handles ANSI, emoji, CJK) */
-  def realLength(text: String): Int =
-    stripAnsiCodes(text).map(charWidth).sum
+  /** Calculate real terminal width of string (handles ANSI, emoji, CJK).
+    *
+    * Iterates by Unicode code point rather than UTF-16 `Char`, so astral characters (stored as
+    * surrogate pairs) are measured exactly once via [[codePointWidth]] instead of having each
+    * surrogate counted separately.
+    */
+  def realLength(text: String): Int = {
+    val stripped = stripAnsiCodes(text)
+    val len = stripped.length
+    var i = 0
+    var total = 0
+    while (i < len) {
+      val cp = stripped.codePointAt(i)
+      total += codePointWidth(cp)
+      i += (if (cp >= 0x10000) 2 else 1)
+    }
+    total
+  }
 
   /** Flatten multiline elements to single line for components that need single-line content
     */
@@ -291,22 +385,23 @@ package object layoutz {
   /** Wrap text with ANSI color codes */
   private def wrapAnsi(color: Color, content: String): String =
     if (color.code.isEmpty) content
-    else "\u001b[" + color.code + "m" + content + "\u001b[0m"
+    else Ansi.wrap(color.code, content)
 
   /** Wrap text with ANSI background color codes */
   private def wrapBgAnsi(color: Color, content: String): String =
     if (color.bgCode.isEmpty) content
-    else "\u001b[" + color.bgCode + "m" + content + "\u001b[0m"
+    else Ansi.wrap(color.bgCode, content)
 
   /** Wrap text with ANSI style codes */
   private def wrapStyle(style: Style, content: String): String =
     if (style.code.isEmpty) content
-    else "\u001b[" + style.code + "m" + content + "\u001b[0m"
+    else Ansi.wrap(style.code, content)
 
-  /** Re-apply an ANSI code after every inner reset so nested colors don't break the outer wrapper */
+  /** Re-apply an ANSI code after every inner reset so nested colors don't break the outer wrapper
+    */
   private def reapplyAfterResets(ansiPrefix: String, line: String): String =
     if (ansiPrefix.isEmpty) line
-    else ansiPrefix + line.replace("\u001b[0m", "\u001b[0m" + ansiPrefix) + "\u001b[0m"
+    else ansiPrefix + line.replace(Ansi.RESET, Ansi.RESET + ansiPrefix) + Ansi.RESET
 
   /** Element wrapper that applies color to its content */
   final case class Colored(color: Color, element: Element) extends Element {
@@ -315,7 +410,7 @@ package object layoutz {
       val rendered = element.render
       if (color.code.isEmpty) rendered
       else {
-        val prefix = "\u001b[" + color.code + "m"
+        val prefix = Ansi.sgr(color.code)
         val lines = rendered.split('\n')
         lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
       }
@@ -330,7 +425,7 @@ package object layoutz {
       val rendered = element.render
       if (color.bgCode.isEmpty) rendered
       else {
-        val prefix = "\u001b[" + color.bgCode + "m"
+        val prefix = Ansi.sgr(color.bgCode)
         val lines = rendered.split('\n')
         lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
       }
@@ -348,14 +443,14 @@ package object layoutz {
       style match {
         case combined: CombinedStyle =>
           val styles = combined.flatten
-          val prefix = styles.map(s => "\u001b[" + s.code + "m").mkString
+          val prefix = styles.map(s => Ansi.sgr(s.code)).mkString
           lines
             .map(line => if (prefix.isEmpty) line else reapplyAfterResets(prefix, line))
             .mkString("\n")
         case _ =>
           if (style.code.isEmpty) rendered
           else {
-            val prefix = "\u001b[" + style.code + "m"
+            val prefix = Ansi.sgr(style.code)
             lines.map(line => reapplyAfterResets(prefix, line)).mkString("\n")
           }
       }
@@ -370,6 +465,190 @@ package object layoutz {
   case object LineBreak extends Element {
     def render: String = "\n"
   }
+
+  /** An inline image rendered via the kitty graphics protocol using Unicode placeholders, so it
+    * composes like any other [[Element]]: it measures exactly `cols` wide and `rows` tall and drops
+    * into `box`, `row`, `table`, `center`, …
+    */
+  final case class KittyImage(
+      payload: Array[Byte],
+      format: Int,
+      cols: Int,
+      rows: Int,
+      pxW: Int = 0,
+      pxH: Int = 0,
+      alt: String = "",
+      idOverride: Option[Int] = None
+  ) extends Element {
+    private val maxCells = Unicode.ROW_COLUMN_DIACRITICS.length
+    require(cols >= 1 && rows >= 1, "KittyImage cols/rows must be >= 1")
+    require(
+      cols <= maxCells && rows <= maxCells,
+      s"KittyImage cols/rows must be <= $maxCells (the diacritics table size)"
+    )
+    require(
+      format == KittyProtocol.FORMAT_PNG ||
+        ((format == KittyProtocol.FORMAT_RGB || format == KittyProtocol.FORMAT_RGBA)
+          && pxW > 0 && pxH > 0),
+      "raw RGB/RGBA images (format 24/32) require pxW > 0 and pxH > 0"
+    )
+
+    /** Deterministic 24-bit image id (content hash unless overridden). Stable across redraws so a
+      * runtime can transmit each distinct image only once.
+      */
+    lazy val id: Int = KittyProtocol.imageId(payload, idOverride)
+
+    def render: String = KittyProtocol.transmit(this) + KittyProtocol.placement(this)
+  }
+
+  /** Kitty graphics protocol encoder. Split into `transmit` (sends the image bytes once) and
+    * `placement` (the cell grid of Unicode placeholders) so a runtime can cache transmits across
+    * frames.
+    */
+  object KittyProtocol {
+    val FORMAT_PNG = 100
+    val FORMAT_RGB = 24
+    val FORMAT_RGBA = 32
+
+    private val APC_G = Ansi.APC + "G"
+    private val ALPHABET =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+    /** Standard base64 (RFC 4648, `+/` alphabet, `=` padding). Shipped inline so we don't depend on
+      * `java.util.Base64` (absent on Scala.js / Native). One 4-char group per 3 input bytes; the
+      * final group is `=`-padded.
+      */
+    def base64(data: Array[Byte]): String =
+      data.grouped(3).map { g =>
+        val b0 = g(0) & 0xff
+        val b1 = if (g.length > 1) g(1) & 0xff else 0
+        val b2 = if (g.length > 2) g(2) & 0xff else 0
+        val triple = (b0 << 16) | (b1 << 8) | b2
+        val c0 = ALPHABET((triple >> 18) & 0x3f)
+        val c1 = ALPHABET((triple >> 12) & 0x3f)
+        val c2 = if (g.length > 1) ALPHABET((triple >> 6) & 0x3f) else '='
+        val c3 = if (g.length > 2) ALPHABET(triple & 0x3f) else '='
+        s"$c0$c1$c2$c3"
+      }.mkString
+
+    /** 24-bit image id: an explicit override (masked, forced non-zero) or a FNV-1a content hash of
+      * the payload masked to 24 bits.
+      */
+    def imageId(payload: Array[Byte], idOverride: Option[Int]): Int = {
+      val raw = idOverride.getOrElse {
+        payload.foldLeft(0x811c9dc5)((h, b) => (h ^ (b & 0xff)) * 0x01000193)
+      }
+      val id = raw & 0xffffff
+      if (id == 0) 1 else id
+    }
+
+    /** Astral-safe code point */
+    private def cp2str(cp: Int): String =
+      if (cp < 0x10000) cp.toChar.toString
+      else {
+        val v = cp - 0x10000
+        new String(Array((0xd800 + (v >> 10)).toChar, (0xdc00 + (v & 0x3ff)).toChar))
+      }
+
+    /** Transmit block: base64 the payload, chunk into <=4096-char escapes. Every chunk carries
+      * `i=<id>` (not just the first) so [[dedupeTransmits]] can drop all chunks of an already-sent
+      * image.
+      */
+    def transmit(img: KittyImage): String = {
+      val b64 = base64(img.payload)
+      val chunks = if (b64.isEmpty) Vector("") else b64.grouped(4096).toVector
+      val dims =
+        if (img.format == FORMAT_PNG) "" else s",s=${img.pxW},v=${img.pxH}"
+      val firstKeys =
+        s"a=T,U=1,i=${img.id},f=${img.format},c=${img.cols},r=${img.rows}$dims,q=2"
+      val contKeys = s"i=${img.id},q=2"
+      val lastIdx = chunks.length - 1
+      chunks.zipWithIndex.map { case (chunk, idx) =>
+        val m = if (idx == lastIdx) 0 else 1
+        val keys = if (idx == 0) s"$firstKeys,m=$m" else s"$contKeys,m=$m"
+        s"$APC_G$keys;$chunk${Ansi.ST}"
+      }.mkString
+    }
+
+    /** Strip transmit blocks whose image id is already in `sentIds`, and add new ids to the set as
+      * their first block is encountered..
+      */
+    def dedupeTransmits(
+        rendered: String,
+        sentIds: scala.collection.mutable.Set[Int]
+    ): String = {
+      @scala.annotation.tailrec
+      def walk(i: Int, acc: List[String]): String =
+        if (i >= rendered.length) acc.reverse.mkString
+        else rendered.indexOf(APC_G, i) match {
+          case -1 =>
+            (rendered.substring(i) :: acc).reverse.mkString
+          case esc =>
+            val preamble = rendered.substring(i, esc)
+            rendered.indexOf(Ansi.ST, esc + 3) match {
+              case -1 =>
+                /* Unterminated APC.. keep verbatim rather than corrupt the stream. */
+                (rendered.substring(esc) :: preamble :: acc).reverse.mkString
+              case end =>
+                val blockEnd = end + 2
+                val semi = rendered.indexOf(';', esc + 3)
+                val keysEnd =
+                  if (semi < 0 || semi > blockEnd) blockEnd else semi
+                val id = parseIdKey(rendered.substring(esc + 3, keysEnd))
+                val keep =
+                  if (id != 0 && sentIds.contains(id)) ""
+                  else {
+                    if (id != 0) sentIds += id
+                    rendered.substring(esc, blockEnd)
+                  }
+                walk(blockEnd, keep :: preamble :: acc)
+            }
+        }
+
+      if (rendered.indexOf(Ansi.ESC) < 0) rendered else walk(0, Nil)
+    }
+
+    /** Find `i=<digits>` in a kitty-keys substring and return the parsed integer; 0 if absent. */
+    private def parseIdKey(keys: String): Int =
+      keys.split(',').collectFirst {
+        case k if k.startsWith("i=") =>
+          val digits = k.drop(2).takeWhile(_.isDigit)
+          if (digits.isEmpty) 0 else digits.toInt
+      }.getOrElse(0)
+
+    /** Placement grid: one line per row of `U+10EEEE` placeholders, image id carried in the fg
+      * colour and cell coords in two combining diacritics. Only the first cell of each row
+      * carries...
+      */
+    def placement(img: KittyImage): String = {
+      import Unicode._
+      val placeholder = cp2str(KITTY_PLACEHOLDER)
+      val id = img.id
+      val fg = s"${Ansi.CSI}38;2;${(id >> 16) & 0xff};${(id >> 8) & 0xff};${id & 0xff}m"
+      val reset = Ansi.RESET
+      val col0 = cp2str(ROW_COLUMN_DIACRITICS(0))
+      (0 until img.rows).map { row =>
+        val firstCell = placeholder + cp2str(ROW_COLUMN_DIACRITICS(row)) + col0
+        s"$fg$firstCell${placeholder * (img.cols - 1)}$reset"
+      }.mkString("\n")
+    }
+  }
+
+  /** Inline PNG image sized to a `cols`x`rows` cell footprint. The terminal decodes the PNG and
+    * fits it into that box; layout math uses `cols`/`rows`.
+    */
+  def kittyImage(bytes: Array[Byte], cols: Int, rows: Int, alt: String = ""): KittyImage =
+    KittyImage(bytes, KittyProtocol.FORMAT_PNG, cols, rows, alt = alt)
+
+  /** Inline raw RGB image (`format 24`): `pxW`x`pxH` source pixels shown in a `cols`x`rows` cell
+    * footprint.
+    */
+  def kittyRGB(pixels: Array[Byte], pxW: Int, pxH: Int, cols: Int, rows: Int): KittyImage =
+    KittyImage(pixels, KittyProtocol.FORMAT_RGB, cols, rows, pxW = pxW, pxH = pxH)
+
+  /** Inline raw RGBA image (`format 32`): like [[kittyRGB]] with an alpha channel. */
+  def kittyRGBA(pixels: Array[Byte], pxW: Int, pxH: Int, cols: Int, rows: Int): KittyImage =
+    KittyImage(pixels, KittyProtocol.FORMAT_RGBA, cols, rows, pxW = pxW, pxH = pxH)
 
   /** Margin element that adds a prefix to each line of content */
   final case class Margin(
@@ -1755,8 +2034,8 @@ package object layoutz {
       else if (t < 0.75) (46 + (226 - 46) * (t - 0.5) / 0.25).toInt
       else (226 + (196 - 226) * (t - 0.75) / 0.25).toInt
     }
-    private def bg(code: Int): String = s"\u001b[48;5;${code}m"
-    private val rst = "\u001b[0m"
+    private def bg(code: Int): String = Ansi.sgr(s"48;5;$code")
+    private val rst = Ansi.RESET
 
     def render: String = {
       val rows = data.rows

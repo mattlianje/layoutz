@@ -26,3 +26,6 @@ layoutz-ocaml/_opam/
 layoutz-clj/.cpcache/
 layoutz-clj/classes/
 layoutz-clj/target/
+
+# scala-cli build output
+.scala-build/

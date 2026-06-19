@@ -260,3 +260,7 @@ object SimpleGame extends LayoutzApp[GameState, GameMessage] {
   }
 
 }
+
+object SimpleGameRunner {
+  def main(args: Array[String]): Unit = SimpleGame.run
+}

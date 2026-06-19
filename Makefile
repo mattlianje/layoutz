@@ -1,4 +1,4 @@
-.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2 publish-site examples demos demo
+.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2 publish-site examples list-examples demos demo
 
 VERSION := 0.7.0
 BUNDLE_DIR := bundles
@@ -82,10 +82,16 @@ examples: publish-local
 	if [ $$fail -ne 0 ]; then echo "Some examples failed to compile."; exit 1; fi; \
 	echo "All examples compiled."
 
+run-%:
+	./mill -i examples.$*.run
+
+list-examples:
+	@./mill resolve 'examples[_]' 2>/dev/null | sed -n 's/^examples\.//p'
+
 # Record every demo GIF into demos/
 demos:
 	./demos/generate.sh
 
-# Record a single demo ... e.g: make demo TAPE=particle-life
+# Record a single demo ... e.g: make demo TAPE=simple-game
 demo:
 	./demos/generate.sh $(TAPE)

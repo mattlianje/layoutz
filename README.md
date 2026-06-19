@@ -41,14 +41,18 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 ## Table of Contents
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Why layoutz?](#why-layoutz)
 - [Core Concepts](#core-concepts)
 - [Border Styles](#border-styles)
 - [Elements](#elements)
 - [Colors & Styles](#colors)
 - [Charts & Plots](#charts--plots)
 - [Interactive Apps](#interactive-apps)
+- [Prompts (Ask)](#prompts-ask)
+- [Progress (loader)](#progress-loader)
 - [Examples](#examples)
 - [Contributing](#contributing)
+- [Inspiration](#inspiration)
 
 ## Installation
 On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):
@@ -64,14 +68,45 @@ import layoutz._
 
 ## Quick Start
 
-There are two usage paths with this little package:
+Two usage paths.
 
-**(1/2) Static rendering**
+**(1/2) Static rendering** — pretty, composable strings.
 
-Beautiful + compositional strings
+A few primitives composed:
 
+```scala
+import layoutz._
+
+val demo = layout(
+  row(
+    "Layoutz".style(Style.Bold),
+    underline("^", Color.Cyan)("DEMO")
+  ).center(),
+  br,
+  row(
+    statusCard("Users", "1.2K"),
+    statusCard("API", "UP").border(Border.Double),
+    statusCard("CPU", "23%").border(Border.Thick).color(Color.Red),
+    table(
+      Seq("Name", "Role", "Skills"),
+      Seq(
+        Seq("Gegard", "Pugilist",
+          ul("Armenian", ul("bad", ul("man")))),
+        Seq("Eve", "QA", "Testing")
+      )
+    ).border(Border.Round).style(Style.Reverse)
+  )
+)
+
+demo.putStrLn
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="650">
+</p>
+
+<!-- hidden for now: "scales to" demo
 <details>
-<summary>show code</summary>
+<summary>And here's what it scales to — colored error report, plot, nested layouts</summary>
 
 ```scala
 import layoutz._
@@ -166,6 +201,7 @@ println(demo.render)
 <p align="center">
   <img src="pix/main-demo-3.png" width="650">
 </p>
+-->
 
 **(2/2) Interactive apps**
 
@@ -231,24 +267,30 @@ Some typesetting elements work as both nouns ("an underline") and verbs ("to und
 For these, layoutz offers a fluent syntax with transformations available in infix position via dot-completion.
 Both styles produce the same case classes and render identically:
 
-Nested style:
 ```scala
+/* Nested style */
 margin(">>")(underline()("Hello\nWorld!"))
-```
 
-Fluent style:
-```scala
+/* Fluent style */
 "Hello\nWorld!".underline.margin(">>")
+
+// Both render:
+// >> Hello
+// >> World!
+// >> ──────
 ```
 
-Both render:
+Available methods:
 ```
->> Hello
->> World!
->> ──────
+.center()
+.pad()
+.wrap()
+.truncate()
+.underline()
+.margin()
+.color()
+.colorBg()
 ```
-
-Available: `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.color()`, `.bg()`, `.style()`, `.border()`
 
 ## Border Styles
 
@@ -279,90 +321,160 @@ Border.None                                // no borders
 
 ## Elements
 
-### Text
-```scala
-"Simple text"    // Implicit conversion to `Text`
-```
+### Layout
 
-### Line Break: `br`
+#### Stacking & rows
 ```scala
-layout("Line 1", br, "Line 2")
-```
-
-### Layout (vertical): `layout`
-```scala
+/* layout: stack vertically */
 layout("First", "Second", "Third")
-```
-```
-First
-Second
-Third
-```
+// First
+// Second
+// Third
 
-### Row (horizontal): `row`
-```scala
+/* row: horizontal; columns: side-by-side */
 row("Left", "Middle", "Right")
-columns(layout("A", "B"), layout("C", "D"))  // Side-by-side columns
-```
-```
-Left Middle Right
+// Left Middle Right
+columns(layout("A", "B"), layout("C", "D"))
+// A  C
+// B  D
 ```
 
-### Horizontal Rule: `hr`
+#### Spacing & rules
 ```scala
-hr                         // default ──────────
+/* br: line break */
+layout("Line 1", br, "Line 2")
+
+hr                         // ──────────────...
 hr.char("~")               // custom char
-hr.width(10).char("=")     // custom char + width
-```
-<p align="center">
-  <img src="pix/example-vr.png" width="650">
-</p>
+hr.width(10).char("=")     // ==========
 
-### Vertical Rule: `vr`
-```scala
 vr(3)
+space(10)
+empty
 ```
 
-### Section: `section`
+#### Text transforms
 ```scala
+/* align to a width (│ marks width, not part of the output) */
+"TITLE".center(20)     // │        TITLE       │
+"Left".leftAlign(20)   // │Left                │
+"Right".rightAlign(20) // │               Right│
+
+"Spread this out".justify(30)
+// │Spread         this        out│
+
+"Long text here that should wrap".wrap(20)
+// Long text here that
+// should wrap
+
+"Very long text that will be cut off".truncate(15)    // Very long te...
+"Custom ellipsis example text here".truncate(20, "…") // Custom ellipsis exa…
+
+/* pad: frame with blank space on every side */
+"content".pad(2)
+// │           │
+// │           │
+// │  content  │
+// │           │
+// │           │
+
+"Title".underline()
+// Title
+// ─────
+"Custom".underline("=")
+// Custom
+// ══════
+
+layout(
+  "Ooops!",
+  row("val result: Int = ", underline("^")("getString()")),
+  "Expected Int, found String"
+).margin("[error]")
+// [error] Ooops!
+// [error] val result: Int =  getString()
+// [error]                    ^^^^^^^^^^^
+// [error] Expected Int, found String
+```
+<!-- pics hidden for now: pix/example-vr.png, pix/example-compiler.png -->
+
+### Content
+
+#### Basics
+```scala
+/* text: implicit conversion to Text */
+"Simple text"
+
 section("Config")(kv("env" -> "prod"))
-```
-```
-=== Config ===
-env : prod
+// === Config ===
+// env: prod
+
+kv("name" -> "Alice", "role" -> "admin")
+// name: Alice
+// role: admin
 ```
 
-### Box: `box`
+#### Boxes, cards & banners
 ```scala
 box("Summary")(kv("total" -> "42"))
+// ┌──Summary──┐
+// │ total: 42 │
+// └───────────┘
+
 box("Fancy")("content").border(Border.Double)
+// ╔══Fancy══╗
+// ║ content ║
+// ╚═════════╝
+
 box("Smooth")("content").border(Border.Round)
-```
-<p align="center">
-  <img src="pix/example-boxes.png" width="450">
-</p>
+// ╭──Smooth──╮
+// │ content  │
+// ╰──────────╯
 
-### Status Card: `statusCard`
-```scala
-row(
-  statusCard("CPU", "45%").color(Color.Green),
-  statusCard("MEM", "2.1G").color(Color.Cyan)
-)
-```
+row(statusCard("CPU", "45%"), statusCard("MEM", "2.1G"))
+// ┌───────┐ ┌────────┐
+// │ CPU   │ │ MEM    │
+// │ 45%   │ │ 2.1G   │
+// └───────┘ └────────┘
 
-<p align="center">
-  <img src="pix/example-status-cards.png" width="350">
-</p>
-
-### Banner: `banner`
-```scala
 banner("System Dashboard").border(Border.Double)
+// ╔══════════════════╗
+// ║ System Dashboard ║
+// ╚══════════════════╝
 ```
-<p align="center">
-  <img src="pix/example-banner.png" width="350">
-</p>
 
-### Table: `table`
+#### Lists & trees
+```scala
+ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
+// • Backend
+//   ◦ API
+//     ▪ REST
+//     ▪ GraphQL
+//   ◦ DB
+// • Frontend
+
+ol("Setup", ol("Install deps", ol("npm", "pip"), "Configure"), "Deploy")
+// 1. Setup
+//   a. Install deps
+//     i. npm
+//     ii. pip
+//   b. Configure
+// 2. Deploy
+
+tree("Project")(
+  tree("src")(
+    tree("main")(tree("App.scala")),
+    tree("test")(tree("AppTest.scala"))
+  )
+)
+// Project
+// └── src/
+//     ├── main/
+//     │   └── App.scala
+//     └── test/
+//         └── AppTest.scala
+```
+
+#### Table
 ```scala
 table(
   headers = Seq("Name", "Age", "City"),
@@ -372,77 +484,22 @@ table(
     Seq("Charlie", "35", "London")
   )
 )
+// ┌─────────┬─────┬──────────┐
+// │ Name    │ Age │ City     │
+// ├─────────┼─────┼──────────┤
+// │ Alice   │ 30  │ New York │
+// │ Bob     │ 25  │          │
+// │ Charlie │ 35  │ London   │
+// └─────────┴─────┴──────────┘
 ```
 
-<p align="center">
-  <img src="pix/example-table.png" width="450">
-</p>
-
-### Key-Value: `kv`
+#### Progress & spinners
 ```scala
-kv("name" -> "Alice", "role" -> "admin")
-```
-```
-name : Alice
-role : admin
-```
-
-### Unordered List: `ul`
-```scala
-ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
-```
-```
-• Backend
-  ◦ API
-    ▪ REST
-    ▪ GraphQL
-  ◦ DB
-• Frontend
-```
-
-### Ordered List: `ol`
-```scala
-ol("Setup", ol("Install deps", ol("npm", "pip"), "Configure"), "Deploy")
-```
-```
-1. Setup
-  a. Install deps
-    i. npm
-    ii. pip
-  b. Configure
-2. Deploy
-```
-
-### Tree: `tree`
-```scala
-tree("Project")(
-  tree("src")(
-    tree("main")(tree("App.???")),
-    tree("test")(tree("AppTest.???"))
-  )
-)
-```
-
-<p align="center">
-  <img src="pix/example-tree.png" width="450">
-</p>
-
-### Progress Bar: `inlineBar`
-```scala
+/* inlineBar: progress bar */
 inlineBar("Download", 0.75)
-```
-```
-Download [███████████████─────] 75%
-```
+// Download [███████████████─────] 75%
 
-### Chart: `chart`
-```scala
-chart("Web" -> 10, "Mobile" -> 20, "API" -> 15)
-```
-
-### Spinner: `spinner`
-8 built-in styles:
-```scala
+/* spinner: 8 built-in styles */
 spinner("Loading", frame, SpinnerStyle.Dots)   // ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
 spinner("Loading", frame, SpinnerStyle.Line)   // | / - \
 spinner("Loading", frame, SpinnerStyle.Clock)  // 🕐 🕑 🕒 🕓 🕔 🕕 🕖 🕗 🕘 🕙 🕚 🕛
@@ -453,76 +510,40 @@ spinner("Loading", frame, SpinnerStyle.Grow)   // ▏ ▎ ▍ ▌ ▋ ▊ ▉ �
 spinner("Loading", frame, SpinnerStyle.Arrow)  // ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-### Alignment: `center`, `leftAlign`, `rightAlign`, `justify`, `wrap`
+#### Inline Image: `kitty.image`
+
+You can inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
+
+Layoutz **KittyImage** s compose with all the other built in elements so you can drop them into boxes, tables etc.
 ```scala
-"TITLE".center(20)
-"Left".leftAlign(20)
-"Right".rightAlign(20)
-"Spread this out".justify(30)
-"Long text here that should wrap".wrap(20)
-```
-```
-       TITLE
-Left
-               Right
-Spread    this   out
-Long text here that
-should wrap
+box("Sakuraba")(kitty.image("pix/sakuraba.png", cols = 24, rows = 16)).putStrLn
 ```
 
-### Underline: `underline`
-```scala
-"Title".underline()
-"Custom".underline("=")
-```
-```
-Title
-─────
-Custom
-══════
-```
+You needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty)..
 
-### Margin: `margin`
-```scala
-layout(
-  "Ooops!",
-  row("val result: Int = ", underline("^")("getString()")),
-  "Expected Int, found String"
-).margin("[error]")
-```
 
-<p align="center">
-  <img src="pix/example-compiler.png" width="450">
-</p>
+### Widgets
 
-### Padding & Truncation: `pad`, `truncate`
-```scala
-"content".pad(2)
-"Very long text that will be cut off".truncate(15)
-"Custom ellipsis example text here".truncate(20, "…")
-```
+#### Form Widgets: `textInput`, `SingleChoice`, `MultiChoice`
 
-### Form Widgets: `textInput`, `SingleChoice`, `MultiChoice`
+Pure-render widgets — they take external state and draw it. Wire them up inside a
+`LayoutzApp` `view`. For one-shot prompts that *manage their own state*, see
+[Prompts (Ask)](#prompts-ask).
+
 ```scala
 textInput("Username", "alice", "Enter name", active = true)
 SingleChoice("Mood?", Seq("great", "okay", "meh"), selected = 0, active = true)
 MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active = true)
-```
-```
-> Username: alice_
-> Mood?
-  ► ● great
-    ○ okay
-    ○ meh
+// > Username: alice_
+// > Mood?
+//   ► ● great
+//     ○ okay
+//     ○ meh
 ```
 
-### Spacing: `space`, `empty`
-```scala
-space(10)                                    // Horizontal spacing
-empty                                        // No-op (conditional rendering)
-```
+### Escape Hatches
 
-### Custom Elements
+#### Custom Elements
 
 Implement `Element` to create reusable components:
 ```scala
@@ -538,12 +559,16 @@ case class Square(size: Int) extends Element {
 }
 
 row(Square(2), Square(4), Square(6))
+// ┌──┐ ┌──────┐ ┌──────────┐
+// └──┘ │      │ │          │
+//      │      │ │          │
+//      └──────┘ │          │
+//               │          │
+//               └──────────┘
 ```
-<p align="center">
-  <img src="pix/example-custom.png" width="450">
-</p>
+<!-- pic hidden for now: pix/example-custom.png -->
 
-### Working with Collections
+#### Working with Collections
 ```scala
 case class User(name: String, role: String)
 val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
@@ -583,7 +608,7 @@ Color.Blue
 Color.Magenta
 Color.Cyan
 Color.White
-Color.BrightBlack             // Bright 8
+Color.BrightBlack
 Color.BrightRed
 Color.BrightGreen
 Color.BrightYellow
@@ -842,8 +867,8 @@ Key.PageUp
 Key.PageDown
 
 // Modifiers
-Key.Ctrl(c: Char)                                // Ctrl+A, Ctrl+S, etc.
-Key.Unknown(code: Int)                           // Unrecognized input
+Key.Ctrl(c: Char)        // Ctrl+A, Ctrl+S, etc.
+Key.Unknown(code: Int)   // Unrecognized input
 ```
 
 ### Subscriptions
@@ -886,6 +911,54 @@ Cmd.http.get(url, onResult, headers)             // HTTP GET
 Cmd.http.post(url, body, onResult, headers)      // HTTP POST
 Cmd.clipboard.read(onResult)                     // Read clipboard
 Cmd.clipboard.write(content, onResult)           // Write clipboard
+```
+
+## Prompts (Ask)
+
+You often want to have one-shot CLI promts, spinners, filters, file pickers etc in your Scala
+programs ... and dropping down into "Elm-territory" and thinking about things as a flipbook
+each time can get a bit tedious.
+
+This is why **layoutz** offers one-shot CLI actions with `Ask.*`
+
+
+```scala
+import layoutz._
+
+val name     = Ask.input("Name › ", placeholder = "anonymous")
+val ok       = Ask.confirm("Ship it?", default = true)
+val flavor   = Ask.choose("Flavor", Seq("Mint", "Cherry", "Banana"))
+val toppings = Ask.chooseMany("Toppings", Seq("cheese", "olives", "onion"), limit = 3)
+val story    = Ask.write("Tell me a story", placeholder = "Once upon a time…")
+val fruit    = Ask.filter("Search › ", Seq("Mango", "Kiwi", "Papaya"))
+val path     = Ask.file(start = ".")
+Ask.pager(longString)
+val answer   = Ask.spin("Crunching…") { Thread.sleep(1500); 42 }
+```
+
+```
+Call                                      Returns          Notes
+----                                      -------          -----
+Ask.input(prompt, placeholder, initial)   Option[String]   single line; Esc cancels
+Ask.confirm(q, default)                   Boolean          arrows toggle, Enter confirms
+Ask.choose(prompt, items)                 Option[A]        single-select list
+Ask.chooseMany(prompt, items, limit)      Option[Seq[A]]   multi-select, optional cap
+Ask.write(prompt, placeholder)            Option[String]   multi-line; Ctrl+D submits
+Ask.filter(prompt, items)                 Option[A]        fuzzy-match as you type
+Ask.file(start, height)                   Option[String]   tree-style file picker
+Ask.pager(content, height, lineNumbers)   Unit             scroll long output
+Ask.spin(label) { task }                  A                spinner around a blocking task; ✓/✗ on finish
+```
+
+
+## Progress (loader)
+
+Wrap any iterable or iterator
+
+```scala
+for (n <- loader("Processing", 1 to 50))                          Thread.sleep(40)
+for (n <- loader(1 to 30))                                        Thread.sleep(40)
+for (n <- loader.stream("Streaming", Iterator.from(1).take(60)))  Thread.sleep(30)
 ```
 
 ## Examples
