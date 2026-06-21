@@ -1,0 +1,41 @@
+site_name: Layoutz
+site_description: Simple, beautiful CLI output
+site_url: ""
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: custom
+    accent: custom
+  features:
+    - content.tabs.link
+    - navigation.expand
+    - navigation.instant
+    - navigation.instant.progress
+    - toc.follow
+  font:
+    text: Inter
+    code: JetBrains Mono
+  custom_dir: docs/overrides
+
+markdown_extensions:
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - js/zen.js
+
+nav:
+  - Home: index.md
