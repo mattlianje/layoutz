@@ -952,7 +952,7 @@ Cmd.clipboard.write(content, onResult)           // Write clipboard
 
 ## Prompts (Ask)
 
-You often want to have one-shot CLI promts, spinners, filters, file pickers etc in your Scala
+You often want to have one-shot CLI prompts, spinners, filters, file pickers etc in your Scala
 programs ... and dropping down into "Elm-territory" and thinking about things as a flipbook
 each time can get a bit tedious.
 
@@ -962,15 +962,16 @@ This is why **layoutz** offers one-shot CLI actions with `Ask.*`
 ```scala
 import layoutz._
 
-val name     = Ask.input("Name › ", placeholder = "anonymous")
-val ok       = Ask.confirm("Venture on the quest?", default = true)
-val realm    = Ask.choose("Choose a realm", Seq("The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor"))
-val packs    = Ask.chooseMany("Pack provisions", Seq("lembas", "pipe-weed", "waybread", "miruvor", "rope"), limit = 3)
-val riddle   = Ask.write("Pose a multi-line riddle", placeholder = "This thing all things devours…")
-val member   = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin", "Gandalf"))
-val path     = Ask.file(start = ".")
+val name   = Ask.input("Name › ", placeholder = "anonymous")
+val ok     = Ask.confirm("Venture on the quest?", default = true)
+val realm  = Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood"))
+val packs  = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
+val riddle = Ask.write("Pose a riddle", placeholder = "All things it devours…")
+val member = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
+val path   = Ask.file(start = ".")
+val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
+
 Ask.pager(longString)
-val answer   = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 ```
 
 <p align="center">
@@ -1014,7 +1015,28 @@ for (url <- loader("Crawling", urls).styled(fill = '▰', empty = '▱', color =
   fetch(url)
 ```
 
+Every built-in style, then an unbounded stream:
+
+```scala
+import layoutz._
+
+for (_ <- loader("Blocks ", 1 to 60).blocks) Thread.sleep(16)
+for (_ <- loader("Dots   ", 1 to 60).dots)   Thread.sleep(16)
+for (_ <- loader("Line   ", 1 to 60).line)   Thread.sleep(16)
+for (_ <- loader("Pipes  ", 1 to 60).pipes)  Thread.sleep(16)
+for (_ <- loader("Bar    ", 1 to 60).bar)    Thread.sleep(16)
+for (_ <- loader("Ascii  ", 1 to 60).ascii)  Thread.sleep(16)
+
+// Unknown size: spinner + running count
+val it = Iterator.from(1).take(90)
+for (_ <- loader.stream("Streaming", it)) Thread.sleep(45)
+```
+
+<p align="center">
 <img src="pix/loader-demo.gif" width="600">
+<br>
+<sub><a href="examples/LoaderExample.scala">LoaderExample.scala</a></sub>
+</p>
 
 ## Examples
 

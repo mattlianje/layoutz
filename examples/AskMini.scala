@@ -14,10 +14,10 @@ object AskMini {
 
     val name     = Ask.input("Name › ", placeholder = "anonymous"); gap()
     val ok       = Ask.confirm("Venture on the quest?", default = true); gap()
-    val realm    = Ask.choose("Choose a realm", Seq("The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor")); gap()
-    val packs    = Ask.chooseMany("Pack provisions", Seq("lembas", "pipe-weed", "waybread", "miruvor", "rope"), limit = 3); gap()
-    val riddle   = Ask.write("Pose a multi-line riddle", placeholder = "This thing all things devours…"); gap()
-    val member   = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin", "Gandalf")); gap()
+    val realm    = Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood")); gap()
+    val packs    = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3); gap()
+    val riddle   = Ask.write("Pose a riddle", placeholder = "All things it devours…"); gap()
+    val member   = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin")); gap()
     val path     = Ask.file(start = "examples"); gap()
     Ask.pager(longString, height = 12); gap()
     val answer   = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }

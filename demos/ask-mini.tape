@@ -51,11 +51,7 @@ Sleep 250ms
 Enter
 Sleep 600ms
 
-# ── Ask.chooseMany (provisions, limit 3) ──
-Space
-Sleep 160ms
-Down
-Sleep 160ms
+# ── Ask.chooseMany (provisions, limit 3) — take lembas + pipe-weed ──
 Space
 Sleep 160ms
 Down
