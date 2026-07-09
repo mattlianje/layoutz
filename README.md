@@ -68,9 +68,9 @@ import layoutz._
 
 ## Quick Start
 
-Two usage paths.
+Three usage paths.
 
-**(1/2) Static rendering**: pretty, composable strings.
+**(1/3) Static rendering**: pretty, composable strings.
 
 A few primitives composed:
 
@@ -106,7 +106,7 @@ demo.putStrLn
 
 <!-- hidden for now: "scales to" demo
 <details>
-<summary>And here's what it scales to — colored error report, plot, nested layouts</summary>
+<summary>And here's what it scales to: colored error report, plot, nested layouts</summary>
 
 ```scala
 import layoutz._
@@ -203,7 +203,7 @@ println(demo.render)
 </p>
 -->
 
-**(2/2) Interactive apps**
+**(2/3) Interactive apps**
 
 Build Elm-style TUIs
 
@@ -239,14 +239,37 @@ CounterApp.run
   <img src="pix/counter-demo.gif" width="600">
 </p>
 
+**(3/3) Prompts (Ask)**
+
+One-shot CLI prompts (inputs, choosers, filters, file pickers, spinners) that collapse to a single line as you answer them.
+
+```scala
+import layoutz._
+
+val name     = Ask.input("Name › ", placeholder = "anonymous")
+val realm    = Ask.choose("Choose a realm", Seq("The Shire", "Rivendell", "Mirkwood"))
+val packs    = Ask.chooseMany("Pack provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
+val member   = Ask.filter("Search a companion › ", Seq("Bilbo", "Gandalf", "Thorin"))
+val riddle   = Ask.write("Pose a riddle", placeholder = "This thing all things devours…")
+val quest    = Ask.confirm("Venture on the quest?", default = true)
+val smaug    = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); "ready" }
+```
+<p align="center">
+<img src="pix/ask-demo.gif" width="600">
+<br>
+<sub><a href="examples/AskDemo.scala">AskDemo.scala</a></sub>
+</p>
+
 ## Why layoutz?
-- We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
-- With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
-- Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
-- Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
-- On the side, **layoutz** also has an Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook.
-   - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler
-- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
+We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
+
+With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
+Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic. 
+
+Ultimately, **layoutz** is just a tiny, declarative DSL to combat this (and on the side it has a humble runtime to animate your strings, much like a flipbook,
+with sime niceties like common cmd's for handling keyboard input, HTTP requests and file I/O)
+
+But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
 
 ## Core Concepts
 
@@ -821,7 +844,7 @@ Heatmap(
 ## Interactive Apps
 
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
-view is simply a `layoutz.Element`
+view is a `layoutz.Element`
 
 > [!WARNING]
 > `LayoutzApp` is currently JVM + Native only
@@ -940,15 +963,21 @@ This is why **layoutz** offers one-shot CLI actions with `Ask.*`
 import layoutz._
 
 val name     = Ask.input("Name › ", placeholder = "anonymous")
-val ok       = Ask.confirm("Ship it?", default = true)
-val flavor   = Ask.choose("Flavor", Seq("Mint", "Cherry", "Banana"))
-val toppings = Ask.chooseMany("Toppings", Seq("cheese", "olives", "onion"), limit = 3)
-val story    = Ask.write("Tell me a story", placeholder = "Once upon a time…")
-val fruit    = Ask.filter("Search › ", Seq("Mango", "Kiwi", "Papaya"))
+val ok       = Ask.confirm("Venture on the quest?", default = true)
+val realm    = Ask.choose("Choose a realm", Seq("The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor"))
+val packs    = Ask.chooseMany("Pack provisions", Seq("lembas", "pipe-weed", "waybread", "miruvor", "rope"), limit = 3)
+val riddle   = Ask.write("Pose a multi-line riddle", placeholder = "This thing all things devours…")
+val member   = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin", "Gandalf"))
 val path     = Ask.file(start = ".")
 Ask.pager(longString)
-val answer   = Ask.spin("Crunching…") { Thread.sleep(1500); 42 }
+val answer   = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 ```
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="650">
+<br>
+<sub><a href="examples/AskMini.scala">AskMini.scala</a></sub>
+</p>
 
 ```
 Call                                      Returns
@@ -967,13 +996,25 @@ Ask.spin(label) { task }                  A
 
 ## Progress (loader)
 
-Wrap any iterable or iterator
+Wrap any iterable or iterator: a bounded `Iterable` gets a live bar, an unbounded
+`Iterator` gets a spinner with a running count. Loop as usual:
 
 ```scala
-for (n <- loader("Processing", 1 to 50))                          Thread.sleep(40)
-for (n <- loader(1 to 30))                                        Thread.sleep(40)
-for (n <- loader.stream("Streaming", Iterator.from(1).take(60)))  Thread.sleep(30)
+for (file <- loader("Resizing", imageFiles))       resize(file)
+for (row  <- loader(rows))                          insert(row)
+for (line <- loader.stream("Tailing", logLines()))  index(line)
 ```
+
+Chain a style to change the look: `.blocks` (default), `.bar`, `.ascii`,
+`.dots`, `.line`, `.pipes`, or `.styled(...)` for a custom one:
+
+```scala
+for (id  <- loader("Reindexing", docIds).ascii)  reindex(id)
+for (url <- loader("Crawling", urls).styled(fill = '▰', empty = '▱', color = Color.BrightMagenta))
+  fetch(url)
+```
+
+<img src="pix/loader-demo.gif" width="600">
 
 ## Examples
 

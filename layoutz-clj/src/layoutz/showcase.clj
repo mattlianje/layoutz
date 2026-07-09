@@ -4,10 +4,10 @@
 
 ;; Constants
 
-(def total-scenes 7)
+(def total-scenes 8)
 
 (def scene-names
-  ["Physics Game" "Text Input & Lists" "Borders & Styles"
+  ["Ray Marcher" "Physics Game" "Text Input & Lists" "Borders & Styles"
    "Tables" "Charts & Plots" "Bar Charts & Sparklines"
    "Selections & Heatmap"])
 
@@ -41,7 +41,9 @@
    :adding-item false :add-tick 0 :selected [] :cursor 0
    :line-offset 0 :table-row 0 :table-selected []
    :bar-mode 0 :ball-y 10.0 :ball-vy 0.0 :gravity 5
-   :ball-trail (vec (repeat 80 10.0))})
+   :ball-trail (vec (repeat 80 10.0))
+   :ray-theta 0.6 :ray-phi 0.35 :ray-dist 3.8
+   :ray-morph 0.0 :ray-morph-target 0.0})
 
 ;; Update
 
@@ -61,8 +63,14 @@
         [ny vy] (bounce raw-y new-vy)
         trail (conj (subvec (:ball-trail s1)
                             (max 0 (- (count (:ball-trail s1)) 79)))
-                    ny)]
-    (assoc s1 :tick (inc (:tick s1)) :ball-y ny :ball-vy vy :ball-trail trail)))
+                    ny)
+        ;; Ray marcher shape morph easing
+        m-diff    (- (:ray-morph-target s1) (:ray-morph s1))
+        new-morph (if (< (Math/abs m-diff) 0.01)
+                    (:ray-morph-target s1)
+                    (+ (:ray-morph s1) (* m-diff 0.06)))]
+    (assoc s1 :tick (inc (:tick s1)) :ball-y ny :ball-vy vy :ball-trail trail
+           :ray-morph new-morph)))
 
 (defn- app-update [msg s]
   (case msg
@@ -80,36 +88,46 @@
                   (cmd-none)]
 
     :toggle-select [(cond
-                      (= (:scene s) 3) (update s :table-selected #(toggle-in (:table-row s) %))
-                      (= (:scene s) 6) (update s :selected #(toggle-in (:cursor s) %))
+                      (= (:scene s) 4) (update s :table-selected #(toggle-in (:table-row s) %))
+                      (= (:scene s) 7) (update s :selected #(toggle-in (:cursor s) %))
                       :else s)
                     (cmd-none)]
 
     :cursor-up [(cond
-                  (= (:scene s) 3) (update s :table-row #(mod (+ % (dec (count services))) (count services)))
-                  (= (:scene s) 6) (update s :cursor #(mod (+ % 6) 7))
+                  (= (:scene s) 4) (update s :table-row #(mod (+ % (dec (count services))) (count services)))
+                  (= (:scene s) 7) (update s :cursor #(mod (+ % 6) 7))
                   :else s)
                 (cmd-none)]
 
     :cursor-down [(cond
-                    (= (:scene s) 3) (update s :table-row #(mod (inc %) (count services)))
-                    (= (:scene s) 6) (update s :cursor #(mod (inc %) 7))
+                    (= (:scene s) 4) (update s :table-row #(mod (inc %) (count services)))
+                    (= (:scene s) 7) (update s :cursor #(mod (inc %) 7))
                     :else s)
                   (cmd-none)]
 
-    :adjust-up [(if (= (:scene s) 0)
-                  (update s :gravity #(min (inc %) 15))
-                  (update s :line-offset #(min (inc %) 10)))
+    :adjust-up [(cond
+                  (= (:scene s) 1) (update s :gravity #(min (inc %) 15))
+                  (= (:scene s) 0) (update s :ray-dist #(max (- % 0.25) 2.0))
+                  :else            (update s :line-offset #(min (inc %) 10)))
                 (cmd-none)]
 
-    :adjust-down [(if (= (:scene s) 0)
-                    (update s :gravity #(max (dec %) 1))
-                    (update s :line-offset #(max (dec %) -10)))
+    :adjust-down [(cond
+                    (= (:scene s) 1) (update s :gravity #(max (dec %) 1))
+                    (= (:scene s) 0) (update s :ray-dist #(min (+ % 0.25) 8.0))
+                    :else            (update s :line-offset #(max (dec %) -10)))
                   (cmd-none)]
 
     :toggle-bar-mode [(update s :bar-mode #(mod (inc %) 2)) (cmd-none)]
 
     :kick-ball [(assoc s :ball-vy 5.0) (cmd-none)]
+
+    :ray-rot-l [(update s :ray-theta #(- % 0.15)) (cmd-none)]
+    :ray-rot-r [(update s :ray-theta #(+ % 0.15)) (cmd-none)]
+    :ray-rot-u [(update s :ray-phi #(min (+ % 0.1) 1.3)) (cmd-none)]
+    :ray-rot-d [(update s :ray-phi #(max (- % 0.1) -1.3)) (cmd-none)]
+    :ray-next-shape [(assoc s :ray-morph-target
+                            (double (mod (inc (Math/round (:ray-morph-target s))) 2)))
+                     (cmd-none)]
 
     ;; Default: check for :go-scene or :type-char
     (cond
@@ -137,19 +155,24 @@
         :up        :cursor-up
         :down      :cursor-down
         :backspace :backspace
-        :enter     (when (= (:scene s) 1) :submit-item)
-        :tab       (when (= (:scene s) 5) :toggle-bar-mode)
+        :enter     (when (= (:scene s) 2) :submit-item)
+        :tab       (when (= (:scene s) 6) :toggle-bar-mode)
         :char      (cond
+                     (and (= (:scene s) 0) (= char \a)) :ray-rot-l
+                     (and (= (:scene s) 0) (= char \d)) :ray-rot-r
+                     (and (= (:scene s) 0) (= char \w)) :ray-rot-u
+                     (and (= (:scene s) 0) (= char \s)) :ray-rot-d
                      (= char \+)                                          :adjust-up
                      (= char \-)                                          :adjust-down
                      (= char \space) (cond
-                                       (= (:scene s) 0) :kick-ball
-                                       (= (:scene s) 1) [:type-char char]
-                                       (#{3 6} (:scene s)) :toggle-select
+                                       (= (:scene s) 0) :ray-next-shape
+                                       (= (:scene s) 1) :kick-ball
+                                       (= (:scene s) 2) [:type-char char]
+                                       (#{4 7} (:scene s)) :toggle-select
                                        :else nil)
-                     (and (<= (int \1) (int char) (int \7)))
+                     (and (<= (int \1) (int char) (int \8)))
                      [:go-scene (- (int char) (int \1))]
-                     (and (= (:scene s) 1)
+                     (and (= (:scene s) 2)
                           (Character/isLetterOrDigit char))
                      [:type-char char]
                      :else nil)
@@ -177,16 +200,17 @@
 
 (defn- render-footer [s]
   (let [hints (case (int (:scene s))
-                0 "  </> scenes  Space kick  +/- gravity  Ctrl-Q quit"
-                1 "  </> scenes  type + Enter to add  Ctrl-Q quit"
-                3 "  </> scenes  ^/v navigate  Space select  Ctrl-Q quit"
-                4 "  </> scenes  +/- move threshold  Ctrl-Q quit"
-                5 "  </> scenes  Tab cycle chart mode  Ctrl-Q quit"
-                6 "  </> scenes  ^/v navigate  Space toggle  Ctrl-Q quit"
+                0 "  </> scenes  wasd orbit  +/- zoom  Space shape  Ctrl-Q quit"
+                1 "  </> scenes  Space kick  +/- gravity  Ctrl-Q quit"
+                2 "  </> scenes  type + Enter to add  Ctrl-Q quit"
+                4 "  </> scenes  ^/v navigate  Space select  Ctrl-Q quit"
+                5 "  </> scenes  +/- move threshold  Ctrl-Q quit"
+                6 "  </> scenes  Tab cycle chart mode  Ctrl-Q quit"
+                7 "  </> scenes  ^/v navigate  Space toggle  Ctrl-Q quit"
                 "  </> scenes  Ctrl-Q quit")]
     (-> hints style-dim color-bright-black)))
 
-;; Scene 1: Physics Game
+;; Scene 2: Physics Game
 
 (defn- scene-physics-game [s]
   (let [trail-points (mapv (fn [i] [(double i) (nth (:ball-trail s) i)])
@@ -220,7 +244,7 @@
                                    (-> "Press Space to kick ball!" style-bold color-bright-yellow)])))])
               border-round color-bright-magenta)])))
 
-;; Scene 2: Text Input & Lists
+;; Scene 3: Text Input & Lists
 
 (defn- scene-text-input [s]
   (let [input-line
@@ -282,7 +306,7 @@
                      (repeat right-pad ""))))
               border-round)])))
 
-;; Scene 3: Borders & Styles
+;; Scene 4: Borders & Styles
 
 (defn- scene-borders-styles [_s]
   (let [mk-box (fn [border-fn name color]
@@ -308,7 +332,7 @@
                       (-> "Bold+Italic" style-bold style-italic color-bright-white)])
                 border-round)])])))
 
-;; Scene 4: Tables
+;; Scene 5: Tables
 
 (defn- scene-tables [s]
   (let [colored-rows
@@ -337,7 +361,7 @@
             color-bright-black)
         sel-info])])))
 
-;; Scene 5: Charts & Plots
+;; Scene 6: Charts & Plots
 
 (defn- scene-charts-plots [s]
   (let [sin-points  (mapv (fn [i]
@@ -364,7 +388,7 @@
                        (slice 15 "Licensing" bright-yellow)
                        (slice 10 "Other"     bright-green)])])])))
 
-;; Scene 6: Bar Charts & Sparklines
+;; Scene 7: Bar Charts & Sparklines
 
 (defn- scene-bar-sparklines [s]
   (let [spark-data (mapv (fn [i]
@@ -402,7 +426,7 @@
            [(-> (str mode-name "  [Tab to cycle]") color-bright-yellow)
             chart-elem])])))
 
-;; Scene 7: Selections & Heatmap
+;; Scene 8: Selections & Heatmap
 
 (defn- scene-selections-heatmap [s]
   (let [days  ["Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"]
@@ -449,18 +473,146 @@
                                   (heatmap-data heat-data days hours))])
               border-round)])))
 
+;; Scene 1: Ray Marcher (SDF ray-marching into an ANSI framebuffer)
+
+(defn- v3-add [[ax ay az] [bx by bz]] [(+ ax bx) (+ ay by) (+ az bz)])
+(defn- v3-sub [[ax ay az] [bx by bz]] [(- ax bx) (- ay by) (- az bz)])
+(defn- v3-scale [[x y z] k] [(* x k) (* y k) (* z k)])
+(defn- v3-dot [[ax ay az] [bx by bz]] (+ (* ax bx) (* ay by) (* az bz)))
+(defn- v3-cross [[ax ay az] [bx by bz]]
+  [(- (* ay bz) (* az by)) (- (* az bx) (* ax bz)) (- (* ax by) (* ay bx))])
+(defn- v3-len [v] (Math/sqrt (v3-dot v v)))
+(defn- v3-neg [[x y z]] [(- x) (- y) (- z)])
+(defn- v3-norm [v] (let [l (v3-len v)] (if (< l 1e-10) [0.0 0.0 0.0] (v3-scale v (/ 1.0 l)))))
+
+(defn- clampd [x lo hi] (max lo (min hi x)))
+(defn- mixd [a b t] (+ (* a (- 1.0 t)) (* b t)))
+(defn- smoothstepd [lo hi x]
+  (let [t (clampd (/ (- x lo) (- hi lo)) 0.0 1.0)] (* t t (- 3.0 (* 2.0 t)))))
+
+(defn- sd-torus [[x y z] big-r r]
+  (let [qx (- (Math/sqrt (+ (* x x) (* z z))) big-r)]
+    (- (Math/sqrt (+ (* qx qx) (* y y))) r)))
+
+(defn- sd-round-box [[px py pz] [bx by bz] r]
+  (let [qx (- (Math/abs (double px)) bx)
+        qy (- (Math/abs (double py)) by)
+        qz (- (Math/abs (double pz)) bz)
+        outer (v3-len [(max qx 0.0) (max qy 0.0) (max qz 0.0)])
+        inner (min (max qx (max qy qz)) 0.0)]
+    (- (+ outer inner) r)))
+
+(defn- ray-scene [p morph]
+  (let [tor (sd-torus p 0.9 0.38)
+        cub (sd-round-box p [0.72 0.72 0.72] 0.12)]
+    (mixd tor cub (smoothstepd 0.0 1.0 (clampd morph 0.0 1.0)))))
+
+(defn- calc-normal [[x y z] morph]
+  (let [e 0.001]
+    (v3-norm [(- (ray-scene [(+ x e) y z] morph) (ray-scene [(- x e) y z] morph))
+              (- (ray-scene [x (+ y e) z] morph) (ray-scene [x (- y e) z] morph))
+              (- (ray-scene [x y (+ z e)] morph) (ray-scene [x y (- z e)] morph))])))
+
+(def ^:private ray-w 46)
+(def ^:private ray-h 22)
+(def ^:private ray-max-steps 50)
+(def ^:private ray-max-dist 20.0)
+(def ^:private ray-eps 0.005)
+(def ^:private ray-ramp
+  " .'`^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$")
+(def ^:private ray-light-dir (v3-norm [0.8 1.0 -0.6]))
+(def ^:private ray-fill-dir (v3-norm [-0.6 0.4 0.7]))
+
+(defn- march [ro rd morph]
+  (loop [t 0.0 i 0]
+    (if (or (>= i ray-max-steps) (>= t ray-max-dist))
+      -1.0
+      (let [d (ray-scene (v3-add ro (v3-scale rd t)) morph)]
+        (if (< d ray-eps) t (recur (+ t d) (inc i)))))))
+
+(defn- ray-bg-pixel [[_ y _]]
+  (let [vy (+ (* y 0.5) 0.5)
+        bg (int (max 4.0 (Math/floor (- 18.0 (* (- 1.0 vy) 8.0)))))]
+    [\space bg bg (+ bg 6)]))
+
+(defn- ray-shade [ro rd morph]
+  (let [t (march ro rd morph)]
+    (if (< t 0)
+      (ray-bg-pixel rd)
+      (let [hit  (v3-add ro (v3-scale rd t))
+            n    (calc-normal hit morph)
+            diff (max (v3-dot n ray-light-dir) 0.0)
+            fill (* (max (v3-dot n ray-fill-dir) 0.0) 0.35)
+            refl (v3-sub (v3-scale n (* 2.0 (v3-dot n ray-light-dir))) ray-light-dir)
+            spec (* (Math/pow (max (v3-dot refl (v3-neg rd)) 0.0) 32.0) 0.6)
+            ao   (- 1.0 (clampd (* (ray-scene (v3-add hit (v3-scale n 0.1)) morph) 5.0) 0.0 0.4))
+            ;; Floor keeps hit surfaces above the ramp's whitespace glyphs
+            lum  (clampd (max (* (+ 0.12 (* diff 0.7) fill spec) ao) 0.18) 0.0 1.0)
+            ramp-len (count ray-ramp)
+            idx  (int (clampd (* lum (dec ramp-len)) 0.0 (double (dec ramp-len))))
+            ch   (.charAt ray-ramp idx)
+            [nx ny nz] n
+            nx' (+ (* nx 0.5) 0.5) ny' (+ (* ny 0.5) 0.5) nz' (+ (* nz 0.5) 0.5)
+            rc  (int (clampd (+ (* (+ (* nx' 0.55) (* lum 0.45)) 235) 20) 0.0 255.0))
+            gc  (int (clampd (+ (* (+ (* ny' 0.45) (* lum 0.55)) 215) 15) 0.0 255.0))
+            bc  (int (clampd (+ (* (+ (* nz' 0.50) (* lum 0.50) 0.05) 200) 30) 0.0 255.0))]
+        [ch rc gc bc]))))
+
+(defn- render-ray-frame [theta phi dist morph]
+  (let [ro     [(* dist (Math/sin theta) (Math/cos phi))
+                (* dist (Math/sin phi))
+                (* dist (Math/cos theta) (Math/cos phi))]
+        fwd    (v3-norm (v3-neg ro))
+        right  (v3-norm (v3-cross fwd [0.0 1.0 0.0]))
+        up     (v3-cross right fwd)
+        aspect (* (/ (double ray-w) (double ray-h)) 0.48)
+        sb     (StringBuilder.)]
+    (dotimes [py ray-h]
+      (let [v (- 0.5 (/ (double py) ray-h))]
+        (dotimes [px ray-w]
+          (let [u  (* (- (/ (double px) ray-w) 0.5) aspect)
+                rd (v3-norm (v3-add (v3-add fwd (v3-scale right u)) (v3-scale up v)))
+                [ch r g b] (ray-shade ro rd morph)]
+            (.append sb (str "\033[38;2;" r ";" g ";" b "m" ch))))
+        (.append sb "\033[0m")
+        (when (< py (dec ray-h)) (.append sb "\n"))))
+    (.toString sb)))
+
+(defn- scene-ray-marcher [s]
+  (let [fb     (render-ray-frame (:ray-theta s) (:ray-phi s) (:ray-dist s) (:ray-morph s))
+        two-pi (* 2 Math/PI)
+        theta-wrapped (- (:ray-theta s) (* two-pi (Math/floor (/ (:ray-theta s) two-pi))))
+        camera-stats (-> (kv [["θ" (format "%.2f" theta-wrapped)]
+                              ["φ" (format "%.2f" (double (:ray-phi s)))]
+                              ["zoom" (format "%.1f" (double (:ray-dist s)))]])
+                         color-bright-blue)
+        controls (-> (layout [(-> "wasd   orbit" color-bright-yellow)
+                              (-> "+/-    zoom" color-bright-yellow)
+                              (-> "Space  shape" color-bright-yellow)])
+                     style-dim)
+        camera (left-align 20
+                          (render (layout [camera-stats
+                                           br
+                                           (-> (spinner "render" (quot (:tick s) 2) :dots) color-bright-cyan)
+                                           (-> (spinner "light" (quot (:tick s) 2) :moon) color-bright-yellow)
+                                           br
+                                           controls])))]
+    (row [(text fb)
+          (-> (box "Camera" [camera]) border-round color-bright-magenta)])))
+
 ;; View dispatch
 
 (defn- app-view [s]
   (let [header  (render-header s)
         content (case (int (:scene s))
-                  0 (scene-physics-game s)
-                  1 (scene-text-input s)
-                  2 (scene-borders-styles s)
-                  3 (scene-tables s)
-                  4 (scene-charts-plots s)
-                  5 (scene-bar-sparklines s)
-                  6 (scene-selections-heatmap s)
+                  0 (scene-ray-marcher s)
+                  1 (scene-physics-game s)
+                  2 (scene-text-input s)
+                  3 (scene-borders-styles s)
+                  4 (scene-tables s)
+                  5 (scene-charts-plots s)
+                  6 (scene-bar-sparklines s)
+                  7 (scene-selections-heatmap s)
                   "Unknown scene")
         footer  (render-footer s)]
     (left-align scene-width

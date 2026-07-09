@@ -49,14 +49,14 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
 
   private val totalScenes = 8
   private val sceneNames = Seq(
+    "Ray Marcher",
     "Physics Game",
     "Text Input & Lists",
     "Borders & Styles",
     "Tables",
     "Charts & Plots",
     "Bar Charts & Sparklines",
-    "Selections & Heatmap",
-    "Ray Marcher"
+    "Selections & Heatmap"
   )
 
   private val services = Seq(
@@ -125,42 +125,42 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
         (state.copy(addingItem = true, addTick = 0), Cmd.none)
       case SubmitItem => (state, Cmd.none)
       case ToggleSelect =>
-        if (state.scene == 3) {
+        if (state.scene == 4) {
           val s = state.tableSelected
           val newSel = if (s.contains(state.tableRow)) s - state.tableRow else s + state.tableRow
           (state.copy(tableSelected = newSel), Cmd.none)
-        } else if (state.scene == 6) {
+        } else if (state.scene == 7) {
           val newSel = if (state.selected.contains(state.cursor))
             state.selected - state.cursor
           else state.selected + state.cursor
           (state.copy(selected = newSel), Cmd.none)
         } else (state, Cmd.none)
       case CursorUp =>
-        if (state.scene == 3)
+        if (state.scene == 4)
           (
             state.copy(tableRow = (state.tableRow - 1 + services.length) % services.length),
             Cmd.none
           )
-        else if (state.scene == 6)
+        else if (state.scene == 7)
           (state.copy(cursor = (state.cursor - 1 + 7) % 7), Cmd.none)
         else (state, Cmd.none)
       case CursorDown =>
-        if (state.scene == 3)
+        if (state.scene == 4)
           (state.copy(tableRow = (state.tableRow + 1) % services.length), Cmd.none)
-        else if (state.scene == 6)
+        else if (state.scene == 7)
           (state.copy(cursor = (state.cursor + 1) % 7), Cmd.none)
         else (state, Cmd.none)
       case AdjustUp =>
-        if (state.scene == 0)
+        if (state.scene == 1)
           (state.copy(gravity = math.min(state.gravity + 1, 15)), Cmd.none)
-        else if (state.scene == 7)
+        else if (state.scene == 0)
           (state.copy(rayDist = math.max(state.rayDist - 0.25, 2.0)), Cmd.none)
         else
           (state.copy(lineOffset = math.min(state.lineOffset + 1, 10)), Cmd.none)
       case AdjustDown =>
-        if (state.scene == 0)
+        if (state.scene == 1)
           (state.copy(gravity = math.max(state.gravity - 1, 1)), Cmd.none)
-        else if (state.scene == 7)
+        else if (state.scene == 0)
           (state.copy(rayDist = math.min(state.rayDist + 0.25, 8.0)), Cmd.none)
         else
           (state.copy(lineOffset = math.max(state.lineOffset - 1, -10)), Cmd.none)
@@ -181,23 +181,23 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     Sub.time.everyMs(80, Tick),
     Sub.onKeyPress {
       /* Ray Marcher scene: WASD orbits, Space switches shape, arrows still change scenes */
-      case Key.Char('a') if state.scene == 7                     => Some(RayRotL)
-      case Key.Char('d') if state.scene == 7                     => Some(RayRotR)
-      case Key.Char('w') if state.scene == 7                     => Some(RayRotU)
-      case Key.Char('s') if state.scene == 7                     => Some(RayRotD)
-      case Key.Char(' ') if state.scene == 7                     => Some(RayNextShape)
+      case Key.Char('a') if state.scene == 0                     => Some(RayRotL)
+      case Key.Char('d') if state.scene == 0                     => Some(RayRotR)
+      case Key.Char('w') if state.scene == 0                     => Some(RayRotU)
+      case Key.Char('s') if state.scene == 0                     => Some(RayRotD)
+      case Key.Char(' ') if state.scene == 0                     => Some(RayNextShape)
       case Key.Right                                             => Some(NextScene)
       case Key.Left                                              => Some(PrevScene)
       case Key.Char('+')                                         => Some(AdjustUp)
       case Key.Char('-')                                         => Some(AdjustDown)
-      case Key.Char(' ') if state.scene == 0                     => Some(KickBall)
-      case Key.Char(' ') if state.scene == 3 || state.scene == 6 => Some(ToggleSelect)
-      case Key.Tab if state.scene == 5                           => Some(ToggleBarMode)
-      case Key.Enter if state.scene == 1                         => Some(SubmitItem)
+      case Key.Char(' ') if state.scene == 1                     => Some(KickBall)
+      case Key.Char(' ') if state.scene == 4 || state.scene == 7 => Some(ToggleSelect)
+      case Key.Tab if state.scene == 6                           => Some(ToggleBarMode)
+      case Key.Enter if state.scene == 2                         => Some(SubmitItem)
       case Key.Up                                                => Some(CursorUp)
       case Key.Down                                              => Some(CursorDown)
       case Key.Backspace                                         => Some(Backspace)
-      case Key.Char(c) if state.scene == 1 && (c.isLetterOrDigit || c == ' ') =>
+      case Key.Char(c) if state.scene == 2 && (c.isLetterOrDigit || c == ' ') =>
         Some(TypeChar(c))
       case Key.Char(c) if c >= '1' && c <= '8' =>
         Some(GoScene(c - '1'))
@@ -210,14 +210,14 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
   override def view(state: ShowcaseState): Element = {
     val header = renderHeader(state)
     val content = state.scene match {
-      case 0 => scenePhysicsGame(state)
-      case 1 => sceneTextInput(state)
-      case 2 => sceneBordersStyles(state)
-      case 3 => sceneTables(state)
-      case 4 => sceneChartsPlots(state)
-      case 5 => sceneBarChartsSparklines(state)
-      case 6 => sceneSelectionsHeatmap(state)
-      case 7 => sceneRayMarcher(state)
+      case 0 => sceneRayMarcher(state)
+      case 1 => scenePhysicsGame(state)
+      case 2 => sceneTextInput(state)
+      case 3 => sceneBordersStyles(state)
+      case 4 => sceneTables(state)
+      case 5 => sceneChartsPlots(state)
+      case 6 => sceneBarChartsSparklines(state)
+      case 7 => sceneSelectionsHeatmap(state)
       case _ => layout("Unknown scene")
     }
     val footer = renderFooter(state)
@@ -250,19 +250,19 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
 
   private def renderFooter(state: ShowcaseState): Element = {
     val hints = state.scene match {
-      case 0 => "←/→ scenes  Space kick  +/- gravity  Ctrl+Q quit"
-      case 1 => "←/→ scenes  type + Enter to add  Ctrl+Q quit"
-      case 3 => "←/→ scenes  ↑/↓ navigate  Space select  Ctrl+Q quit"
-      case 4 => "←/→ scenes  +/- move threshold  Ctrl+Q quit"
-      case 5 => "←/→ scenes  Tab cycle chart mode  Ctrl+Q quit"
-      case 6 => "←/→ scenes  ↑/↓ navigate  Space toggle  Ctrl+Q quit"
-      case 7 => "←/→ scenes  WASD orbit  +/- zoom  Space shape  Ctrl+Q quit"
+      case 0 => "←/→ scenes  WASD orbit  +/- zoom  Space shape  Ctrl+Q quit"
+      case 1 => "←/→ scenes  Space kick  +/- gravity  Ctrl+Q quit"
+      case 2 => "←/→ scenes  type + Enter to add  Ctrl+Q quit"
+      case 4 => "←/→ scenes  ↑/↓ navigate  Space select  Ctrl+Q quit"
+      case 5 => "←/→ scenes  +/- move threshold  Ctrl+Q quit"
+      case 6 => "←/→ scenes  Tab cycle chart mode  Ctrl+Q quit"
+      case 7 => "←/→ scenes  ↑/↓ navigate  Space toggle  Ctrl+Q quit"
       case _ => "←/→ scenes  Ctrl+Q quit"
     }
     hints.color(Color.BrightBlack).style(Style.Dim)
   }
 
-  /* -- Scene 1: Physics Game -- */
+  /* -- Scene 2: Physics Game -- */
   private def scenePhysicsGame(state: ShowcaseState): Element = {
     val trailPoints = state.ballTrail.zipWithIndex.map { case (y, i) =>
       (i.toDouble, y)
@@ -308,7 +308,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     )
   }
 
-  /* -- Scene 2: Text Input & Lists -- */
+  /* -- Scene 3: Text Input & Lists -- */
   private def sceneTextInput(state: ShowcaseState): Element = {
     val inputLine = if (state.addingItem) {
       row(
@@ -391,7 +391,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     )
   }
 
-  /* -- Scene 3: Borders & Styles -- */
+  /* -- Scene 4: Borders & Styles -- */
   private def sceneBordersStyles(state: ShowcaseState): Element = {
     val borderStyles: Seq[(Border, String, Color)] = Seq(
       (Border.Single, "Single", Color.BrightCyan),
@@ -431,7 +431,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     )
   }
 
-  /* -- Scene 4: Tables -- */
+  /* -- Scene 5: Tables -- */
   private def sceneTables(state: ShowcaseState): Element = {
     val coloredRows: Seq[Seq[Element]] =
       services.zipWithIndex.map { case ((name, status, lat, up), idx) =>
@@ -474,7 +474,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     )
   }
 
-  /* -- Scene 5: Charts & Plots -- */
+  /* -- Scene 6: Charts & Plots -- */
   private def sceneChartsPlots(state: ShowcaseState): Element = {
     val sinPoints = (0 to 100).map { i =>
       val x = i * 0.08
@@ -510,7 +510,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     )
   }
 
-  /* -- Scene 6: Bar Charts & Sparklines -- */
+  /* -- Scene 7: Bar Charts & Sparklines -- */
   private def sceneBarChartsSparklines(state: ShowcaseState): Element = {
     val sparkData = (0 until 30).map(i =>
       math.sin((i + state.tick) * 0.3) * 10 + 15
@@ -576,7 +576,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     )
   }
 
-  /* -- Scene 7: Selections & Heatmap -- */
+  /* -- Scene 8: Selections & Heatmap -- */
   private def sceneSelectionsHeatmap(state: ShowcaseState): Element = {
     val days = Seq("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     val hours = Seq("6am", "9am", "12pm", "3pm", "6pm", "9pm")
@@ -635,7 +635,7 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
     )
   }
 
-  /* -- Scene 8: Ray Marcher -- */
+  /* -- Scene 1: Ray Marcher -- */
   private def sceneRayMarcher(state: ShowcaseState): Element = {
     val fb = RayScene.renderFrame(state.rayTheta, state.rayPhi, state.rayDist, state.rayMorph)
 
@@ -666,8 +666,8 @@ object ShowcaseApp extends LayoutzApp[ShowcaseState, ShowcaseMsg] {
   }
 }
 
-/* ---- Ray marcher helpers for Scene 8 ---- */
-private case class RV3(x: Double, y: Double, z: Double) {
+/* ---- Ray marcher helpers for Scene 1 ---- */
+case class RV3(x: Double, y: Double, z: Double) {
   def +(o: RV3): RV3 = RV3(x + o.x, y + o.y, z + o.z)
   def -(o: RV3): RV3 = RV3(x - o.x, y - o.y, z - o.z)
   def *(s: Double): RV3 = RV3(x * s, y * s, z * s)
@@ -677,14 +677,14 @@ private case class RV3(x: Double, y: Double, z: Double) {
   def normalized: RV3 = { val l = length; if (l < 1e-10) RV3.Zero else this * (1.0 / l) }
   def unary_- : RV3 = RV3(-x, -y, -z)
 }
-private object RV3 {
+object RV3 {
   val Zero = RV3(0, 0, 0)
   val Up   = RV3(0, 1, 0)
 }
 
-private case class RPixel(ch: Char, r: Int, g: Int, b: Int)
+case class RPixel(ch: Char, r: Int, g: Int, b: Int)
 
-private object RayScene {
+object RayScene {
   import layoutz._
 
   val shapeNames = Vector("torus", "cube")

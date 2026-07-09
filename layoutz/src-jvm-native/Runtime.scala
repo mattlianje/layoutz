@@ -889,12 +889,50 @@ private[layoutz] object LayoutzRuntime {
 
 }
 
+/** Visual preset for [[loader]]. Controls the bar glyphs and color for bounded loaders, and the
+  * spinner frames + color for streaming loaders.
+  */
+private[layoutz] final case class LoaderStyle(
+    fill: Char = '█',
+    empty: Char = '░',
+    open: String = "",
+    close: String = "",
+    head: String = "",
+    smooth: Boolean = false,
+    spinner: SpinnerStyle = SpinnerStyle.Dots,
+    color: Color = Color.Cyan
+)
+
+private[layoutz] object LoaderStyle {
+  /** Smooth gradient blocks `████▊░░░` (default). */
+  val Blocks = LoaderStyle(smooth = true, spinner = SpinnerStyle.Grow)
+
+  /** Classic bracketed bar `[██████░░░░]`. */
+  val Bar = LoaderStyle(open = "[", close = "]", color = Color.Green)
+
+  /** Retro ASCII with an arrow head `[====>    ]`. */
+  val Ascii = LoaderStyle('=', ' ', "[", "]", ">", spinner = SpinnerStyle.Line, color = Color.Yellow)
+
+  /** Dotted `●●●●∙∙∙∙`. */
+  val Dots = LoaderStyle('●', '∙', spinner = SpinnerStyle.Bounce, color = Color.Magenta)
+
+  /** Heavy/light rule `━━━━────`. */
+  val Line = LoaderStyle('━', '─', spinner = SpinnerStyle.Line, color = Color.Blue)
+
+  /** Segmented pipes `▰▰▰▱▱▱`. */
+  val Pipes = LoaderStyle('▰', '▱', spinner = SpinnerStyle.Arrow, color = Color.BrightMagenta)
+
+  /** All built-in styles, in display order. */
+  val all: Seq[LoaderStyle] = Seq(Blocks, Bar, Ascii, Dots, Line, Pipes)
+}
+
 /** Wrap any collection or iterator and stream a live progress bar to the terminal as you iterate.
   * Spins up a tiny [[LayoutzApp]] on a background daemon thread; the caller only sees an
   * `Iterator`.
   *
   * {{{
   * for (n <- loader("Processing", 1 to 100)) Thread.sleep(20)
+  * for (n <- loader("Rendering", 1 to 100).ascii) Thread.sleep(20)
   * for (line <- loader.stream("Reading", io.Source.fromFile("big.log").getLines())) handle(line)
   * }}}
   */
@@ -902,14 +940,88 @@ object loader {
   import java.util.concurrent.atomic.{AtomicInteger, AtomicBoolean}
 
   /** Wrap a sized collection ...renders an inline progress bar with N/total + %. */
-  def apply[A](items: Iterable[A]): Iterator[A] = apply("", items)
-  def apply[A](label: String, items: Iterable[A]): Iterator[A] =
-    new BoundedIter(label, items.size, items.iterator)
+  def apply[A](items: Iterable[A]): Loader[A] = apply("", items)
+  def apply[A](label: String, items: Iterable[A]): Loader[A] =
+    new Loader(label, LoaderStyle.Blocks, (l, s) => new BoundedIter(l, items.size, items.iterator, s))
 
   /** Wrap an iterator whose size isn't known ..renders a spinner + running count. */
-  def stream[A](items: Iterator[A]): Iterator[A] = stream("", items)
-  def stream[A](label: String, items: Iterator[A]): Iterator[A] =
-    new StreamingIter(label, items)
+  def stream[A](items: Iterator[A]): Loader[A] = stream("", items)
+  def stream[A](label: String, items: Iterator[A]): Loader[A] =
+    new Loader(label, LoaderStyle.Blocks, (l, s) => new StreamingIter(l, items, s))
+
+  /** A lazy, restyleable progress wrapper. Iterate it (usually via `for`) to start the display;
+    * chain a style accessor first to change its look:
+    *
+    * {{{
+    * for (f <- loader("Resizing", files).ascii) resize(f)
+    * for (u <- loader("Crawling", urls).styled(fill = '#', color = Color.Green)) fetch(u)
+    * }}}
+    */
+  final class Loader[A] private[loader] (
+      label: String,
+      style: LoaderStyle,
+      mk: (String, LoaderStyle) => Iterator[A]
+  ) extends Iterable[A] {
+    def iterator: Iterator[A] = mk(label, style)
+
+    private def withStyle(s: LoaderStyle): Loader[A] = new Loader(label, s, mk)
+
+    /** Smooth gradient blocks `████▊░░░` (default). */
+    def blocks: Loader[A] = withStyle(LoaderStyle.Blocks)
+
+    /** Classic bracketed bar `[██████░░░░]`. */
+    def bar: Loader[A] = withStyle(LoaderStyle.Bar)
+
+    /** Retro ASCII with an arrow head `[====>    ]`. */
+    def ascii: Loader[A] = withStyle(LoaderStyle.Ascii)
+
+    /** Dotted `●●●●∙∙∙∙`. */
+    def dots: Loader[A] = withStyle(LoaderStyle.Dots)
+
+    /** Heavy/light rule `━━━━────`. */
+    def line: Loader[A] = withStyle(LoaderStyle.Line)
+
+    /** Segmented pipes `▰▰▰▱▱▱`. */
+    def pipes: Loader[A] = withStyle(LoaderStyle.Pipes)
+
+    /** Custom style; unspecified fields keep the current style's values. */
+    def styled(
+        fill: Char = style.fill,
+        empty: Char = style.empty,
+        open: String = style.open,
+        close: String = style.close,
+        head: String = style.head,
+        smooth: Boolean = style.smooth,
+        spinner: SpinnerStyle = style.spinner,
+        color: Color = style.color
+    ): Loader[A] =
+      withStyle(LoaderStyle(fill, empty, open, close, head, smooth, spinner, color))
+  }
+
+  /* Fractional block glyphs for the smooth-fill boundary cell (1/8 .. 8/8). */
+  private val BlockEighths = Array("", "▏", "▎", "▍", "▌", "▋", "▊", "▉")
+  private def paint(c: Color, s: String): String = if (c == Color.NoColor) s else c(s).render
+  private def dimStr(s: String): String = Text(s).style(Style.Dim).render
+
+  private[layoutz] def renderBar(style: LoaderStyle, progress: Double, width: Int): String = {
+    val p = math.max(0.0, math.min(1.0, progress))
+    val exact = p * width
+    val filled = exact.toInt
+    if (style.smooth) {
+      val eighths = ((exact - filled) * 8).toInt
+      val hasPartial = filled < width && eighths > 0
+      val partial = if (hasPartial) BlockEighths(eighths) else ""
+      val used = filled + (if (hasPartial) 1 else 0)
+      val body = paint(style.color, style.fill.toString * filled + partial)
+      style.open + body + dimStr(style.empty.toString * (width - used)) + style.close
+    } else {
+      val showHead = style.head.nonEmpty && filled > 0 && filled < width
+      val head = if (showHead) style.head else ""
+      val emptyCount = math.max(0, width - filled - head.length)
+      val body = paint(style.color, style.fill.toString * filled + head)
+      style.open + body + dimStr(style.empty.toString * emptyCount) + style.close
+    }
+  }
 
   /* Restore the cursor if the JVM dies mid-iteration before the
    * LayoutzApp had a chance to run its own cleanup.
@@ -930,6 +1042,7 @@ object loader {
   final private class BoundedLoaderApp(
       label: String,
       total: Int,
+      style: LoaderStyle,
       doneRef: AtomicInteger,
       finishedRef: AtomicBoolean
   ) extends LayoutzApp[Unit, LoaderMsg] {
@@ -946,22 +1059,22 @@ object loader {
     def renderLine(): String = {
       val done = doneRef.get()
       val progress = if (total > 0) math.min(1.0, done.toDouble / total) else 1.0
-      val width = 20
-      val filled = (progress * width).toInt
-      val bar = "█" * filled + "░" * (width - filled)
+      val bar = renderBar(style, progress, 20)
       val pct = (progress * 100).toInt
       val prefix = if (label.isEmpty) "" else s"$label "
-      s"$prefix[$bar] $done/$total ($pct%)"
+      s"$prefix$bar $done/$total ($pct%)"
     }
+
+    def finalLine(): String = renderLine()
   }
 
   final private class StreamingLoaderApp(
       label: String,
+      style: LoaderStyle,
       doneRef: AtomicInteger,
       finishedRef: AtomicBoolean
   ) extends LayoutzApp[Int, LoaderMsg] {
-    private val frames =
-      Array("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+    private val frames = style.spinner.frames
     private val frameRef = new AtomicInteger(0)
 
     def init: (Int, Cmd[LoaderMsg]) = (0, Cmd.none)
@@ -978,10 +1091,13 @@ object loader {
     def view(frame: Int): Element = Text(renderLine())
 
     def renderLine(): String = {
-      val spin = frames(java.lang.Math.floorMod(frameRef.get(), frames.length))
+      val spin = paint(style.color, frames(java.lang.Math.floorMod(frameRef.get(), frames.length)))
       val prefix = if (label.isEmpty) "" else s"$label "
       s"$spin $prefix(${doneRef.get()} processed)"
     }
+
+    def finalLine(): String = prefixLabel + s"${doneRef.get()} processed"
+    private def prefixLabel: String = if (label.isEmpty) "" else s"$label "
   }
 
   private def spawn[S, M](app: LayoutzApp[S, M]): Thread = {
@@ -1034,18 +1150,18 @@ object loader {
     }
   }
 
-  final private class BoundedIter[A](label: String, total: Int, under: Iterator[A])
+  final private class BoundedIter[A](label: String, total: Int, under: Iterator[A], style: LoaderStyle)
       extends BaseLoaderIter[A](under) {
-    private val app = new BoundedLoaderApp(label, total, doneRef, finishedRef)
+    private val app = new BoundedLoaderApp(label, total, style, doneRef, finishedRef)
     protected val appThread: Thread = spawn(app)
-    protected def renderFinalLine(): String = app.renderLine()
+    protected def renderFinalLine(): String = app.finalLine()
   }
 
-  final private class StreamingIter[A](label: String, under: Iterator[A])
+  final private class StreamingIter[A](label: String, under: Iterator[A], style: LoaderStyle)
       extends BaseLoaderIter[A](under) {
-    private val app = new StreamingLoaderApp(label, doneRef, finishedRef)
+    private val app = new StreamingLoaderApp(label, style, doneRef, finishedRef)
     protected val appThread: Thread = spawn(app)
-    protected def renderFinalLine(): String = app.renderLine()
+    protected def renderFinalLine(): String = app.finalLine()
   }
 }
 
@@ -1114,7 +1230,7 @@ object Ask {
     def btn(text: String, active: Boolean, bg: Color): String = {
       val padded = s"  $text  "
       if (active) padded.color(Color.White).colorBg(bg).style(Style.Bold).render
-      else dim(padded)
+      else padded
     }
     question + "\n  " +
       btn(affirmative, yes, Color.Green) + "  " +
@@ -1309,14 +1425,16 @@ object Ask {
     ticker.setDaemon(true)
     ticker.start()
 
-    val (result, mark, err) =
-      try (task, colored(Color.Green, "✓"), null: Throwable)
-      catch { case t: Throwable => (null.asInstanceOf[A], colored(Color.Red, "✗"), t) }
+    val (result, ok, err) =
+      try { (task, true, null: Throwable) }
+      catch { case t: Throwable => (null.asInstanceOf[A], false, t) }
 
     done.set(true)
     try ticker.join(500)
     catch { case _: InterruptedException => () }
-    out.print("\r" + mark + " " + label + Ansi.CLEAR_TO_EOL + "\n")
+    val glyph = if (ok) "✓" else "✗"
+    val finished = colored(if (ok) Color.Green else Color.Red, glyph + " " + label)
+    out.print("\r" + finished + Ansi.CLEAR_TO_EOL + "\n")
     out.print(Ansi.CSI + "?25h"); out.flush()
     if (err != null) throw err else result
   }
@@ -1387,7 +1505,7 @@ object Ask {
           KeyParser.parse(t.readInput(), t) match {
             case Key.Enter if matches.nonEmpty =>
               val pick = matches(safeIdx)
-              commit(t, prompt + query + " " + colored(Color.Cyan, "→ " + render(pick)), n)
+              commit(t, prompt + query + "  " + colored(Color.Cyan, render(pick)), n)
               Some(pick)
             case Key.Up if matches.nonEmpty =>
               loop(query, (safeIdx - 1 + matches.length) % matches.length, n)

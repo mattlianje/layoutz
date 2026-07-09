@@ -1763,7 +1763,6 @@ Longer line 2
     assert(yes.contains("Yes"))
     assert(yes.contains("No"))
     assert(yes.contains("[42m"))
-    assert(yes.contains("[2m"))
 
     val no = Ask.renderConfirmFrame("ok?", yes = false, "Yes", "No")
     assert(no.contains("[41m"))

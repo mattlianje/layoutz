@@ -16,12 +16,15 @@ and interactive Elm-style TUI's in pure Haskell.
 Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
 ## Features
-- Pure Haskell, zero dependencies (use `Layoutz.hs` like a header file)
+- Pure Haskell, zero-dependencies (use `Layoutz.hs` like a header file)
 - Elm-style TUIs
 - Layout primitives, tables, trees, lists, CJK-aware
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
+- Inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/)
+- One-shot interactive prompts (`askInput`, `askChoose`, `askFilter`, …)
+- Drop-in progress `loader`s for build scripts and batch jobs
 - Implement `Element` to add your own primitives
 - Easy porting to MicroHs
 
@@ -48,8 +51,11 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 - [Border Styles](#border-styles)
 - [Charts & Plots](#charts--plots)
 - [Colors & Styles](#colors-ansi-support)
+- [Inline Images (kitty)](#inline-image-kittyimage)
 - [Custom Components](#custom-components)
 - [Interactive Apps](#interactive-apps)
+- [Prompts (Ask)](#prompts-ask)
+- [Progress (loader)](#progress-loader)
 - [Examples](#examples)
 - [Contributing](#contributing)
 
@@ -67,7 +73,7 @@ import Layoutz
 
 ## Quickstart
 
-**(1/2) Static rendering** - Beautiful, compositional strings:
+**(1/3) Static rendering**: pretty, composable strings.
 
 ```haskell
 import Layoutz
@@ -97,7 +103,7 @@ putStrLn $ render demo
 </p>
 
 
-**(2/2) Interactive apps** - Build Elm-style TUI's:
+**(2/3) Interactive apps** - Build Elm-style TUI's:
 
 ```haskell
 import Layoutz
@@ -124,6 +130,31 @@ main = runApp counterApp
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="650">
+</p>
+
+**(3/3) Prompts (Ask)**
+
+One-shot CLI prompts (inputs, choosers, filters, file pickers, spinners) that collapse to a single line as you answer them.
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  name   <- askInput "Name › " "anonymous" ""
+  realm  <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood"] id
+  packs  <- askChooseMany "Pack provisions" ["lembas", "pipe-weed", "rope"] 3 id
+  member <- askFilter "Search a companion › " ["Bilbo", "Gandalf", "Thorin"] 8 id
+  riddle <- askWrite "Pose a riddle" "This thing all things devours…" "" "Ctrl-D to save"
+  quest  <- askConfirm "Venture on the quest?" True "Yes" "No"
+  smaug  <- askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure "ready")
+  pure ()
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/ask-demo.gif" width="600">
+  <br>
+  <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
 </p>
 
 ## Why layoutz?
@@ -188,95 +219,139 @@ BorderNone                    -- No borders
 
 ## Elements
 
-### Text: `text`
+### Layout
+
+#### Stacking & rows
+```haskell
+layout ["First", "Second", "Third"]          -- vertical
+-- First
+-- Second
+-- Third
+
+row ["Left", "Middle", "Right"]              -- horizontal
+-- Left Middle Right
+
+tightRow [text "A", text "B", text "C"]      -- no spacing
+-- ABC
+```
+
+#### Spacing & rules
+```haskell
+layout [text "Line 1", br, text "Line 2"]    -- br is a blank line
+
+hr                 -- default ──────────...
+hr' "~"            -- custom char
+hr'' "=" 20        -- ====================
+
+vr                 -- vertical rule, 10 high with │
+vr' "║"            -- custom char
+vr'' "|" 5         -- custom char + height
+```
+
+#### Text transforms
+```haskell
+center $ text "Auto-centered"                -- width from siblings
+center' 30 $ text "Fixed width"
+alignLeft 30 "Left"                          -- │Left                │
+alignRight 30 "Right"                        -- │               Right│
+justify 30 "Spaces are distributed evenly"
+wrap 20 "Long text wrapped at word boundaries"
+
+underline $ text "Title"                     -- Title
+                                             -- ─────
+underline' "=" $ text "Double"               -- ======
+underlineColored "~" ColorCyan $ text "Fancy"
+
+pad 2 $ text "Padded content"                -- 2 cells of padding all around
+
+margin "[error]" [text "Oops", text "fix it"]
+-- [error] Oops
+-- [error] fix it
+```
+
+### Content
+
+#### Basics
 ```haskell
 text "hello"
-"hello"                                      -- with OverloadedStrings
+"hello"   - with OverloadedStrings
+
+section "Status" [text "All systems operational"]
+-- === Status ===
+-- All systems operational
+section' "-" "Status" [text "ok"]       -- custom glyph
+section'' "#" "Report" 5 [text "42"]    -- custom glyph + width
+
+kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
+-- Name: Alice
+-- Age:  30
+-- City: NYC
 ```
 
-### Line Break: `br`
-```haskell
-layout [text "Line 1", br, text "Line 2"]
-```
-
-### Layout (vertical): `layout`
-```haskell
-layout ["First", "Second", "Third"]
-```
-```
-First
-Second
-Third
-```
-
-### Row (horizontal): `row`, `tightRow`
-```haskell
-row ["Left", "Middle", "Right"]
-tightRow [text "A", text "B", text "C"]      -- no spacing
-```
-```
-Left Middle Right
-ABC
-```
-
-### Horizontal Rule: `hr`, `hr'`, `hr''`
-```haskell
-hr                                           -- default ──────────
-hr' "~"                                      -- custom char
-hr'' "=" 20                                  -- custom char + width
-```
-```
-──────────────────────────────────────────────────
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-====================
-```
-
-### Vertical Rule: `vr`, `vr'`, `vr''`
-```haskell
-vr                                           -- default: 10 high with │
-vr' "║"                                      -- custom char
-vr'' "|" 5                                   -- custom char + height
-```
-
-### Box: `box`
+#### Boxes & cards
 ```haskell
 box "Status" [text "All systems go"]
+-- ┌──Status──────────┐
+-- │ All systems go   │
+-- └──────────────────┘
+
 withBorder BorderDouble $ box "Fancy" [text "Double border"]
+-- ╔══Fancy═══════════╗
+-- ║ Double border    ║
+-- ╚══════════════════╝
+
 withBorder BorderRound $ box "Smooth" [text "Rounded corners"]
-```
-```
-┌──Status──────────┐
-│ All systems go   │
-└──────────────────┘
-╔══Fancy═══════════╗
-║ Double border    ║
-╚══════════════════╝
-╭──Smooth────────────╮
-│ Rounded corners    │
-╰────────────────────╯
+-- ╭──Smooth────────────╮
+-- │ Rounded corners    │
+-- ╰────────────────────╯
+
+row [ withColor ColorGreen $ statusCard "CPU" "45%"
+    , withColor ColorCyan  $ statusCard "MEM" "2.1G"
+    ]
+-- ┌──────┐ ┌───────┐
+-- │ CPU  │ │ MEM   │
+-- │ 45%  │ │ 2.1G  │
+-- └──────┘ └───────┘
 ```
 
-Pipe any element through `withBorder`:
+Pipe any `HasBorder` element through `withBorder`:
 ```haskell
 withBorder BorderRound $ box "Info" ["content"]
 withBorder BorderDouble $ statusCard "API" "UP"
 withBorder BorderThick $ table ["Name"] [["Alice"]]
 ```
 
-### Status Card: `statusCard`
+#### Lists & trees
 ```haskell
-row [ withColor ColorGreen $ statusCard "CPU" "45%"
-    , withColor ColorCyan $ statusCard "MEM" "2.1G"
-    ]
-```
-```
-┌──────┐ ┌───────┐
-│ CPU  │ │ MEM   │
-│ 45%  │ │ 2.1G  │
-└──────┘ └───────┘
+ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
+-- • Backend
+--   ◦ API
+--     ▪ REST
+--     ▪ GraphQL
+--   ◦ DB
+-- • Frontend
+
+ol ["Setup", ol ["Install deps", ol ["npm", "pip"], "Configure"], "Deploy"]
+-- 1. Setup
+--   a. Install deps
+--     i. npm
+--     ii. pip
+--   b. Configure
+-- 2. Deploy
+
+tree "Project"
+  [ branch "src" [leaf "main.hs", leaf "test.hs"]
+  , branch "docs" [leaf "README.md"]
+  ]
+-- Project
+-- ├── src
+-- │   ├── main.hs
+-- │   └── test.hs
+-- └── docs
+--     └── README.md
 ```
 
-### Table: `table`
+#### Table
 ```haskell
 table ["Name", "Age", "City"]
   [ ["Alice", "30", "New York"]
@@ -294,133 +369,72 @@ table ["Name", "Age", "City"]
 └─────────┴─────┴──────────┘
 ```
 
-### Key-Value: `kv`
-```haskell
-kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
-```
-```
-Name: Alice
-Age:  30
-City: NYC
-```
-
-### Section: `section`, `section'`, `section''`
-```haskell
-section "Status" [text "All systems operational"]
-section' "-" "Status" [text "ok"]            -- custom glyph
-section'' "#" "Report" 5 [text "42"]         -- custom glyph + width
-```
-```
-=== Status ===
-All systems operational
-```
-
-### Unordered List: `ul`
-```haskell
-ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
-```
-```
-• Backend
-  ◦ API
-    ▪ REST
-    ▪ GraphQL
-  ◦ DB
-• Frontend
-```
-
-### Ordered List: `ol`
-```haskell
-ol ["Setup", ol ["Install deps", ol ["npm", "pip"], "Configure"], "Deploy"]
-```
-```
-1. Setup
-  a. Install deps
-    i. npm
-    ii. pip
-  b. Configure
-2. Deploy
-```
-
-### Tree: `tree`, `branch`, `leaf`
-```haskell
-tree "Project"
-  [ branch "src" [leaf "main.hs", leaf "test.hs"]
-  , branch "docs" [leaf "README.md"]
-  ]
-```
-```
-Project
-├── src
-│   ├── main.hs
-│   └── test.hs
-└── docs
-    └── README.md
-```
-
-### Progress Bar: `inlineBar`
+#### Progress & spinners
 ```haskell
 inlineBar "Download" 0.75
-```
-```
-Download [███████████████─────] 75%
-```
+-- Download [███████████████─────] 75%
 
-### Chart: `chart`
-```haskell
 chart [("Web", 10), ("Mobile", 20), ("API", 15)]
-```
-```
-Web    │████████████████████────────────────────│ 10
-Mobile │████████████████████████████████████████│ 20
-API    │██████████████████████████████──────────│ 15
-```
+-- Web    │████████████████████────────────────────│ 10
+-- Mobile │████████████████████████████████████████│ 20
+-- API    │██████████████████████████████──────────│ 15
 
-### Spinner: `spinner`
-4 built-in styles:
-```haskell
 spinner "Loading" frame SpinnerDots     -- ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
 spinner "Loading" frame SpinnerLine     -- | / - \
 spinner "Loading" frame SpinnerClock    -- 🕐 🕑 🕒 🕓 🕔 🕕 🕖 🕗 🕘 🕙 🕚 🕛
 spinner "Loading" frame SpinnerBounce   -- ⠁ ⠂ ⠄ ⠂
+spinner "Loading" frame SpinnerEarth    -- 🌍 🌎 🌏
+spinner "Loading" frame SpinnerMoon     -- 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘
+spinner "Loading" frame SpinnerGrow     -- ▏ ▎ ▍ ▌ ▋ ▊ ▉ █ ▉ ▊ ▋ ▌ ▍ ▎
+spinner "Loading" frame SpinnerArrow    -- ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-### Alignment: `center`, `alignLeft`, `alignRight`, `justify`, `wrap`
+#### Inline Image: `kittyImage`
+
+Inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
+A `KittyImage` measures exactly `cols`×`rows` cells, so it composes with every other
+element: drop it into boxes, rows, tables, `center`, etc.
+
 ```haskell
-center $ text "Auto-centered"                  -- width from siblings
-center' 30 $ text "Fixed width"
-alignLeft 30 "Left"
-alignRight 30 "Right"
-justify 30 "Spaces are distributed evenly"
-wrap 20 "Long text wrapped at word boundaries"
-```
+img <- kittyImageFile "pix/sakuraba.png" 35 14   -- PNG sized to 35×14 cells
 
-### Underline: `underline`, `underline'`, `underlineColored`
+putStrLn $ render $ row
+  [ withBorder BorderRound $ box "the gracie hunter" [img]
+  , box "stats" [kv [("flying", "yes"), ("opponent", "grounded"), ("rules", "PRIDE")]]
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-sakuraba.png" width="600">
+</p>
+
+Build straight from bytes or raw pixels:
+
 ```haskell
-underline $ text "Title"
-underline' "=" $ text "Double"
-underlineColored "~" ColorCyan $ text "Fancy"
-```
-```
-Title
-─────
-
-Double
-======
+kittyImage  bytes 35 14       -- PNG bytes            -> cols rows
+kittyRGB    pixels w h 18 9   -- raw RGB  pxW pxH     -> cols rows
+kittyRGBA   pixels w h 18 9   -- raw RGBA pxW pxH     -> cols rows
 ```
 
-### Margin: `margin`
 ```haskell
-margin "[error]" [text "Oops", text "fix it"]
-```
-```
-[error] Oops
-[error] fix it
-```
+let (w, h) = (96, 96)
+    pixels = [ channel i | i <- [0 .. w * h * 4 - 1] ]
+    channel i =
+      let p = i `div` 4; x = p `mod` w; y = p `div` w
+      in fromIntegral $ case i `mod` 4 of
+           0 -> x * 255 `div` w
+           1 -> y * 255 `div` h
+           2 -> 255 - (x * 255 `div` w)
+           _ -> 255
 
-### Padding: `pad`
-```haskell
-pad 2 $ text "Padded content"
+putStrLn $ render $ box "gradient" [kittyRGBA pixels w h 18 9]
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-raw.png" width="600">
+</p>
+
+Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside a
+`LayoutzApp`, each distinct image is transmitted once and re-placed cheaply on
+every frame.
 
 ## Charts & Plots
 
@@ -543,7 +557,7 @@ ColorBlue
 ColorMagenta
 ColorCyan
 ColorWhite
-ColorBrightBlack              -- Bright 8
+ColorBrightBlack      -- Bright 8
 ColorBrightRed
 ColorBrightGreen
 ColorBrightYellow
@@ -551,14 +565,14 @@ ColorBrightBlue
 ColorBrightMagenta
 ColorBrightCyan
 ColorBrightWhite
-ColorFull 196                 -- 256-color palette (0-255)
-ColorTrue 255 128 0           -- 24-bit RGB
-ColorDefault                  -- Conditional no-op
+ColorFull 196         -- 256-color palette (0-255)
+ColorTrue 255 128 0   -- 24-bit RGB
+ColorDefault          -- Conditional no-op
 ```
 
 ### Color Gradients
 
-Create beautiful gradients with extended colors:
+Create gradients with extended colors:
 
 ```haskell
 let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
@@ -691,7 +705,7 @@ cabal repl
 ## Interactive Apps
 
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
-view is simply a `layoutz` `Element`.
+view is a `layoutz` `Element`.
 
 ```haskell
 data LayoutzApp state msg = LayoutzApp
@@ -723,9 +737,9 @@ Terminal width is detected once at startup via ANSI cursor position report (zero
 ### Subscriptions
 
 ```haskell
-subKeyPress (\key -> ...)              -- Keyboard input
-subEveryMs 100 msg                     -- Periodic ticks (interval in ms)
-subBatch [sub1, sub2, ...]             -- Combine subscriptions
+subKeyPress (\key -> ...)    -- Keyboard input
+subEveryMs 100 msg           -- Periodic ticks (interval in ms)
+subBatch [sub1, sub2, ...]   -- Combine subscriptions
 ```
 
 ### Commands
@@ -770,28 +784,107 @@ main = runApp loggerApp
 
 ```haskell
 -- Printable
-KeyChar Char                  -- 'a', '1', ' '
+KeyChar Char        -- 'a', '1', ' '
 
 -- Editing
-KeyEnter                      -- Enter/Return
-KeyBackspace                  -- Backspace
-KeyTab                        -- Tab
-KeyEscape                     -- Escape
-KeyDelete                     -- Delete
+KeyEnter            -- Enter/Return
+KeyBackspace        -- Backspace
+KeyTab              -- Tab
+KeyEscape           -- Escape
+KeyDelete           -- Delete
 
 -- Navigation
-KeyUp                         -- Arrow up
-KeyDown                       -- Arrow down
-KeyLeft                       -- Arrow left
-KeyRight                      -- Arrow right
+KeyUp               -- Arrow up
+KeyDown             -- Arrow down
+KeyLeft             -- Arrow left
+KeyRight            -- Arrow right
+KeyPageUp           -- Page Up
+KeyPageDown         -- Page Down
+KeyHome             -- Home
+KeyEnd              -- End
 
 -- Modifiers
-KeyCtrl Char                  -- Ctrl+'C', Ctrl+'Q', etc.
-KeySpecial String             -- Other unrecognized sequences
+KeyCtrl Char        -- Ctrl+'C', Ctrl+'Q', etc.
+KeySpecial String   -- Other unrecognized sequences
 ```
 
+## Prompts (Ask)
+
+You often just want a one-shot CLI prompt (a spinner, a filter, a file picker)
+without dropping into "Elm-territory" and thinking about a whole flipbook each time.
+
+**layoutz** offers one-shot interactive actions with the `ask*` family. Each takes
+over the tty briefly, returns a value, and leaves a single committed line behind.
+`Nothing` means the user cancelled (Esc / Ctrl-C / Ctrl-D).
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  name     <- askInput "Name › " "anonymous" ""              -- prompt placeholder initial
+  ok       <- askConfirm "Venture on the quest?" True "Yes" "No"
+  realm    <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor"] id
+  packs    <- askChooseMany "Pack provisions" ["lembas", "pipe-weed", "waybread", "miruvor", "rope"] 3 id
+  riddle   <- askWrite "Pose a multi-line riddle" "This thing all things devours…" "" "Ctrl-D to save"
+  member   <- askFilter "Search > " ["Bilbo", "Balin", "Dwalin", "Thorin", "Gandalf"] 8 id
+  path     <- askFile "." 12
+  askPager longString 0 True
+  answer   <- askSpin "Awaking Smaug…" SpinnerDots (do threadDelay 1500000; pure (42 :: Int))
+  pure ()
+```
+
+```
+Call                                       Returns
+----                                       -------
+askInput prompt placeholder initial        IO (Maybe String)
+askConfirm question default yes no         IO Bool
+askChoose prompt items render              IO (Maybe a)
+askChooseMany prompt items limit render    IO (Maybe [a])
+askWrite prompt placeholder initial hint   IO (Maybe String)
+askFilter prompt items height render       IO (Maybe a)
+askFile start height                       IO (Maybe String)
+askPager content height lineNumbers        IO ()
+askSpin label style task                   IO a
+```
+
+The `render` argument is how each item is shown (`id` for `[String]`). `askFilter`
+is an incremental fuzzy finder; `askFile` is a directory browser; `askPager` is a
+scrollable viewer (PgUp/PgDn/Home/End, `q` to quit).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="650">
+</p>
+
+## Progress (loader)
+
+Wrap any list with `loader` to get a live progress bar while you process it: map
+an `IO` action over each item. Unbounded work gets `loaderStream`, a spinner
+with a running count.
+
+```haskell
+_ <- loader "Resizing" imageFiles resize            -- bounded  -> live bar
+_ <- loader "Inserting" rows insertRow
+_ <- loaderStream "Tailing" logLines indexLine       -- streamed -> spinner + count
+```
+
+Pick a `LoaderStyle` with `loaderStyled` / `loaderStreamStyled`: `styleBlocks`
+(default), `styleBar`, `styleAscii`, `styleDots`, `styleLine`, `stylePipes`, or a
+custom `LoaderStyle { .. }`:
+
+```haskell
+_ <- loaderStyled styleAscii "Reindexing" docIds reindex
+_ <- loaderStyled stylePipes "Crawling" urls fetch
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/loader-demo.gif" width="600">
+</p>
+
 ## Examples
-- [ShowcaseApp.hs](examples/ShowcaseApp.hs) - Tours every layoutz element and visualization across 7 scenes
+- [ShowcaseApp.hs](examples/ShowcaseApp.hs) - Tours every layoutz element and visualization across 8 scenes
+- [AskDemo.hs](examples/AskDemo.hs) - Tours the one-shot `ask*` prompts
 - [SimpleGame.hs](SimpleGame.hs) - Grid game where you collect gems and dodge enemies with WASD
 - [InlineBar.hs](examples/InlineBar.hs) - Renders a gradient progress bar in-place
 - [InlineLoadingDemo.hs](examples/InlineLoadingDemo.hs) - Chained inline progress bars in a simulated build script

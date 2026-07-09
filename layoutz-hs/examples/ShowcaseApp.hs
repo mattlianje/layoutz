@@ -4,8 +4,8 @@
 Showcase demo – tours every layoutz element and visualization.
 
 Controls:
-- ←/→   switch scenes (1–7)
-- 1–7   jump to scene
+- ←/→   switch scenes (1–8)
+- 1–8   jump to scene
 - ESC    quit
 
 Scene-specific keys are shown in the footer.
@@ -36,6 +36,11 @@ data ShowcaseState = ShowcaseState
   , ballVy        :: Double
   , gravity       :: Int
   , ballTrail     :: [Double]
+  , rayTheta      :: Double
+  , rayPhi        :: Double
+  , rayDist       :: Double
+  , rayMorph      :: Double
+  , rayMorphTarget:: Double
   }
 
 initialState :: ShowcaseState
@@ -45,6 +50,8 @@ initialState = ShowcaseState
   , lineOffset = 0, tableRow = 0, tableSelected = []
   , barMode = 0, ballY = 10.0, ballVy = 0.0, gravity = 5
   , ballTrail = replicate 80 10.0
+  , rayTheta = 0.6, rayPhi = 0.35, rayDist = 3.8
+  , rayMorph = 0.0, rayMorphTarget = 0.0
   }
 
 -- Messages
@@ -54,15 +61,16 @@ data Msg
   | TypeChar Char | Backspace | SubmitItem
   | ToggleSelect | CursorUp | CursorDown
   | AdjustUp | AdjustDown | ToggleBarMode | KickBall
+  | RayRotL | RayRotR | RayRotU | RayRotD | RayNextShape
 
 -- Constants
 
 totalScenes :: Int
-totalScenes = 7
+totalScenes = 8
 
 sceneNames :: [String]
 sceneNames =
-  [ "Physics Game", "Text Input & Lists", "Borders & Styles"
+  [ "Ray Marcher", "Physics Game", "Text Input & Lists", "Borders & Styles"
   , "Tables", "Charts & Plots", "Bar Charts & Sparklines"
   , "Selections & Heatmap" ]
 
@@ -107,7 +115,12 @@ update msg s = case msg of
         rawY  = ballY s1 + newVy * 0.3
         (ny, vy) = bounce rawY newVy
         trail = drop (max 0 (length (ballTrail s1) - 79)) (ballTrail s1) ++ [ny]
-    in (s1 { tick = tick s1 + 1, ballY = ny, ballVy = vy, ballTrail = trail }, CmdNone)
+        -- Ray marcher shape morph easing
+        mDiff    = rayMorphTarget s1 - rayMorph s1
+        newMorph = if abs mDiff < 0.01 then rayMorphTarget s1
+                   else rayMorph s1 + mDiff * 0.06
+    in (s1 { tick = tick s1 + 1, ballY = ny, ballVy = vy, ballTrail = trail
+           , rayMorph = newMorph }, CmdNone)
 
   TypeChar c | not (addingItem s) -> (s { textValue = textValue s ++ [c] }, CmdNone)
   TypeChar _ -> (s, CmdNone)
@@ -121,31 +134,41 @@ update msg s = case msg of
   SubmitItem -> (s, CmdNone)
 
   ToggleSelect
-    | scene s == 3 -> (s { tableSelected = toggleIn (tableRow s) (tableSelected s) }, CmdNone)
-    | scene s == 6 -> (s { selected = toggleIn (cursor s) (selected s) }, CmdNone)
+    | scene s == 4 -> (s { tableSelected = toggleIn (tableRow s) (tableSelected s) }, CmdNone)
+    | scene s == 7 -> (s { selected = toggleIn (cursor s) (selected s) }, CmdNone)
     | otherwise    -> (s, CmdNone)
 
   CursorUp
-    | scene s == 3 -> (s { tableRow = (tableRow s - 1 + length services) `mod` length services }, CmdNone)
-    | scene s == 6 -> (s { cursor = (cursor s - 1 + 7) `mod` 7 }, CmdNone)
+    | scene s == 4 -> (s { tableRow = (tableRow s - 1 + length services) `mod` length services }, CmdNone)
+    | scene s == 7 -> (s { cursor = (cursor s - 1 + 7) `mod` 7 }, CmdNone)
     | otherwise    -> (s, CmdNone)
 
   CursorDown
-    | scene s == 3 -> (s { tableRow = (tableRow s + 1) `mod` length services }, CmdNone)
-    | scene s == 6 -> (s { cursor = (cursor s + 1) `mod` 7 }, CmdNone)
+    | scene s == 4 -> (s { tableRow = (tableRow s + 1) `mod` length services }, CmdNone)
+    | scene s == 7 -> (s { cursor = (cursor s + 1) `mod` 7 }, CmdNone)
     | otherwise    -> (s, CmdNone)
 
   AdjustUp
-    | scene s == 0 -> (s { gravity = min (gravity s + 1) 15 }, CmdNone)
+    | scene s == 1 -> (s { gravity = min (gravity s + 1) 15 }, CmdNone)
+    | scene s == 0 -> (s { rayDist = max (rayDist s - 0.25) 2.0 }, CmdNone)
     | otherwise    -> (s { lineOffset = min (lineOffset s + 1) 10 }, CmdNone)
 
   AdjustDown
-    | scene s == 0 -> (s { gravity = max (gravity s - 1) 1 }, CmdNone)
+    | scene s == 1 -> (s { gravity = max (gravity s - 1) 1 }, CmdNone)
+    | scene s == 0 -> (s { rayDist = min (rayDist s + 0.25) 8.0 }, CmdNone)
     | otherwise    -> (s { lineOffset = max (lineOffset s - 1) (-10) }, CmdNone)
 
   ToggleBarMode -> (s { barMode = (barMode s + 1) `mod` 2 }, CmdNone)
 
   KickBall -> (s { ballVy = 5.0 }, CmdNone)
+
+  RayRotL -> (s { rayTheta = rayTheta s - 0.15 }, CmdNone)
+  RayRotR -> (s { rayTheta = rayTheta s + 0.15 }, CmdNone)
+  RayRotU -> (s { rayPhi = min (rayPhi s + 0.1) 1.3 }, CmdNone)
+  RayRotD -> (s { rayPhi = max (rayPhi s - 0.1) (-1.3) }, CmdNone)
+  RayNextShape ->
+    let next = (round (rayMorphTarget s) + 1) `mod` 2 :: Int
+    in (s { rayMorphTarget = fromIntegral next }, CmdNone)
 
 bounce :: Double -> Double -> (Double, Double)
 bounce y vy
@@ -162,17 +185,22 @@ subscriptions s = subBatch
   , subKeyPress $ \key -> case key of
       KeyRight     -> Just NextScene
       KeyLeft      -> Just PrevScene
+      KeyChar 'a'  | scene s == 0                       -> Just RayRotL
+      KeyChar 'd'  | scene s == 0                       -> Just RayRotR
+      KeyChar 'w'  | scene s == 0                       -> Just RayRotU
+      KeyChar 's'  | scene s == 0                       -> Just RayRotD
       KeyChar '+'  -> Just AdjustUp
       KeyChar '-'  -> Just AdjustDown
-      KeyChar ' '  | scene s == 0                       -> Just KickBall
-      KeyChar ' '  | scene s == 3 || scene s == 6       -> Just ToggleSelect
-      KeyTab       | scene s == 5                        -> Just ToggleBarMode
-      KeyEnter     | scene s == 1                        -> Just SubmitItem
+      KeyChar ' '  | scene s == 0                       -> Just RayNextShape
+      KeyChar ' '  | scene s == 1                       -> Just KickBall
+      KeyChar ' '  | scene s == 4 || scene s == 7       -> Just ToggleSelect
+      KeyTab       | scene s == 6                        -> Just ToggleBarMode
+      KeyEnter     | scene s == 2                        -> Just SubmitItem
       KeyUp        -> Just CursorUp
       KeyDown      -> Just CursorDown
       KeyBackspace -> Just Backspace
-      KeyChar c    | scene s == 1 && (isAlphaNum c || c == ' ') -> Just (TypeChar c)
-      KeyChar c    | c >= '1' && c <= '7' -> Just (GoScene (fromEnum c - fromEnum '1'))
+      KeyChar c    | scene s == 2 && (isAlphaNum c || c == ' ') -> Just (TypeChar c)
+      KeyChar c    | c >= '1' && c <= '8' -> Just (GoScene (fromEnum c - fromEnum '1'))
       _            -> Nothing
   ]
 
@@ -182,13 +210,14 @@ view :: ShowcaseState -> L
 view s =
   let header  = renderHeader s
       content = case scene s of
-        0 -> scenePhysicsGame s
-        1 -> sceneTextInput s
-        2 -> sceneBordersStyles s
-        3 -> sceneTables s
-        4 -> sceneChartsPlots s
-        5 -> sceneBarChartsSparklines s
-        6 -> sceneSelectionsHeatmap s
+        0 -> sceneRayMarcher s
+        1 -> scenePhysicsGame s
+        2 -> sceneTextInput s
+        3 -> sceneBordersStyles s
+        4 -> sceneTables s
+        5 -> sceneChartsPlots s
+        6 -> sceneBarChartsSparklines s
+        7 -> sceneSelectionsHeatmap s
         _ -> text "Unknown scene"
       footer = renderFooter s
   in alignLeft sceneWidth $ render $ layout [header, br, content, br, footer]
@@ -217,16 +246,17 @@ renderHeader s =
 renderFooter :: ShowcaseState -> L
 renderFooter s =
   let hints = case scene s of
-        0 -> "  </> scenes  Space kick  +/- gravity  ESC quit"
-        1 -> "  </> scenes  type + Enter to add  ESC quit"
-        3 -> "  </> scenes  ^/v navigate  Space select  ESC quit"
-        4 -> "  </> scenes  +/- move threshold  ESC quit"
-        5 -> "  </> scenes  Tab cycle chart mode  ESC quit"
-        6 -> "  </> scenes  ^/v navigate  Space toggle  ESC quit"
+        0 -> "  </> scenes  wasd orbit  +/- zoom  Space shape  ESC quit"
+        1 -> "  </> scenes  Space kick  +/- gravity  ESC quit"
+        2 -> "  </> scenes  type + Enter to add  ESC quit"
+        4 -> "  </> scenes  ^/v navigate  Space select  ESC quit"
+        5 -> "  </> scenes  +/- move threshold  ESC quit"
+        6 -> "  </> scenes  Tab cycle chart mode  ESC quit"
+        7 -> "  </> scenes  ^/v navigate  Space toggle  ESC quit"
         _ -> "  </> scenes  ESC quit"
   in withStyle StyleDim $ withColor ColorBrightBlack $ text hints
 
--- Scene 1: Physics Game
+-- Scene 2: Physics Game
 
 scenePhysicsGame :: ShowcaseState -> L
 scenePhysicsGame s =
@@ -261,7 +291,35 @@ scenePhysicsGame s =
         ]
     ]
 
--- Scene 2: Text Input & Lists
+-- Scene 1: Ray Marcher
+
+sceneRayMarcher :: ShowcaseState -> L
+sceneRayMarcher s =
+  let fb    = renderRayFrame (rayTheta s) (rayPhi s) (rayDist s) (rayMorph s)
+      twoPi = 2 * pi :: Double
+      thetaWrapped = rayTheta s - twoPi * fromIntegral (floor (rayTheta s / twoPi) :: Int)
+      cameraStats = withColor ColorBrightBlue $ kv
+        [ ("th",   printf "%.2f" thetaWrapped)
+        , ("ph",   printf "%.2f" (rayPhi s))
+        , ("zoom", printf "%.1f" (rayDist s))
+        ]
+      controls = withStyle StyleDim $ layout
+        [ withColor ColorBrightYellow $ text "wasd   orbit"
+        , withColor ColorBrightYellow $ text "+/-    zoom"
+        , withColor ColorBrightYellow $ text "Space  shape"
+        ]
+      camera = alignLeft 20 $ render $ layout
+        [ cameraStats
+        , br
+        , withColor ColorBrightCyan  $ spinner "render" (tick s `div` 2) SpinnerDots
+        , withColor ColorBrightYellow $ spinner "light"  (tick s `div` 2) SpinnerBounce
+        , br
+        , controls
+        ]
+      cameraBox = withColor ColorBrightMagenta $ withBorder BorderRound $ box "Camera" [camera]
+  in row [text fb, cameraBox]
+
+-- Scene 3: Text Input & Lists
 
 sceneTextInput :: ShowcaseState -> L
 sceneTextInput s =
@@ -316,7 +374,7 @@ sceneTextInput s =
         ]
     ]
 
--- Scene 3: Borders & Styles
+-- Scene 4: Borders & Styles
 
 sceneBordersStyles :: ShowcaseState -> L
 sceneBordersStyles _ =
@@ -347,7 +405,7 @@ sceneBordersStyles _ =
         ]
     ]
 
--- Scene 4: Tables
+-- Scene 5: Tables
 
 sceneTables :: ShowcaseState -> L
 sceneTables s =
@@ -376,7 +434,7 @@ sceneTables s =
         ]
     ]
 
--- Scene 5: Charts & Plots
+-- Scene 6: Charts & Plots
 
 sceneChartsPlots :: ShowcaseState -> L
 sceneChartsPlots s =
@@ -406,7 +464,7 @@ sceneChartsPlots s =
         ]
     ]
 
--- Scene 6: Bar Charts & Sparklines
+-- Scene 7: Bar Charts & Sparklines
 
 sceneBarChartsSparklines :: ShowcaseState -> L
 sceneBarChartsSparklines s =
@@ -446,7 +504,7 @@ sceneBarChartsSparklines s =
         ]
     ]
 
--- Scene 7: Selections & Heatmap
+-- Scene 8: Selections & Heatmap
 
 sceneSelectionsHeatmap :: ShowcaseState -> L
 sceneSelectionsHeatmap s =
@@ -491,6 +549,165 @@ sceneSelectionsHeatmap s =
     , withBorder BorderRound $ box "Weekly Activity"
         [ plotHeatmap' 5 (HeatmapData heatData days hours) ]
     ]
+
+-- Ray marcher helpers (Scene 1)
+
+-- | 3D vector
+data V3 = V3 !Double !Double !Double
+
+vUp :: V3
+vUp = V3 0 1 0
+
+vadd, vsub, vcross :: V3 -> V3 -> V3
+vadd (V3 ax ay az) (V3 bx by bz) = V3 (ax + bx) (ay + by) (az + bz)
+vsub (V3 ax ay az) (V3 bx by bz) = V3 (ax - bx) (ay - by) (az - bz)
+vcross (V3 ax ay az) (V3 bx by bz) =
+  V3 (ay * bz - az * by) (az * bx - ax * bz) (ax * by - ay * bx)
+
+vscale :: V3 -> Double -> V3
+vscale (V3 x y z) k = V3 (x * k) (y * k) (z * k)
+
+vdot :: V3 -> V3 -> Double
+vdot (V3 ax ay az) (V3 bx by bz) = ax * bx + ay * by + az * bz
+
+vlen :: V3 -> Double
+vlen v = sqrt (vdot v v)
+
+vneg :: V3 -> V3
+vneg (V3 x y z) = V3 (-x) (-y) (-z)
+
+vnorm :: V3 -> V3
+vnorm v = let l = vlen v in if l < 1e-10 then V3 0 0 0 else vscale v (1.0 / l)
+
+-- | One screen cell with character + 24-bit color
+data Pixel = Pixel !Char !Int !Int !Int
+
+-- | Render a list of pixels into an ANSI string of width @w@
+renderFrameBuffer :: [Pixel] -> Int -> String
+renderFrameBuffer pixels w = go pixels
+  where
+    go [] = ""
+    go ps =
+      let (rowPixels, rest) = splitAt w ps
+          line = concatMap pixelToAnsi rowPixels ++ "\ESC[0m"
+      in if null rest then line else line ++ "\n" ++ go rest
+    pixelToAnsi (Pixel ch r g b) =
+      "\ESC[38;2;" ++ show r ++ ";" ++ show g ++ ";" ++ show b ++ "m" ++ [ch]
+
+rayW, rayH, rayMaxSteps :: Int
+rayW = 46
+rayH = 22
+rayMaxSteps = 50
+
+rayMaxDist, rayEps :: Double
+rayMaxDist = 20.0
+rayEps     = 0.005
+
+rayRamp :: String
+rayRamp = " .'`^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
+
+clampD :: Double -> Double -> Double -> Double
+clampD lo hi x = max lo (min hi x)
+
+mixD :: Double -> Double -> Double -> Double
+mixD a b t = a * (1.0 - t) + b * t
+
+rSmoothstep :: Double -> Double -> Double -> Double
+rSmoothstep lo hi x =
+  let t = clampD 0.0 1.0 ((x - lo) / (hi - lo))
+  in t * t * (3.0 - 2.0 * t)
+
+sdTorus :: V3 -> Double -> Double -> Double
+sdTorus (V3 x y z) bigR r =
+  let qx = sqrt (x * x + z * z) - bigR
+  in sqrt (qx * qx + y * y) - r
+
+sdRoundBox :: V3 -> V3 -> Double -> Double
+sdRoundBox (V3 px py pz) (V3 bx by bz) r =
+  let qx = abs px - bx
+      qy = abs py - by
+      qz = abs pz - bz
+      outer = vlen (V3 (max qx 0) (max qy 0) (max qz 0))
+      inner = min (max qx (max qy qz)) 0.0
+  in outer + inner - r
+
+rayScene :: V3 -> Double -> Double
+rayScene p morph =
+  let tor = sdTorus p 0.9 0.38
+      cub = sdRoundBox p (V3 0.72 0.72 0.72) 0.12
+  in mixD tor cub (rSmoothstep 0 1 (clampD 0.0 1.0 morph))
+
+calcNormal :: V3 -> Double -> V3
+calcNormal (V3 x y z) morph =
+  let e = 0.001
+  in vnorm $ V3
+       (rayScene (V3 (x + e) y z) morph - rayScene (V3 (x - e) y z) morph)
+       (rayScene (V3 x (y + e) z) morph - rayScene (V3 x (y - e) z) morph)
+       (rayScene (V3 x y (z + e)) morph - rayScene (V3 x y (z - e)) morph)
+
+march :: V3 -> V3 -> Double -> Double
+march ro rd morph = go 0.0 (0 :: Int)
+  where
+    go t i
+      | i >= rayMaxSteps || t >= rayMaxDist = -1.0
+      | otherwise =
+          let d = rayScene (vadd ro (vscale rd t)) morph
+          in if d < rayEps then t else go (t + d) (i + 1)
+
+rayLightDir, rayFillDir :: V3
+rayLightDir = vnorm (V3 0.8 1.0 (-0.6))
+rayFillDir  = vnorm (V3 (-0.6) 0.4 0.7)
+
+rayBgPixel :: V3 -> Pixel
+rayBgPixel (V3 _ y _) =
+  let vy = y * 0.5 + 0.5
+      bg = max 4 (floor (18.0 - (1.0 - vy) * 8.0) :: Int)
+  in Pixel ' ' bg bg (bg + 6)
+
+rayShade :: V3 -> V3 -> Double -> Pixel
+rayShade ro rd morph =
+  let t = march ro rd morph
+  in if t < 0
+       then rayBgPixel rd
+       else
+         let hit  = vadd ro (vscale rd t)
+             n    = calcNormal hit morph
+             diff = max (vdot n rayLightDir) 0.0
+             fill = max (vdot n rayFillDir) 0.0 * 0.35
+             refl = vsub (vscale n (2.0 * vdot n rayLightDir)) rayLightDir
+             spec = (max (vdot refl (vneg rd)) 0.0) ** 32.0 * 0.6
+             ao   = 1.0 - clampD 0.0 0.4 (rayScene (vadd hit (vscale n 0.1)) morph * 5.0)
+             -- Floor keeps hit surfaces above the ramp's whitespace glyphs
+             lum  = clampD 0.0 1.0 (max ((0.12 + diff * 0.7 + fill + spec) * ao) 0.18)
+             rampLen = length rayRamp
+             idx = floor (clampD 0 (fromIntegral rampLen - 1) (lum * fromIntegral (rampLen - 1))) :: Int
+             ch  = rayRamp !! idx
+             V3 nx ny nz = n
+             nx' = nx * 0.5 + 0.5
+             ny' = ny * 0.5 + 0.5
+             nz' = nz * 0.5 + 0.5
+             rC  = floor (clampD 0 255 ((nx' * 0.55 + lum * 0.45) * 235 + 20)) :: Int
+             gC  = floor (clampD 0 255 ((ny' * 0.45 + lum * 0.55) * 215 + 15)) :: Int
+             bC  = floor (clampD 0 255 ((nz' * 0.50 + lum * 0.50 + 0.05) * 200 + 30)) :: Int
+         in Pixel ch rC gC bC
+
+renderRayFrame :: Double -> Double -> Double -> Double -> String
+renderRayFrame theta phi dist morph =
+  let ro    = V3 (dist * sin theta * cos phi)
+                 (dist * sin phi)
+                 (dist * cos theta * cos phi)
+      fwd   = vnorm (vneg ro)
+      right = vnorm (vcross fwd vUp)
+      up    = vcross right fwd
+      aspect = fromIntegral rayW / fromIntegral rayH * 0.48
+      pixels = [ rayShade ro rd morph
+               | py <- [0 .. rayH - 1]
+               , let v = 0.5 - fromIntegral py / fromIntegral rayH
+               , px <- [0 .. rayW - 1]
+               , let u = (fromIntegral px / fromIntegral rayW - 0.5) * aspect
+               , let rd = vnorm (vadd (vadd fwd (vscale right u)) (vscale up v))
+               ]
+  in renderFrameBuffer pixels rayW
 
 -- App
 
