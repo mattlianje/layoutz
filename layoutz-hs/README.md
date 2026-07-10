@@ -811,21 +811,21 @@ main = runApp loggerApp
 KeyChar Char        -- 'a', '1', ' '
 
 -- Editing
-KeyEnter            -- Enter/Return
-KeyBackspace        -- Backspace
-KeyTab              -- Tab
-KeyEscape           -- Escape
-KeyDelete           -- Delete
+KeyEnter
+KeyBackspace
+KeyTab
+KeyEscape
+KeyDelete
 
 -- Navigation
-KeyUp               -- Arrow up
-KeyDown             -- Arrow down
-KeyLeft             -- Arrow left
-KeyRight            -- Arrow right
-KeyPageUp           -- Page Up
-KeyPageDown         -- Page Down
-KeyHome             -- Home
-KeyEnd              -- End
+KeyUp
+KeyDown
+KeyLeft
+KeyRight
+KeyPageUp
+KeyPageDown
+KeyHome
+KeyEnd
 
 -- Modifiers
 KeyCtrl Char        -- Ctrl+'C', Ctrl+'Q', etc.
