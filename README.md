@@ -1041,17 +1041,17 @@ for (_ <- loader.stream("Streaming", it)) Thread.sleep(45)
 
 Interactive TUI apps built with `LayoutzApp` and its `Cmd` / `Sub` effects. Each is a runnable file:
 
-- [CounterApp.scala](examples/CounterApp.scala): minimal counter, the smallest complete app
-- [FileViewer.scala](examples/FileViewer.scala): watch and display file contents (`Cmd.file.read`, `Sub.file.watch`)
-- [StopwatchApp.scala](examples/StopwatchApp.scala): start/pause timer driven by `Sub.time.everyMs`
-- [SideEffectApp.scala](examples/SideEffectApp.scala): async work with `Cmd.task`, fire-and-forget with `Cmd.fire`
-- [ApiPoller.scala](examples/ApiPoller.scala): poll an endpoint with `Sub.http.pollMs`
-- [MultiMonitor.scala](examples/MultiMonitor.scala): monitor several APIs at once with `Sub.batch`
-- [HttpFetcher.scala](examples/HttpFetcher.scala): fetch on demand with `Cmd.http.get`
-- [ClipboardApp.scala](examples/ClipboardApp.scala): copy/paste with `Cmd.clipboard`
-- [FormExample.scala](examples/FormExample.scala): text input and choice widgets
-- [NavLoadApp.scala](examples/NavLoadApp.scala): task manager with navigation, progress tracking, stateful emojis
-- [SimpleGame.scala](examples/SimpleGame.scala): grid game, collect gems and avoid enemies
+- [CounterApp](examples/CounterApp.scala)
+- [FileViewer](examples/FileViewer.scala): watch and display file contents (`Cmd.file.read`, `Sub.file.watch`)
+- [StopwatchApp](examples/StopwatchApp.scala): start/pause timer driven by `Sub.time.everyMs`
+- [SideEffectApp](examples/SideEffectApp.scala): async work with `Cmd.task`, fire-and-forget with `Cmd.fire`
+- [ApiPoller](examples/ApiPoller.scala): poll an endpoint with `Sub.http.pollMs`
+- [MultiMonitor](examples/MultiMonitor.scala): monitor several APIs at once with `Sub.batch`
+- [HttpFetcher](examples/HttpFetcher.scala): fetch on demand with `Cmd.http.get`
+- [ClipboardApp](examples/ClipboardApp.scala): copy/paste with `Cmd.clipboard`
+- [FormExample](examples/FormExample.scala)
+- [NavLoadApp](examples/NavLoadApp.scala): task manager with navigation, progress tracking, stateful emojis
+- [SimpleGame](examples/SimpleGame.scala)
 
 <!--
 
