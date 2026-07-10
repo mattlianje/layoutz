@@ -104,105 +104,6 @@ demo.putStrLn
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="600">
 </p>
 
-<!-- hidden for now: "scales to" demo
-<details>
-<summary>And here's what it scales to: colored error report, plot, nested layouts</summary>
-
-```scala
-import layoutz._
-
-/* Model your domain as usual */
-case class TypeError(
-    file: String,
-    line: Int,
-    prefix: String,
-    bad: String,
-    expected: String,
-    found: String,
-    hint: String
-)
-
-/* Bridge to layoutz with tiny pure functions using layoutz `Element`s */
-def typeError(e: TypeError): Element = {
-  val ln = e.line.toString
-  val bar = "│".color(Color.Cyan)
-  layout(
-    rowTight(
-      "── TYPE MISMATCH ".color(Color.Cyan),
-      s"${e.file}:${e.line}".style(Style.Dim),
-      " ────────".color(Color.Cyan)
-    ),
-    rowTight(ln.color(Color.Cyan), space, bar, space, e.prefix, e.bad),
-    rowTight(
-      space(ln.length + 1),
-      bar,
-      space,
-      space(e.prefix.length),
-      ("^" * e.bad.length + " ").color(Color.Red),
-      "expected ",
-      e.expected.color(Color.Green),
-      ", found ",
-      e.found.color(Color.Red)
-    ),
-    rowTight(
-      space(ln.length + 1),
-      bar,
-      space,
-      "hint: ".color(Color.Cyan),
-      e.hint
-    )
-  )
-}
-
-/* Compose and nest at will */
-val demo = layout(
-  underline("─", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
-  row(
-    statusCard("API", "LIVE").border(Border.Round).color(Color.Green),
-    statusCard("DB", "99.9%").border(Border.Double).color(Color.BrightMagenta),
-    statusCard("Système", "OK").border(Border.Thick).color(Color.Cyan)
-  ).center(),
-  "",
-  box("Composition")(
-    columns(
-      plot(width = 30, height = 8)(
-        Series((0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 3)), "sin").color(Color.Cyan),
-        Series((0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 3)), "cos").color(Color.Magenta)
-      ),
-      tree("src")(
-        tree("main")(
-          tree("App.scala")
-        ),
-        tree("test")(
-          tree("AppTest.scala")
-        )
-      )
-    )
-  ).border(Border.Round).center(),
-  "",
-  typeError(
-    TypeError(
-      "Foo.scala",
-      42,
-      "val x: Int = ",
-      "getName()",
-      "Int",
-      "String",
-      "try `.toInt`"
-    )
-  )
-)
-
-/* Get pretty strings with `render` */
-println(demo.render)
-```
-
-</details>
-<p align="center">
-  <img src="pix/main-demo-3.png" width="600">
-</p>
--->
-
 **(2/3) Interactive apps**
 
 Build Elm-style TUIs
@@ -997,17 +898,27 @@ Ask.pager(longString)
 
 ## Progress (loader)
 
-Wrap any iterable or iterator: a bounded `Iterable` gets a live bar, an unbounded
-`Iterator` gets a spinner with a running count. Loop as usual:
+You often want to simply want to be able to wrap Ìterable`s and `Iterator`s as you
+are processing collections like below.
 
 ```scala
-for (file <- loader("Resizing", imageFiles))       resize(file)
-for (row  <- loader(rows))                          insert(row)
-for (line <- loader.stream("Tailing", logLines()))  index(line)
+for (file <- loader("Resizing", imageFiles)) resize(file)
+for (row  <- loader(rows)) insert(row)
+for (line <- loader.stream("Tailing", logLines())) index(line)
 ```
 
-Chain a style to change the look: `.blocks` (default), `.bar`, `.ascii`,
-`.dots`, `.line`, `.pipes`, or `.styled(...)` for a custom one:
+`Iterable` gets a live bar, an unbounded `Iterator` gets a spinner with a running count.
+
+Chain a style to change the look like so:
+```
+.blocks (default)
+.bar
+.ascii
+.dots
+.line
+.pipe
+.styled(...) (for custom bars)
+```
 
 ```scala
 for (id <- loader("Reindexing", docIds).ascii) reindex(id)
@@ -1053,21 +964,6 @@ Interactive TUI apps built with `LayoutzApp` and its `Cmd` / `Sub` effects. Each
 - [NavLoadApp.scala](examples/NavLoadApp.scala): task manager with navigation, progress tracking, stateful emojis
 - [SimpleGame.scala](examples/SimpleGame.scala): grid game, collect gems and avoid enemies
 
-<!--
-
-<p align="center">
-  <img src="pix/nav-demo-edit.gif" width="600">
-  <br>
-  <sub><a href="examples/NavLoadApp.scala">NavLoadApp.scala</a></sub>
-</p>
-
-<p align="center">
-  <img src="pix/game-demo.gif" width="600">
-  <br>
-  <sub><a href="examples/SimpleGame.scala">SimpleGame.scala</a></sub>
-</p>
-
--->
 
 ## Contributing
 
