@@ -246,13 +246,15 @@ One-shot CLI prompts (inputs, choosers, filters, file pickers, spinners) that co
 ```scala
 import layoutz._
 
-val name     = Ask.input("Name › ", placeholder = "anonymous")
-val realm    = Ask.choose("Choose a realm", Seq("The Shire", "Rivendell", "Mirkwood"))
-val packs    = Ask.chooseMany("Pack provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
-val member   = Ask.filter("Search a companion › ", Seq("Bilbo", "Gandalf", "Thorin"))
-val riddle   = Ask.write("Pose a riddle", placeholder = "This thing all things devours…")
-val quest    = Ask.confirm("Venture on the quest?", default = true)
-val smaug    = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); "ready" }
+Ask.input("Name › ", placeholder = "anonymous")
+Ask.confirm("Venture on the quest?", default = true)
+Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood"))
+Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
+Ask.write("Pose a riddle", placeholder = "All things it devours…")
+Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
+Ask.file(start = ".")
+Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
+Ask.pager(longString)
 ```
 <p align="center">
 <img src="demos/ask-mini.gif" width="600">
