@@ -45,6 +45,8 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 - [Core Concepts](#core-concepts)
 - [Border Styles](#border-styles)
 - [Elements](#elements)
+- [Custom Elements](#custom-elements)
+- [Collections](#collections)
 - [Colors & Styles](#colors)
 - [Charts & Plots](#charts--plots)
 - [Interactive Apps](#interactive-apps)
@@ -426,7 +428,7 @@ spinner("Loading", frame, SpinnerStyle.Grow)   // ▏ ▎ ▍ ▌ ▋ ▊ ▉ �
 spinner("Loading", frame, SpinnerStyle.Arrow)  // ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-#### Inline Image: `kitty.image`
+#### Inline Images
 
 You can inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
 
@@ -482,9 +484,7 @@ MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active
 //     ○ meh
 ```
 
-### Escape Hatches
-
-#### Custom Elements
+## Custom Elements
 
 Implement `Element` to create reusable components:
 ```scala
@@ -509,7 +509,7 @@ row(Square(2), Square(4), Square(6))
 ```
 <!-- pic hidden for now: pix/example-custom.png -->
 
-#### Working with Collections
+## Collections
 ```scala
 case class User(name: String, role: String)
 val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
@@ -746,7 +746,7 @@ Heatmap(
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
 view is a `layoutz.Element`
 
-> [!WARNING]
+> [!NOTE]
 > `LayoutzApp` is currently JVM + Native only
 
 ```scala

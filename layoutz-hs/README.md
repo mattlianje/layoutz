@@ -51,8 +51,9 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 - [Border Styles](#border-styles)
 - [Charts & Plots](#charts--plots)
 - [Colors & Styles](#colors-ansi-support)
-- [Inline Images (kitty)](#inline-image-kittyimage)
-- [Custom Components](#custom-components)
+- [Inline Images](#inline-images)
+- [Custom Elements](#custom-elements)
+- [Collections](#collections)
 - [Interactive Apps](#interactive-apps)
 - [Prompts (Ask)](#prompts-ask)
 - [Progress (loader)](#progress-loader)
@@ -413,7 +414,7 @@ spinner "Loading" frame SpinnerGrow     -- ▏ ▎ ▍ ▌ ▋ ▊ ▉ █ ▉ �
 spinner "Loading" frame SpinnerArrow    -- ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-#### Inline Image: `kittyImage`
+#### Inline Images
 
 Inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
 A `KittyImage` measures exactly `cols`×`rows` cells, so it composes with every other
@@ -666,7 +667,7 @@ You can also combine colors and styles:
 withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The quick brown fox..."
 ```
 
-## Custom Components
+## Custom Elements
 
 Create your own components by implementing the `Element` typeclass
 
@@ -702,6 +703,28 @@ putStrLn $ render $ row
        └────────┘ │            │
                   │            │
                   └────────────┘
+```
+
+## Collections
+```haskell
+import Data.List (groupBy, sortOn)
+import Data.Function (on)
+
+data User = User { userName :: String, userRole :: String }
+
+users :: [User]
+users =
+  [ User "Alice" "Admin"
+  , User "Bob"   "User"
+  , User "Tom"   "User"
+  ]
+
+putStrLn $ render $ section "Users by Role"
+  [ layout
+      [ box (userRole (head grp)) [ul [text (userName u) | u <- grp]]
+      | grp <- groupBy ((==) `on` userRole) (sortOn userRole users)
+      ]
+  ]
 ```
 
 ## REPL
