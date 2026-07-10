@@ -889,9 +889,9 @@ an `IO` action over each item. Unbounded work gets `loaderStream`, a spinner
 with a running count.
 
 ```haskell
-_ <- loader "Resizing" imageFiles resize            -- bounded  -> live bar
+_ <- loader "Resizing" imageFiles resize
 _ <- loader "Inserting" rows insertRow
-_ <- loaderStream "Tailing" logLines indexLine       -- streamed -> spinner + count
+_ <- loaderStream "Tailing" logLines indexLine
 ```
 
 Pick a `LoaderStyle` with `loaderStyled` / `loaderStreamStyled`: `styleBlocks`
@@ -911,13 +911,13 @@ import Control.Concurrent (threadDelay)
 
 main :: IO ()
 main = do
-  _ <- loaderStyled styleBlocks "Blocks " [1..60 :: Int] (const (threadDelay 16000))
-  _ <- loaderStyled styleDots   "Dots   " [1..60 :: Int] (const (threadDelay 16000))
-  _ <- loaderStyled styleLine   "Line   " [1..60 :: Int] (const (threadDelay 16000))
-  _ <- loaderStyled stylePipes  "Pipes  " [1..60 :: Int] (const (threadDelay 16000))
-  _ <- loaderStyled styleBar    "Bar    " [1..60 :: Int] (const (threadDelay 16000))
-  _ <- loaderStyled styleAscii  "Ascii  " [1..60 :: Int] (const (threadDelay 16000))
-  _ <- loaderStream "Streaming" [1..90 :: Int] (const (threadDelay 45000))
+  _ <- loaderStyled styleBlocks "Blocks " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleDots   "Dots   " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleLine   "Line   " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled stylePipes  "Pipes  " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleBar    "Bar    " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleAscii  "Ascii  " [1..60] (const (threadDelay 16000))
+  _ <- loaderStream "Streaming" [1..90] (const (threadDelay 45000))
   pure ()
 ```
 
