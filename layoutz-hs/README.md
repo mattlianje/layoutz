@@ -29,7 +29,7 @@ Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.c
 - Easy porting to MicroHs
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="650">
+<img src="../demos/showcase.gif"" width="650">
 <br>
 <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
