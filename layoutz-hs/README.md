@@ -152,7 +152,7 @@ main = do
   pure ()
 ```
 <p align="center">
-  <img src="pix/ask-demo.gif" width="600">
+  <img src="demos/ask.gif" width="600">
   <br>
   <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
 </p>
@@ -879,7 +879,7 @@ _ <- loaderStyled stylePipes "Crawling" urls fetch
 ```
 
 <p align="center">
-  <img src="pix/loader-demo.gif" width="600">
+  <img src="demos/loader.gif" width="600">
 </p>
 
 ## Examples
