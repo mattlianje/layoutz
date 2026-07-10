@@ -25,7 +25,7 @@ Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs),
 - Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 <p align="center">
-<img src="pix/showcase-demo.gif" width="600">
+<img src="demos/showcase.gif" width="600">
 <br>
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
