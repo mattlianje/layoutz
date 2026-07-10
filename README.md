@@ -267,7 +267,7 @@ With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than e
 Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic. 
 
 Ultimately, **layoutz** is just a tiny, declarative DSL to combat this (and on the side it has a humble runtime to animate your strings, much like a flipbook,
-with sime niceties like common cmd's for handling keyboard input, HTTP requests and file I/O)
+with some niceties like common cmd's for handling keyboard input, HTTP requests and file I/O)
 
 But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
 
@@ -883,17 +883,17 @@ def update(msg: Msg, state: State) = msg match {
 
 ### Key Types
 ```scala
-// Printable
+/* Printable */
 Key.Char(c: Char)
 
-// Editing
+/* Editing */
 Key.Enter
 Key.Backspace
 Key.Tab
 Key.Escape
 Key.Delete
 
-// Navigation
+/* Navigation */
 Key.Up
 Key.Down
 Key.Left
@@ -903,7 +903,7 @@ Key.End
 Key.PageUp
 Key.PageDown
 
-// Modifiers
+/* Modifiers */
 Key.Ctrl(c: Char)        // Ctrl+A, Ctrl+S, etc.
 Key.Unknown(code: Int)   // Unrecognized input
 ```
@@ -975,10 +975,10 @@ Ask.pager(longString)
 ```
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="650">
+<img src="demos/ask-mini.gif" width="600">
 <br>
-<sub><a href="examples/AskMini.scala">AskMini.scala</a></sub>
 </p>
+
 
 ```
 Call                                      Returns
@@ -1010,9 +1010,11 @@ Chain a style to change the look: `.blocks` (default), `.bar`, `.ascii`,
 `.dots`, `.line`, `.pipes`, or `.styled(...)` for a custom one:
 
 ```scala
-for (id  <- loader("Reindexing", docIds).ascii)  reindex(id)
-for (url <- loader("Crawling", urls).styled(fill = '▰', empty = '▱', color = Color.BrightMagenta))
-  fetch(url)
+for (id <- loader("Reindexing", docIds).ascii) reindex(id)
+
+val crawling = loader("Crawling", urls)
+  .styled(fill = '▰', empty = '▱', color = Color.BrightMagenta)
+for (url <- crawling) fetch(url)
 ```
 
 Every built-in style, then an unbounded stream:
@@ -1027,15 +1029,12 @@ for (_ <- loader("Pipes  ", 1 to 60).pipes)  Thread.sleep(16)
 for (_ <- loader("Bar    ", 1 to 60).bar)    Thread.sleep(16)
 for (_ <- loader("Ascii  ", 1 to 60).ascii)  Thread.sleep(16)
 
-// Unknown size: spinner + running count
 val it = Iterator.from(1).take(90)
 for (_ <- loader.stream("Streaming", it)) Thread.sleep(45)
 ```
 
 <p align="center">
 <img src="pix/loader-demo.gif" width="600">
-<br>
-<sub><a href="examples/LoaderExample.scala">LoaderExample.scala</a></sub>
 </p>
 
 ## Examples
@@ -1054,6 +1053,8 @@ Interactive TUI apps built with `LayoutzApp` and its `Cmd` / `Sub` effects. Each
 - [NavLoadApp.scala](examples/NavLoadApp.scala): task manager with navigation, progress tracking, stateful emojis
 - [SimpleGame.scala](examples/SimpleGame.scala): grid game, collect gems and avoid enemies
 
+<!--
+
 <p align="center">
   <img src="pix/nav-demo-edit.gif" width="600">
   <br>
@@ -1065,6 +1066,8 @@ Interactive TUI apps built with `LayoutzApp` and its `Cmd` / `Sub` effects. Each
   <br>
   <sub><a href="examples/SimpleGame.scala">SimpleGame.scala</a></sub>
 </p>
+
+-->
 
 ## Contributing
 
