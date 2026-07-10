@@ -324,7 +324,7 @@ Applied via `.border()` to any element with the `HasBorder` typeclass (`box`, `s
 box("Title")("content").border(Border.Round)
 table(h, r).border(Border.Thick)
 
-// HasBorder typeclass for generic code
+/* HasBorder typeclass for generic code */
 def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
 ```
 
