@@ -68,7 +68,7 @@ import layoutz._
 
 ## Quick Start
 
-Three usage paths.
+There are 3 usage paths with this little library:
 
 **(1/3) Static rendering**
 
