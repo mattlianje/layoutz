@@ -68,11 +68,9 @@ import layoutz._
 
 ## Quick Start
 
-Three usage paths.
+There are 3 usage paths with this little library:
 
-**(1/3) Static rendering**: pretty, composable strings.
-
-A few primitives composed:
+**(1/3) Static rendering**
 
 ```scala
 import layoutz._
@@ -104,9 +102,7 @@ demo.putStrLn
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="600">
 </p>
 
-**(2/3) Interactive apps**
-
-Build Elm-style TUIs
+**(2/3) Interactive Elm-style apps**
 
 ```scala
 import layoutz._
@@ -142,7 +138,8 @@ CounterApp.run
 
 **(3/3) Prompts (Ask)**
 
-One-shot CLI prompts (inputs, choosers, filters, file pickers, spinners) that collapse to a single line as you answer them.
+You often want one-shot CLI prompts with pickers, file pickers, fuzzy-finders, pagers, etc ... **without** dropping
+down into Elm-territory to make them. This is why layoutz has the `Ask` helpers
 
 ```scala
 import layoutz._
@@ -974,7 +971,6 @@ You need [Mill](https://mill-build.org) and a JDK (11+).
 make test          # run all tests (JVM, JS, Native)
 make compile       # compile all platforms
 make repl          # Scala 3 REPL with layoutz loaded
-make fmt           # scalafmt
 ```
 
 Fork, make your change, `make test`, open a PR. Keep it zero-dep.
