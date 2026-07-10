@@ -34,6 +34,29 @@ tests = testGroup "Layoutz Tests"
   , styleTests
   , commandTests
   , visualizationTests
+  , columnsTruncateBannerTests
+  ]
+
+-- columns / truncate / banner
+columnsTruncateBannerTests :: TestTree
+columnsTruncateBannerTests = testGroup "Columns, Truncate & Banner"
+  [ testCase "columns places elements side by side" $
+      render (columns [layout ["A", "B"], layout ["C", "D"]]) @?= "A  C\nB  D"
+
+  , testCase "columns' custom spacing" $
+      render (columns' 1 [layout ["A"], layout ["B"]]) @?= "A B"
+
+  , testCase "truncate' leaves short text untouched" $
+      render (truncate' 15 (text "short")) @?= "short"
+
+  , testCase "truncate' cuts long text with default ellipsis" $
+      render (truncate' 15 (text "Very long text that will be cut off")) @?= "Very long te..."
+
+  , testCase "truncate'' custom ellipsis" $
+      render (truncate'' 20 "…" (text "Custom ellipsis example text here")) @?= "Custom ellipsis exa…"
+
+  , testCase "banner is a titleless double-bordered box" $
+      render (banner ["System Dashboard"]) @?= "╔══════════════════╗\n║ System Dashboard ║\n╚══════════════════╝"
   ]
 
 -- Basic element tests

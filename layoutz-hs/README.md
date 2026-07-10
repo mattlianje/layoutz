@@ -231,6 +231,10 @@ layout ["First", "Second", "Third"]          -- vertical
 row ["Left", "Middle", "Right"]              -- horizontal
 -- Left Middle Right
 
+columns [layout ["A", "B"], layout ["C", "D"]]
+-- A  C
+-- B  D
+
 tightRow [text "A", text "B", text "C"]      -- no spacing
 -- ABC
 ```
@@ -250,23 +254,38 @@ vr'' "|" 5         -- custom char + height
 
 #### Text transforms
 ```haskell
-center $ text "Auto-centered"                -- width from siblings
-center' 30 $ text "Fixed width"
-alignLeft 30 "Left"                          -- │Left                │
-alignRight 30 "Right"                        -- │               Right│
-justify 30 "Spaces are distributed evenly"
-wrap 20 "Long text wrapped at word boundaries"
+center $ text "Auto-centered"                -- width taken from siblings
+center' 20 $ text "TITLE"                    -- │       TITLE        │
+alignLeft 20 "Left"                          -- │Left                │
+alignRight 20 "Right"                        -- │               Right│
+
+justify 30 "Spread this out"
+-- │Spread         this        out│
+
+wrap 20 "Long text here that should wrap"
+-- Long text here that
+-- should wrap
+
+truncate' 15 (text "Very long text that will be cut off")     -- Very long te...
+truncate'' 20 "…" (text "Custom ellipsis example text here")  -- Custom ellipsis exa…
+
+pad 2 $ text "content"                       -- 2 cells of padding all around
 
 underline $ text "Title"                     -- Title
                                              -- ─────
-underline' "=" $ text "Double"               -- ======
+underline' "=" $ text "Custom"               -- Custom
+                                             -- ══════
 underlineColored "~" ColorCyan $ text "Fancy"
 
-pad 2 $ text "Padded content"                -- 2 cells of padding all around
-
-margin "[error]" [text "Oops", text "fix it"]
--- [error] Oops
--- [error] fix it
+margin "[error]"
+  [ text "Ooops!"
+  , row [text "val result: Int = ", underline' "^" (text "getString()")]
+  , text "Expected Int, found String"
+  ]
+-- [error] Ooops!
+-- [error] val result: Int =  getString()
+-- [error]                    ^^^^^^^^^^^
+-- [error] Expected Int, found String
 ```
 
 ### Content
@@ -288,7 +307,7 @@ kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
 -- City: NYC
 ```
 
-#### Boxes & cards
+#### Boxes, cards & banners
 ```haskell
 box "Status" [text "All systems go"]
 -- ┌──Status──────────┐
@@ -312,6 +331,11 @@ row [ withColor ColorGreen $ statusCard "CPU" "45%"
 -- │ CPU  │ │ MEM   │
 -- │ 45%  │ │ 2.1G  │
 -- └──────┘ └───────┘
+
+banner ["System Dashboard"]
+-- ╔══════════════════╗
+-- ║ System Dashboard ║
+-- ╚══════════════════╝
 ```
 
 Pipe any `HasBorder` element through `withBorder`:
@@ -835,20 +859,6 @@ main = do
   pure ()
 ```
 
-```
-Call                                       Returns
-----                                       -------
-askInput prompt placeholder initial        IO (Maybe String)
-askConfirm question default yes no         IO Bool
-askChoose prompt items render              IO (Maybe a)
-askChooseMany prompt items limit render    IO (Maybe [a])
-askWrite prompt placeholder initial hint   IO (Maybe String)
-askFilter prompt items height render       IO (Maybe a)
-askFile start height                       IO (Maybe String)
-askPager content height lineNumbers        IO ()
-askSpin label style task                   IO a
-```
-
 The `render` argument is how each item is shown (`id` for `[String]`). `askFilter`
 is an incremental fuzzy finder; `askFile` is a directory browser; `askPager` is a
 scrollable viewer (PgUp/PgDn/Home/End, `q` to quit).
@@ -856,6 +866,21 @@ scrollable viewer (PgUp/PgDn/Home/End, `q` to quit).
 <p align="center">
   <img src="../demos/ask-mini.gif" width="650">
 </p>
+
+Each `ask*` returns in `IO` — a `Maybe` when the prompt can be cancelled
+(Esc / Ctrl-C / Ctrl-D), a plain value otherwise:
+
+| Call                                       | Returns             |
+| ------------------------------------------ | ------------------- |
+| `askInput prompt placeholder initial`      | `IO (Maybe String)` |
+| `askConfirm question default yes no`       | `IO Bool`           |
+| `askChoose prompt items render`            | `IO (Maybe a)`      |
+| `askChooseMany prompt items limit render`  | `IO (Maybe [a])`    |
+| `askWrite prompt placeholder initial hint` | `IO (Maybe String)` |
+| `askFilter prompt items height render`     | `IO (Maybe a)`      |
+| `askFile start height`                     | `IO (Maybe String)` |
+| `askPager content height lineNumbers`      | `IO ()`             |
+| `askSpin label style task`                 | `IO a`              |
 
 ## Progress (loader)
 
@@ -876,6 +901,24 @@ custom `LoaderStyle { .. }`:
 ```haskell
 _ <- loaderStyled styleAscii "Reindexing" docIds reindex
 _ <- loaderStyled stylePipes "Crawling" urls fetch
+```
+
+Every built-in style, then an unbounded stream:
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  _ <- loaderStyled styleBlocks "Blocks " [1..60 :: Int] (const (threadDelay 16000))
+  _ <- loaderStyled styleDots   "Dots   " [1..60 :: Int] (const (threadDelay 16000))
+  _ <- loaderStyled styleLine   "Line   " [1..60 :: Int] (const (threadDelay 16000))
+  _ <- loaderStyled stylePipes  "Pipes  " [1..60 :: Int] (const (threadDelay 16000))
+  _ <- loaderStyled styleBar    "Bar    " [1..60 :: Int] (const (threadDelay 16000))
+  _ <- loaderStyled styleAscii  "Ascii  " [1..60 :: Int] (const (threadDelay 16000))
+  _ <- loaderStream "Streaming" [1..90 :: Int] (const (threadDelay 45000))
+  pure ()
 ```
 
 <p align="center">

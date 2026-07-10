@@ -29,10 +29,13 @@ module Layoutz
     -- * Layout Functions
   , center, center'
   , row, tightRow
+  , columns, columns'
   , underline, underline', underlineColored
   , alignLeft, alignRight, alignCenter, justify, wrap
+  , truncate', truncate''
     -- * Containers
   , box
+  , banner
   , statusCard
     -- * Widgets
   , ul
@@ -687,6 +690,36 @@ instance Element Padded where
         verticalLines = replicate padding verticalPad
     in intercalate "\n" (verticalLines ++ paddedLines ++ verticalLines)
 
+-- | Columns: place elements side by side, each padded to its own width
+data Columns = Columns [L] Int  -- elements, spacing between columns
+instance Element Columns where
+  renderElement (Columns elements spacing)
+    | null elements = ""
+    | otherwise = intercalate "\n" $ map (intercalate separator) (transpose paddedElements)
+    where
+      separator = replicate spacing ' '
+      elementLines = map (lines . render) elements
+      maxHeight = maximum (map length elementLines)
+      elementWidths = map (maximum . (0 :) . map visibleLength) elementLines
+      paddedElements = zipWith padColumn elementWidths elementLines
+
+      padColumn :: Int -> [String] -> [String]
+      padColumn cellWidth linesList =
+        let filled = linesList ++ replicate (maxHeight - length linesList) ""
+        in map (padRight cellWidth) filled
+
+-- | Truncate each line with an ellipsis when it exceeds the max width
+data Truncated = Truncated String Int String  -- content, maxWidth, ellipsis
+instance Element Truncated where
+  renderElement (Truncated content maxWidth ellipsis) =
+    intercalate "\n" $ map truncateLine (lines content)
+    where
+      truncateLine line
+        | visibleLength line <= maxWidth = line
+        | truncateAt <= 0                = take maxWidth ellipsis
+        | otherwise                      = take truncateAt (stripAnsi line) ++ ellipsis
+        where truncateAt = maxWidth - length ellipsis
+
 -- | Chart for data visualization
 data Chart = Chart [(String, Double)]  -- (label, value) pairs
 instance Element Chart where
@@ -984,6 +1017,17 @@ wrap targetWidth content =
 box :: String -> [L] -> L
 box title elements = LBox title elements BorderNormal
 
+-- | Banner: a titleless bordered box (Double border by default)
+--
+-- @
+-- 'banner' ["System Dashboard"]
+-- -- ╔══════════════════╗
+-- -- ║ System Dashboard ║
+-- -- ╚══════════════════╝
+-- @
+banner :: [L] -> L
+banner content = LBox "" content BorderDouble
+
 -- | Create margin with custom prefix
 --
 -- @
@@ -1020,6 +1064,32 @@ vr'' char ruleHeight = L (VerticalRule char ruleHeight)
 -- | Add padding around element
 pad :: Element a => Int -> a -> L
 pad padding element = L (Padded (render element) padding)
+
+-- | Place elements side by side (2 spaces between columns)
+--
+-- @
+-- 'columns' ['layout' ["A", "B"], 'layout' ["C", "D"]]
+-- -- A  C
+-- -- B  D
+-- @
+columns :: [L] -> L
+columns elements = L (Columns elements 2)
+
+-- | Like 'columns' with a custom gap between columns
+columns' :: Int -> [L] -> L
+columns' spacing elements = L (Columns elements spacing)
+
+-- | Truncate an element with a trailing @"..."@ when it is too wide
+--
+-- @
+-- 'truncate'' 15 "Very long text that will be cut off"  -- Very long te...
+-- @
+truncate' :: Element a => Int -> a -> L
+truncate' maxWidth element = L (Truncated (render element) maxWidth "...")
+
+-- | Like 'truncate'' with a custom ellipsis
+truncate'' :: Element a => Int -> String -> a -> L
+truncate'' maxWidth ellipsis element = L (Truncated (render element) maxWidth ellipsis)
 
 -- | Create horizontal bar chart
 chart :: [(String, Double)] -> L
