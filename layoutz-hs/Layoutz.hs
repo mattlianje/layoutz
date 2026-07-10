@@ -1981,12 +1981,17 @@ runAppWithFinal opts LayoutzApp{..} = do
       dispatchLoop = do
         ev <- readChan eventChan
         case ev of
-          AppExit    -> doCleanup
+          AppExit    -> pure ()             -- stop looping; `finally` restores the tty
           AppMsg msg -> applyMsg msg >> dispatchLoop
 
-  (dispatchLoop `catch` \ex -> case ex of
-    UserInterrupt -> doCleanup
-    _             -> doCleanup)
+      -- Ctrl-C quits gracefully; every other exit path (normal quit, an
+      -- exception from update/view, or an async kill) still restores the
+      -- terminal via `finally`, so the tty is never left in raw mode.
+      onAsync :: AsyncException -> IO ()
+      onAsync UserInterrupt = pure ()
+      onAsync e             = throwIO e
+
+  (dispatchLoop `catch` onAsync) `finally` doCleanup
 
   readIORef stateRef
 

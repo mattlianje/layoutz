@@ -552,6 +552,10 @@ private[layoutz] object LayoutzRuntime {
     private def cleanup(): Unit = {
       if (config.clearOnExit) terminal.clearScrollback()
       terminal.showCursor()
+      /* Restore the tty here too so cleanup is self-contained rather than
+       * relying on the outer `finally t.close()` running afterward.
+       * exitRawMode is idempotent, so the redundant close() call is a no-op. */
+      terminal.exitRawMode()
       terminal.flush()
     }
 
