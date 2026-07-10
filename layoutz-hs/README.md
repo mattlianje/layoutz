@@ -859,16 +859,11 @@ main = do
   pure ()
 ```
 
-The `render` argument is how each item is shown (`id` for `[String]`). `askFilter`
-is an incremental fuzzy finder; `askFile` is a directory browser; `askPager` is a
-scrollable viewer (PgUp/PgDn/Home/End, `q` to quit).
-
 <p align="center">
   <img src="../demos/ask-mini.gif" width="650">
 </p>
 
-Each `ask*` returns in `IO` — a `Maybe` when the prompt can be cancelled
-(Esc / Ctrl-C / Ctrl-D), a plain value otherwise:
+Each `ask*` returns in `IO`... and a Maybe if the user can cancel midway
 
 | Call                                       | Returns             |
 | ------------------------------------------ | ------------------- |
