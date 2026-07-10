@@ -152,7 +152,7 @@ main = do
   pure ()
 ```
 <p align="center">
-  <img src="demos/ask.gif" width="600">
+  <img src="../demos/ask.gif" width="600">
   <br>
   <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
 </p>
@@ -854,7 +854,7 @@ is an incremental fuzzy finder; `askFile` is a directory browser; `askPager` is 
 scrollable viewer (PgUp/PgDn/Home/End, `q` to quit).
 
 <p align="center">
-  <img src="demos/ask-mini.gif" width="650">
+  <img src="../demos/ask-mini.gif" width="650">
 </p>
 
 ## Progress (loader)
@@ -879,7 +879,7 @@ _ <- loaderStyled stylePipes "Crawling" urls fetch
 ```
 
 <p align="center">
-  <img src="demos/loader.gif" width="600">
+  <img src="../demos/loader.gif" width="600">
 </p>
 
 ## Examples
