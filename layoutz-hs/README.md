@@ -152,7 +152,7 @@ main = do
   pure ()
 ```
 <p align="center">
-  <img src="../demos/ask.gif" width="600">
+  <img src="../demos/ask-mini.gif" width="600">
   <br>
   <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
 </p>
