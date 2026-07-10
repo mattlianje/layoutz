@@ -882,6 +882,7 @@ Ask.pager(longString)
 <br>
 </p>
 
+Each `Ask.*` returns its result directly...
 
 | Call                                      | Returns          |
 | ----------------------------------------- | ---------------- |
