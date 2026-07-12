@@ -67,3 +67,20 @@ object layoutz extends Module {
     }
   }
 }
+
+val examplesScalaVersion = "3.3.7"
+val exampleNames =
+  mill.api.BuildCtx.withFilesystemCheckerDisabled {
+    os.list(mill.api.BuildCtx.workspaceRoot / "examples")
+      .filter(p => p.ext == "scala")
+      .map(_.baseName)
+      .sorted
+  }
+
+object examples extends Cross[ExampleModule](exampleNames)
+trait ExampleModule extends ScalaModule with Cross.Module[String] {
+  def scalaVersion = examplesScalaVersion
+  def moduleDeps   = Seq(layoutz.jvm(examplesScalaVersion))
+  override def sources =
+    Task.Sources(moduleDir / s"$crossValue.scala")
+}

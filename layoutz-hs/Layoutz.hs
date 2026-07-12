@@ -29,10 +29,13 @@ module Layoutz
     -- * Layout Functions
   , center, center'
   , row, tightRow
+  , columns, columns'
   , underline, underline', underlineColored
   , alignLeft, alignRight, alignCenter, justify, wrap
+  , truncate', truncate''
     -- * Containers
   , box
+  , banner
   , statusCard
     -- * Widgets
   , ul
@@ -89,24 +92,49 @@ module Layoutz
   , subKeyPress
   , subEveryMs
   , subBatch
+    -- * Kitty graphics
+  , KittyImage(..)
+  , kittyImage
+  , kittyRGB
+  , kittyRGBA
+  , kittyImageFile
+    -- * Progress loaders
+  , LoaderStyle(..)
+  , styleBlocks, styleBar, styleAscii, styleDots, styleLine, stylePipes, loaderStyles
+  , loader, loaderStyled, loaderStream, loaderStreamStyled
+    -- * Interactive prompts (Ask)
+  , askInput
+  , askConfirm
+  , askChoose
+  , askChooseMany
+  , askSpin
+  , askWrite
+  , askFilter
+  , askFile
+  , askPager
   ) where
 
-import Data.List (intercalate, transpose, nub)
+import Data.List (intercalate, transpose, nub, sortOn, isPrefixOf)
 import qualified Data.Text
 import qualified Data.Text as T
-import Data.Bits ((.|.))
+import qualified Data.IntSet as IntSet
+import Data.Bits ((.|.), (.&.), xor, shiftL, shiftR)
+import Data.Word (Word8)
 import Data.String (IsString(..))
-import Data.Char (ord, chr)
+import Data.Char (ord, chr, toLower, isDigit)
 import Text.Printf (printf)
 import System.IO
-import Control.Exception (catch, AsyncException(..), IOException)
+import Control.Exception (catch, finally, throwIO, AsyncException(..), IOException, SomeException)
 import System.Timeout (timeout)
-import Control.Monad (when, forever)
+import Control.Monad (when, unless, forever, forM)
 import Control.Concurrent (forkIO, threadDelay, killThread, newChan, writeChan, readChan)
-import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef', modifyIORef')
 import GHC.Clock (getMonotonicTimeNSec)
+import System.Directory (listDirectory, doesDirectoryExist, doesPathExist, canonicalizePath)
 
--- | Strip ANSI escape codes from a string for accurate width calculation
+-- | Strip ANSI escape codes from a string for accurate width calculation.
+-- Also drops kitty graphics APC escapes (@ESC _ G ... ESC \\@) so an inline
+-- image's transmit block doesn't get counted as visible width.
 stripAnsi :: String -> String
 stripAnsi [] = []
 stripAnsi ('\ESC':'[':rest) = stripAnsi (dropAfterM rest)
@@ -114,6 +142,12 @@ stripAnsi ('\ESC':'[':rest) = stripAnsi (dropAfterM rest)
     dropAfterM [] = []
     dropAfterM ('m':xs) = xs
     dropAfterM (_:xs) = dropAfterM xs
+stripAnsi ('\ESC':'_':rest) = stripAnsi (dropAfterST rest)
+  where
+    -- APC string terminates at ST (ESC \)
+    dropAfterST [] = []
+    dropAfterST ('\ESC':'\\':xs) = xs
+    dropAfterST (_:xs) = dropAfterST xs
 stripAnsi (c:rest) = c : stripAnsi rest
 
 -- | Returns width of a character in a monospace terminal: 0 for combining
@@ -121,6 +155,8 @@ stripAnsi (c:rest) = c : stripAnsi rest
 charWidth :: Char -> Int
 charWidth c
   | c < '\x0300' = 1                     -- Fast path for ASCII and common Latin
+  | c == kittyPlaceholderChar = 1        -- Kitty Unicode placeholder (one cell)
+  | isRowColumnDiacritic c = 0           -- Kitty row/column combining diacritics
   | c >= '\x0300' && c < '\x0370' = 0    -- Combining diacriticals
   | c >= '\x1100' && c < '\x1200' = 2    -- Hangul Jamo
   | c >= '\x2E80' && c < '\x9FFF' = 2    -- CJK
@@ -138,6 +174,59 @@ charWidth c
 -- | Calculate visible width of string (handles ANSI codes, emoji, CJK)
 visibleLength :: String -> Int
 visibleLength = sum . map charWidth . stripAnsi
+
+-- | The Unicode placeholder code point (U+10EEEE) the kitty graphics protocol
+-- uses to reserve one terminal cell per pixel-block of an inline image.
+kittyPlaceholderChar :: Char
+kittyPlaceholderChar = '\x10EEEE'
+
+-- | Row/column combining diacritics used by the kitty placeholder protocol to
+-- encode a cell's (row, column) into the placeholder glyph. Each renders with
+-- zero width. The table's length also caps the maximum image dimensions.
+rowColumnDiacritics :: [Int]
+rowColumnDiacritics =
+  [ 0x0305, 0x030d, 0x030e, 0x0310, 0x0312, 0x033d, 0x033e, 0x033f, 0x0346
+  , 0x034a, 0x034b, 0x034c, 0x0350, 0x0351, 0x0352, 0x0357, 0x035b, 0x0363
+  , 0x0364, 0x0365, 0x0366, 0x0367, 0x0368, 0x0369, 0x036a, 0x036b, 0x036c
+  , 0x036d, 0x036e, 0x036f, 0x0483, 0x0484, 0x0485, 0x0486, 0x0487, 0x0592
+  , 0x0593, 0x0594, 0x0595, 0x0597, 0x0598, 0x0599, 0x059c, 0x059d, 0x059e
+  , 0x059f, 0x05a0, 0x05a1, 0x05a8, 0x05a9, 0x05ab, 0x05ac, 0x05af, 0x05c4
+  , 0x0610, 0x0611, 0x0612, 0x0613, 0x0614, 0x0615, 0x0616, 0x0617, 0x0657
+  , 0x0658, 0x0659, 0x065a, 0x065b, 0x065d, 0x065e, 0x06d6, 0x06d7, 0x06d8
+  , 0x06d9, 0x06da, 0x06db, 0x06dc, 0x06df, 0x06e0, 0x06e1, 0x06e2, 0x06e4
+  , 0x06e7, 0x06e8, 0x06eb, 0x06ec, 0x0730, 0x0732, 0x0733, 0x0735, 0x0736
+  , 0x073a, 0x073d, 0x073f, 0x0740, 0x0741, 0x0743, 0x0745, 0x0747, 0x0749
+  , 0x074a, 0x07eb, 0x07ec, 0x07ed, 0x07ee, 0x07ef, 0x07f0, 0x07f1, 0x07f3
+  , 0x0816, 0x0817, 0x0818, 0x0819, 0x081b, 0x081c, 0x081d, 0x081e, 0x081f
+  , 0x0820, 0x0821, 0x0822, 0x0823, 0x0825, 0x0826, 0x0827, 0x0829, 0x082a
+  , 0x082b, 0x082c, 0x082d, 0x0951, 0x0953, 0x0954, 0x0f82, 0x0f83, 0x0f86
+  , 0x0f87, 0x135d, 0x135e, 0x135f, 0x17dd, 0x193a, 0x1a17, 0x1a75, 0x1a76
+  , 0x1a77, 0x1a78, 0x1a79, 0x1a7a, 0x1a7b, 0x1a7c, 0x1b6b, 0x1b6d, 0x1b6e
+  , 0x1b6f, 0x1b70, 0x1b71, 0x1b72, 0x1b73, 0x1cd0, 0x1cd1, 0x1cd2, 0x1cda
+  , 0x1cdb, 0x1ce0, 0x1dc0, 0x1dc1, 0x1dc3, 0x1dc4, 0x1dc5, 0x1dc6, 0x1dc7
+  , 0x1dc8, 0x1dc9, 0x1dcb, 0x1dcc, 0x1dd1, 0x1dd2, 0x1dd3, 0x1dd4, 0x1dd5
+  , 0x1dd6, 0x1dd7, 0x1dd8, 0x1dd9, 0x1dda, 0x1ddb, 0x1ddc, 0x1ddd, 0x1dde
+  , 0x1ddf, 0x1de0, 0x1de1, 0x1de2, 0x1de3, 0x1de4, 0x1de5, 0x1de6, 0x1dfe
+  , 0x20d0, 0x20d1, 0x20d4, 0x20d5, 0x20d6, 0x20d7, 0x20db, 0x20dc, 0x20e1
+  , 0x20e7, 0x20e9, 0x20f0, 0x2cef, 0x2cf0, 0x2cf1, 0x2de0, 0x2de1, 0x2de2
+  , 0x2de3, 0x2de4, 0x2de5, 0x2de6, 0x2de7, 0x2de8, 0x2de9, 0x2dea, 0x2deb
+  , 0x2dec, 0x2ded, 0x2dee, 0x2def, 0x2df0, 0x2df1, 0x2df2, 0x2df3, 0x2df4
+  , 0x2df5, 0x2df6, 0x2df7, 0x2df8, 0x2df9, 0x2dfa, 0x2dfb, 0x2dfc, 0x2dfd
+  , 0x2dfe, 0x2dff, 0xa66f, 0xa67c, 0xa67d, 0xa6f0, 0xa6f1, 0xa8e0, 0xa8e1
+  , 0xa8e2, 0xa8e3, 0xa8e4, 0xa8e5, 0xa8e6, 0xa8e7, 0xa8e8, 0xa8e9, 0xa8ea
+  , 0xa8eb, 0xa8ec, 0xa8ed, 0xa8ee, 0xa8ef, 0xa8f0, 0xa8f1, 0xaab0, 0xaab2
+  , 0xaab3, 0xaab7, 0xaab8, 0xaabe, 0xaabf, 0xaac1, 0xfe20, 0xfe21, 0xfe22
+  , 0xfe23, 0xfe24, 0xfe25, 0xfe26, 0x10a0f, 0x10a38, 0x1d185, 0x1d186
+  , 0x1d187, 0x1d188, 0x1d189, 0x1d1aa, 0x1d1ab, 0x1d1ac, 0x1d1ad, 0x1d242
+  , 0x1d243, 0x1d244
+  ]
+
+-- | O(1)-ish membership test for the zero-width kitty diacritics above.
+rowColumnDiacriticsSet :: IntSet.IntSet
+rowColumnDiacriticsSet = IntSet.fromList rowColumnDiacritics
+
+isRowColumnDiacritic :: Char -> Bool
+isRowColumnDiacritic c = IntSet.member (ord c) rowColumnDiacriticsSet
 
 -- | Apply a function to each line, preserving trailing newlines
 mapLines :: (String -> String) -> String -> String
@@ -601,6 +690,36 @@ instance Element Padded where
         verticalLines = replicate padding verticalPad
     in intercalate "\n" (verticalLines ++ paddedLines ++ verticalLines)
 
+-- | Columns: place elements side by side, each padded to its own width
+data Columns = Columns [L] Int  -- elements, spacing between columns
+instance Element Columns where
+  renderElement (Columns elements spacing)
+    | null elements = ""
+    | otherwise = intercalate "\n" $ map (intercalate separator) (transpose paddedElements)
+    where
+      separator = replicate spacing ' '
+      elementLines = map (lines . render) elements
+      maxHeight = maximum (map length elementLines)
+      elementWidths = map (maximum . (0 :) . map visibleLength) elementLines
+      paddedElements = zipWith padColumn elementWidths elementLines
+
+      padColumn :: Int -> [String] -> [String]
+      padColumn cellWidth linesList =
+        let filled = linesList ++ replicate (maxHeight - length linesList) ""
+        in map (padRight cellWidth) filled
+
+-- | Truncate each line with an ellipsis when it exceeds the max width
+data Truncated = Truncated String Int String  -- content, maxWidth, ellipsis
+instance Element Truncated where
+  renderElement (Truncated content maxWidth ellipsis) =
+    intercalate "\n" $ map truncateLine (lines content)
+    where
+      truncateLine line
+        | visibleLength line <= maxWidth = line
+        | truncateAt <= 0                = take maxWidth ellipsis
+        | otherwise                      = take truncateAt (stripAnsi line) ++ ellipsis
+        where truncateAt = maxWidth - length ellipsis
+
 -- | Chart for data visualization
 data Chart = Chart [(String, Double)]  -- (label, value) pairs
 instance Element Chart where
@@ -898,6 +1017,17 @@ wrap targetWidth content =
 box :: String -> [L] -> L
 box title elements = LBox title elements BorderNormal
 
+-- | Banner: a titleless bordered box (Double border by default)
+--
+-- @
+-- 'banner' ["System Dashboard"]
+-- -- ╔══════════════════╗
+-- -- ║ System Dashboard ║
+-- -- ╚══════════════════╝
+-- @
+banner :: [L] -> L
+banner content = LBox "" content BorderDouble
+
 -- | Create margin with custom prefix
 --
 -- @
@@ -934,6 +1064,32 @@ vr'' char ruleHeight = L (VerticalRule char ruleHeight)
 -- | Add padding around element
 pad :: Element a => Int -> a -> L
 pad padding element = L (Padded (render element) padding)
+
+-- | Place elements side by side (2 spaces between columns)
+--
+-- @
+-- 'columns' ['layout' ["A", "B"], 'layout' ["C", "D"]]
+-- -- A  C
+-- -- B  D
+-- @
+columns :: [L] -> L
+columns elements = L (Columns elements 2)
+
+-- | Like 'columns' with a custom gap between columns
+columns' :: Int -> [L] -> L
+columns' spacing elements = L (Columns elements spacing)
+
+-- | Truncate an element with a trailing @"..."@ when it is too wide
+--
+-- @
+-- 'truncate'' 15 "Very long text that will be cut off"  -- Very long te...
+-- @
+truncate' :: Element a => Int -> a -> L
+truncate' maxWidth element = L (Truncated (render element) maxWidth "...")
+
+-- | Like 'truncate'' with a custom ellipsis
+truncate'' :: Element a => Int -> String -> a -> L
+truncate'' maxWidth ellipsis element = L (Truncated (render element) maxWidth ellipsis)
 
 -- | Create horizontal bar chart
 chart :: [(String, Double)] -> L
@@ -1008,6 +1164,10 @@ data SpinnerStyle
   | SpinnerLine
   | SpinnerClock
   | SpinnerBounce
+  | SpinnerEarth
+  | SpinnerMoon
+  | SpinnerGrow
+  | SpinnerArrow
   deriving (Show, Eq)
 
 -- | Get animation frames for a spinner style
@@ -1016,6 +1176,10 @@ spinnerFrames SpinnerDots   = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", 
 spinnerFrames SpinnerLine   = ["|", "/", "-", "\\"]
 spinnerFrames SpinnerClock  = ["🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛"]
 spinnerFrames SpinnerBounce = ["⠁", "⠂", "⠄", "⠂"]
+spinnerFrames SpinnerEarth  = ["🌍", "🌎", "🌏"]
+spinnerFrames SpinnerMoon   = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
+spinnerFrames SpinnerGrow   = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎"]
+spinnerFrames SpinnerArrow  = ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"]
 
 -- | Spinner animation element
 data Spinner = Spinner String Int SpinnerStyle  -- label, frame, style
@@ -1440,6 +1604,10 @@ data Key
   | KeyDown                -- ^ Down arrow
   | KeyLeft                -- ^ Left arrow
   | KeyRight               -- ^ Right arrow
+  | KeyPageUp              -- ^ Page Up
+  | KeyPageDown            -- ^ Page Down
+  | KeyHome                -- ^ Home
+  | KeyEnd                 -- ^ End
   | KeySpecial String      -- ^ Other unrecognized escape sequences
   deriving (Show, Eq)
 
@@ -1588,6 +1756,30 @@ getTerminalWidth = do
              _ -> 80
       else parseResponse (c : acc)
 
+-- | Get terminal size as @(rows, cols)@ via an ANSI cursor position report.
+-- Falls back to @(24, 80)@ on timeout or parse failure. Must be called while
+-- raw mode is active and nothing else is reading stdin.
+getTerminalSize :: IO (Int, Int)
+getTerminalSize = do
+  putStr "\ESC7\ESC[999;999H\ESC[6n\ESC8"
+  hFlush stdout
+  result <- timeout 100000 (readCPR "")
+  pure $ maybe (24, 80) id result
+  where
+    readCPR acc = do
+      c <- getChar
+      case c of
+        '\ESC' -> getChar >> readCPR acc   -- skip ESC and the following '['
+        '['    -> readCPR acc
+        'R'    -> pure (parseRC (reverse acc))
+        _      -> readCPR (c : acc)
+    parseRC resp = case break (== ';') resp of
+      (rows, ';':cols) -> (readOr 24 rows, readOr 80 cols)
+      _                -> (24, 80)
+    readOr d s = case reads s of
+      [(n, "")] -> n
+      _         -> d
+
 -- | Run an interactive TUI application with default options.
 --
 -- This function:
@@ -1684,6 +1876,7 @@ runAppWithFinal opts LayoutzApp{..} = do
 
   lastLineCount <- newIORef 0
   lastRendered <- newIORef ""
+  sentKittyIds <- newIORef IntSet.empty  -- kitty images already transmitted this session
 
   renderThread <- forkIO $ forever $ do
     state <- readIORef stateRef
@@ -1692,7 +1885,12 @@ runAppWithFinal opts LayoutzApp{..} = do
 
     when (rendered /= lastRender) $ do
       prevLineCount <- readIORef lastLineCount
-      let renderedLines = lines rendered
+      -- Drop transmit blocks for images already sent, so each distinct kitty
+      -- image is uploaded only once across frames.
+      priorIds <- readIORef sentKittyIds
+      let (deduped, newKittyIds) = dedupeTransmits priorIds rendered
+      writeIORef sentKittyIds newKittyIds
+      let renderedLines = lines deduped
           currentLineCount = length renderedLines
           maxLineWidth = maximum (0 : map visibleLength renderedLines)
           blockPad = case optAlignment opts of
@@ -1783,12 +1981,17 @@ runAppWithFinal opts LayoutzApp{..} = do
       dispatchLoop = do
         ev <- readChan eventChan
         case ev of
-          AppExit    -> doCleanup
+          AppExit    -> pure ()             -- stop looping; `finally` restores the tty
           AppMsg msg -> applyMsg msg >> dispatchLoop
 
-  (dispatchLoop `catch` \ex -> case ex of
-    UserInterrupt -> doCleanup
-    _             -> doCleanup)
+      -- Ctrl-C quits gracefully; every other exit path (normal quit, an
+      -- exception from update/view, or an async kill) still restores the
+      -- terminal via `finally`, so the tty is never left in raw mode.
+      onAsync :: AsyncException -> IO ()
+      onAsync UserInterrupt = pure ()
+      onAsync e             = throwIO e
+
+  (dispatchLoop `catch` onAsync) `finally` doCleanup
 
   readIORef stateRef
 
@@ -1844,11 +2047,868 @@ readEscapeSequence = do
         'B' -> return KeyDown
         'C' -> return KeyRight
         'D' -> return KeyLeft
-        '3' -> do
-          c3 <- getChar  -- Read the '~'
+        'H' -> return KeyHome
+        'F' -> return KeyEnd
+        -- Numeric sequences terminated by '~': ESC [ n ~
+        n | n >= '1' && n <= '6' -> do
+          c3 <- getChar
           if c3 == '~'
-            then return KeyDelete
+            then return $ case n of
+                   '1' -> KeyHome
+                   '3' -> KeyDelete
+                   '4' -> KeyEnd
+                   '5' -> KeyPageUp
+                   '6' -> KeyPageDown
+                   _   -> KeyEscape
             else return KeyEscape
         _ -> return KeyEscape
+    Just 'O' -> do
+      -- Application cursor mode: ESC O H/F for Home/End
+      c2 <- getChar
+      case c2 of
+        'H' -> return KeyHome
+        'F' -> return KeyEnd
+        _ -> return KeyEscape
     Just _ -> return KeyEscape  -- Some other character after ESC
+
+
+-- ============================================================================
+-- Shared helpers (small string/ANSI utilities used by kitty, loader and Ask)
+-- ============================================================================
+
+-- | Dim a string with the SGR faint style.
+dimText :: String -> String
+dimText = wrapStyle StyleDim
+
+-- | Colour a string, leaving it untouched for 'ColorDefault'.
+paintColor :: Color -> String -> String
+paintColor = wrapAnsi
+
+-- | Split on a single character, keeping empty trailing segments (like
+-- Scala's @split(sep, -1)@ — unlike 'lines', a trailing separator yields a
+-- final empty segment).
+splitOnChar :: Char -> String -> [String]
+splitOnChar c s = case break (== c) s of
+  (a, [])     -> [a]
+  (a, _:rest) -> a : splitOnChar c rest
+
+-- | Split a string at the first occurrence of a substring pattern, returning
+-- @(before, fromPattern)@ where @fromPattern@ begins with the pattern.
+splitOnFirst :: String -> String -> Maybe (String, String)
+splitOnFirst pat = go ""
+  where
+    go acc s
+      | pat `isPrefixOf` s = Just (reverse acc, s)
+      | otherwise = case s of
+          []     -> Nothing
+          (x:xs) -> go (x:acc) xs
+
+-- | Break a list into chunks of at most @n@ elements.
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf n xs
+  | n <= 0    = [xs]
+  | null xs   = []
+  | otherwise = let (a, b) = splitAt n xs in a : chunksOf n b
+
+-- | ANSI background-colour SGR code corresponding to a foreground 'Color'.
+bgColorCode :: Color -> String
+bgColorCode ColorDefault      = ""
+bgColorCode (ColorFull n)     = "48;5;" ++ show (clamp n)
+bgColorCode (ColorTrue r g b) = "48;2;" ++ show (clamp r) ++ ";" ++ show (clamp g) ++ ";" ++ show (clamp b)
+bgColorCode c = case reads (colorCode c) :: [(Int, String)] of
+  [(n, "")] -> show (n + 10)   -- 30-37 -> 40-47, 90-97 -> 100-107
+  _         -> ""
+
+-- ============================================================================
+-- Kitty graphics protocol
+-- ============================================================================
+
+-- | Kitty transmit format: PNG.
+formatPng :: Int
+formatPng = 100
+
+-- | Kitty transmit format: raw RGB (3 bytes/pixel).
+formatRgb :: Int
+formatRgb = 24
+
+-- | Kitty transmit format: raw RGBA (4 bytes/pixel).
+formatRgba :: Int
+formatRgba = 32
+
+-- | An inline image rendered via the kitty graphics protocol using Unicode
+-- placeholders, so it composes like any other element: it measures exactly
+-- @cols@ wide and @rows@ tall and drops into 'box', 'row', 'table', 'center', …
+--
+-- Prefer the smart constructors 'kittyImage', 'kittyRGB', 'kittyRGBA' (or the
+-- 'kittyImageFile' loader) over building this record directly.
+data KittyImage = KittyImage
+  { kiPayload    :: [Word8]    -- ^ Raw image bytes (PNG, or raw RGB\/RGBA pixels)
+  , kiFormat     :: Int        -- ^ 100 = PNG, 24 = RGB, 32 = RGBA
+  , kiCols       :: Int        -- ^ Cell width
+  , kiRows       :: Int        -- ^ Cell height
+  , kiPxW        :: Int        -- ^ Source pixel width  (raw formats only)
+  , kiPxH        :: Int        -- ^ Source pixel height (raw formats only)
+  , kiAlt        :: String     -- ^ Alt text (kept for parity; unused by terminals)
+  , kiIdOverride :: Maybe Int  -- ^ Explicit image id (otherwise a content hash)
+  }
+
+instance Element KittyImage where
+  renderElement img = kittyTransmit img ++ kittyPlacement img
+  width  = kiCols
+  height = kiRows
+
+-- | Deterministic 24-bit image id: an explicit override, or an FNV-1a hash of
+-- the payload masked to 24 bits (forced non-zero). Stable across redraws so a
+-- runtime can transmit each distinct image only once.
+kittyImageId :: [Word8] -> Maybe Int -> Int
+kittyImageId payload override =
+  let raw    = maybe (foldl step 0x811c9dc5 payload) id override
+      masked = raw .&. 0xffffff
+  in if masked == 0 then 1 else masked
+  where
+    step h b = (h `xor` fromIntegral b) * 0x01000193 .&. 0xffffffff
+
+-- | Standard base64 (RFC 4648, @+/@ alphabet, @=@ padding). Shipped inline to
+-- keep the library dependency-light.
+kittyBase64 :: [Word8] -> String
+kittyBase64 = go
+  where
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    idx i = alphabet !! i
+    go [] = ""
+    go (b0:b1:b2:rest) =
+      let t = (fromIntegral b0 `shiftL` 16) .|. (fromIntegral b1 `shiftL` 8) .|. fromIntegral b2
+      in idx ((t `shiftR` 18) .&. 0x3f) : idx ((t `shiftR` 12) .&. 0x3f)
+         : idx ((t `shiftR` 6) .&. 0x3f) : idx (t .&. 0x3f) : go rest
+    go [b0, b1] =
+      let t = (fromIntegral b0 `shiftL` 16) .|. (fromIntegral b1 `shiftL` 8) :: Int
+      in idx ((t `shiftR` 18) .&. 0x3f) : idx ((t `shiftR` 12) .&. 0x3f)
+         : idx ((t `shiftR` 6) .&. 0x3f) : "="
+    go [b0] =
+      let t = fromIntegral b0 `shiftL` 16 :: Int
+      in idx ((t `shiftR` 18) .&. 0x3f) : idx ((t `shiftR` 12) .&. 0x3f) : "=="
+
+kittyApcG :: String
+kittyApcG = "\ESC_G"
+
+kittyST :: String
+kittyST = "\ESC\\"
+
+-- | Transmit block: base64 the payload, chunk into <=4096-char escapes. Every
+-- chunk carries @i=\<id\>@ so 'dedupeTransmits' can drop all chunks of an
+-- already-sent image.
+kittyTransmit :: KittyImage -> String
+kittyTransmit img =
+  let b64      = kittyBase64 (kiPayload img)
+      chunks   = if null b64 then [""] else chunksOf 4096 b64
+      theId    = kittyImageId (kiPayload img) (kiIdOverride img)
+      dims     = if kiFormat img == formatPng then ""
+                 else ",s=" ++ show (kiPxW img) ++ ",v=" ++ show (kiPxH img)
+      firstKeys = "a=T,U=1,i=" ++ show theId ++ ",f=" ++ show (kiFormat img)
+                  ++ ",c=" ++ show (kiCols img) ++ ",r=" ++ show (kiRows img) ++ dims ++ ",q=2"
+      contKeys  = "i=" ++ show theId ++ ",q=2"
+      lastIdx   = length chunks - 1
+      block i chunk =
+        let m    = if i == lastIdx then "0" else "1"
+            keys = (if i == 0 then firstKeys else contKeys) ++ ",m=" ++ m
+        in kittyApcG ++ keys ++ ";" ++ chunk ++ kittyST
+  in concat (zipWith block [0 ..] chunks)
+
+-- | Placement grid: one line per image row of @U+10EEEE@ placeholders; the
+-- image id rides in the foreground colour and the (row, column) in two
+-- combining diacritics on the first cell of each row.
+kittyPlacement :: KittyImage -> String
+kittyPlacement img =
+  let theId = kittyImageId (kiPayload img) (kiIdOverride img)
+      fg = "\ESC[38;2;" ++ show ((theId `shiftR` 16) .&. 0xff) ++ ";"
+           ++ show ((theId `shiftR` 8) .&. 0xff) ++ ";" ++ show (theId .&. 0xff) ++ "m"
+      reset       = "\ESC[0m"
+      placeholder = [kittyPlaceholderChar]
+      col0        = [chr (head rowColumnDiacritics)]
+      rowLine r =
+        let firstCell = placeholder ++ [chr (rowColumnDiacritics !! r)] ++ col0
+        in fg ++ firstCell ++ concat (replicate (kiCols img - 1) placeholder) ++ reset
+  in intercalate "\n" (map rowLine [0 .. kiRows img - 1])
+
+-- | Strip transmit blocks whose image id is already in the seen-set, adding
+-- new ids as they are encountered. Returns the rewritten string and the
+-- updated set. Placement grids are always left intact.
+dedupeTransmits :: IntSet.IntSet -> String -> (String, IntSet.IntSet)
+dedupeTransmits ids0 input = go ids0 input
+  where
+    go ids s = case splitOnFirst kittyApcG s of
+      Nothing -> (s, ids)
+      Just (before, rest) ->
+        let (block, after) = takeBlock rest
+            bid            = parseId block
+            (keep, ids')
+              | bid /= 0 && IntSet.member bid ids = ("", ids)
+              | bid /= 0                          = (block, IntSet.insert bid ids)
+              | otherwise                         = (block, ids)
+            (restOut, idsF) = go ids' after
+        in (before ++ keep ++ restOut, idsF)
+
+    -- @s@ starts with the APC introducer; return (whole block incl. ST, rest).
+    takeBlock s = case splitOnFirst kittyST (drop (length kittyApcG) s) of
+      Nothing          -> (s, "")   -- unterminated: keep verbatim
+      Just (mid, after) -> (kittyApcG ++ mid ++ kittyST, drop (length kittyST) after)
+
+    parseId block =
+      let body   = drop (length kittyApcG) block
+          keys   = takeWhile (/= ';') body
+          fields = splitOnChar ',' keys
+      in case [ drop 2 f | f <- fields, "i=" `isPrefixOf` f ] of
+           (v:_) -> let ds = takeWhile isDigit v in if null ds then 0 else read ds
+           []    -> 0
+
+-- | Validate dimensions/format and build a 'KittyImage'.
+mkKitty :: [Word8] -> Int -> Int -> Int -> Int -> Int -> String -> KittyImage
+mkKitty payload fmt cols rows pxW pxH alt
+  | cols < 1 || rows < 1 = error "KittyImage cols/rows must be >= 1"
+  | cols > maxCells || rows > maxCells =
+      error ("KittyImage cols/rows must be <= " ++ show maxCells ++ " (the diacritics table size)")
+  | not validFormat =
+      error "raw RGB/RGBA images (format 24/32) require pxW > 0 and pxH > 0"
+  | otherwise = KittyImage payload fmt cols rows pxW pxH alt Nothing
+  where
+    maxCells    = length rowColumnDiacritics
+    validFormat = fmt == formatPng
+                  || ((fmt == formatRgb || fmt == formatRgba) && pxW > 0 && pxH > 0)
+
+-- | Inline PNG image sized to a @cols@x@rows@ cell footprint. The terminal
+-- decodes the PNG and fits it into that box; layout math uses @cols@\/@rows@.
+kittyImage :: [Word8] -> Int -> Int -> L
+kittyImage bytes cols rows = L (mkKitty bytes formatPng cols rows 0 0 "")
+
+-- | Inline raw RGB image (@format 24@): @pxW@x@pxH@ source pixels shown in a
+-- @cols@x@rows@ cell footprint.
+kittyRGB :: [Word8] -> Int -> Int -> Int -> Int -> L
+kittyRGB pixels pxW pxH cols rows = L (mkKitty pixels formatRgb cols rows pxW pxH "")
+
+-- | Inline raw RGBA image (@format 32@): like 'kittyRGB' with an alpha channel.
+kittyRGBA :: [Word8] -> Int -> Int -> Int -> Int -> L
+kittyRGBA pixels pxW pxH cols rows = L (mkKitty pixels formatRgba cols rows pxW pxH "")
+
+-- | Load an image file and size it to a @cols@x@rows@ cell footprint. PNG bytes
+-- are sent to the terminal as-is.
+kittyImageFile :: FilePath -> Int -> Int -> IO L
+kittyImageFile path cols rows = do
+  bytes <- readFileBytes path
+  pure (kittyImage bytes cols rows)
+
+-- | Read a file strictly as a list of bytes (binary mode, no dependencies).
+readFileBytes :: FilePath -> IO [Word8]
+readFileBytes path = withBinaryFile path ReadMode $ \h -> do
+  contents <- hGetContents h
+  let n = length contents
+  n `seq` pure (map (fromIntegral . ord) contents)
+
+-- ============================================================================
+-- Progress loaders
+-- ============================================================================
+
+-- | Visual preset for a 'loader'. Controls the bar glyphs and colour for
+-- bounded loaders, and the spinner frames + colour for streaming loaders.
+data LoaderStyle = LoaderStyle
+  { lsFill    :: Char
+  , lsEmpty   :: Char
+  , lsOpen    :: String
+  , lsClose   :: String
+  , lsHead    :: String
+  , lsSmooth  :: Bool
+  , lsSpinner :: SpinnerStyle
+  , lsColor   :: Color
+  }
+
+-- | Smooth gradient blocks @████▊░░░@ (default).
+styleBlocks :: LoaderStyle
+styleBlocks = LoaderStyle '█' '░' "" "" "" True SpinnerGrow ColorCyan
+
+-- | Classic bracketed bar @[██████░░░░]@.
+styleBar :: LoaderStyle
+styleBar = LoaderStyle '█' '░' "[" "]" "" False SpinnerDots ColorGreen
+
+-- | Retro ASCII with an arrow head @[====>    ]@.
+styleAscii :: LoaderStyle
+styleAscii = LoaderStyle '=' ' ' "[" "]" ">" False SpinnerLine ColorYellow
+
+-- | Dotted @●●●●∙∙∙∙@.
+styleDots :: LoaderStyle
+styleDots = LoaderStyle '●' '∙' "" "" "" False SpinnerBounce ColorMagenta
+
+-- | Heavy\/light rule @━━━━────@.
+styleLine :: LoaderStyle
+styleLine = LoaderStyle '━' '─' "" "" "" False SpinnerLine ColorBlue
+
+-- | Segmented pipes @▰▰▰▱▱▱@.
+stylePipes :: LoaderStyle
+stylePipes = LoaderStyle '▰' '▱' "" "" "" False SpinnerArrow ColorBrightMagenta
+
+-- | All built-in styles, in display order.
+loaderStyles :: [LoaderStyle]
+loaderStyles = [styleBlocks, styleBar, styleAscii, styleDots, styleLine, stylePipes]
+
+-- | Fractional block glyphs for the smooth-fill boundary cell (1\/8 .. 8\/8).
+blockEighths :: [String]
+blockEighths = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
+
+-- | Render a progress bar of the given style filled to @progress@ (0..1) over
+-- @w@ cells.
+renderProgressBar :: LoaderStyle -> Double -> Int -> String
+renderProgressBar style progress w =
+  let p      = max 0.0 (min 1.0 progress)
+      exact  = p * fromIntegral w
+      filled = floor exact :: Int
+  in if lsSmooth style
+       then let eighths    = floor ((exact - fromIntegral filled) * 8) :: Int
+                hasPartial = filled < w && eighths > 0
+                partial    = if hasPartial then blockEighths !! eighths else ""
+                used       = filled + (if hasPartial then 1 else 0)
+                body       = paintColor (lsColor style) (replicate filled (lsFill style) ++ partial)
+            in lsOpen style ++ body ++ dimText (replicate (w - used) (lsEmpty style)) ++ lsClose style
+       else let showHead   = not (null (lsHead style)) && filled > 0 && filled < w
+                hd         = if showHead then lsHead style else ""
+                emptyCount = max 0 (w - filled - length hd)
+                body       = paintColor (lsColor style) (replicate filled (lsFill style) ++ hd)
+            in lsOpen style ++ body ++ dimText (replicate emptyCount (lsEmpty style)) ++ lsClose style
+
+-- | Run an inline progress line: a background ticker redraws @renderLine@ every
+-- 80ms while the main thread maps @action@ over @items@, bumping @counter@ per
+-- item. On completion the ticker stops and @finalLine@ is drawn.
+runLoader :: (Int -> IO String) -> IO String -> IORef Int -> [a] -> (a -> IO b) -> IO [b]
+runLoader renderLine finalLine counter items action = do
+  hideCursor
+  hFlush stdout
+  stopRef <- newIORef False
+  ticker <- forkIO $
+    let tick frame = do
+          stop <- readIORef stopRef
+          unless stop $ do
+            line <- renderLine frame
+            putStr ("\r" ++ line ++ "\ESC[K")
+            hFlush stdout
+            threadDelay 80000
+            tick (frame + 1)
+    in tick 0
+  results <- mapM (\x -> do r <- action x; modifyIORef' counter (+ 1); pure r) items
+  writeIORef stopRef True
+  killThread ticker
+  final <- finalLine
+  putStr ("\r" ++ final ++ "\ESC[K\n")
+  showCursor
+  hFlush stdout
+  pure results
+
+boundedRender :: LoaderStyle -> String -> Int -> IORef Int -> Int -> IO String
+boundedRender style label total counter _frame = do
+  done <- readIORef counter
+  let progress = if total > 0 then min 1.0 (fromIntegral done / fromIntegral total) else 1.0
+      bar      = renderProgressBar style progress 20
+      pct      = floor (progress * 100) :: Int
+      prefix   = if null label then "" else label ++ " "
+  pure (prefix ++ bar ++ " " ++ show done ++ "/" ++ show total ++ " (" ++ show pct ++ "%)")
+
+streamingRender :: LoaderStyle -> String -> IORef Int -> Int -> IO String
+streamingRender style label counter frame = do
+  done <- readIORef counter
+  let frames = spinnerFrames (lsSpinner style)
+      spin   = paintColor (lsColor style) (frames !! (frame `mod` length frames))
+      prefix = if null label then "" else label ++ " "
+  pure (spin ++ " " ++ prefix ++ "(" ++ show done ++ " processed)")
+
+streamingFinal :: String -> IORef Int -> IO String
+streamingFinal label counter = do
+  done <- readIORef counter
+  let prefix = if null label then "" else label ++ " "
+  pure (prefix ++ show done ++ " processed")
+
+-- | Iterate a sized collection while streaming an inline progress bar (blocks
+-- style). Returns the results of @action@ over each item.
+--
+-- @
+-- _ <- 'loader' "Processing" [1..100] (\\_ -> threadDelay 20000)
+-- @
+loader :: String -> [a] -> (a -> IO b) -> IO [b]
+loader = loaderStyled styleBlocks
+
+-- | Like 'loader' with an explicit 'LoaderStyle' (e.g. 'styleAscii').
+loaderStyled :: LoaderStyle -> String -> [a] -> (a -> IO b) -> IO [b]
+loaderStyled style label items action = do
+  let total = length items
+  counter <- newIORef 0
+  let rl = boundedRender style label total counter
+  runLoader rl (rl 0) counter items action
+
+-- | Iterate a collection of unknown \"size\", streaming a spinner + running
+-- count (blocks style spinner).
+loaderStream :: String -> [a] -> (a -> IO b) -> IO [b]
+loaderStream = loaderStreamStyled styleBlocks
+
+-- | Like 'loaderStream' with an explicit 'LoaderStyle'.
+loaderStreamStyled :: LoaderStyle -> String -> [a] -> (a -> IO b) -> IO [b]
+loaderStreamStyled style label items action = do
+  counter <- newIORef 0
+  runLoader (streamingRender style label counter) (streamingFinal label counter) counter items action
+
+-- ============================================================================
+-- Interactive prompts (Ask)
+-- ============================================================================
+--
+-- One-shot prompts. Each takes over the tty briefly, returns a value, and
+-- leaves a single committed line behind. 'Nothing' means the user cancelled
+-- (Esc / Ctrl-C / Ctrl-D).
+
+askCursorUp :: Int -> String
+askCursorUp n = "\ESC[" ++ show n ++ "A\r"
+
+askClearEol :: String
+askClearEol = "\ESC[K"
+
+askClearBelow :: String
+askClearBelow = "\ESC[J"
+
+-- | Put the tty into raw mode, hide the cursor, run the body, and restore the
+-- terminal afterwards (even on exception).
+withAskTty :: IO a -> IO a
+withAskTty body = do
+  oldBuffering <- hGetBuffering stdin
+  oldEcho      <- hGetEcho stdin
+  hSetBuffering stdin NoBuffering
+  hSetBuffering stdout NoBuffering
+  hSetEcho stdin False
+  hideCursor
+  body `finally` do
+    showCursor
+    hSetEcho stdin oldEcho
+    hSetBuffering stdin oldBuffering
+    hFlush stdout
+
+-- | Redraw a multi-line frame in place, returning its line count.
+askRepaint :: String -> Int -> IO Int
+askRepaint frame prevLines = do
+  let ls   = splitOnChar '\n' frame
+      up   = if prevLines > 0 then askCursorUp prevLines else ""
+      body = concatMap (\l -> l ++ askClearEol ++ "\n") ls
+      belw = if prevLines > length ls then askClearBelow else ""
+  putStr (up ++ body ++ belw)
+  hFlush stdout
+  pure (length ls)
+
+-- | Replace the live frame with a single committed summary line.
+askCommit :: String -> Int -> IO ()
+askCommit summary prevLines = do
+  let up   = if prevLines > 0 then askCursorUp prevLines else ""
+      belw = if prevLines > 1 then askClearBelow else ""
+  putStr (up ++ summary ++ askClearEol ++ "\n" ++ belw)
+  hFlush stdout
+
+-- | Wipe the live frame entirely (used on cancel).
+askErase :: Int -> IO ()
+askErase prevLines = when (prevLines > 0) $ do
+  putStr (askCursorUp prevLines ++ askClearBelow)
+  hFlush stdout
+
+-- | Render an active confirm button (white on a coloured background, bold).
+askActiveBtn :: Color -> String -> String
+askActiveBtn bg t = "\ESC[1;37;" ++ bgColorCode bg ++ "m" ++ t ++ "\ESC[0m"
+
+renderInputFrame :: String -> String -> String -> String
+renderInputFrame prompt value placeholder =
+  let body = if null value && not (null placeholder) then dimText placeholder else value
+  in prompt ++ body ++ paintColor ColorCyan "▌"
+
+renderConfirmFrame :: String -> Bool -> String -> String -> String
+renderConfirmFrame question yes affirmative negative =
+  question ++ "\n  " ++ btn affirmative yes ColorGreen ++ "  " ++ btn negative (not yes) ColorRed
+  where
+    btn t active bg = let padded = "  " ++ t ++ "  "
+                      in if active then askActiveBtn bg padded else padded
+
+renderChooseFrame :: String -> [a] -> Int -> (a -> String) -> String
+renderChooseFrame prompt items idx renderItem =
+  let rows = [ if i == idx then paintColor ColorCyan ("› " ++ renderItem item) else "  " ++ renderItem item
+             | (item, i) <- zip items [0 ..] ]
+  in (if not (null prompt) then prompt ++ "\n" else "") ++ intercalate "\n" rows
+
+renderChooseManyFrame :: String -> [a] -> Int -> [Int] -> Int -> (a -> String) -> String
+renderChooseManyFrame prompt items idx selected limit renderItem =
+  let rows = [ let mark = if i `elem` selected then paintColor ColorGreen "[x]" else dimText "[ ]"
+                   line = mark ++ " " ++ renderItem item
+               in if i == idx then paintColor ColorCyan "› " ++ line else "  " ++ line
+             | (item, i) <- zip items [0 ..] ]
+      header
+        | null prompt = ""
+        | otherwise =
+            let tag | limit > 0            = " (" ++ show (length selected) ++ "/" ++ show limit ++ ")"
+                    | not (null selected)  = " (" ++ show (length selected) ++ ")"
+                    | otherwise            = ""
+            in prompt ++ dimText tag ++ "\n"
+  in header ++ intercalate "\n" rows
+
+renderWriteFrame :: String -> String -> String -> String -> String
+renderWriteFrame prompt value placeholder hint =
+  let header = if not (null prompt) then prompt ++ "\n" else ""
+      body   = if null value && not (null placeholder)
+                 then dimText placeholder ++ paintColor ColorCyan "▌"
+                 else value ++ paintColor ColorCyan "▌"
+      footer = if not (null hint) then "\n" ++ dimText hint else ""
+  in header ++ body ++ footer
+
+renderFilterFrame :: String -> String -> [a] -> Int -> Int -> (a -> String) -> String
+renderFilterFrame prompt query matches idx viewHeight renderItem =
+  let total   = length matches
+      h       = max 0 (min viewHeight total)
+      top     = if total <= h then 0 else max 0 (min (idx - h `div` 2) (total - h))
+      visible = take h (drop top matches)
+      rows    = [ let absIdx = top + i; label = renderItem item
+                  in if absIdx == idx then paintColor ColorCyan ("› " ++ label) else "  " ++ label
+                | (item, i) <- zip visible [0 ..] ]
+      header  = prompt ++ query ++ paintColor ColorCyan "▌"
+      list    = if null rows then dimText "  (no matches)" else intercalate "\n" rows
+  in header ++ "\n" ++ list
+
+-- | Fuzzy-match score: 'Nothing' if @query@ isn't a subsequence of @target@,
+-- otherwise @Just gap@ where a smaller gap sum means a tighter match.
+fuzzyScore :: String -> String -> Maybe Int
+fuzzyScore query target
+  | null query = Just 0
+  | otherwise  = loop (map toLower query) (map toLower target) (-1) 0 0
+  where
+    loop [] _ _ gap _ = Just gap
+    loop _ [] _ _ _   = Nothing
+    loop (qc:qs) (sc:ss) lastMatch gap ti
+      | qc == sc  = let gap' = if lastMatch >= 0 then gap + (ti - lastMatch - 1) else gap
+                    in loop qs ss ti gap' (ti + 1)
+      | otherwise = loop (qc:qs) ss lastMatch gap (ti + 1)
+
+-- | Filter items to those matching @query@, best (tightest) matches first.
+fuzzyMatches :: String -> [a] -> (a -> String) -> [a]
+fuzzyMatches query items renderItem
+  | null query = items
+  | otherwise  = map fst $ sortOn snd
+      [ (item, score) | item <- items, Just score <- [fuzzyScore query (renderItem item)] ]
+
+-- | A directory entry for the file picker.
+data FileEntry = FileEntry { feName :: String, feIsDir :: Bool }
+
+feDisplay :: FileEntry -> String
+feDisplay e = if feIsDir e then feName e ++ "/" else feName e
+
+renderFileFrame :: String -> [FileEntry] -> Int -> Int -> String
+renderFileFrame path entries idx viewHeight =
+  let total   = length entries
+      h       = max 0 (min viewHeight total)
+      top     = if total <= h then 0 else max 0 (min (idx - h `div` 2) (total - h))
+      visible = take h (drop top entries)
+      rows    = [ let absIdx = top + i
+                      name   = if feIsDir e then paintColor ColorBlue (feDisplay e) else feDisplay e
+                  in if absIdx == idx then paintColor ColorCyan "› " ++ name else "  " ++ name
+                | (e, i) <- zip visible [0 ..] ]
+  in dimText path ++ "\n" ++ intercalate "\n" rows
+
+renderPagerFrame :: [String] -> Int -> Int -> Int -> Bool -> String
+renderPagerFrame allLines top h viewWidth lineNumbers =
+  let total    = length allLines
+      visible  = take h (drop top allLines)
+      numWidth = length (show total)
+      gutter   = if lineNumbers then numWidth + 3 else 0
+      maxLineW = max 20 (viewWidth - gutter)
+      body     = intercalate "\n"
+        [ let truncated = if length line > maxLineW then take (maxLineW - 1) line ++ "…" else line
+          in if lineNumbers
+               then dimText (padNum numWidth (top + i + 1) ++ " │ ") ++ truncated
+               else truncated
+        | (line, i) <- zip visible [0 ..] ]
+      viewEnd = min (top + h) total
+      percent = if total == 0 then 100 else (viewEnd * 100) `div` total
+      status  = dimText ("  L" ++ show (top + 1) ++ "–" ++ show viewEnd ++ " of " ++ show total
+                         ++ "  " ++ show percent ++ "%   ↑↓ PgUp/PgDn Home/End  q to quit")
+  in body ++ "\n" ++ status
+  where
+    padNum w n = let s = show n in replicate (max 0 (w - length s)) ' ' ++ s
+
+-- | Prompt for a single line of text. Returns 'Nothing' if cancelled.
+askInput :: String       -- ^ prompt (e.g. @"› "@)
+         -> String       -- ^ placeholder shown when empty
+         -> String       -- ^ initial value
+         -> IO (Maybe String)
+askInput prompt placeholder initial = withAskTty $ do
+  initLines <- askRepaint (renderInputFrame prompt initial placeholder) 0
+  let loop value prevLines = do
+        key <- readKey
+        case key of
+          KeyEnter    -> askCommit (prompt ++ value) prevLines >> pure (Just value)
+          KeyEscape   -> askErase prevLines >> pure Nothing
+          KeyCtrl 'C' -> askErase prevLines >> pure Nothing
+          KeyCtrl 'D' -> askErase prevLines >> pure Nothing
+          KeyBackspace | not (null value) -> do
+            let nv = init value
+            n <- askRepaint (renderInputFrame prompt nv placeholder) prevLines
+            loop nv n
+          KeyChar c -> do
+            let nv = value ++ [c]
+            n <- askRepaint (renderInputFrame prompt nv placeholder) prevLines
+            loop nv n
+          _ -> loop value prevLines
+  loop initial initLines
+
+-- | Yes\/No confirmation. On cancel returns the opposite of @def@ (matching the
+-- Scala @Ask.confirm@).
+askConfirm :: String   -- ^ question
+           -> Bool     -- ^ default selection
+           -> String   -- ^ affirmative label (e.g. @"Yes"@)
+           -> String   -- ^ negative label    (e.g. @"No"@)
+           -> IO Bool
+askConfirm question def affirmative negative = do
+  r <- withAskTty $ do
+    initLines <- askRepaint (renderConfirmFrame question def affirmative negative) 0
+    let picked yes prevLines = do
+          let label = if yes then affirmative else negative
+          askCommit (question ++ " " ++ paintColor ColorCyan label) prevLines
+          pure (Just yes)
+        loop yes prevLines = do
+          let flipSel = do
+                let ny = not yes
+                n <- askRepaint (renderConfirmFrame question ny affirmative negative) prevLines
+                loop ny n
+          key <- readKey
+          case key of
+            KeyEnter -> picked yes prevLines
+            KeyChar c | c `elem` ("yY" :: String) -> picked True prevLines
+                      | c `elem` ("nN" :: String) -> picked False prevLines
+            KeyLeft     -> flipSel
+            KeyRight    -> flipSel
+            KeyTab      -> flipSel
+            KeyEscape   -> askErase prevLines >> pure (Just (not def))
+            KeyCtrl 'C' -> askErase prevLines >> pure (Just (not def))
+            KeyCtrl 'D' -> askErase prevLines >> pure (Just (not def))
+            _           -> loop yes prevLines
+    loop def initLines
+  pure (maybe def id r)
+
+-- | Single-choice menu. Returns 'Nothing' if cancelled or @items@ is empty.
+askChoose :: String -> [a] -> (a -> String) -> IO (Maybe a)
+askChoose prompt items renderItem
+  | null items = pure Nothing
+  | otherwise  = withAskTty $ do
+      initLines <- askRepaint (renderChooseFrame prompt items 0 renderItem) 0
+      let n = length items
+          loop idx prevLines = do
+            let move ni = do
+                  pl <- askRepaint (renderChooseFrame prompt items ni renderItem) prevLines
+                  loop ni pl
+            key <- readKey
+            case key of
+              KeyEnter -> do
+                let pick = items !! idx
+                askCommit (prompt ++ " " ++ paintColor ColorCyan (renderItem pick)) prevLines
+                pure (Just pick)
+              KeyUp       -> move ((idx - 1 + n) `mod` n)
+              KeyDown     -> move ((idx + 1) `mod` n)
+              KeyTab      -> move ((idx + 1) `mod` n)
+              KeyEscape   -> askErase prevLines >> pure Nothing
+              KeyCtrl 'C' -> askErase prevLines >> pure Nothing
+              KeyCtrl 'D' -> askErase prevLines >> pure Nothing
+              _           -> loop idx prevLines
+      loop 0 initLines
+
+-- | Multi-choice menu. @limit@ of 0 means unlimited. Space\/Tab toggles the
+-- current row; Enter commits. Returns 'Nothing' if cancelled or empty.
+askChooseMany :: String -> [a] -> Int -> (a -> String) -> IO (Maybe [a])
+askChooseMany prompt items limit renderItem
+  | null items = pure Nothing
+  | otherwise  = withAskTty $ do
+      let n = length items
+          toggle i sel
+            | i `elem` sel                     = filter (/= i) sel
+            | limit > 0 && length sel >= limit = sel
+            | otherwise                        = sel ++ [i]
+          loop idx selected prevLines = do
+            pl <- askRepaint (renderChooseManyFrame prompt items idx selected limit renderItem) prevLines
+            key <- readKey
+            case key of
+              KeyEnter -> do
+                let picks   = [ item | (item, i) <- zip items [0 ..], i `elem` selected ]
+                    summary = if null picks
+                                then prompt ++ " " ++ dimText "(nothing)"
+                                else prompt ++ " " ++ paintColor ColorCyan (intercalate ", " (map renderItem picks))
+                askCommit summary pl
+                pure (Just picks)
+              KeyUp       -> loop ((idx - 1 + n) `mod` n) selected pl
+              KeyDown     -> loop ((idx + 1) `mod` n) selected pl
+              KeyChar ' ' -> loop idx (toggle idx selected) pl
+              KeyTab      -> loop idx (toggle idx selected) pl
+              KeyEscape   -> askErase pl >> pure Nothing
+              KeyCtrl 'C' -> askErase pl >> pure Nothing
+              KeyCtrl 'D' -> askErase pl >> pure Nothing
+              _           -> loop idx selected pl
+      loop 0 [] 0
+
+-- | Run @task@ while animating a spinner labelled @label@; print a ✓\/✗ line
+-- when it finishes. Re-throws if the task threw.
+askSpin :: String -> SpinnerStyle -> IO a -> IO a
+askSpin label style task = do
+  hideCursor
+  hFlush stdout
+  stopRef <- newIORef False
+  ticker <- forkIO $
+    let tick i = do
+          stop <- readIORef stopRef
+          unless stop $ do
+            let frames = spinnerFrames style
+                frame  = paintColor ColorCyan (frames !! (i `mod` length frames)) ++ " " ++ label
+            putStr ("\r" ++ frame ++ askClearEol)
+            hFlush stdout
+            threadDelay 80000
+            tick (i + 1)
+    in tick 0
+  outcome <- (Right <$> task) `catch` \e -> pure (Left (e :: SomeException))
+  writeIORef stopRef True
+  killThread ticker
+  let (glyph, col) = case outcome of
+        Right _ -> ("✓", ColorGreen)
+        Left _  -> ("✗", ColorRed)
+  putStr ("\r" ++ paintColor col (glyph ++ " " ++ label) ++ askClearEol ++ "\n")
+  showCursor
+  hFlush stdout
+  case outcome of
+    Right v -> pure v
+    Left e  -> throwIO e
+
+-- | Multi-line text editor. Enter inserts a newline; Ctrl-D submits; Esc
+-- cancels.
+askWrite :: String   -- ^ prompt
+         -> String   -- ^ placeholder
+         -> String   -- ^ initial value
+         -> String   -- ^ hint line
+         -> IO (Maybe String)
+askWrite prompt placeholder initial hint = withAskTty $ do
+  let loop value prevLines = do
+        pl <- askRepaint (renderWriteFrame prompt value placeholder hint) prevLines
+        key <- readKey
+        case key of
+          KeyCtrl 'D' -> do
+            let firstLine = case splitOnChar '\n' value of (x:_) -> x; [] -> ""
+                summary   = if '\n' `elem` value then firstLine ++ " …" else firstLine
+            askCommit ((if not (null prompt) then prompt ++ " " else "") ++ paintColor ColorCyan summary) pl
+            pure (Just value)
+          KeyEscape                        -> askErase pl >> pure Nothing
+          KeyCtrl 'C'                      -> askErase pl >> pure Nothing
+          KeyEnter                         -> loop (value ++ "\n") pl
+          KeyChar c                        -> loop (value ++ [c]) pl
+          KeyBackspace | not (null value)  -> loop (init value) pl
+          _                                -> loop value pl
+  loop initial 0
+
+-- | Fuzzy incremental filter over @items@. Type to narrow, arrows to move,
+-- Enter to pick. Returns 'Nothing' if cancelled or empty.
+askFilter :: String -> [a] -> Int -> (a -> String) -> IO (Maybe a)
+askFilter prompt items viewHeight renderItem
+  | null items = pure Nothing
+  | otherwise  = withAskTty $ do
+      let loop query idx prevLines = do
+            let matches = fuzzyMatches query items renderItem
+                safeIdx = if null matches then 0 else max 0 (min idx (length matches - 1))
+                m       = length matches
+            pl <- askRepaint (renderFilterFrame prompt query matches safeIdx viewHeight renderItem) prevLines
+            key <- readKey
+            case key of
+              KeyEnter | not (null matches) -> do
+                let pick = matches !! safeIdx
+                askCommit (prompt ++ query ++ "  " ++ paintColor ColorCyan (renderItem pick)) pl
+                pure (Just pick)
+              KeyUp   | not (null matches) -> loop query ((safeIdx - 1 + m) `mod` m) pl
+              KeyDown | not (null matches) -> loop query ((safeIdx + 1) `mod` m) pl
+              KeyTab  | not (null matches) -> loop query ((safeIdx + 1) `mod` m) pl
+              KeyBackspace | not (null query) -> loop (init query) 0 pl
+              KeyChar c   -> loop (query ++ [c]) 0 pl
+              KeyEscape   -> askErase pl >> pure Nothing
+              KeyCtrl 'C' -> askErase pl >> pure Nothing
+              KeyCtrl 'D' -> askErase pl >> pure Nothing
+              _           -> loop query safeIdx pl
+      loop "" 0 0
+
+-- | Directory browser. Enter descends into a directory or picks a file; Right
+-- descends; Left\/Backspace goes to the parent. Returns the chosen file path.
+askFile :: String -> Int -> IO (Maybe String)
+askFile start viewHeight = withAskTty (loop start 0 0)
+  where
+    loop dir idx prevLines = do
+      canonical <- canonicalizePath dir
+      res <- listEntries canonical
+      case res of
+        Left err -> askCommit (dimText err) prevLines >> pure Nothing
+        Right entries -> do
+          let count   = length entries
+              safeIdx = max 0 (min idx (count - 1))
+              target  = entries !! safeIdx
+          pl <- askRepaint (renderFileFrame canonical entries safeIdx viewHeight) prevLines
+          key <- readKey
+          case key of
+            KeyEnter -> do
+              full <- canonicalizePath (canonical ++ "/" ++ feName target)
+              if feIsDir target
+                then loop full 0 pl
+                else askCommit (paintColor ColorCyan full) pl >> pure (Just full)
+            KeyRight ->
+              if feIsDir target
+                then do full <- canonicalizePath (canonical ++ "/" ++ feName target); loop full 0 pl
+                else loop canonical safeIdx pl
+            KeyUp        -> loop canonical ((safeIdx - 1 + count) `mod` count) pl
+            KeyDown      -> loop canonical ((safeIdx + 1) `mod` count) pl
+            KeyTab       -> loop canonical ((safeIdx + 1) `mod` count) pl
+            KeyLeft      -> goParent canonical safeIdx pl
+            KeyBackspace -> goParent canonical safeIdx pl
+            KeyEscape    -> askErase pl >> pure Nothing
+            KeyCtrl 'C'  -> askErase pl >> pure Nothing
+            KeyCtrl 'D'  -> askErase pl >> pure Nothing
+            _            -> loop canonical safeIdx pl
+    goParent canonical safeIdx pl = do
+      parent <- canonicalizePath (canonical ++ "/..")
+      if parent /= canonical then loop parent 0 pl else loop canonical safeIdx pl
+
+-- | List a directory as sorted 'FileEntry's (dirs first), with @".."@ prepended.
+listEntries :: String -> IO (Either String [FileEntry])
+listEntries path = do
+  exists <- doesPathExist path
+  isDir  <- doesDirectoryExist path
+  if not exists then pure (Left ("not found: " ++ path))
+  else if not isDir then pure (Left ("not a directory: " ++ path))
+  else do
+    names <- listDirectory path `catch` \e -> let _ = (e :: IOException) in pure []
+    entries <- forM names $ \nm -> do
+      d <- doesDirectoryExist (path ++ "/" ++ nm)
+      pure (FileEntry nm d)
+    let sorted = sortOn (\e -> (not (feIsDir e), map toLower (feName e))) entries
+    pure (Right (FileEntry ".." True : sorted))
+
+-- | Scrollable pager. @viewHeight@ of 0 auto-sizes to the terminal.
+-- Arrows\/PgUp\/PgDn\/Home\/End navigate; q or Esc quits.
+askPager :: String -> Int -> Bool -> IO ()
+askPager content viewHeight lineNumbers = do
+  let ls = if null content then [""] else splitOnChar '\n' content
+  _ <- withAskTty $ do
+    (termH, termW) <- getTerminalSize
+    let h      = if viewHeight > 0 then viewHeight else max 5 (termH - 3)
+        total  = length ls
+        maxTop = max 0 (total - h)
+        loop top prevLines = do
+          let safeTop = max 0 (min top maxTop)
+          pl <- askRepaint (renderPagerFrame ls safeTop h termW lineNumbers) prevLines
+          key <- readKey
+          case key of
+            KeyChar 'q' -> askErase pl
+            KeyEscape   -> askErase pl
+            KeyCtrl 'C' -> askErase pl
+            KeyUp       -> loop (safeTop - 1) pl
+            KeyDown     -> loop (safeTop + 1) pl
+            KeyEnter    -> loop (safeTop + 1) pl
+            KeyPageUp   -> loop (safeTop - h) pl
+            KeyPageDown -> loop (safeTop + h) pl
+            KeyChar ' ' -> loop (safeTop + h) pl
+            KeyHome     -> loop 0 pl
+            KeyEnd      -> loop maxTop pl
+            _           -> loop safeTop pl
+    loop 0 0
+  pure ()
 

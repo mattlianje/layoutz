@@ -28,3 +28,7 @@ object CounterApp extends LayoutzApp[Int, String] {
   )
 
 }
+
+object CounterAppRunner {
+  def main(args: Array[String]): Unit = CounterApp.run
+}

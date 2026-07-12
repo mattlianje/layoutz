@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="600">
 </p>
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
@@ -25,7 +25,7 @@ Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs),
 - Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 <p align="center">
-<img src="pix/showcase-demo.gif" width="650">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
 <br>
 <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
@@ -33,7 +33,7 @@ Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs),
 Layoutz also lets you easily drop animations into build scripts or any processes that use Stdout:
 
 <p align="center">
-<img src="pix/inline-demo.gif" width="650">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="600">
 <br>
 <sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
 </p>
@@ -41,14 +41,20 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 ## Table of Contents
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Why layoutz?](#why-layoutz)
 - [Core Concepts](#core-concepts)
 - [Border Styles](#border-styles)
 - [Elements](#elements)
+- [Custom Elements](#custom-elements)
+- [Collections](#collections)
 - [Colors & Styles](#colors)
 - [Charts & Plots](#charts--plots)
 - [Interactive Apps](#interactive-apps)
+- [Prompts (Ask)](#prompts-ask)
+- [Progress (loader)](#progress-loader)
 - [Examples](#examples)
 - [Contributing](#contributing)
+- [Inspiration](#inspiration)
 
 ## Installation
 On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):
@@ -64,112 +70,40 @@ import layoutz._
 
 ## Quick Start
 
-There are two usage paths with this little package:
+There are 3 usage paths with this little library:
 
-**(1/2) Static rendering**
-
-Beautiful + compositional strings
-
-<details>
-<summary>show code</summary>
-
+**(1/3) Static rendering** - Pretty, composable strings:
 ```scala
 import layoutz._
 
-/* Model your domain as usual */
-case class TypeError(
-    file: String,
-    line: Int,
-    prefix: String,
-    bad: String,
-    expected: String,
-    found: String,
-    hint: String
-)
-
-/* Bridge to layoutz with tiny pure functions using layoutz `Element`s */
-def typeError(e: TypeError): Element = {
-  val ln = e.line.toString
-  val bar = "│".color(Color.Cyan)
-  layout(
-    rowTight(
-      "── TYPE MISMATCH ".color(Color.Cyan),
-      s"${e.file}:${e.line}".style(Style.Dim),
-      " ────────".color(Color.Cyan)
-    ),
-    rowTight(ln.color(Color.Cyan), space, bar, space, e.prefix, e.bad),
-    rowTight(
-      space(ln.length + 1),
-      bar,
-      space,
-      space(e.prefix.length),
-      ("^" * e.bad.length + " ").color(Color.Red),
-      "expected ",
-      e.expected.color(Color.Green),
-      ", found ",
-      e.found.color(Color.Red)
-    ),
-    rowTight(
-      space(ln.length + 1),
-      bar,
-      space,
-      "hint: ".color(Color.Cyan),
-      e.hint
-    )
-  )
-}
-
-/* Compose and nest at will */
 val demo = layout(
-  underline("─", Color.BrightCyan)("Layoutz - レイアウツ 🌍🌸").center(),
   row(
-    statusCard("API", "LIVE").border(Border.Round).color(Color.Green),
-    statusCard("DB", "99.9%").border(Border.Double).color(Color.BrightMagenta),
-    statusCard("Système", "OK").border(Border.Thick).color(Color.Cyan)
+    "Layoutz".style(Style.Bold),
+    underline("^", Color.Cyan)("DEMO")
   ).center(),
-  "",
-  box("Composition")(
-    columns(
-      plot(width = 30, height = 8)(
-        Series((0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 3)), "sin").color(Color.Cyan),
-        Series((0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 3)), "cos").color(Color.Magenta)
-      ),
-      tree("src")(
-        tree("main")(
-          tree("App.scala")
-        ),
-        tree("test")(
-          tree("AppTest.scala")
-        )
+  br,
+  row(
+    statusCard("Users", "1.2K"),
+    statusCard("API", "UP").border(Border.Double),
+    statusCard("CPU", "23%").border(Border.Thick).color(Color.Red),
+    table(
+      Seq("Name", "Role", "Skills"),
+      Seq(
+        Seq("Gegard", "Pugilist",
+          ul("Armenian", ul("bad", ul("man")))),
+        Seq("Eve", "QA", "Testing")
       )
-    )
-  ).border(Border.Round).center(),
-  "",
-  typeError(
-    TypeError(
-      "Foo.scala",
-      42,
-      "val x: Int = ",
-      "getName()",
-      "Int",
-      "String",
-      "try `.toInt`"
-    )
+    ).border(Border.Round).style(Style.Reverse)
   )
 )
 
-/* Get pretty strings with `render` */
-println(demo.render)
+demo.putStrLn
 ```
-
-</details>
 <p align="center">
-  <img src="pix/main-demo-3.png" width="650">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="600">
 </p>
 
-**(2/2) Interactive apps**
-
-Build Elm-style TUIs
+**(2/3) Interactive apps** - Build Elm-style TUI's:
 
 ```scala
 import layoutz._
@@ -200,17 +134,41 @@ object CounterApp extends LayoutzApp[Int, String] {
 CounterApp.run
 ```
 <p align="center">
-  <img src="pix/counter-demo.gif" width="650">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="600">
+</p>
+
+**(3/3) Prompts (Ask)**
+
+You often want one-shot CLI prompts with pickers, file pickers, fuzzy-finders, pagers, etc ... **without** dropping
+down into Elm-territory to make them. This is why layoutz has the `Ask` helpers
+
+```scala
+import layoutz._
+
+val name   = Ask.input("Name › ", placeholder = "anonymous")
+val ok     = Ask.confirm("Venture on the quest?", default = true)
+val realm  = Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood"))
+val packs  = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
+val riddle = Ask.write("Pose a riddle", placeholder = "All things it devours…")
+val member = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
+val path   = Ask.file(start = ".")
+Ask.pager(longString)
+val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
+```
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="600">
+<br>
+<sub><a href="examples/AskDemo.scala">AskDemo.scala</a></sub>
 </p>
 
 ## Why layoutz?
 - We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
 - With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
-- Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic
-- Ultimately, **layoutz** is just a tiny, declarative DSL to combat this
-- On the side, **layoutz** also has an Elm-style runtime to bring these arbitrary "Elements" to life: much like a flipbook.
-   - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler
-- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff)
+- Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic.
+- Ultimately, **layoutz** is just a tiny, declarative DSL to combat this.
+- On the side, **layoutz** also has an Elm-style runtime to bring these arbitrary `Element`s to life: much like a flipbook.
+- The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
+- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff).
 
 ## Core Concepts
 
@@ -231,24 +189,30 @@ Some typesetting elements work as both nouns ("an underline") and verbs ("to und
 For these, layoutz offers a fluent syntax with transformations available in infix position via dot-completion.
 Both styles produce the same case classes and render identically:
 
-Nested style:
 ```scala
+/* Nested style */
 margin(">>")(underline()("Hello\nWorld!"))
-```
 
-Fluent style:
-```scala
+/* Fluent style */
 "Hello\nWorld!".underline.margin(">>")
+
+// Both render:
+// >> Hello
+// >> World!
+// >> ──────
 ```
 
-Both render:
+Available methods:
 ```
->> Hello
->> World!
->> ──────
+.center()
+.pad()
+.wrap()
+.truncate()
+.underline()
+.margin()
+.color()
+.colorBg()
 ```
-
-Available: `.center()`, `.pad()`, `.wrap()`, `.truncate()`, `.underline()`, `.margin()`, `.color()`, `.bg()`, `.style()`, `.border()`
 
 ## Border Styles
 
@@ -257,7 +221,7 @@ Applied via `.border()` to any element with the `HasBorder` typeclass (`box`, `s
 box("Title")("content").border(Border.Round)
 table(h, r).border(Border.Thick)
 
-// HasBorder typeclass for generic code
+/* HasBorder typeclass for generic code */
 def makeThick[T: HasBorder](element: T): T = element.border(Border.Thick)
 ```
 
@@ -279,90 +243,155 @@ Border.None                                // no borders
 
 ## Elements
 
-### Text
-```scala
-"Simple text"    // Implicit conversion to `Text`
-```
+### Layout
 
-### Line Break: `br`
-```scala
-layout("Line 1", br, "Line 2")
-```
-
-### Layout (vertical): `layout`
+#### Stacking & rows
 ```scala
 layout("First", "Second", "Third")
-```
-```
-First
-Second
-Third
-```
+// First
+// Second
+// Third
 
-### Row (horizontal): `row`
-```scala
 row("Left", "Middle", "Right")
-columns(layout("A", "B"), layout("C", "D"))  // Side-by-side columns
-```
-```
-Left Middle Right
+// Left Middle Right
+
+columns(layout("A", "B"), layout("C", "D"))
+// A  C
+// B  D
 ```
 
-### Horizontal Rule: `hr`
+#### Spacing & rules
 ```scala
-hr                         // default ──────────
+layout("Line 1", br, "Line 2")
+
+hr                         // ──────────────...
 hr.char("~")               // custom char
-hr.width(10).char("=")     // custom char + width
-```
-<p align="center">
-  <img src="pix/example-vr.png" width="650">
-</p>
+hr.width(10).char("=")     // ==========
 
-### Vertical Rule: `vr`
-```scala
 vr(3)
+space(10)
+empty
 ```
 
-### Section: `section`
+#### Text transforms
 ```scala
+"TITLE".center(20)     // │        TITLE       │
+"Left".leftAlign(20)   // │Left                │
+"Right".rightAlign(20) // │               Right│
+
+"Spread this out".justify(30)
+// │Spread         this        out│
+
+"Long text here that should wrap".wrap(20)
+// Long text here that
+// should wrap
+
+"Very long text that will be cut off".truncate(15)    // Very long te...
+"Custom ellipsis example text here".truncate(20, "…") // Custom ellipsis exa…
+
+"content".pad(2)
+// │           │
+// │           │
+// │  content  │
+// │           │
+// │           │
+
+"Title".underline()
+// Title
+// ─────
+"Custom".underline("=")
+// Custom
+// ══════
+
+layout(
+  "Ooops!",
+  row("val result: Int = ", underline("^")("getString()")),
+  "Expected Int, found String"
+).margin("[error]")
+// [error] Ooops!
+// [error] val result: Int =  getString()
+// [error]                    ^^^^^^^^^^^
+// [error] Expected Int, found String
+```
+<!-- pics hidden for now: pix/example-vr.png, pix/example-compiler.png -->
+
+### Content
+
+#### Basics
+```scala
+"Simple text"
+
 section("Config")(kv("env" -> "prod"))
-```
-```
-=== Config ===
-env : prod
+// === Config ===
+// env: prod
+
+kv("name" -> "Alice", "role" -> "admin")
+// name: Alice
+// role: admin
 ```
 
-### Box: `box`
+#### Boxes, cards & banners
 ```scala
 box("Summary")(kv("total" -> "42"))
+// ┌──Summary──┐
+// │ total: 42 │
+// └───────────┘
+
 box("Fancy")("content").border(Border.Double)
+// ╔══Fancy══╗
+// ║ content ║
+// ╚═════════╝
+
 box("Smooth")("content").border(Border.Round)
-```
-<p align="center">
-  <img src="pix/example-boxes.png" width="450">
-</p>
+// ╭──Smooth──╮
+// │ content  │
+// ╰──────────╯
 
-### Status Card: `statusCard`
-```scala
-row(
-  statusCard("CPU", "45%").color(Color.Green),
-  statusCard("MEM", "2.1G").color(Color.Cyan)
-)
-```
+row(statusCard("CPU", "45%"), statusCard("MEM", "2.1G"))
+// ┌───────┐ ┌────────┐
+// │ CPU   │ │ MEM    │
+// │ 45%   │ │ 2.1G   │
+// └───────┘ └────────┘
 
-<p align="center">
-  <img src="pix/example-status-cards.png" width="350">
-</p>
-
-### Banner: `banner`
-```scala
 banner("System Dashboard").border(Border.Double)
+// ╔══════════════════╗
+// ║ System Dashboard ║
+// ╚══════════════════╝
 ```
-<p align="center">
-  <img src="pix/example-banner.png" width="350">
-</p>
 
-### Table: `table`
+#### Lists & trees
+```scala
+ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
+// • Backend
+//   ◦ API
+//     ▪ REST
+//     ▪ GraphQL
+//   ◦ DB
+// • Frontend
+
+ol("Setup", ol("Install deps", ol("npm", "pip"), "Configure"), "Deploy")
+// 1. Setup
+//   a. Install deps
+//     i. npm
+//     ii. pip
+//   b. Configure
+// 2. Deploy
+
+tree("Project")(
+  tree("src")(
+    tree("main")(tree("App.scala")),
+    tree("test")(tree("AppTest.scala"))
+  )
+)
+// Project
+// └── src/
+//     ├── main/
+//     │   └── App.scala
+//     └── test/
+//         └── AppTest.scala
+```
+
+#### Table
 ```scala
 table(
   headers = Seq("Name", "Age", "City"),
@@ -372,77 +401,20 @@ table(
     Seq("Charlie", "35", "London")
   )
 )
+// ┌─────────┬─────┬──────────┐
+// │ Name    │ Age │ City     │
+// ├─────────┼─────┼──────────┤
+// │ Alice   │ 30  │ New York │
+// │ Bob     │ 25  │          │
+// │ Charlie │ 35  │ London   │
+// └─────────┴─────┴──────────┘
 ```
 
-<p align="center">
-  <img src="pix/example-table.png" width="450">
-</p>
-
-### Key-Value: `kv`
-```scala
-kv("name" -> "Alice", "role" -> "admin")
-```
-```
-name : Alice
-role : admin
-```
-
-### Unordered List: `ul`
-```scala
-ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
-```
-```
-• Backend
-  ◦ API
-    ▪ REST
-    ▪ GraphQL
-  ◦ DB
-• Frontend
-```
-
-### Ordered List: `ol`
-```scala
-ol("Setup", ol("Install deps", ol("npm", "pip"), "Configure"), "Deploy")
-```
-```
-1. Setup
-  a. Install deps
-    i. npm
-    ii. pip
-  b. Configure
-2. Deploy
-```
-
-### Tree: `tree`
-```scala
-tree("Project")(
-  tree("src")(
-    tree("main")(tree("App.???")),
-    tree("test")(tree("AppTest.???"))
-  )
-)
-```
-
-<p align="center">
-  <img src="pix/example-tree.png" width="450">
-</p>
-
-### Progress Bar: `inlineBar`
+#### Progress & spinners
 ```scala
 inlineBar("Download", 0.75)
-```
-```
-Download [███████████████─────] 75%
-```
+// Download [███████████████─────] 75%
 
-### Chart: `chart`
-```scala
-chart("Web" -> 10, "Mobile" -> 20, "API" -> 15)
-```
-
-### Spinner: `spinner`
-8 built-in styles:
-```scala
 spinner("Loading", frame, SpinnerStyle.Dots)   // ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
 spinner("Loading", frame, SpinnerStyle.Line)   // | / - \
 spinner("Loading", frame, SpinnerStyle.Clock)  // 🕐 🕑 🕒 🕓 🕔 🕕 🕖 🕗 🕘 🕙 🕚 🕛
@@ -453,76 +425,63 @@ spinner("Loading", frame, SpinnerStyle.Grow)   // ▏ ▎ ▍ ▌ ▋ ▊ ▉ �
 spinner("Loading", frame, SpinnerStyle.Arrow)  // ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-### Alignment: `center`, `leftAlign`, `rightAlign`, `justify`, `wrap`
-```scala
-"TITLE".center(20)
-"Left".leftAlign(20)
-"Right".rightAlign(20)
-"Spread this out".justify(30)
-"Long text here that should wrap".wrap(20)
-```
-```
-       TITLE
-Left
-               Right
-Spread    this   out
-Long text here that
-should wrap
-```
+#### Inline Images
 
-### Underline: `underline`
-```scala
-"Title".underline()
-"Custom".underline("=")
-```
-```
-Title
-─────
-Custom
-══════
-```
+You can inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
 
-### Margin: `margin`
+Layoutz **KittyImage** s compose with all the other built in elements so you can drop them into boxes, tables etc.
 ```scala
 layout(
-  "Ooops!",
-  row("val result: Int = ", underline("^")("getString()")),
-  "Expected Int, found String"
-).margin("[error]")
+  row(
+    box("the gracie hunter")(kitty.image("pix/sakuraba.png", cols = 35, rows = 14)),
+    box("stats")(kv("flying" -> "yes", "opponent" -> "grounded", "rules" -> "PRIDE"))
+  )
+).putStrLn
 ```
-
 <p align="center">
-  <img src="pix/example-compiler.png" width="450">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-sakuraba.png" width="600">
 </p>
 
-### Padding & Truncation: `pad`, `truncate`
+You can also build an image straight from raw RGBA pixels with `kittyRGBA`:
 ```scala
-"content".pad(2)
-"Very long text that will be cut off".truncate(15)
-"Custom ellipsis example text here".truncate(20, "…")
-```
+val (w, h) = (96, 96)
+val pixels = Array.tabulate(w * h * 4) { i =>
+  val p = i / 4; val x = p % w; val y = p / w
+  (i % 4 match {
+    case 0 => x * 255 / w
+    case 1 => y * 255 / h
+    case 2 => 255 - (x * 255 / w)
+    case _ => 255
+  }).toByte
+}
 
-### Form Widgets: `textInput`, `SingleChoice`, `MultiChoice`
+val pic = kittyRGBA(pixels, pxW = w, pxH = h, cols = 18, rows = 9)
+
+box("gradient")(pic).putStrLn
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-raw.png" width="600">
+</p>
+
+You needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty)..
+
+
+### Widgets
+
+#### Form Widgets
+
 ```scala
 textInput("Username", "alice", "Enter name", active = true)
 SingleChoice("Mood?", Seq("great", "okay", "meh"), selected = 0, active = true)
 MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active = true)
-```
-```
-> Username: alice_
-> Mood?
-  ► ● great
-    ○ okay
-    ○ meh
+// > Username: alice_
+// > Mood?
+//   ► ● great
+//     ○ okay
+//     ○ meh
 ```
 
-### Spacing: `space`, `empty`
-```scala
-space(10)                                    // Horizontal spacing
-empty                                        // No-op (conditional rendering)
-```
-
-### Custom Elements
+## Custom Elements
 
 Implement `Element` to create reusable components:
 ```scala
@@ -538,12 +497,17 @@ case class Square(size: Int) extends Element {
 }
 
 row(Square(2), Square(4), Square(6))
+// ┌──┐ ┌──────┐ ┌──────────┐
+// └──┘ │      │ │          │
+//      │      │ │          │
+//      └──────┘ │          │
+//               │          │
+//               └──────────┘
 ```
-<p align="center">
-  <img src="pix/example-custom.png" width="450">
-</p>
+<!-- pic hidden for now: pix/example-custom.png -->
 
-### Working with Collections
+## Collections
+Fuly leverage Scala's functional collection to generate frags of Elements:
 ```scala
 case class User(name: String, role: String)
 val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
@@ -551,10 +515,19 @@ val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User")
 section("Users by Role")(
   layout(
     users.groupBy(_.role).map { case (role, roleUsers) =>
-      box(role)(ul(roleUsers.map(_.name): _*))
+      box(role)(ul(roleUsers.map(u => Text(u.name)): _*))
     }.toSeq: _*
   )
 )
+
+// === Users by Role ===
+// ┌──Admin──┐
+// │ • Alice │
+// └─────────┘
+// ┌──User──┐
+// │ • Bob  │
+// │ • Tom  │
+// └────────┘
 ```
 
 ## Colors
@@ -571,7 +544,7 @@ box()("warning").bg(Color.Yellow)
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-2.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-2.png" width="600">
 </p>
 
 ```scala
@@ -583,7 +556,7 @@ Color.Blue
 Color.Magenta
 Color.Cyan
 Color.White
-Color.BrightBlack             // Bright 8
+Color.BrightBlack
 Color.BrightRed
 Color.BrightGreen
 Color.BrightYellow
@@ -599,10 +572,8 @@ Color.NoColor                 // Conditional no-op
 ```scala
 import layoutz._
 
-/* 256-color palette gradient */
 val palette = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
 
-/* RGB gradients */
 val redToBlue = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
 val greenFade = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(0, 255 - i, i))): _*)
 val rainbow = tightRow((0 to 255 by 8).map { i =>
@@ -616,7 +587,7 @@ layout(palette, redToBlue, greenFade, rainbow)
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="600">
 </p>
 
 ### Styles
@@ -627,7 +598,7 @@ layout(palette, redToBlue, greenFade, rainbow)
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-1.png" width="600">
 </p>
 
 ```scala
@@ -644,7 +615,7 @@ Style.Bold ++ Style.Italic    // combine with ++
 ```
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="700">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="600">
 </p>
 
 ## Charts & Plots
@@ -657,7 +628,7 @@ plot(width = 40, height = 10)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-function-1.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-1.png" width="600">
 </p>
 
 Multiple series:
@@ -672,7 +643,7 @@ plot(width = 50, height = 12)(
 ```
 
 <p align="center">
-  <img src="pix/chart-function-2.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="600">
 </p>
 
 Options: `width`, `height`, `showAxes`, `showOrigin`
@@ -692,7 +663,7 @@ pie()(
 )
 ```
 <p align="center">
-  <img src="pix/chart-pie.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="600">
 </p>
 
 #### Bar Chart
@@ -703,7 +674,7 @@ bar(width = 40, height = 10)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-bar.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="600">
 </p>
 
 Custom colors:
@@ -715,7 +686,7 @@ bar()(
 )
 ```
 <p align="center">
-  <img src="pix/chart-bar-custom.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar-custom.png" width="600">
 </p>
 
 #### Stacked Bar Chart
@@ -727,7 +698,7 @@ stackedBar(width = 40, height = 10)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-stacked.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-stacked.png" width="600">
 </p>
 
 #### Sparkline
@@ -736,7 +707,7 @@ sparkline(Seq(1, 4, 2, 8, 5, 7, 3, 6))
 sparkline(Seq(10, 20, 15, 30, 25, 40, 35)).color(Color.Cyan)
 ```
 <p align="center">
-  <img src="pix/chart-sparkline.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-sparkline.png" width="600">
 </p>
 
 #### Box Plot
@@ -748,7 +719,7 @@ boxPlot(height = 12)(
 )
 ```
 <p align="center">
-  <img src="pix/chart-boxplot.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-boxplot.png" width="600">
 </p>
 
 #### Heatmap
@@ -759,7 +730,6 @@ heatmap(Seq(
   Seq(7.0, 8.0, 9.0)
 ))
 
-/* With labels and settings */
 Heatmap(
   HeatmapData(
     rows = Seq(
@@ -774,17 +744,16 @@ Heatmap(
 )
 ```
 <p align="center">
-  <img src="pix/chart-heatmap.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="600">
 </p>
 
-Options: `cellWidth`, `cellHeight`, `showLegend`, row/column labels via `HeatmapData`.
 
 ## Interactive Apps
 
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
-view is simply a `layoutz.Element`
+view is a `layoutz.Element`
 
-> [!WARNING]
+> [!NOTE]
 > `LayoutzApp` is currently JVM + Native only
 
 ```scala
@@ -821,17 +790,17 @@ def update(msg: Msg, state: State) = msg match {
 
 ### Key Types
 ```scala
-// Printable
+/* Printable */
 Key.Char(c: Char)
 
-// Editing
+/* Editing */
 Key.Enter
 Key.Backspace
 Key.Tab
 Key.Escape
 Key.Delete
 
-// Navigation
+/* Navigation */
 Key.Up
 Key.Down
 Key.Left
@@ -841,9 +810,9 @@ Key.End
 Key.PageUp
 Key.PageDown
 
-// Modifiers
-Key.Ctrl(c: Char)                                // Ctrl+A, Ctrl+S, etc.
-Key.Unknown(code: Int)                           // Unrecognized input
+/* Modifiers */
+Key.Ctrl(c: Char)        // Ctrl+A, Ctrl+S, etc.
+Key.Unknown(code: Int)   // Unrecognized input
 ```
 
 ### Subscriptions
@@ -888,14 +857,107 @@ Cmd.clipboard.read(onResult)                     // Read clipboard
 Cmd.clipboard.write(content, onResult)           // Write clipboard
 ```
 
+## Prompts (Ask)
+
+You often want to have one-shot CLI prompts, spinners, filters, file pickers etc in your Scala
+programs ... and dropping down into "Elm-territory" and thinking about things as a flipbook
+each time can get a bit tedious.
+
+This is why **layoutz** offers one-shot CLI actions with `Ask.*`
+
+
+```scala
+import layoutz._
+
+val name   = Ask.input("Name › ", placeholder = "anonymous")
+val ok     = Ask.confirm("Venture on the quest?", default = true)
+val realm  = Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood"))
+val packs  = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
+val riddle = Ask.write("Pose a riddle", placeholder = "All things it devours…")
+val member = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
+val path   = Ask.file(start = ".")
+Ask.pager(longString)
+val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
+```
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="600">
+<br>
+</p>
+
+Each `Ask.*` returns its result directly:
+
+```scala
+Ask.input(prompt, placeholder, initial)  : Option[String]
+Ask.confirm(q, default)                  : Boolean
+Ask.choose(prompt, items)                : Option[A]
+Ask.chooseMany(prompt, items, limit)     : Option[Seq[A]]
+Ask.write(prompt, placeholder)           : Option[String]
+Ask.filter(prompt, items)                : Option[A]
+Ask.file(start, height)                  : Option[String]
+Ask.pager(content, height, lineNumbers)  : Unit
+Ask.spin(label) { task }                 : A
+```
+
+
+## Progress (loader)
+
+You often want to simply want to be able to wrap Ìterable`s and `Iterator`s as you
+are processing collections like below.
+
+```scala
+for (file <- loader("Resizing", imageFiles)) resize(file)
+for (row  <- loader(rows)) insert(row)
+for (line <- loader.stream("Tailing", logLines())) index(line)
+```
+
+`Iterable` gets a live bar, an unbounded `Iterator` gets a spinner with a running count.
+
+Chain a style to change the look like so:
+```
+.blocks (default)
+.bar
+.ascii
+.dots
+.line
+.pipe
+.styled(...) (for custom bars)
+```
+
+```scala
+for (id <- loader("Reindexing", docIds).ascii) reindex(id)
+
+val crawling = loader("Crawling", urls)
+  .styled(fill = '▰', empty = '▱', color = Color.BrightMagenta)
+for (url <- crawling) fetch(url)
+```
+
+Every built-in style, then an unbounded stream:
+
+```scala
+import layoutz._
+
+for (_ <- loader("Blocks ", 1 to 60).blocks) Thread.sleep(16)
+for (_ <- loader("Dots   ", 1 to 60).dots)   Thread.sleep(16)
+for (_ <- loader("Line   ", 1 to 60).line)   Thread.sleep(16)
+for (_ <- loader("Pipes  ", 1 to 60).pipes)  Thread.sleep(16)
+for (_ <- loader("Bar    ", 1 to 60).bar)    Thread.sleep(16)
+for (_ <- loader("Ascii  ", 1 to 60).ascii)  Thread.sleep(16)
+
+val it = Iterator.from(1).take(90)
+for (_ <- loader.stream("Streaming", it)) Thread.sleep(45)
+```
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/loader-demo.gif" width="600">
+</p>
+
 ## Examples
 
 Interactive TUI apps using `LayoutzApp` with built-in `Cmd` and `Sub`.
 
-### File viewer
-
 <details>
-<summary>Watch and display file contents</summary>
+<summary>Watch and display file contents (<code>Cmd.file.read</code>, <code>Sub.file.watch</code>)</summary>
 
 ```scala
 import layoutz._
@@ -922,7 +984,7 @@ object FileViewer extends LayoutzApp[FileState, Msg] {
   def view(state: FileState) = {
     val display = state.error match {
       case Some(err) => Color.BrightRed(s"Error: $err")
-      case None => wrap(state.content, 60)
+      case None      => wrap(state.content, 60)
     }
 
     layout(
@@ -936,12 +998,13 @@ object FileViewer extends LayoutzApp[FileState, Msg] {
 
 FileViewer.run
 ```
+
+See [FileViewer.scala](examples/FileViewer.scala).
+
 </details>
 
-### Stopwatch timer
-
 <details>
-<summary>Custom timer using <code>Sub.time.everyMs</code></summary>
+<summary>Start/pause timer driven by <code>Sub.time.everyMs</code></summary>
 
 ```scala
 import layoutz._
@@ -969,7 +1032,7 @@ object StopwatchApp extends LayoutzApp[TimerState, Msg] {
     Sub.onKeyPress {
       case Key.Char(' ') => Some(ToggleTimer)
       case Key.Char('r') => Some(ResetTimer)
-      case _ => None
+      case _             => None
     }
   )
 
@@ -1003,12 +1066,13 @@ object StopwatchApp extends LayoutzApp[TimerState, Msg] {
 
 StopwatchApp.run
 ```
+
+See [StopwatchApp.scala](examples/StopwatchApp.scala).
+
 </details>
 
-### Custom side effects
-
 <details>
-<summary>Using <code>Cmd.task</code> for async operations</summary>
+<summary>Async work with <code>Cmd.task</code>, fire-and-forget with <code>Cmd.fire</code></summary>
 
 ```scala
 import layoutz._
@@ -1041,7 +1105,7 @@ object SideEffectApp extends LayoutzApp[TaskState, Msg] {
 
   def subscriptions(state: TaskState) = Sub.onKeyPress {
     case Key.Char('r') => Some(RunTask)
-    case _ => None
+    case _             => None
   }
 
   def view(state: TaskState) = layout(
@@ -1059,12 +1123,13 @@ Use `Cmd.fire` for fire-and-forget effects (logging, analytics, etc.):
 ```scala
 Cmd.fire(println("User clicked button"))
 ```
+
+See [SideEffectApp.scala](examples/SideEffectApp.scala).
+
 </details>
 
-### API poller
-
 <details>
-<summary>Poll API endpoint and display JSON</summary>
+<summary>Poll an endpoint with <code>Sub.http.pollMs</code></summary>
 
 ```scala
 import layoutz._
@@ -1092,7 +1157,7 @@ object ApiPoller extends LayoutzApp[ApiState, Msg] {
   def view(state: ApiState) = {
     val display = state.error match {
       case Some(err) => Color.BrightRed(s"Error: $err")
-      case None => wrap(state.response, 60).color(Color.BrightGreen)
+      case None      => wrap(state.response, 60).color(Color.BrightGreen)
     }
 
     layout(
@@ -1106,12 +1171,13 @@ object ApiPoller extends LayoutzApp[ApiState, Msg] {
 
 ApiPoller.run
 ```
+
+See [ApiPoller.scala](examples/ApiPoller.scala).
+
 </details>
 
-### Multi-endpoint monitor
-
 <details>
-<summary>Monitor multiple APIs with <code>Sub.batch</code></summary>
+<summary>Monitor several APIs at once with <code>Sub.batch</code></summary>
 
 ```scala
 import layoutz._
@@ -1163,12 +1229,13 @@ object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
 
 MultiMonitor.run
 ```
+
+See [MultiMonitor.scala](examples/MultiMonitor.scala).
+
 </details>
 
-### HTTP fetch on demand
-
 <details>
-<summary>Fetch data with <code>Cmd.http.get</code></summary>
+<summary>Fetch on demand with <code>Cmd.http.get</code></summary>
 
 ```scala
 import layoutz._
@@ -1193,7 +1260,7 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
 
   def subscriptions(state: FetchState) = Sub.onKeyPress {
     case Key.Char('f') => Some(Fetch)
-    case _ => None
+    case _             => None
   }
 
   def view(state: FetchState) = {
@@ -1211,201 +1278,10 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
 
 HttpFetcher.run
 ```
-</details>
 
-### Complex task manager
-
-<p align="center">
-  <img src="pix/nav-demo-edit.gif" width="600">
-</p>
-
-<details>
-<summary>Navigation, progress tracking, and stateful emojis</summary>
-
-```scala
-import layoutz._
-
-case class TaskState(
-    tasks: List[String],
-    selected: Int,
-    isLoading: Boolean,
-    completed: Set[Int],
-    progress: Double,
-    startTime: Long,
-    spinnerFrame: Int
-)
-
-sealed trait TaskMessage
-case object MoveUp extends TaskMessage
-case object MoveDown extends TaskMessage
-case object StartTask extends TaskMessage
-case object UpdateTick extends TaskMessage
-
-object TaskApp extends LayoutzApp[TaskState, TaskMessage] {
-  def init = (TaskState(
-    tasks = List("Process data", "Generate reports", "Backup files"),
-    selected = 0,
-    isLoading = false,
-    completed = Set.empty,
-    progress = 0.0,
-    startTime = 0,
-    spinnerFrame = 0
-  ), Cmd.none)
-
-  def update(msg: TaskMessage, state: TaskState) = msg match {
-    case MoveUp if !state.isLoading =>
-      val newSelected =
-        if (state.selected > 0) state.selected - 1 else state.tasks.length - 1
-      (state.copy(selected = newSelected), Cmd.none)
-
-    case MoveDown if !state.isLoading =>
-      val newSelected =
-        if (state.selected < state.tasks.length - 1) state.selected + 1 else 0
-      (state.copy(selected = newSelected), Cmd.none)
-
-    case StartTask if !state.isLoading =>
-      (state.copy(
-        isLoading = true,
-        progress = 0.0,
-        startTime = System.currentTimeMillis()
-      ), Cmd.none)
-
-    case UpdateTick if state.isLoading =>
-      val elapsed = System.currentTimeMillis() - state.startTime
-      val newProgress = math.min(1.0, elapsed / 3000.0)
-
-      val newState = if (newProgress >= 1.0) {
-        state.copy(
-          isLoading = false,
-          completed = state.completed + state.selected,
-          progress = 1.0
-        )
-      } else {
-        state.copy(progress = newProgress)
-      }
-
-      (newState.copy(spinnerFrame = newState.spinnerFrame + 1), Cmd.none)
-
-    case UpdateTick => (state.copy(spinnerFrame = state.spinnerFrame + 1), Cmd.none)
-    case _           => (state, Cmd.none)
-  }
-
-  def subscriptions(state: TaskState) = Sub.batch(
-    Sub.time.everyMs(100, UpdateTick),
-    Sub.onKeyPress {
-      case Key.Char('w') | Key.Up   => Some(MoveUp)
-      case Key.Char('s') | Key.Down => Some(MoveDown)
-      case Key.Char(' ') | Key.Enter     => Some(StartTask)
-      case _                           => None
-    }
-  )
-
-  def view(state: TaskState) = {
-    val taskList = state.tasks.zipWithIndex.map { case (task, index) =>
-      val emoji =
-        if (state.completed.contains(index)) "✅"
-        else if (state.isLoading && index == state.selected) "⚡"
-        else "📋"
-      val marker = if (index == state.selected) "►" else " "
-      s"$marker $emoji $task"
-    }
-
-    val status = if (state.isLoading) {
-      layout(
-        spinner("Processing", state.spinnerFrame),
-        inlineBar("Progress", state.progress),
-        f"${state.progress * 100}%.0f%% complete"
-      )
-    } else {
-      layout("Press SPACE to start, W/S to navigate")
-    }
-
-    layout(
-      section("Tasks")(Layout(taskList.map(Text))),
-      section("Status")(status)
-    )
-  }
-}
-
-TaskApp.run
-```
-</details>
-
-### Form input widgets
-
-<details>
-<summary>Interactive forms with choice widgets</summary>
-
-```scala
-import layoutz._
-
-case class FormState(
-    name: String = "",
-    mood: Int = 0,
-    letters: Set[Int] = Set.empty,
-    cursor: Int = 0,
-    field: Int = 0
-)
-
-sealed trait Msg
-case class TypeChar(c: Char) extends Msg
-case object Backspace extends Msg
-case object NextField extends Msg
-case object MoveUp extends Msg
-case object MoveDown extends Msg
-case object Toggle extends Msg
-
-object FormApp extends LayoutzApp[FormState, Msg] {
-  val moods = Seq("great", "okay", "meh")
-  val options = ('A' to 'F').map(_.toString).toSeq
-
-  def init = (FormState(), Cmd.none)
-
-  def update(msg: Msg, state: FormState) = msg match {
-    case TypeChar(c) if state.field == 0 =>
-      (state.copy(name = state.name + c), Cmd.none)
-    case Backspace if state.field == 0 && state.name.nonEmpty =>
-      (state.copy(name = state.name.dropRight(1)), Cmd.none)
-    case MoveUp if state.field == 1 =>
-      (state.copy(mood = (state.mood - 1 + moods.length) % moods.length), Cmd.none)
-    case MoveDown if state.field == 1 =>
-      (state.copy(mood = (state.mood + 1) % moods.length), Cmd.none)
-    case MoveUp if state.field == 2 =>
-      (state.copy(cursor = (state.cursor - 1 + options.length) % options.length), Cmd.none)
-    case MoveDown if state.field == 2 =>
-      (state.copy(cursor = (state.cursor + 1) % options.length), Cmd.none)
-    case Toggle if state.field == 2 =>
-      val newLetters = if (state.letters.contains(state.cursor))
-        state.letters - state.cursor else state.letters + state.cursor
-      (state.copy(letters = newLetters), Cmd.none)
-    case NextField =>
-      (state.copy(field = (state.field + 1) % 3), Cmd.none)
-    case _ => (state, Cmd.none)
-  }
-
-  def subscriptions(state: FormState) = Sub.onKeyPress {
-    case Key.Char(' ') if state.field == 2 => Some(Toggle)
-    case Key.Char(c) if c.isLetterOrDigit || c == ' ' => Some(TypeChar(c))
-    case Key.Backspace => Some(Backspace)
-    case Key.Up => Some(MoveUp)
-    case Key.Down => Some(MoveDown)
-    case Key.Tab | Key.Enter => Some(NextField)
-    case _ => None
-  }
-
-  def view(state: FormState) = layout(
-    textInput("Name", state.name, "Type here", state.field == 0),
-    SingleChoice("How was your day?", moods, state.mood, state.field == 1),
-    MultiChoice("Favorite letters?", options, state.letters, state.cursor, state.field == 2)
-  )
-}
-```
-
-See [FormExample.scala](examples/FormExample.scala) for a complete working example.
+See [HttpFetcher.scala](examples/HttpFetcher.scala).
 
 </details>
-
-### Clipboard read/write
 
 <details>
 <summary>Copy/paste with <code>Cmd.clipboard</code></summary>
@@ -1442,7 +1318,7 @@ object ClipboardApp extends LayoutzApp[ClipState, Msg] {
   def subscriptions(state: ClipState) = Sub.onKeyPress {
     case Key.Char('r') => Some(ReadClip)
     case Key.Char('w') => Some(WriteClip)
-    case _ => None
+    case _             => None
   }
 
   def view(state: ClipState) = layout(
@@ -1456,20 +1332,210 @@ object ClipboardApp extends LayoutzApp[ClipState, Msg] {
 
 ClipboardApp.run
 ```
+
+See [ClipboardApp.scala](examples/ClipboardApp.scala).
+
 </details>
-
-### Wizard game
-
-<p align="center">
-  <img src="pix/game-demo.gif" width="600">
-</p>
 
 <details>
-<summary>Collect gems, avoid enemies</summary>
+<summary>Build interactive forms with <code>textInput</code>, <code>SingleChoice</code>, <code>MultiChoice</code></summary>
 
-See [SimpleGame.scala](examples/SimpleGame.scala) for the full source.
+```scala
+import layoutz._
+
+case class FormState(
+    name: String = "",
+    mood: Int = 0,                          // index into moods list
+    selectedLetters: Set[Int] = Set.empty,  // indices of selected letters
+    letterCursor: Int = 0,                  // current cursor position in multi-choice
+    activeField: Int = 0,                   // 0=name, 1=mood, 2=letters
+    submitted: Boolean = false
+)
+
+sealed trait FormMsg
+case class UpdateName(newValue: String) extends FormMsg
+case object NextField extends FormMsg
+case object PrevField extends FormMsg
+case object FormMoveUp extends FormMsg
+case object FormMoveDown extends FormMsg
+case object ToggleSelection extends FormMsg
+case object Submit extends FormMsg
+
+object FormExample extends LayoutzApp[FormState, FormMsg] {
+
+  private val moods = Seq("great", "okay", "meh", "not great")
+  private val letters = ('A' to 'F').map(_.toString).toSeq
+
+  def init = (FormState(), Cmd.none)
+
+  def update(msg: FormMsg, state: FormState) = msg match {
+    case UpdateName(newValue) =>
+      (state.copy(name = newValue), Cmd.none)
+
+    case NextField if state.activeField < 2 =>
+      (state.copy(activeField = state.activeField + 1), Cmd.none)
+
+    case PrevField if state.activeField > 0 =>
+      (state.copy(activeField = state.activeField - 1), Cmd.none)
+
+    // Single choice navigation
+    case FormMoveUp if state.activeField == 1 =>
+      val newMood = if (state.mood > 0) state.mood - 1 else moods.length - 1
+      (state.copy(mood = newMood), Cmd.none)
+
+    case FormMoveDown if state.activeField == 1 =>
+      val newMood = if (state.mood < moods.length - 1) state.mood + 1 else 0
+      (state.copy(mood = newMood), Cmd.none)
+
+    // Multi choice navigation and toggle
+    case FormMoveUp if state.activeField == 2 =>
+      val newCursor =
+        if (state.letterCursor > 0) state.letterCursor - 1
+        else letters.length - 1
+      (state.copy(letterCursor = newCursor), Cmd.none)
+
+    case FormMoveDown if state.activeField == 2 =>
+      val newCursor =
+        if (state.letterCursor < letters.length - 1) state.letterCursor + 1
+        else 0
+      (state.copy(letterCursor = newCursor), Cmd.none)
+
+    case ToggleSelection if state.activeField == 2 =>
+      val newSelected =
+        if (state.selectedLetters.contains(state.letterCursor)) {
+          state.selectedLetters - state.letterCursor
+        } else {
+          state.selectedLetters + state.letterCursor
+        }
+      (state.copy(selectedLetters = newSelected), Cmd.none)
+
+    case Submit =>
+      (state.copy(submitted = true), Cmd.none)
+
+    case _ => (state, Cmd.none)
+  }
+
+  def subscriptions(state: FormState) = Sub.onKeyPress { key =>
+    // Space toggles in multi-choice - handle this first!
+    (if (state.activeField == 2 && key == Key.Char(' ')) Some(ToggleSelection)
+     else None)
+      // Check if name field handled the key
+      .orElse(
+        input.handle(key, 0, state.activeField, state.name).map(UpdateName)
+      )
+      // Otherwise check other keys
+      .orElse(key match {
+        case Key.Tab                                 => Some(NextField)
+        case Key.Char('n') if state.activeField != 0 => Some(NextField)
+        case Key.Char('p') if state.activeField != 0 => Some(PrevField)
+        case Key.Up | Key.Char('k')                  => Some(FormMoveUp)
+        case Key.Down | Key.Char('j')                => Some(FormMoveDown)
+        case Key.Enter                               => Some(Submit)
+        case _                                       => None
+      })
+  }
+
+  def view(state: FormState) =
+    if (state.submitted) {
+      layout(
+        section("✓ Form Submitted")(
+          layout(
+            s"Name: ${state.name}",
+            s"Mood: ${moods(state.mood)}",
+            s"Letters: ${state.selectedLetters.toSeq.sorted.map(i => letters(i)).mkString(", ")}",
+            br
+          )
+        )
+      )
+    } else {
+      layout(
+        section("📝 User Survey")(
+          layout(
+            textInput(
+              "What's your name?",
+              state.name,
+              "Type here...",
+              active = state.activeField == 0
+            ),
+            br,
+            SingleChoice(
+              label = "How was your day?",
+              options = moods,
+              selected = state.mood,
+              active = state.activeField == 1
+            ),
+            br,
+            MultiChoice(
+              label = "Favorite letters?",
+              options = letters,
+              selected = state.selectedLetters,
+              cursor = state.letterCursor,
+              active = state.activeField == 2
+            )
+          )
+        ),
+        br,
+        section("Controls")(
+          ul(
+            "Type to enter name",
+            "↑↓ / k/j to navigate options",
+            "Space to toggle multi-choice",
+            "Tab / n to next field, p for previous",
+            "Enter to submit"
+          )
+        )
+      )
+    }
+}
+
+FormExample.run
+```
+
+See [FormExample.scala](examples/FormExample.scala).
 
 </details>
+
+<details>
+<summary>Navigation, progress tracking, and stateful emojis with <code>Sub.batch</code></summary>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/nav-demo-edit.gif" width="600">
+</p>
+
+The full task navigator adds/removes tasks, tracks progress, and swaps emojis per state.
+See [NavLoadApp.scala](examples/NavLoadApp.scala) for the complete runnable file. The heart of it is the
+subscription wiring time ticks and keyboard input together:
+
+```scala
+def subscriptions(state: NavLoadState): Sub[NavLoadMessage] =
+  Sub.batch(
+    // Time updates drive progress bars and spinners
+    Sub.time.everyMs(100, UpdateTick),
+
+    // Keyboard input drives navigation and task editing
+    Sub.onKeyPress {
+      case Key.Escape    => Some(CancelNewTask)
+      case Key.Tab       => Some(ConfirmNewTask)
+      case Key.Backspace => Some(DeleteTaskChar)
+      case Key.Up        => Some(MoveUp)
+      case Key.Down      => Some(MoveDown)
+      case Key.Enter     => Some(StartTask)
+      case Key.Char(c)   => Some(HandleChar(c))
+      case _             => None
+    }
+  )
+```
+
+</details>
+
+<details>
+<summary>A little terminal game built on <code>LayoutzApp</code></summary>
+
+A full snake game driven by `Sub.time.everyMs` for the game loop and `Sub.onKeyPress` for steering.
+See [SimpleGame.scala](examples/SimpleGame.scala) for the complete runnable file.
+
+</details>
+
 
 ## Contributing
 
@@ -1479,7 +1545,6 @@ You need [Mill](https://mill-build.org) and a JDK (11+).
 make test          # run all tests (JVM, JS, Native)
 make compile       # compile all platforms
 make repl          # Scala 3 REPL with layoutz loaded
-make fmt           # scalafmt
 ```
 
 Fork, make your change, `make test`, open a PR. Keep it zero-dep.

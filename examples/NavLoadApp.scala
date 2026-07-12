@@ -420,3 +420,7 @@ object NavLoadApp extends LayoutzApp[NavLoadState, NavLoadMessage] {
   }
 
 }
+
+object NavLoadAppRunner {
+  def main(args: Array[String]): Unit = NavLoadApp.run
+}

@@ -58,3 +58,7 @@ object InlineDemo {
     Thread.sleep(800)
   }
 }
+
+object InlineDemoRunner {
+  def main(args: Array[String]): Unit = InlineDemo.run()
+}

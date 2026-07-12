@@ -33,15 +33,168 @@ status: active"""
 
     val rendered = kvElement.render
 
-    // Check that all keys appear with colons
     assert(rendered.contains("Kazushi:"))
     assert(rendered.contains("Jet 李連杰:"))
     assert(rendered.contains("Rory:"))
 
-    // Check that values appear
     assert(rendered.contains("Sakuraba"))
     assert(rendered.contains("Li"))
     assert(rendered.contains("MacDonald"))
+  }
+
+  test("code point width: ascii, cjk, combining, emoji, astral") {
+    assert("hello".width == 5)
+
+    assert("李連杰".width == 6)
+    assert("你好".width == 4)
+    assert("ＡＢ".width == 4)
+
+    assert("é".width == 1)
+
+    assert("😀".width == 2)
+    assert("🎉".width == 2)
+
+    assert("𝐀".width == 1)
+    assert("𝄀".width == 1)
+
+    assert("a😀李".width == 5)
+
+    assert("[31m😀[0m".width == 2)
+  }
+
+  private def bytes(s: String): Array[Byte] = s.map(_.toByte).toArray
+
+  test("kitty base64 encodes RFC 4648 vectors") {
+    import KittyProtocol.base64
+    assert(base64(bytes("")) == "")
+    assert(base64(bytes("f")) == "Zg==")
+    assert(base64(bytes("fo")) == "Zm8=")
+    assert(base64(bytes("foo")) == "Zm9v")
+    assert(base64(bytes("foob")) == "Zm9vYg==")
+    assert(base64(bytes("fooba")) == "Zm9vYmE=")
+    assert(base64(bytes("foobar")) == "Zm9vYmFy")
+  }
+
+  test("kitty image measures exactly cols x rows") {
+    val img = kittyImage(bytes("PNGDATA"), cols = 4, rows = 2)
+    assertEquals(img.width, 4)
+    assertEquals(img.height, 2)
+
+    val tall = kittyImage(bytes("x"), cols = 10, rows = 7)
+    assertEquals(tall.width, 10)
+    assertEquals(tall.height, 7)
+  }
+
+  test("kitty image composes inside containers like a plain block") {
+    val img = kittyImage(bytes("PNGDATA"), cols = 6, rows = 3)
+    val plain = Text(Seq.fill(3)("######").mkString("\n"))
+
+    assertEquals(box("img")(img).width, box("img")(plain).width)
+    assertEquals(box("img")(img).height, box("img")(plain).height)
+    assertEquals(row(img, img).width, row(plain, plain).width)
+  }
+
+  test("kitty transmit block adds no visible width or height") {
+    val img = kittyImage(bytes("PNGDATA"), cols = 4, rows = 2)
+    val t = KittyProtocol.transmit(img)
+    assertEquals(realLength(t), 0)
+    assert(!t.contains("\n"))
+  }
+
+  test("kitty placement is rows lines each cols cells wide") {
+    val img = kittyImage(bytes("PNGDATA"), cols = 5, rows = 3)
+    val lines = KittyProtocol.placement(img).split('\n')
+    assertEquals(lines.length, 3)
+    lines.foreach(l => assertEquals(realLength(l), 5))
+  }
+
+  test("kitty payload chunks at 4096 base64 chars") {
+    val big = kittyImage(new Array[Byte](3 * 4096 + 99), cols = 2, rows = 2)
+    val t = KittyProtocol.transmit(big)
+    val chunkCount = "_G".r.findAllIn(t).length
+    assert(chunkCount >= 2, s"expected multiple chunks, got $chunkCount")
+    assert(t.contains("m=1"))
+    assert(t.contains("m=0"))
+  }
+
+  test("kitty image id is a deterministic non-zero 24-bit content hash") {
+    val a1 = kittyImage(bytes("alpha"), 2, 2).id
+    val a2 = kittyImage(bytes("alpha"), 8, 4).id
+    val b = kittyImage(bytes("bravo"), 2, 2).id
+    assertEquals(a1, a2)
+    assertNotEquals(a1, b)
+    assert(a1 > 0 && a1 <= 0xffffff)
+
+    assertEquals(
+      kittyImage(bytes("alpha"), 2, 2).copy(idOverride = Some(0x123456)).id,
+      0x123456
+    )
+  }
+
+  test("kitty raw RGB/RGBA require pixel dimensions") {
+    intercept[IllegalArgumentException](
+      kittyRGB(bytes("x"), pxW = 0, pxH = 4, cols = 2, rows = 2)
+    )
+    val ok = kittyRGBA(bytes("x"), pxW = 8, pxH = 8, cols = 2, rows = 2)
+    assert(KittyProtocol.transmit(ok).contains("s=8,v=8"))
+    assert(KittyProtocol.transmit(ok).contains("f=32"))
+  }
+
+  test("kitty image rejects out-of-range footprints") {
+    intercept[IllegalArgumentException](kittyImage(bytes("x"), cols = 0, rows = 2))
+    intercept[IllegalArgumentException](kittyImage(bytes("x"), cols = 2, rows = 999))
+  }
+
+  test("kitty multi-chunk transmit puts image id on every chunk") {
+    val big = kittyImage(new Array[Byte](3 * 4096 + 99), cols = 2, rows = 2)
+    val t = KittyProtocol.transmit(big)
+    val headers = "_G[^;]*;".r.findAllIn(t).toList
+    assert(headers.length >= 2, s"expected >=2 chunks, got ${headers.length}")
+    val tag = s"i=${big.id}"
+    headers.foreach(h => assert(h.contains(tag), s"chunk header missing $tag: $h"))
+  }
+
+  test("kitty dedupe drops transmits whose id is already cached") {
+    val img = kittyImage(bytes("PNGDATA"), cols = 4, rows = 2)
+    val rendered = img.render
+    val cache = scala.collection.mutable.Set.empty[Int]
+
+    val first = KittyProtocol.dedupeTransmits(rendered, cache)
+    assert(first.contains("_G"), "first pass should keep the transmit")
+    assert(cache.contains(img.id), "first pass should record the id")
+
+    val second = KittyProtocol.dedupeTransmits(rendered, cache)
+    assert(!second.contains("_G"), "second pass should drop the transmit")
+    val firstLine = second.split('\n')(0)
+    assertEquals(realLength(firstLine), 4)
+    assertEquals(second.count(_ == '\n'), 1)
+  }
+
+  test("kitty dedupe keeps blocks for new ids and adds them to the cache") {
+    val a = kittyImage(bytes("alpha"), 2, 2)
+    val b = kittyImage(bytes("bravo"), 2, 2)
+    val cache = scala.collection.mutable.Set(a.id)
+    val mixed = a.render + b.render
+
+    val out = KittyProtocol.dedupeTransmits(mixed, cache)
+    val blockCount = "_G".r.findAllIn(out).length
+    assertEquals(blockCount, 1, "only the unseen image's transmit should remain")
+    assert(out.contains(s"i=${b.id}"))
+    assert(cache.contains(a.id) && cache.contains(b.id))
+  }
+
+  test("kitty dedupe drops every chunk of a multi-chunk transmit") {
+    val big = kittyImage(new Array[Byte](3 * 4096 + 99), cols = 2, rows = 2)
+    val cache = scala.collection.mutable.Set(big.id)
+    val out = KittyProtocol.dedupeTransmits(big.render, cache)
+    assert(!out.contains("_G"), "no APC graphics block should survive")
+  }
+
+  test("kitty dedupe leaves non-graphics content untouched") {
+    val s = "hello[31mworld[0m\n[38;2;1;2;3m󯻮x[0m"
+    val cache = scala.collection.mutable.Set.empty[Int]
+    assertEquals(KittyProtocol.dedupeTransmits(s, cache), s)
+    assert(cache.isEmpty)
   }
 
   test("table rendering") {
@@ -99,10 +252,8 @@ status: active"""
     val inner = box()("test").border(Border.InnerHalfBlock)
     val rendered = inner.render
     val lines = rendered.split('\n')
-    // Top uses ▄, bottom uses ▀
     assert(lines.head.contains("▄"))
     assert(lines.last.contains("▀"))
-    // Left side uses ▐, right side uses ▌
     val contentLine = lines(1)
     assert(contentLine.startsWith("▐"))
     assert(contentLine.endsWith("▌"))
@@ -110,10 +261,8 @@ status: active"""
     val outer = box()("test").border(Border.OuterHalfBlock)
     val rendered2 = outer.render
     val lines2 = rendered2.split('\n')
-    // Top uses ▀, bottom uses ▄
     assert(lines2.head.contains("▀"))
     assert(lines2.last.contains("▄"))
-    // Left side uses ▌, right side uses ▐
     val contentLine2 = lines2(1)
     assert(contentLine2.startsWith("▌"))
     assert(contentLine2.endsWith("▐"))
@@ -218,7 +367,7 @@ status: active"""
   }
 
   test("box border styles") {
-    val singleBox = box()("Single border") // default is Border.Single
+    val singleBox = box()("Single border")
     val doubleBox = box()("Double border").border(Border.Double)
     val thickBox = box()("Thick border").border(Border.Thick)
     val roundBox = box()("Round border").border(Border.Round)
@@ -1546,8 +1695,8 @@ Longer line 2
     assert(Color.True(255, 128, 0).bgCode == "48;2;255;128;0")
   }
 
-  test("background color via element .bg()") {
-    val rendered = "Error".bg(Color.Red).render
+  test("background color via element .colorBg()") {
+    val rendered = "Error".colorBg(Color.Red).render
     assert(rendered.contains("\u001b[41m"))
     assert(rendered.contains("Error"))
     assert(rendered.contains("\u001b[0m"))
@@ -1560,11 +1709,11 @@ Longer line 2
   }
 
   test("background color NoColor passthrough") {
-    assert("Plain".bg(Color.NoColor).render == "Plain")
+    assert("Plain".colorBg(Color.NoColor).render == "Plain")
   }
 
   test("background color with foreground and style") {
-    val rendered = "Alert".bg(Color.Red).color(Color.White).style(Style.Bold).render
+    val rendered = "Alert".colorBg(Color.Red).color(Color.White).style(Style.Bold).render
     assert(rendered.contains("\u001b[41m"))
     assert(rendered.contains("\u001b[37m"))
     assert(rendered.contains("\u001b[1m"))
@@ -1572,7 +1721,7 @@ Longer line 2
   }
 
   test("background color multiline") {
-    val rendered = "Line1\nLine2".bg(Color.Green).render
+    val rendered = "Line1\nLine2".colorBg(Color.Green).render
     val lines = rendered.split('\n')
     assert(lines.length == 2)
     lines.foreach { line =>
@@ -1582,16 +1731,16 @@ Longer line 2
   }
 
   test("background color on box") {
-    val rendered = box()("content").bg(Color.Yellow).render
+    val rendered = box()("content").colorBg(Color.Yellow).render
     assert(rendered.contains("\u001b[43m"))
     assert(rendered.contains("content"))
   }
 
   test("background color extended") {
-    val full = "Test".bg(Color.Full(196)).render
+    val full = "Test".colorBg(Color.Full(196)).render
     assert(full.contains("48;5;196"))
 
-    val trueColor = "RGB".bg(Color.True(255, 128, 0)).render
+    val trueColor = "RGB".colorBg(Color.True(255, 128, 0)).render
     assert(trueColor.contains("48;2;255;128;0"))
   }
 

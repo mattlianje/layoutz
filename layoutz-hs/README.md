@@ -16,17 +16,20 @@ and interactive Elm-style TUI's in pure Haskell.
 Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
 
 ## Features
-- Pure Haskell, zero dependencies (use `Layoutz.hs` like a header file)
+- Pure Haskell, zero-dependencies (use `Layoutz.hs` like a header file)
 - Elm-style TUIs
 - Layout primitives, tables, trees, lists, CJK-aware
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
+- Inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/)
+- One-shot interactive prompts (`askInput`, `askChoose`, `askFilter`, …)
+- Drop-in progress `loader`s for build scripts and batch jobs
 - Implement `Element` to add your own primitives
 - Easy porting to MicroHs
 
 <p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/showcase-demo.gif" width="650">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="650">
 <br>
 <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
@@ -48,8 +51,12 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 - [Border Styles](#border-styles)
 - [Charts & Plots](#charts--plots)
 - [Colors & Styles](#colors-ansi-support)
-- [Custom Components](#custom-components)
+- [Inline Images](#inline-images)
+- [Custom Elements](#custom-elements)
+- [Collections](#collections)
 - [Interactive Apps](#interactive-apps)
+- [Prompts (Ask)](#prompts-ask)
+- [Progress (loader)](#progress-loader)
 - [Examples](#examples)
 - [Contributing](#contributing)
 
@@ -67,7 +74,7 @@ import Layoutz
 
 ## Quickstart
 
-**(1/2) Static rendering** - Beautiful, compositional strings:
+**(1/3) Static rendering**: pretty, composable strings.
 
 ```haskell
 import Layoutz
@@ -97,7 +104,7 @@ putStrLn $ render demo
 </p>
 
 
-**(2/2) Interactive apps** - Build Elm-style TUI's:
+**(2/3) Interactive apps** - Build Elm-style TUI's:
 
 ```haskell
 import Layoutz
@@ -126,6 +133,31 @@ main = runApp counterApp
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="650">
 </p>
 
+**(3/3) Prompts (Ask)**
+
+One-shot CLI prompts (inputs, choosers, filters, file pickers, spinners) that collapse to a single line as you answer them.
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  name   <- askInput "Name › " "anonymous" ""
+  realm  <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood"] id
+  packs  <- askChooseMany "Pack provisions" ["lembas", "pipe-weed", "rope"] 3 id
+  member <- askFilter "Search a companion › " ["Bilbo", "Gandalf", "Thorin"] 8 id
+  riddle <- askWrite "Pose a riddle" "This thing all things devours…" "" "Ctrl-D to save"
+  quest  <- askConfirm "Venture on the quest?" True "Yes" "No"
+  smaug  <- askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure "ready")
+  pure ()
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="600">
+  <br>
+  <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
+</p>
+
 ## Why layoutz?
 - We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between
 - **layoutz** is a tiny, declarative DSL for structured CLI output
@@ -149,7 +181,9 @@ With `OverloadedStrings` enabled, you can use string literals directly:
 layout ["Hello", "World"]  -- Instead of layout [text "Hello", text "World"]
 ```
 
-**Note:** When passing to functions that take polymorphic `Element a` parameters (like `underline'`, `center'`, `pad`), use `text` explicitly:
+> [!NOTE]
+> When passing to functions that take polymorphic `Element a` parameters (like `underline'`, `center'`, `pad`), use `text` explicitly:
+
 ```haskell
 underline' "=" $ text "Title"  -- Correct
 underline' "=" "Title"         -- Ambiguous type error
@@ -188,95 +222,163 @@ BorderNone                    -- No borders
 
 ## Elements
 
-### Text: `text`
+### Layout
+
+#### Stacking & rows
+```haskell
+layout ["First", "Second", "Third"]          -- vertical
+-- First
+-- Second
+-- Third
+
+row ["Left", "Middle", "Right"]              -- horizontal
+-- Left Middle Right
+
+columns [layout ["A", "B"], layout ["C", "D"]]
+-- A  C
+-- B  D
+
+tightRow [text "A", text "B", text "C"]      -- no spacing
+-- ABC
+```
+
+#### Spacing & rules
+```haskell
+layout [text "Line 1", br, text "Line 2"]    -- br is a blank line
+
+hr                 -- default ──────────...
+hr' "~"            -- custom char
+hr'' "=" 20        -- ====================
+
+vr                 -- vertical rule, 10 high with │
+vr' "║"            -- custom char
+vr'' "|" 5         -- custom char + height
+```
+
+#### Text transforms
+```haskell
+center $ text "Auto-centered"                -- width taken from siblings
+center' 20 $ text "TITLE"                    -- │       TITLE        │
+alignLeft 20 "Left"                          -- │Left                │
+alignRight 20 "Right"                        -- │               Right│
+
+justify 30 "Spread this out"
+-- │Spread         this        out│
+
+wrap 20 "Long text here that should wrap"
+-- Long text here that
+-- should wrap
+
+truncate' 15 (text "Very long text that will be cut off")     -- Very long te...
+truncate'' 20 "…" (text "Custom ellipsis example text here")  -- Custom ellipsis exa…
+
+pad 2 $ text "content"                       -- 2 cells of padding all around
+
+underline $ text "Title"                     -- Title
+                                             -- ─────
+underline' "=" $ text "Custom"               -- Custom
+                                             -- ══════
+underlineColored "~" ColorCyan $ text "Fancy"
+
+margin "[error]"
+  [ text "Ooops!"
+  , row [text "val result: Int = ", underline' "^" (text "getString()")]
+  , text "Expected Int, found String"
+  ]
+-- [error] Ooops!
+-- [error] val result: Int =  getString()
+-- [error]                    ^^^^^^^^^^^
+-- [error] Expected Int, found String
+```
+
+### Content
+
+#### Basics
 ```haskell
 text "hello"
-"hello"                                      -- with OverloadedStrings
+"hello"   - with OverloadedStrings
+
+section "Status" [text "All systems operational"]
+-- === Status ===
+-- All systems operational
+section' "-" "Status" [text "ok"]       -- custom glyph
+section'' "#" "Report" 5 [text "42"]    -- custom glyph + width
+
+kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
+-- Name: Alice
+-- Age:  30
+-- City: NYC
 ```
 
-### Line Break: `br`
-```haskell
-layout [text "Line 1", br, text "Line 2"]
-```
-
-### Layout (vertical): `layout`
-```haskell
-layout ["First", "Second", "Third"]
-```
-```
-First
-Second
-Third
-```
-
-### Row (horizontal): `row`, `tightRow`
-```haskell
-row ["Left", "Middle", "Right"]
-tightRow [text "A", text "B", text "C"]      -- no spacing
-```
-```
-Left Middle Right
-ABC
-```
-
-### Horizontal Rule: `hr`, `hr'`, `hr''`
-```haskell
-hr                                           -- default ──────────
-hr' "~"                                      -- custom char
-hr'' "=" 20                                  -- custom char + width
-```
-```
-──────────────────────────────────────────────────
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-====================
-```
-
-### Vertical Rule: `vr`, `vr'`, `vr''`
-```haskell
-vr                                           -- default: 10 high with │
-vr' "║"                                      -- custom char
-vr'' "|" 5                                   -- custom char + height
-```
-
-### Box: `box`
+#### Boxes, cards & banners
 ```haskell
 box "Status" [text "All systems go"]
+-- ┌──Status──────────┐
+-- │ All systems go   │
+-- └──────────────────┘
+
 withBorder BorderDouble $ box "Fancy" [text "Double border"]
+-- ╔══Fancy═══════════╗
+-- ║ Double border    ║
+-- ╚══════════════════╝
+
 withBorder BorderRound $ box "Smooth" [text "Rounded corners"]
-```
-```
-┌──Status──────────┐
-│ All systems go   │
-└──────────────────┘
-╔══Fancy═══════════╗
-║ Double border    ║
-╚══════════════════╝
-╭──Smooth────────────╮
-│ Rounded corners    │
-╰────────────────────╯
+-- ╭──Smooth────────────╮
+-- │ Rounded corners    │
+-- ╰────────────────────╯
+
+row [ withColor ColorGreen $ statusCard "CPU" "45%"
+    , withColor ColorCyan  $ statusCard "MEM" "2.1G"
+    ]
+-- ┌──────┐ ┌───────┐
+-- │ CPU  │ │ MEM   │
+-- │ 45%  │ │ 2.1G  │
+-- └──────┘ └───────┘
+
+banner ["System Dashboard"]
+-- ╔══════════════════╗
+-- ║ System Dashboard ║
+-- ╚══════════════════╝
 ```
 
-Pipe any element through `withBorder`:
+Pipe any `HasBorder` element through `withBorder`:
 ```haskell
 withBorder BorderRound $ box "Info" ["content"]
 withBorder BorderDouble $ statusCard "API" "UP"
 withBorder BorderThick $ table ["Name"] [["Alice"]]
 ```
 
-### Status Card: `statusCard`
+#### Lists & trees
 ```haskell
-row [ withColor ColorGreen $ statusCard "CPU" "45%"
-    , withColor ColorCyan $ statusCard "MEM" "2.1G"
-    ]
-```
-```
-┌──────┐ ┌───────┐
-│ CPU  │ │ MEM   │
-│ 45%  │ │ 2.1G  │
-└──────┘ └───────┘
+ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
+-- • Backend
+--   ◦ API
+--     ▪ REST
+--     ▪ GraphQL
+--   ◦ DB
+-- • Frontend
+
+ol ["Setup", ol ["Install deps", ol ["npm", "pip"], "Configure"], "Deploy"]
+-- 1. Setup
+--   a. Install deps
+--     i. npm
+--     ii. pip
+--   b. Configure
+-- 2. Deploy
+
+tree "Project"
+  [ branch "src" [leaf "main.hs", leaf "test.hs"]
+  , branch "docs" [leaf "README.md"]
+  ]
+-- Project
+-- ├── src
+-- │   ├── main.hs
+-- │   └── test.hs
+-- └── docs
+--     └── README.md
 ```
 
-### Table: `table`
+#### Table
 ```haskell
 table ["Name", "Age", "City"]
   [ ["Alice", "30", "New York"]
@@ -294,133 +396,72 @@ table ["Name", "Age", "City"]
 └─────────┴─────┴──────────┘
 ```
 
-### Key-Value: `kv`
-```haskell
-kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
-```
-```
-Name: Alice
-Age:  30
-City: NYC
-```
-
-### Section: `section`, `section'`, `section''`
-```haskell
-section "Status" [text "All systems operational"]
-section' "-" "Status" [text "ok"]            -- custom glyph
-section'' "#" "Report" 5 [text "42"]         -- custom glyph + width
-```
-```
-=== Status ===
-All systems operational
-```
-
-### Unordered List: `ul`
-```haskell
-ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
-```
-```
-• Backend
-  ◦ API
-    ▪ REST
-    ▪ GraphQL
-  ◦ DB
-• Frontend
-```
-
-### Ordered List: `ol`
-```haskell
-ol ["Setup", ol ["Install deps", ol ["npm", "pip"], "Configure"], "Deploy"]
-```
-```
-1. Setup
-  a. Install deps
-    i. npm
-    ii. pip
-  b. Configure
-2. Deploy
-```
-
-### Tree: `tree`, `branch`, `leaf`
-```haskell
-tree "Project"
-  [ branch "src" [leaf "main.hs", leaf "test.hs"]
-  , branch "docs" [leaf "README.md"]
-  ]
-```
-```
-Project
-├── src
-│   ├── main.hs
-│   └── test.hs
-└── docs
-    └── README.md
-```
-
-### Progress Bar: `inlineBar`
+#### Progress & spinners
 ```haskell
 inlineBar "Download" 0.75
-```
-```
-Download [███████████████─────] 75%
-```
+-- Download [███████████████─────] 75%
 
-### Chart: `chart`
-```haskell
 chart [("Web", 10), ("Mobile", 20), ("API", 15)]
-```
-```
-Web    │████████████████████────────────────────│ 10
-Mobile │████████████████████████████████████████│ 20
-API    │██████████████████████████████──────────│ 15
-```
+-- Web    │████████████████████────────────────────│ 10
+-- Mobile │████████████████████████████████████████│ 20
+-- API    │██████████████████████████████──────────│ 15
 
-### Spinner: `spinner`
-4 built-in styles:
-```haskell
 spinner "Loading" frame SpinnerDots     -- ⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏
 spinner "Loading" frame SpinnerLine     -- | / - \
 spinner "Loading" frame SpinnerClock    -- 🕐 🕑 🕒 🕓 🕔 🕕 🕖 🕗 🕘 🕙 🕚 🕛
 spinner "Loading" frame SpinnerBounce   -- ⠁ ⠂ ⠄ ⠂
+spinner "Loading" frame SpinnerEarth    -- 🌍 🌎 🌏
+spinner "Loading" frame SpinnerMoon     -- 🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘
+spinner "Loading" frame SpinnerGrow     -- ▏ ▎ ▍ ▌ ▋ ▊ ▉ █ ▉ ▊ ▋ ▌ ▍ ▎
+spinner "Loading" frame SpinnerArrow    -- ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-### Alignment: `center`, `alignLeft`, `alignRight`, `justify`, `wrap`
+#### Inline Images
+
+Inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
+A `KittyImage` measures exactly `cols`×`rows` cells, so it composes with every other
+element: drop it into boxes, rows, tables, `center`, etc.
+
 ```haskell
-center $ text "Auto-centered"                  -- width from siblings
-center' 30 $ text "Fixed width"
-alignLeft 30 "Left"
-alignRight 30 "Right"
-justify 30 "Spaces are distributed evenly"
-wrap 20 "Long text wrapped at word boundaries"
-```
+img <- kittyImageFile "pix/sakuraba.png" 35 14   -- PNG sized to 35×14 cells
 
-### Underline: `underline`, `underline'`, `underlineColored`
+putStrLn $ render $ row
+  [ withBorder BorderRound $ box "the gracie hunter" [img]
+  , box "stats" [kv [("flying", "yes"), ("opponent", "grounded"), ("rules", "PRIDE")]]
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/haskell-kitty-1.png" width="600">
+</p>
+
+Build straight from bytes or raw pixels:
+
 ```haskell
-underline $ text "Title"
-underline' "=" $ text "Double"
-underlineColored "~" ColorCyan $ text "Fancy"
-```
-```
-Title
-─────
-
-Double
-======
+kittyImage  bytes 35 14       -- PNG bytes            -> cols rows
+kittyRGB    pixels w h 18 9   -- raw RGB  pxW pxH     -> cols rows
+kittyRGBA   pixels w h 18 9   -- raw RGBA pxW pxH     -> cols rows
 ```
 
-### Margin: `margin`
 ```haskell
-margin "[error]" [text "Oops", text "fix it"]
-```
-```
-[error] Oops
-[error] fix it
-```
+let (w, h) = (96, 96)
+    pixels = [ channel i | i <- [0 .. w * h * 4 - 1] ]
+    channel i =
+      let p = i `div` 4; x = p `mod` w; y = p `div` w
+      in fromIntegral $ case i `mod` 4 of
+           0 -> x * 255 `div` w
+           1 -> y * 255 `div` h
+           2 -> 255 - (x * 255 `div` w)
+           _ -> 255
 
-### Padding: `pad`
-```haskell
-pad 2 $ text "Padded content"
+putStrLn $ render $ box "gradient" [kittyRGBA pixels w h 18 9]
 ```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/haskell-kitty-2.png" width="600">
+</p>
+
+Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside a
+`LayoutzApp`, each distinct image is transmitted once and re-placed cheaply on
+every frame.
 
 ## Charts & Plots
 
@@ -543,7 +584,7 @@ ColorBlue
 ColorMagenta
 ColorCyan
 ColorWhite
-ColorBrightBlack              -- Bright 8
+ColorBrightBlack      -- Bright 8
 ColorBrightRed
 ColorBrightGreen
 ColorBrightYellow
@@ -551,14 +592,14 @@ ColorBrightBlue
 ColorBrightMagenta
 ColorBrightCyan
 ColorBrightWhite
-ColorFull 196                 -- 256-color palette (0-255)
-ColorTrue 255 128 0           -- 24-bit RGB
-ColorDefault                  -- Conditional no-op
+ColorFull 196         -- 256-color palette (0-255)
+ColorTrue 255 128 0   -- 24-bit RGB
+ColorDefault          -- Conditional no-op
 ```
 
 ### Color Gradients
 
-Create beautiful gradients with extended colors:
+Create gradients with extended colors:
 
 ```haskell
 let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
@@ -628,7 +669,7 @@ You can also combine colors and styles:
 withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The quick brown fox..."
 ```
 
-## Custom Components
+## Custom Elements
 
 Create your own components by implementing the `Element` typeclass
 
@@ -666,6 +707,38 @@ putStrLn $ render $ row
                   └────────────┘
 ```
 
+## Collections
+```haskell
+import Data.List (groupBy, sortOn)
+import Data.Function (on)
+
+data User = User { userName :: String, userRole :: String }
+
+users :: [User]
+users =
+  [ User "Alice" "Admin"
+  , User "Bob"   "User"
+  , User "Tom"   "User"
+  ]
+
+putStrLn $ render $ section "Users by Role"
+  [ layout
+      [ box (userRole (head grp)) [ul [text (userName u) | u <- grp]]
+      | grp <- groupBy ((==) `on` userRole) (sortOn userRole users)
+      ]
+  ]
+```
+```
+=== Users by Role ===
+┌──Admin──┐
+│ • Alice │
+└─────────┘
+┌──User──┐
+│ • Bob  │
+│ • Tom  │
+└────────┘
+```
+
 ## REPL
 
 Drop into GHCi to experiment:
@@ -691,7 +764,7 @@ cabal repl
 ## Interactive Apps
 
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
-view is simply a `layoutz` `Element`.
+view is a `layoutz` `Element`.
 
 ```haskell
 data LayoutzApp state msg = LayoutzApp
@@ -723,9 +796,9 @@ Terminal width is detected once at startup via ANSI cursor position report (zero
 ### Subscriptions
 
 ```haskell
-subKeyPress (\key -> ...)              -- Keyboard input
-subEveryMs 100 msg                     -- Periodic ticks (interval in ms)
-subBatch [sub1, sub2, ...]             -- Combine subscriptions
+subKeyPress (\key -> ...)    -- Keyboard input
+subEveryMs 100 msg           -- Periodic ticks (interval in ms)
+subBatch [sub1, sub2, ...]   -- Combine subscriptions
 ```
 
 ### Commands
@@ -770,41 +843,242 @@ main = runApp loggerApp
 
 ```haskell
 -- Printable
-KeyChar Char                  -- 'a', '1', ' '
+KeyChar Char        -- 'a', '1', ' '
 
 -- Editing
-KeyEnter                      -- Enter/Return
-KeyBackspace                  -- Backspace
-KeyTab                        -- Tab
-KeyEscape                     -- Escape
-KeyDelete                     -- Delete
+KeyEnter
+KeyBackspace
+KeyTab
+KeyEscape
+KeyDelete
 
 -- Navigation
-KeyUp                         -- Arrow up
-KeyDown                       -- Arrow down
-KeyLeft                       -- Arrow left
-KeyRight                      -- Arrow right
+KeyUp
+KeyDown
+KeyLeft
+KeyRight
+KeyPageUp
+KeyPageDown
+KeyHome
+KeyEnd
 
 -- Modifiers
-KeyCtrl Char                  -- Ctrl+'C', Ctrl+'Q', etc.
-KeySpecial String             -- Other unrecognized sequences
+KeyCtrl Char        -- Ctrl+'C', Ctrl+'Q', etc.
+KeySpecial String   -- Other unrecognized sequences
 ```
 
+## Prompts (Ask)
+
+You often just want a one-shot CLI prompt (a spinner, a filter, a file picker)
+without dropping into "Elm-territory" and thinking about a whole flipbook each time.
+
+**layoutz** offers one-shot interactive actions with the `ask*` family. Each takes
+over the tty briefly, returns a value, and leaves a single committed line behind.
+`Nothing` means the user cancelled (Esc / Ctrl-C / Ctrl-D).
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  name     <- askInput "Name › " "anonymous" ""
+  ok       <- askConfirm "Venture on the quest?" True "Yes" "No"
+  realm    <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor"] id
+  packs    <- askChooseMany "Pack provisions" ["lembas", "pipe-weed", "waybread", "miruvor", "rope"] 3 id
+  riddle   <- askWrite "Pose a multi-line riddle" "This thing all things devours…" "" "Ctrl-D to save"
+  member   <- askFilter "Search > " ["Bilbo", "Balin", "Dwalin", "Thorin", "Gandalf"] 8 id
+  path     <- askFile "." 12
+  askPager longString 0 True
+  answer   <- askSpin "Awaking Smaug…" SpinnerDots (do threadDelay 1500000; pure (42 :: Int))
+  pure ()
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="650">
+</p>
+
+Each `ask*` returns in `IO`... and a `Maybe` if the user can cancel midway:
+
+```haskell
+askInput      prompt placeholder initial       -- IO (Maybe String)
+askConfirm    question default yes no          -- IO Bool
+askChoose     prompt items render              -- IO (Maybe a)
+askChooseMany prompt items limit render        -- IO (Maybe [a])
+askWrite      prompt placeholder initial hint  -- IO (Maybe String)
+askFilter     prompt items height render       -- IO (Maybe a)
+askFile       start height                     -- IO (Maybe String)
+askPager      content height lineNumbers       -- IO ()
+askSpin       label style task                 -- IO a
+```
+
+## Progress (loader)
+
+Wrap any list with `loader` to get a live progress bar while you process it: map
+an `IO` action over each item. Unbounded work gets `loaderStream`, a spinner
+with a running count.
+
+```haskell
+_ <- loader "Resizing" imageFiles resize
+_ <- loader "Inserting" rows insertRow
+_ <- loaderStream "Tailing" logLines indexLine
+```
+
+Pick a `LoaderStyle` with `loaderStyled` / `loaderStreamStyled`
+```
+styleBlocks -- (default)
+styleBar
+styleAscii
+styleDots
+styleLine
+stylePipes
+LoaderStyle { .. } -- (custom)
+```
+
+```haskell
+_ <- loaderStyled styleAscii "Reindexing" docIds reindex
+_ <- loaderStyled stylePipes "Crawling" urls fetch
+```
+
+Every built-in style, then an unbounded stream:
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  _ <- loaderStyled styleBlocks "Blocks " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleDots   "Dots   " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleLine   "Line   " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled stylePipes  "Pipes  " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleBar    "Bar    " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled styleAscii  "Ascii  " [1..60] (const (threadDelay 16000))
+  _ <- loaderStream "Streaming" [1..90] (const (threadDelay 45000))
+  pure ()
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/loader.gif" width="600">
+</p>
+
 ## Examples
-- [ShowcaseApp.hs](examples/ShowcaseApp.hs) - Tours every layoutz element and visualization across 7 scenes
-- [SimpleGame.hs](SimpleGame.hs) - Grid game where you collect gems and dodge enemies with WASD
-- [InlineBar.hs](examples/InlineBar.hs) - Renders a gradient progress bar in-place
-- [InlineLoadingDemo.hs](examples/InlineLoadingDemo.hs) - Chained inline progress bars in a simulated build script
+
+Small, copy-pasteable snippets for everyday CLI chores.
+
+<details>
+<summary>Print a deploy / status summary (<code>section</code> + <code>statusCard</code> + <code>kv</code>)</summary>
+
+```haskell
+import Layoutz
+
+main :: IO ()
+main = putStrLn $ render $ section "Deploy"
+  [ row
+      [ withColor ColorGreen  $ statusCard "build"  "OK"
+      , withColor ColorGreen  $ statusCard "tests"  "142 ✓"
+      , withColor ColorYellow $ statusCard "deploy" "staging"
+      ]
+  , kv [("commit", "a1b2c3d"), ("branch", "master"), ("by", "matt")]
+  ]
+```
+</details>
+
+<details>
+<summary>Compiler-style error message (<code>margin</code> + <code>underline'</code>)</summary>
+
+```haskell
+import Layoutz
+
+main :: IO ()
+main = putStrLn $ render $ margin "error:"
+  [ text "type mismatch"
+  , row [text "let x: Int = ", underline' "^" (text "getString()")]
+  , text "  expected Int, found String"
+  ]
+-- error: type mismatch
+-- error: let x: Int = getString()
+--                     ^^^^^^^^^^^^
+-- error:   expected Int, found String
+```
+</details>
+
+<details>
+<summary>Render a table straight from records (<code>table</code>)</summary>
+
+```haskell
+import Layoutz
+
+data Svc = Svc { svcName :: String, svcStatus :: String, svcCpu :: String }
+
+svcs :: [Svc]
+svcs =
+  [ Svc "api"   "up"   "23%"
+  , Svc "db"    "up"   "61%"
+  , Svc "cache" "down" "0%"
+  ]
+
+main :: IO ()
+main = putStrLn $ render $ table ["Service", "Status", "CPU"]
+  [ [text (svcName s), text (svcStatus s), text (svcCpu s)] | s <- svcs ]
+```
+</details>
+
+<details>
+<summary>Progress bar over a batch of work (<code>loader</code>)</summary>
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  let files = ["a.png", "b.png", "c.png"]
+  _ <- loader "Resizing" files $ \f -> threadDelay 200000  -- your IO per item
+  putStrLn "done"
+```
+</details>
+
+<details>
+<summary>Gate a destructive action behind a confirm (<code>askConfirm</code>)</summary>
+
+```haskell
+import Layoutz
+
+main :: IO ()
+main = do
+  ok <- askConfirm "Drop production table?" False "Yes" "No"
+  if ok then putStrLn "dropping…" else putStrLn "cancelled"
+```
+</details>
+
+<details>
+<summary>Wrap a slow query in a spinner (<code>askSpin</code>)</summary>
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  rows <- askSpin "Querying…" SpinnerDots runQuery
+  putStrLn $ render $ section "Result" [text $ show rows <> " rows"]
+  where
+    runQuery = do
+      threadDelay 1500000 -- stand-in for your slow IO
+      pure (1234 :: Int)
+```
+</details>
 
 ## Contributing
 
 You need [GHC](https://www.haskell.org/ghcup/) (8.10+) and [Cabal](https://www.haskell.org/cabal/).
 
 ```bash
-make build         # build library
-make test          # run tests
-make repl          # GHCi with layoutz loaded
-make clean         # clean build artifacts
+make build     # build library
+make test      # run tests
+make repl      # GHCi with layoutz loaded
+make clean     # clean build artifacts
 ```
 
 Fork, make your change, `make test`, open a PR. Keep it zero-dep.

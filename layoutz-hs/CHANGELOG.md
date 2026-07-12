@@ -4,6 +4,13 @@ All notable changes to layoutz-hs will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0.0] - 2026-07-12
+
+### Added
+- Inline raster images via the kitty graphics protocol: `kittyImage`, `kittyImageFile`, `kittyRGB`, `kittyRGBA`. Images measure exactly `cols`×`rows` cells, so they compose with boxes, rows, tables, etc.
+- One-shot `ask*` prompts that collapse to a single line once answered
+- Progress `loader`s for wrapping work in build scripts and batch jobs: `loader`, `loaderStream`, and their `*Styled` variants
+
 ## [0.3.4.0] - 2026-03-31
 
 ### Added
