@@ -514,10 +514,19 @@ val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User")
 section("Users by Role")(
   layout(
     users.groupBy(_.role).map { case (role, roleUsers) =>
-      box(role)(ul(roleUsers.map(_.name): _*))
+      box(role)(ul(roleUsers.map(u => Text(u.name)): _*))
     }.toSeq: _*
   )
 )
+
+// === Users by Role ===
+// ┌──Admin──┐
+// │ • Alice │
+// └─────────┘
+// ┌──User──┐
+// │ • Bob  │
+// │ • Tom  │
+// └────────┘
 ```
 
 ## Colors
