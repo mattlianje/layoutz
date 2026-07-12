@@ -933,6 +933,7 @@ styleDots
 styleLine
 stylePipes
 LoaderStyle { .. } -- (custom)
+```
 
 ```haskell
 _ <- loaderStyled styleAscii "Reindexing" docIds reindex
