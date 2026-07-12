@@ -152,9 +152,8 @@ val packs  = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), li
 val riddle = Ask.write("Pose a riddle", placeholder = "All things it devours…")
 val member = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
 val path   = Ask.file(start = ".")
-val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
-
 Ask.pager(longString)
+val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 ```
 <p align="center">
 <img src="demos/ask-mini.gif" width="600">
