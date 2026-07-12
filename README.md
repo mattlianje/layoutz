@@ -72,8 +72,7 @@ import layoutz._
 
 There are 3 usage paths with this little library:
 
-**(1/3) Static rendering**
-
+**(1/3) Static rendering** - Pretty, composable strings:
 ```scala
 import layoutz._
 
@@ -104,7 +103,7 @@ demo.putStrLn
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="600">
 </p>
 
-**(2/3) Interactive Elm-style apps**
+**(2/3) Interactive apps** - Build Elm-style TUI's:
 
 ```scala
 import layoutz._
@@ -153,8 +152,8 @@ Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
 Ask.write("Pose a riddle", placeholder = "All things it devours…")
 Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
 Ask.file(start = ".")
-Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 Ask.pager(longString)
+Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 ```
 <p align="center">
 <img src="demos/ask-mini.gif" width="600">
@@ -867,9 +866,8 @@ val packs  = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), li
 val riddle = Ask.write("Pose a riddle", placeholder = "All things it devours…")
 val member = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
 val path   = Ask.file(start = ".")
-val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
-
 Ask.pager(longString)
+val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 ```
 
 <p align="center">
