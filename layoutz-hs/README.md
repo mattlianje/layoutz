@@ -963,21 +963,122 @@ main = do
 </p>
 
 ## Examples
-- [ShowcaseApp.hs](examples/ShowcaseApp.hs) - Tours every layoutz element and visualization across 8 scenes
-- [AskDemo.hs](examples/AskDemo.hs) - Tours the one-shot `ask*` prompts
-- [SimpleGame.hs](SimpleGame.hs) - Grid game where you collect gems and dodge enemies with WASD
-- [InlineBar.hs](examples/InlineBar.hs) - Renders a gradient progress bar in-place
-- [InlineLoadingDemo.hs](examples/InlineLoadingDemo.hs) - Chained inline progress bars in a simulated build script
+
+Small, copy-pasteable snippets for everyday CLI chores. Each folds out.
+
+<details>
+<summary>Print a deploy / status summary (<code>section</code> + <code>statusCard</code> + <code>kv</code>)</summary>
+
+```haskell
+import Layoutz
+
+main :: IO ()
+main = putStrLn $ render $ section "Deploy"
+  [ row
+      [ withColor ColorGreen  $ statusCard "build"  "OK"
+      , withColor ColorGreen  $ statusCard "tests"  "142 ✓"
+      , withColor ColorYellow $ statusCard "deploy" "staging"
+      ]
+  , kv [("commit", "a1b2c3d"), ("branch", "master"), ("by", "matt")]
+  ]
+```
+</details>
+
+<details>
+<summary>Compiler-style error message (<code>margin</code> + <code>underline'</code>)</summary>
+
+```haskell
+import Layoutz
+
+main :: IO ()
+main = putStrLn $ render $ margin "error:"
+  [ text "type mismatch"
+  , row [text "let x: Int = ", underline' "^" (text "getString()")]
+  , text "  expected Int, found String"
+  ]
+-- error: type mismatch
+-- error: let x: Int = getString()
+--                     ^^^^^^^^^^^^
+-- error:   expected Int, found String
+```
+</details>
+
+<details>
+<summary>Render a table straight from records (<code>table</code>)</summary>
+
+```haskell
+import Layoutz
+
+data Svc = Svc { svcName :: String, svcStatus :: String, svcCpu :: String }
+
+svcs :: [Svc]
+svcs =
+  [ Svc "api"   "up"   "23%"
+  , Svc "db"    "up"   "61%"
+  , Svc "cache" "down" "0%"
+  ]
+
+main :: IO ()
+main = putStrLn $ render $ table ["Service", "Status", "CPU"]
+  [ [text (svcName s), text (svcStatus s), text (svcCpu s)] | s <- svcs ]
+```
+</details>
+
+<details>
+<summary>Progress bar over a batch of work (<code>loader</code>)</summary>
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  let files = ["a.png", "b.png", "c.png"]
+  _ <- loader "Resizing" files $ \f -> threadDelay 200000  -- your IO per item
+  putStrLn "done"
+```
+</details>
+
+<details>
+<summary>Gate a destructive action behind a confirm (<code>askConfirm</code>)</summary>
+
+```haskell
+import Layoutz
+
+main :: IO ()
+main = do
+  ok <- askConfirm "Drop production table?" False "Yes" "No"
+  if ok then putStrLn "dropping…" else putStrLn "cancelled"
+```
+</details>
+
+<details>
+<summary>Wrap a slow query in a spinner (<code>askSpin</code>)</summary>
+
+```haskell
+import Layoutz
+import Control.Concurrent (threadDelay)
+
+main :: IO ()
+main = do
+  rows <- askSpin "Querying…" SpinnerDots runQuery
+  putStrLn $ render $ section "Result" [text $ show rows <> " rows"]
+  where
+    runQuery = do
+      threadDelay 1500000 -- stand-in for your slow IO
+      pure (1234 :: Int)
+```
+</details>
 
 ## Contributing
 
 You need [GHC](https://www.haskell.org/ghcup/) (8.10+) and [Cabal](https://www.haskell.org/cabal/).
 
 ```bash
-make build         # build library
-make test          # run tests
-make repl          # GHCi with layoutz loaded
-make clean         # clean build artifacts
+make build     # build library
+make test      # run tests
+make repl      # GHCi with layoutz loaded
+make clean     # clean build artifacts
 ```
 
 Fork, make your change, `make test`, open a PR. Keep it zero-dep.
