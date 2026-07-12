@@ -145,15 +145,16 @@ down into Elm-territory to make them. This is why layoutz has the `Ask` helpers
 ```scala
 import layoutz._
 
-Ask.input("Name › ", placeholder = "anonymous")
-Ask.confirm("Venture on the quest?", default = true)
-Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood"))
-Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
-Ask.write("Pose a riddle", placeholder = "All things it devours…")
-Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
-Ask.file(start = ".")
+val name   = Ask.input("Name › ", placeholder = "anonymous")
+val ok     = Ask.confirm("Venture on the quest?", default = true)
+val realm  = Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood"))
+val packs  = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
+val riddle = Ask.write("Pose a riddle", placeholder = "All things it devours…")
+val member = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
+val path   = Ask.file(start = ".")
+val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
+
 Ask.pager(longString)
-Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 ```
 <p align="center">
 <img src="demos/ask-mini.gif" width="600">
