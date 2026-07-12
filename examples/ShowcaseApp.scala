@@ -679,7 +679,7 @@ case class RV3(x: Double, y: Double, z: Double) {
 }
 object RV3 {
   val Zero = RV3(0, 0, 0)
-  val Up   = RV3(0, 1, 0)
+  val Up = RV3(0, 1, 0)
 }
 
 case class RPixel(ch: Char, r: Int, g: Int, b: Int)
@@ -698,7 +698,7 @@ object RayScene {
   private val Ramp =
     " .'`^\",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"
   private val LightDir = RV3(0.8, 1.0, -0.6).normalized
-  private val FillDir  = RV3(-0.6, 0.4, 0.7).normalized // dim opposite-side fill
+  private val FillDir = RV3(-0.6, 0.4, 0.7).normalized // dim opposite-side fill
 
   private def clamp(x: Double, lo: Double, hi: Double): Double = math.max(lo, math.min(hi, x))
   private def mix(a: Double, b: Double, t: Double): Double = a * (1.0 - t) + b * t

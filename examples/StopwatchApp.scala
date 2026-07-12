@@ -43,7 +43,7 @@ object StopwatchApp extends LayoutzApp[TimerState, Msg] {
       ).color(statusColor).border(Border.Double),
       "",
       kv(
-        "Status" -> statusText,
+        "Status"  -> statusText,
         "Elapsed" -> s"${state.seconds}s"
       ).color(Color.BrightBlue),
       "",

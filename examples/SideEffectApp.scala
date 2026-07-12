@@ -11,13 +11,15 @@ object SideEffectApp extends LayoutzApp[TaskState, Msg] {
 
   def update(msg: Msg, state: TaskState) = msg match {
     case RunTask =>
-      (state.copy(status = "running..."),
-       Cmd.task {
-         Thread.sleep(500)
-         if (scala.util.Random.nextDouble() < 0.3)
-           throw new Exception("Launch failure")
-         "completed"
-       }(TaskDone))
+      (
+        state.copy(status = "running..."),
+        Cmd.task {
+          Thread.sleep(500)
+          if (scala.util.Random.nextDouble() < 0.3)
+            throw new Exception("Launch failure")
+          "completed"
+        }(TaskDone)
+      )
 
     case TaskDone(Right(_)) =>
       state.copy(status = "success", count = state.count + 1)

@@ -10,8 +10,10 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
 
   def update(msg: Msg, state: FetchState) = msg match {
     case Fetch =>
-      (state.copy(loading = true, count = state.count + 1),
-       Cmd.http.get("https://api.github.com/zen", Response))
+      (
+        state.copy(loading = true, count = state.count + 1),
+        Cmd.http.get("https://api.github.com/zen", Response)
+      )
     case Response(Right(data)) =>
       (state.copy(data = data, loading = false), Cmd.none)
     case Response(Left(err)) =>
@@ -25,7 +27,7 @@ object HttpFetcher extends LayoutzApp[FetchState, Msg] {
 
   def view(state: FetchState) = {
     val status: Element = if (state.loading) spinner("Fetching", state.count % 10)
-                          else Text(s"Fetched ${state.count} times")
+    else Text(s"Fetched ${state.count} times")
 
     layout(
       underlineColored("=", Color.BrightCyan)("HTTP Fetcher").style(Style.Bold),

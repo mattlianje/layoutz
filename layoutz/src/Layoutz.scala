@@ -1,16 +1,3 @@
-/*
- * +==========================================================================+
- * |                               Layoutz                                    |
- * |               Friendly, expressive print-layout & TUI DSL                |
- * |                           Version 0.0.6                                  |
- * |              Compatible with Scala 2.12, 2.13, and 3                     |
- * |                             (JVM, Native)                                |
- * |                                                                          |
- * | Copyright 2025-2026 Matthieu Court (matthieu.court@protonmail.com)       |
- * | Apache License 2.0                                                       |
- * +==========================================================================+
- */
-
 package object layoutz {
 
   import scala.language.implicitConversions
@@ -177,7 +164,7 @@ package object layoutz {
     val TERTIARY_IDEOGRAPHS = (0x30000, 0x3ffff)
   }
 
-  /** Core layout element */
+  /* Core layout element */
   trait Element {
     def render: String
 
@@ -279,27 +266,27 @@ package object layoutz {
   private def flattenToSingleLine(element: Element): String =
     element.render.split('\n').mkString(" ")
 
-  /** ANSI color support with 16 standard terminal colors */
+  /* ANSI color support with 16 standard terminal colors */
   sealed trait Color {
     def code: String
 
-    /** Derive background ANSI code from foreground code */
+    /* Derive background ANSI code from foreground code */
     def bgCode: String = code match {
       case ""                       => ""
       case c if c.startsWith("38;") => "48" + c.drop(2)
       case c                        => (c.toInt + 10).toString
     }
 
-    /** Apply this color to an element */
+    /* Apply this color to an element */
     def apply(element: Element): Colored = Colored(this, element)
 
-    /** Apply this color to a string (auto-converts to Text) */
+    /* Apply this color to a string (auto-converts to Text) */
     def apply(text: String): Colored = Colored(this, Text(text))
 
-    /** Apply this color as background to an element */
+    /* Apply this color as background to an element */
     def bg(element: Element): BgColored = BgColored(this, element)
 
-    /** Apply this color as background to a string (auto-converts to Text) */
+    /* Apply this color as background to a string (auto-converts to Text) */
     def bg(text: String): BgColored = BgColored(this, Text(text))
   }
 
@@ -339,21 +326,21 @@ package object layoutz {
 
   }
 
-  /** ANSI text styles (bold, italic, etc.) */
+  /* ANSI text styles (bold, italic, etc.) */
   sealed trait Style {
     def code: String
 
-    /** Combine with another style */
+    /* Combine with another style */
     def ++(other: Style): CombinedStyle = CombinedStyle(this, other)
   }
 
-  /** Combined style that applies multiple styles */
+  /* Combined style that applies multiple styles */
   final case class CombinedStyle(first: Style, second: Style) extends Style {
     def code: String = first.code // Not used directly, but kept for interface
 
     override def ++(other: Style): CombinedStyle = CombinedStyle(this, other)
 
-    /** Flatten all styles in this combined style */
+    /* Flatten all styles in this combined style */
     def flatten: List[Style] = {
       val firstStyles = first match {
         case c: CombinedStyle => c.flatten
@@ -382,17 +369,17 @@ package object layoutz {
     case object Strikethrough extends Style { val code = "9" }
   }
 
-  /** Wrap text with ANSI color codes */
+  /* Wrap text with ANSI color codes */
   private def wrapAnsi(color: Color, content: String): String =
     if (color.code.isEmpty) content
     else Ansi.wrap(color.code, content)
 
-  /** Wrap text with ANSI background color codes */
+  /* Wrap text with ANSI background color codes */
   private def wrapBgAnsi(color: Color, content: String): String =
     if (color.bgCode.isEmpty) content
     else Ansi.wrap(color.bgCode, content)
 
-  /** Wrap text with ANSI style codes */
+  /* Wrap text with ANSI style codes */
   private def wrapStyle(style: Style, content: String): String =
     if (style.code.isEmpty) content
     else Ansi.wrap(style.code, content)
@@ -403,7 +390,7 @@ package object layoutz {
     if (ansiPrefix.isEmpty) line
     else ansiPrefix + line.replace(Ansi.RESET, Ansi.RESET + ansiPrefix) + Ansi.RESET
 
-  /** Element wrapper that applies color to its content */
+  /* Element wrapper that applies color to its content */
   final case class Colored(color: Color, element: Element) extends Element {
 
     def render: String = {
@@ -418,7 +405,7 @@ package object layoutz {
 
   }
 
-  /** Element wrapper that applies background color to its content */
+  /* Element wrapper that applies background color to its content */
   final case class BgColored(color: Color, element: Element) extends Element {
 
     def render: String = {
@@ -433,7 +420,7 @@ package object layoutz {
 
   }
 
-  /** Element wrapper that applies style to its content */
+  /* Element wrapper that applies style to its content */
   final case class Styled(style: Style, element: Element) extends Element {
 
     def render: String = {
@@ -542,7 +529,7 @@ package object layoutz {
       if (id == 0) 1 else id
     }
 
-    /** Astral-safe code point */
+    /* Astral-safe code point */
     private def cp2str(cp: Int): String =
       if (cp < 0x10000) cp.toChar.toString
       else {
@@ -608,7 +595,7 @@ package object layoutz {
       if (rendered.indexOf(Ansi.ESC) < 0) rendered else walk(0, Nil)
     }
 
-    /** Find `i=<digits>` in a kitty-keys substring and return the parsed integer; 0 if absent. */
+    /* Find `i=<digits>` in a kitty-keys substring and return the parsed integer; 0 if absent. */
     private def parseIdKey(keys: String): Int =
       keys.split(',').collectFirst {
         case k if k.startsWith("i=") =>
@@ -646,11 +633,11 @@ package object layoutz {
   def kittyRGB(pixels: Array[Byte], pxW: Int, pxH: Int, cols: Int, rows: Int): KittyImage =
     KittyImage(pixels, KittyProtocol.FORMAT_RGB, cols, rows, pxW = pxW, pxH = pxH)
 
-  /** Inline raw RGBA image (`format 32`): like [[kittyRGB]] with an alpha channel. */
+  /* Inline raw RGBA image (`format 32`): like [[kittyRGB]] with an alpha channel. */
   def kittyRGBA(pixels: Array[Byte], pxW: Int, pxH: Int, cols: Int, rows: Int): KittyImage =
     KittyImage(pixels, KittyProtocol.FORMAT_RGBA, cols, rows, pxW = pxW, pxH = pxH)
 
-  /** Margin element that adds a prefix to each line of content */
+  /* Margin element that adds a prefix to each line of content */
   final case class Margin(
       prefix: String,
       elements: Seq[Element],
@@ -673,7 +660,7 @@ package object layoutz {
 
   }
 
-  /** Underline element that draws a line under any element */
+  /* Underline element that draws a line under any element */
   final case class Underline(
       element: Element,
       underlineChar: String = "─",
@@ -706,7 +693,7 @@ package object layoutz {
 
   }
 
-  /** Ordered list with numbered items - supports automatic nesting */
+  /* Ordered list with numbered items - supports automatic nesting */
   final case class OrderedList(items: Seq[Element]) extends Element {
 
     /* Numbering styles for different nesting levels */
@@ -803,7 +790,7 @@ package object layoutz {
 
   }
 
-  /** Center-align element within specified width */
+  /* Center-align element within specified width */
   final case class Centered(element: Element, targetWidth: Int)
       extends Element {
 
@@ -834,12 +821,12 @@ package object layoutz {
 
   }
 
-  /** Auto-center element based on layout context */
+  /* Auto-center element based on layout context */
   final case class AutoCentered(element: Element) extends Element {
     def render: String = element.render // Will be resolved by container
   }
 
-  /** Left-align element within specified width */
+  /* Left-align element within specified width */
   final case class LeftAligned(element: Element, targetWidth: Int)
       extends Element {
 
@@ -861,7 +848,7 @@ package object layoutz {
 
   }
 
-  /** Right-align element within specified width */
+  /* Right-align element within specified width */
   final case class RightAligned(element: Element, targetWidth: Int)
       extends Element {
 
@@ -883,7 +870,7 @@ package object layoutz {
 
   }
 
-  /** Text wrapping element that breaks long lines at word boundaries */
+  /* Text wrapping element that breaks long lines at word boundaries */
   final case class Wrapped(element: Element, maxWidth: Int) extends Element {
 
     def render: String = {
@@ -1000,7 +987,7 @@ package object layoutz {
 
   }
 
-  /** Fluent horizontal rule builder */
+  /* Fluent horizontal rule builder */
   final case class HorizontalRuleBuilder(
       char: String = "─",
       ruleWidth: Option[Int] = None
@@ -1018,7 +1005,7 @@ package object layoutz {
 
   }
 
-  /** Structured key-value pairs */
+  /* Structured key-value pairs */
   final case class KeyValue(pairs: Seq[(Element, Element)]) extends Element {
 
     def render: String = {
@@ -1040,7 +1027,7 @@ package object layoutz {
 
   }
 
-  /** Tabular data with headers and borders */
+  /* Tabular data with headers and borders */
   final case class Table(
       headers: Seq[Element],
       rows: Seq[Seq[Element]],
@@ -1184,7 +1171,7 @@ package object layoutz {
 
   }
 
-  /** Horizontal progress indicator */
+  /* Horizontal progress indicator */
   final case class InlineBar(label: Element, progress: Double) extends Element {
 
     def render: String = {
@@ -1202,7 +1189,7 @@ package object layoutz {
 
   }
 
-  /** Dashboard status card */
+  /* Dashboard status card */
   final case class StatusCard(
       label: Element,
       content: Element,
@@ -1248,7 +1235,7 @@ package object layoutz {
 
   }
 
-  /** Text input field with label and current value */
+  /* Text input field with label and current value */
   final case class TextInput(
       label: String,
       value: String,
@@ -1265,7 +1252,7 @@ package object layoutz {
 
   }
 
-  /** Single choice selector - pick one option from a list */
+  /* Single choice selector - pick one option from a list */
   final case class SingleChoice(
       label: String,
       options: Seq[String],
@@ -1287,7 +1274,7 @@ package object layoutz {
 
   }
 
-  /** Multi choice selector - pick multiple options from a list */
+  /* Multi choice selector - pick multiple options from a list */
   final case class MultiChoice(
       label: String,
       options: Seq[String],
@@ -1312,7 +1299,7 @@ package object layoutz {
 
   }
 
-  /** Form builder helper - combines multiple inputs with validation */
+  /* Form builder helper - combines multiple inputs with validation */
   final case class Form(
       title: String,
       fields: Seq[Element],
@@ -1333,7 +1320,7 @@ package object layoutz {
 
   }
 
-  /** Animated spinner for loading states */
+  /* Animated spinner for loading states */
   final case class Spinner(
       label: String = "",
       frame: Int = 0,
@@ -1390,7 +1377,7 @@ package object layoutz {
 
   }
 
-  /** Simple column layout */
+  /* Simple column layout */
   final case class Columns(elements: Seq[Element], spacing: Int = 2)
       extends Element {
 
@@ -1418,7 +1405,7 @@ package object layoutz {
 
   }
 
-  /** Horizontal bar chart */
+  /* Horizontal bar chart */
   final case class Chart(
       data: Seq[(Element, Double)],
       maxWidth: Int = Dimensions.DEFAULT_CHART_WIDTH
@@ -1590,7 +1577,7 @@ package object layoutz {
 
   }
 
-  /** Factory for plot */
+  /* Factory for plot */
   def plot(
       width: Int = 60,
       height: Int = 20,
@@ -2070,7 +2057,7 @@ package object layoutz {
   def heatmap(rows: Seq[Seq[Double]]): Heatmap = Heatmap(HeatmapData(rows))
   def heatmap(data: HeatmapData): Heatmap = Heatmap(data)
 
-  /** Banner - decorative text in a box */
+  /* Banner - decorative text in a box */
   final case class Banner(content: Element, borderStyle: Border = Border.Double)
       extends Element {
 
@@ -2102,7 +2089,7 @@ package object layoutz {
 
   }
 
-  /** Unified border styling for all box-like elements */
+  /* Unified border styling for all box-like elements */
   sealed trait Border {
 
     def chars: (
@@ -2114,7 +2101,7 @@ package object layoutz {
         String
     ) // TL, TR, BL, BR, H, V
 
-    /** Directional accessors - override for asymmetric borders (e.g. half-block) */
+    /* Directional accessors - override for asymmetric borders (e.g. half-block) */
     def topLeft: String = chars._1
     def topRight: String = chars._2
     def bottomLeft: String = chars._3
@@ -2124,7 +2111,7 @@ package object layoutz {
     def vLeft: String = chars._6
     def vRight: String = chars._6
 
-    /** Apply this border style to an element with HasBorder typeclass */
+    /* Apply this border style to an element with HasBorder typeclass */
     def apply[T](element: T)(implicit ev: HasBorder[T]): T =
       ev.setBorder(element, this)
 
@@ -2228,7 +2215,7 @@ package object layoutz {
     val Markdown = Border.Markdown
   }
 
-  /** Typeclass for elements that have configurable borders */
+  /* Typeclass for elements that have configurable borders */
   trait HasBorder[T] {
     def setBorder(element: T, newStyle: Border): T
   }
@@ -2304,7 +2291,7 @@ package object layoutz {
 
   }
 
-  /** Box - bordered container with optional title */
+  /* Box - bordered container with optional title */
   final case class Box(
       title: String = "",
       elements: Seq[Element],
@@ -2352,7 +2339,7 @@ package object layoutz {
 
   }
 
-  /** Section with title header */
+  /* Section with title header */
   final case class Section(
       title: String,
       content: Element,
@@ -2367,7 +2354,7 @@ package object layoutz {
 
   }
 
-  /** Horizontal element arrangement */
+  /* Horizontal element arrangement */
   final case class Row(elements: Seq[Element]) extends Element {
 
     def render: String = {
@@ -2469,7 +2456,7 @@ package object layoutz {
 
   }
 
-  /** Root layout container */
+  /* Root layout container */
   final case class Layout(elements: Seq[Element]) extends Element {
 
     def render: String = {
@@ -2621,10 +2608,10 @@ package object layoutz {
     */
   def row(elements: Element*): Row = Row(elements)
 
-  /** Row without spacing between elements */
+  /* Row without spacing between elements */
   def rowTight(elements: Element*): RowTight = RowTight(elements)
 
-  /** Tight row - concatenates elements horizontally without spacing */
+  /* Tight row - concatenates elements horizontally without spacing */
   def tightRow(elements: Element*): Element = new Element {
     def render: String = {
       if (elements.isEmpty) return ""
@@ -2643,7 +2630,7 @@ package object layoutz {
     }
   }
 
-  /** Tree builder that can act as both leaf and branch creator */
+  /* Tree builder that can act as both leaf and branch creator */
   case class TreeBuilder(name: String) extends TreeNode {
     def apply(children: TreeNode*): TreeBranch = TreeBranch(name, children)
     def render: String = name // Renders as just the name when used as a leaf
@@ -2660,24 +2647,24 @@ package object layoutz {
     */
   def tree(name: String): TreeBuilder = TreeBuilder(name)
 
-  /** Single line break */
+  /* Single line break */
   def br: LineBreak.type = LineBreak
 
-  /** Multiple line breaks */
+  /* Multiple line breaks */
   def br(n: Int): Element =
     if (n <= 0) Text("")
     else if (n == 1) LineBreak
     else Layout(List.fill(n)(LineBreak))
 
-  /** Single space */
+  /* Single space */
   def space: Element = Text(" ")
 
-  /** Spaces (default: 1) */
+  /* Spaces (default: 1) */
   def space(n: Int = 1): Element =
     if (n <= 0) Text("")
     else Text(" " * n)
 
-  /** Add padding around an element */
+  /* Add padding around an element */
   final case class Padded(element: Element, padding: Int) extends Element {
 
     def render: String = {
@@ -2694,10 +2681,10 @@ package object layoutz {
 
   }
 
-  /** Add padding around an element */
+  /* Add padding around an element */
   def pad(padding: Int)(element: Element): Padded = Padded(element, padding)
 
-  /** Truncate text with ellipsis if it exceeds max width */
+  /* Truncate text with ellipsis if it exceeds max width */
   final case class Truncated(
       element: Element,
       maxWidth: Int,
@@ -2727,28 +2714,28 @@ package object layoutz {
 
   }
 
-  /** Truncate element if too wide */
+  /* Truncate element if too wide */
   def truncate(maxWidth: Int, ellipsis: String = "...")(
       element: Element
   ): Truncated =
     Truncated(element, maxWidth, ellipsis)
 
-  /** Empty element - renders nothing (useful for conditional layouts) */
+  /* Empty element - renders nothing (useful for conditional layouts) */
   case object Empty extends Element {
     def render: String = ""
   }
 
-  /** Vertical separator line */
+  /* Vertical separator line */
   final case class VerticalRule(char: String = "│", lineCount: Int)
       extends Element {
     def render: String = (char + "\n") * math.max(1, lineCount - 1) + char
   }
 
-  /** Create vertical separator */
+  /* Create vertical separator */
   def vr(lineCount: Int, char: String = "│"): VerticalRule =
     VerticalRule(char, lineCount)
 
-  /** Empty element for conditional rendering */
+  /* Empty element for conditional rendering */
   def empty: Empty.type = Empty
 
   /** Create a fluent horizontal rule builder. Use .width() and .char() to customize.
@@ -2758,7 +2745,7 @@ package object layoutz {
     */
   def hr: HorizontalRuleBuilder = HorizontalRuleBuilder()
 
-  /** Interactive text input field */
+  /* Interactive text input field */
   def textInput(
       label: String,
       value: String = "",
@@ -2766,7 +2753,7 @@ package object layoutz {
       active: Boolean = false
   ): TextInput = TextInput(label, value, placeholder, active)
 
-  /** Single choice selector - pick one option from a list */
+  /* Single choice selector - pick one option from a list */
   def singleChoice(
       label: String,
       options: Seq[String],
@@ -2774,7 +2761,7 @@ package object layoutz {
       active: Boolean = false
   ): SingleChoice = SingleChoice(label, options, selected, active)
 
-  /** Multi choice selector - pick multiple options from a list */
+  /* Multi choice selector - pick multiple options from a list */
   def multiChoice(
       label: String,
       options: Seq[String],
@@ -2783,23 +2770,23 @@ package object layoutz {
       active: Boolean = false
   ): MultiChoice = MultiChoice(label, options, selected, cursor, active)
 
-  /** Form builder - combines multiple input fields */
+  /* Form builder - combines multiple input fields */
   def form(
       title: String,
       fields: Element*
   ): Form = Form(title, fields)
 
-  /** Animated loading spinner */
+  /* Animated loading spinner */
   def spinner(
       label: String = "",
       frame: Int = 0,
       style: SpinnerStyle = SpinnerStyle.Dots
   ): Spinner = Spinner(label, frame, style)
 
-  /** Arrange elements in columns with spacing */
+  /* Arrange elements in columns with spacing */
   def columns(elements: Element*): Columns = Columns(elements)
 
-  /** Horizontal bar chart */
+  /* Horizontal bar chart */
   def chart(data: (Element, Double)*): Chart = Chart(data)
 
   /** Create a decorative banner.
@@ -2818,11 +2805,9 @@ package object layoutz {
     */
   def banner(): Banner = Banner(Text(""), Border.Double)
 
-  /* ===========================================================================
-   * TEXT FORMATTING
-   */
+  // ─────────────────────────────── Text Formatting ───────────────────────────────
 
-  /** Add underline to an element */
+  /* Add underline to an element */
   def underline(
       char: Element = Text("─"),
       color: Color = Color.NoColor
@@ -2835,42 +2820,40 @@ package object layoutz {
 
   def style(s: Style)(element: Element): Styled = Styled(s, element)
 
-  /** Ordered (numbered) list */
+  /* Ordered (numbered) list */
   def ol(items: Element*): OrderedList = OrderedList(items)
 
-  /** Unordered (bulleted) list with default bullets */
+  /* Unordered (bulleted) list with default bullets */
   def ul(items: Element*): UnorderedList = UnorderedList(items)
 
-  /** Unordered list with custom bullet character */
+  /* Unordered list with custom bullet character */
   def ul(bullet: String)(items: Element*): UnorderedList =
     UnorderedList(items, bullet)
 
-  /* ===========================================================================
-   * ALIGNMENT
-   */
+  // ─────────────────────────────── Alignment ───────────────────────────────
 
-  /** Center-align element within specified width */
+  /* Center-align element within specified width */
   def center(element: Element, width: Int): Centered = Centered(element, width)
 
-  /** Auto-center element within layout context */
+  /* Auto-center element within layout context */
   def center(element: Element): AutoCentered = AutoCentered(element)
 
-  /** Left-align element within specified width */
+  /* Left-align element within specified width */
   def leftAlign(element: Element, width: Int): LeftAligned =
     LeftAligned(element, width)
 
-  /** Right-align element within specified width */
+  /* Right-align element within specified width */
   def rightAlign(element: Element, width: Int): RightAligned =
     RightAligned(element, width)
 
-  /** Wrap text at word boundaries within specified width */
+  /* Wrap text at word boundaries within specified width */
   def wrap(element: Element, width: Int): Wrapped = Wrapped(element, width)
 
-  /** Justify text to exact width by distributing spaces */
+  /* Justify text to exact width by distributing spaces */
   def justify(element: Element, width: Int): Justified =
     Justified(element, width)
 
-  /** Justify all lines including the last line */
+  /* Justify all lines including the last line */
   def justifyAll(element: Element, width: Int): Justified =
     Justified(
       element,
@@ -2878,20 +2861,16 @@ package object layoutz {
       justifyLastLine = true
     )
 
-  /* ===========================================================================
-   * MARGINS
-   */
+  // ─────────────────────────────── Margins ───────────────────────────────
 
-  /** Add a prefix margin to elements */
+  /* Add a prefix margin to elements */
   def margin(prefix: Element)(elements: Element*): Margin =
     Margin(prefix.render, elements, None)
 
   def marginColor(prefix: Element, color: Color)(elements: Element*): Margin =
     Margin(prefix.render, elements, Some(color))
 
-  /* ===========================================================================
-   * IMPLICITS
-   */
+  // ─────────────────────────────── Implicits ───────────────────────────────
 
   /** Automatic conversion from String to Text element. Allows using strings directly wherever
     * Elements are expected.

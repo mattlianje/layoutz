@@ -18,8 +18,7 @@ object ClipboardApp extends LayoutzApp[ClipState, Msg] {
     case ClipRead(Left(err)) =>
       (state.copy(status = s"Error: $err"), Cmd.none)
     case WriteClip =>
-      (state.copy(status = "Writing..."),
-       Cmd.clipboard.write("Hello from layoutz!", ClipWritten))
+      (state.copy(status = "Writing..."), Cmd.clipboard.write("Hello from layoutz!", ClipWritten))
     case ClipWritten(Right(_)) =>
       (state.copy(status = "Written to clipboard!"), Cmd.none)
     case ClipWritten(Left(err)) =>

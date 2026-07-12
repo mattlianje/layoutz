@@ -414,4 +414,161 @@ class RuntimeSpecs extends munit.FunSuite {
     assert(batched != Cmd.none)
   }
 
+  test("Ask.renderInputFrame shows value with cursor when non-empty") {
+    val frame = Ask.renderInputFrame("› ", "hello", "type something")
+    assert(frame.startsWith("› hello"))
+    assert(frame.contains("▌"))
+    assert(!frame.contains("type something"))
+  }
+
+  test("Ask.renderInputFrame shows dim placeholder when value is empty") {
+    val frame = Ask.renderInputFrame("› ", "", "type something")
+    assert(frame.contains("type something"))
+    assert(frame.contains("[2m"))
+  }
+
+  test("Ask.renderConfirmFrame highlights the active button with a bg color") {
+    val yes = Ask.renderConfirmFrame("ok?", yes = true, "Yes", "No")
+    assert(yes.contains("ok?"))
+    assert(yes.contains("Yes"))
+    assert(yes.contains("No"))
+    assert(yes.contains("[42m"))
+
+    val no = Ask.renderConfirmFrame("ok?", yes = false, "Yes", "No")
+    assert(no.contains("[41m"))
+    assert(yes != no)
+  }
+
+  test("Ask.renderWriteFrame shows placeholder when empty and value otherwise") {
+    val empty = Ask.renderWriteFrame("Tell me", "", "type something", "ctrl+d to submit")
+    assert(empty.contains("Tell me"))
+    assert(empty.contains("type something"))
+    assert(empty.contains("ctrl+d to submit"))
+    assert(empty.contains("[2m"))
+
+    val typed = Ask.renderWriteFrame("Tell me", "hello\nworld", "type something", "")
+    assert(typed.contains("hello"))
+    assert(typed.contains("world"))
+    assert(!typed.contains("type something"))
+  }
+
+  test("Ask.fuzzyScore matches subsequence and skips non-matches") {
+    assert(Ask.fuzzyScore("", "anything").isDefined)
+    assert(Ask.fuzzyScore("ban", "Banana").isDefined)
+    assert(Ask.fuzzyScore("xyz", "Banana").isEmpty)
+
+    val tight = Ask.fuzzyScore("ban", "Banana").get
+    val loose = Ask.fuzzyScore("bna", "Banana").get
+    assert(tight < loose)
+  }
+
+  test("Ask.fuzzyMatches keeps matchers and drops non-matchers") {
+    val items = Seq("Banana", "Strawberry", "Watermelon", "Mango")
+    val matches = Ask.fuzzyMatches("wat", items, (s: String) => s)
+    assert(matches.head == "Watermelon")
+    assert(!matches.contains("Banana"))
+    assert(!matches.contains("Mango"))
+  }
+
+  test("Ask.renderFilterFrame shows matches with selection marker") {
+    val items = Seq("apple", "banana", "cherry")
+    val matches = Ask.fuzzyMatches("a", items, (s: String) => s)
+    val frame = Ask.renderFilterFrame("› ", "a", matches, 0, 10, (s: String) => s)
+    assert(frame.contains("›"))
+    assert(frame.contains("apple"))
+    assert(frame.contains("banana"))
+  }
+
+  test("Ask.renderFilterFrame reports no matches") {
+    val frame = Ask.renderFilterFrame("› ", "zz", Seq.empty[String], 0, 10, (s: String) => s)
+    assert(frame.contains("(no matches)"))
+  }
+
+  test("Ask.renderFileFrame marks dirs and highlights selection") {
+    import layoutz.Ask.FileEntry
+    val entries = Seq(FileEntry("..", true), FileEntry("src", true), FileEntry("README.md", false))
+    val frame = Ask.renderFileFrame("/some/path", entries, 1, 12)
+    assert(frame.contains("/some/path"))
+    assert(frame.contains("src/"))
+    assert(frame.contains("README.md"))
+    assert(frame.contains("›"))
+  }
+
+  test("Ask.renderPagerFrame shows numbered lines and a status bar") {
+    val lines = (1 to 5).map(i => s"line $i").toArray
+    val frame = Ask.renderPagerFrame(lines, 0, 3, 80, lineNumbers = true)
+    val parts = frame.split('\n')
+    assert(parts.head.contains("line 1"))
+    assert(parts.head.contains("1 │"))
+    assert(parts(2).contains("line 3"))
+    assert(parts.last.contains("of 5"))
+  }
+
+  test("Ask.renderPagerFrame truncates lines wider than width") {
+    val long = "x" * 200
+    val frame = Ask.renderPagerFrame(Array(long), 0, 1, 30, lineNumbers = false)
+    val firstLine = frame.split('\n').head
+    assert(firstLine.endsWith("…"))
+    assert(firstLine.length <= 30)
+  }
+
+  test("Ask.renderChooseFrame marks the selected row") {
+    val frame = Ask.renderChooseFrame("Pick", Seq("a", "b", "c"), 1, (s: String) => s)
+    val lines = frame.split('\n')
+    assert(lines.head == "Pick")
+    assert(lines(1).contains("a") && !lines(1).contains("›"))
+    assert(lines(2).contains("›") && lines(2).contains("b"))
+    assert(lines(3).contains("c") && !lines(3).contains("›"))
+  }
+
+  test("Ask.renderChooseFrame works with no prompt") {
+    val frame = Ask.renderChooseFrame("", Seq("only"), 0, (s: String) => s)
+    assert(!frame.contains("\n"))
+    assert(frame.contains("›"))
+    assert(frame.contains("only"))
+  }
+
+  test("Ask.renderChooseManyFrame shows checkbox marks and a selection count") {
+    val items = Seq("a", "b", "c")
+    val frame = Ask.renderChooseManyFrame(
+      "Pick",
+      items,
+      idx = 1,
+      selected = Set(0, 2),
+      limit = 0,
+      (s: String) => s
+    )
+    assert(frame.contains("Pick"))
+    assert(frame.contains("[x]"))
+    assert(frame.contains("[ ]"))
+    assert(frame.contains("(2)"))
+    val lines = frame.split('\n')
+    assert(lines(2).contains("›"))
+  }
+
+  test("Ask.renderChooseManyFrame shows N/limit badge when limit is set") {
+    val frame = Ask.renderChooseManyFrame(
+      "Pick",
+      Seq("a", "b", "c"),
+      idx = 0,
+      selected = Set(0),
+      limit = 2,
+      (s: String) => s
+    )
+    assert(frame.contains("(1/2)"))
+  }
+
+  test("Ask.renderChooseManyFrame hides badge when nothing selected and no limit") {
+    val frame = Ask.renderChooseManyFrame(
+      "Pick",
+      Seq("a", "b"),
+      idx = 0,
+      selected = Set.empty,
+      limit = 0,
+      (s: String) => s
+    )
+    assert(!frame.contains("(0)"))
+    assert(!frame.contains("/"))
+  }
+
 }

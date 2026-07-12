@@ -247,7 +247,7 @@ case class RenderError(message: String, cause: Option[Throwable] = None)
 case class InputError(message: String, cause: Option[Throwable] = None)
     extends RuntimeError
 
-/** Pure Scala terminal using stty for raw mode (zero dependencies) */
+/* Pure Scala terminal using stty for raw mode (zero dependencies) */
 class SttyTerminal private () extends Terminal {
   private var originalStty = ""
 
@@ -272,10 +272,9 @@ class SttyTerminal private () extends Terminal {
 
   def close(): Unit = exitRawMode()
 
-  /** Terminal width via an ANSI cursor-position report — no subprocess.
-    * Park the cursor far past the right edge, ask where it actually landed,
-    * and read back `ESC [ rows ; cols R`. Falls back to 80 on timeout/parse
-    * failure. Must be called while raw mode is active and nothing else is
+  /** Terminal width via an ANSI cursor-position report — no subprocess. Park the cursor far past
+    * the right edge, ask where it actually landed, and read back `ESC [ rows ; cols R`. Falls back
+    * to 80 on timeout/parse failure. Must be called while raw mode is active and nothing else is
     * reading stdin (otherwise the reply gets consumed as keystrokes).
     */
   def terminalWidth(): Int = {
@@ -413,7 +412,7 @@ object input {
 
 }
 
-/** File-loading wrapper around [[kittyImage]] */
+/* File-loading wrapper around [[kittyImage]] */
 object kitty {
 
   /** Load an image file and size it to a `cols` x `rows` cell footprint. PNG bytes are sent to the
@@ -425,7 +424,7 @@ object kitty {
   }
 }
 
-/** Elm Architecture app: init, update, subscriptions, view */
+/* Elm Architecture app: init, update, subscriptions, view */
 trait LayoutzApp[State, Message] {
   def init: (State, Cmd[Message])
   def update(msg: Message, state: State): (State, Cmd[Message])
@@ -896,7 +895,7 @@ private[layoutz] object LayoutzRuntime {
 /** Visual preset for [[loader]]. Controls the bar glyphs and color for bounded loaders, and the
   * spinner frames + color for streaming loaders.
   */
-private[layoutz] final case class LoaderStyle(
+final private[layoutz] case class LoaderStyle(
     fill: Char = '█',
     empty: Char = '░',
     open: String = "",
@@ -908,25 +907,26 @@ private[layoutz] final case class LoaderStyle(
 )
 
 private[layoutz] object LoaderStyle {
-  /** Smooth gradient blocks `████▊░░░` (default). */
+  /* Smooth gradient blocks `████▊░░░` (default). */
   val Blocks = LoaderStyle(smooth = true, spinner = SpinnerStyle.Grow)
 
-  /** Classic bracketed bar `[██████░░░░]`. */
+  /* Classic bracketed bar `[██████░░░░]`. */
   val Bar = LoaderStyle(open = "[", close = "]", color = Color.Green)
 
-  /** Retro ASCII with an arrow head `[====>    ]`. */
-  val Ascii = LoaderStyle('=', ' ', "[", "]", ">", spinner = SpinnerStyle.Line, color = Color.Yellow)
+  /* Retro ASCII with an arrow head `[====>    ]`. */
+  val Ascii =
+    LoaderStyle('=', ' ', "[", "]", ">", spinner = SpinnerStyle.Line, color = Color.Yellow)
 
-  /** Dotted `●●●●∙∙∙∙`. */
+  /* Dotted `●●●●∙∙∙∙`. */
   val Dots = LoaderStyle('●', '∙', spinner = SpinnerStyle.Bounce, color = Color.Magenta)
 
-  /** Heavy/light rule `━━━━────`. */
+  /* Heavy/light rule `━━━━────`. */
   val Line = LoaderStyle('━', '─', spinner = SpinnerStyle.Line, color = Color.Blue)
 
-  /** Segmented pipes `▰▰▰▱▱▱`. */
+  /* Segmented pipes `▰▰▰▱▱▱`. */
   val Pipes = LoaderStyle('▰', '▱', spinner = SpinnerStyle.Arrow, color = Color.BrightMagenta)
 
-  /** All built-in styles, in display order. */
+  /* All built-in styles, in display order. */
   val all: Seq[LoaderStyle] = Seq(Blocks, Bar, Ascii, Dots, Line, Pipes)
 }
 
@@ -943,12 +943,16 @@ private[layoutz] object LoaderStyle {
 object loader {
   import java.util.concurrent.atomic.{AtomicInteger, AtomicBoolean}
 
-  /** Wrap a sized collection ...renders an inline progress bar with N/total + %. */
+  /* Wrap a sized collection ...renders an inline progress bar with N/total + %. */
   def apply[A](items: Iterable[A]): Loader[A] = apply("", items)
   def apply[A](label: String, items: Iterable[A]): Loader[A] =
-    new Loader(label, LoaderStyle.Blocks, (l, s) => new BoundedIter(l, items.size, items.iterator, s))
+    new Loader(
+      label,
+      LoaderStyle.Blocks,
+      (l, s) => new BoundedIter(l, items.size, items.iterator, s)
+    )
 
-  /** Wrap an iterator whose size isn't known ..renders a spinner + running count. */
+  /* Wrap an iterator whose size isn't known ..renders a spinner + running count. */
   def stream[A](items: Iterator[A]): Loader[A] = stream("", items)
   def stream[A](label: String, items: Iterator[A]): Loader[A] =
     new Loader(label, LoaderStyle.Blocks, (l, s) => new StreamingIter(l, items, s))
@@ -970,25 +974,25 @@ object loader {
 
     private def withStyle(s: LoaderStyle): Loader[A] = new Loader(label, s, mk)
 
-    /** Smooth gradient blocks `████▊░░░` (default). */
+    /* Smooth gradient blocks `████▊░░░` (default). */
     def blocks: Loader[A] = withStyle(LoaderStyle.Blocks)
 
-    /** Classic bracketed bar `[██████░░░░]`. */
+    /* Classic bracketed bar `[██████░░░░]`. */
     def bar: Loader[A] = withStyle(LoaderStyle.Bar)
 
-    /** Retro ASCII with an arrow head `[====>    ]`. */
+    /* Retro ASCII with an arrow head `[====>    ]`. */
     def ascii: Loader[A] = withStyle(LoaderStyle.Ascii)
 
-    /** Dotted `●●●●∙∙∙∙`. */
+    /* Dotted `●●●●∙∙∙∙`. */
     def dots: Loader[A] = withStyle(LoaderStyle.Dots)
 
-    /** Heavy/light rule `━━━━────`. */
+    /* Heavy/light rule `━━━━────`. */
     def line: Loader[A] = withStyle(LoaderStyle.Line)
 
-    /** Segmented pipes `▰▰▰▱▱▱`. */
+    /* Segmented pipes `▰▰▰▱▱▱`. */
     def pipes: Loader[A] = withStyle(LoaderStyle.Pipes)
 
-    /** Custom style; unspecified fields keep the current style's values. */
+    /* Custom style; unspecified fields keep the current style's values. */
     def styled(
         fill: Char = style.fill,
         empty: Char = style.empty,
@@ -1154,8 +1158,12 @@ object loader {
     }
   }
 
-  final private class BoundedIter[A](label: String, total: Int, under: Iterator[A], style: LoaderStyle)
-      extends BaseLoaderIter[A](under) {
+  final private class BoundedIter[A](
+      label: String,
+      total: Int,
+      under: Iterator[A],
+      style: LoaderStyle
+  ) extends BaseLoaderIter[A](under) {
     private val app = new BoundedLoaderApp(label, total, style, doneRef, finishedRef)
     protected val appThread: Thread = spawn(app)
     protected def renderFinalLine(): String = app.finalLine()
@@ -1254,7 +1262,7 @@ object Ask {
     (if (prompt.nonEmpty) prompt + "\n" else "") + rows.mkString("\n")
   }
 
-  /** Prompt for a single line of text. */
+  /* Prompt for a single line of text. */
   def input(
       prompt: String = "› ",
       placeholder: String = "",
@@ -1430,8 +1438,10 @@ object Ask {
     ticker.start()
 
     val (result, ok, err) =
-      try { (task, true, null: Throwable) }
-      catch { case t: Throwable => (null.asInstanceOf[A], false, t) }
+      try {
+        val r = task
+        (r, true, null: Throwable)
+      } catch { case t: Throwable => (null.asInstanceOf[A], false, t) }
 
     done.set(true)
     try ticker.join(500)

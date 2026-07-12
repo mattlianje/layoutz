@@ -1,9 +1,9 @@
 import layoutz._
 
 case class MonitorState(
-  github: String = "...",
-  httpbin: String = "...",
-  placeholder: String = "..."
+    github: String = "...",
+    httpbin: String = "...",
+    placeholder: String = "..."
 )
 
 sealed trait Msg
@@ -15,12 +15,12 @@ object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
   def init = (MonitorState(), Cmd.none)
 
   def update(msg: Msg, state: MonitorState) = msg match {
-    case GithubResp(Right(data)) => (state.copy(github = data.take(20)), Cmd.none)
-    case GithubResp(Left(e)) => (state.copy(github = s"ERROR: $e"), Cmd.none)
-    case HttpbinResp(Right(_)) => (state.copy(httpbin = "UP"), Cmd.none)
-    case HttpbinResp(Left(e)) => (state.copy(httpbin = s"ERROR: $e"), Cmd.none)
+    case GithubResp(Right(data))   => (state.copy(github = data.take(20)), Cmd.none)
+    case GithubResp(Left(e))       => (state.copy(github = s"ERROR: $e"), Cmd.none)
+    case HttpbinResp(Right(_))     => (state.copy(httpbin = "UP"), Cmd.none)
+    case HttpbinResp(Left(e))      => (state.copy(httpbin = s"ERROR: $e"), Cmd.none)
     case PlaceholderResp(Right(_)) => (state.copy(placeholder = "UP"), Cmd.none)
-    case PlaceholderResp(Left(e)) => (state.copy(placeholder = s"ERROR: $e"), Cmd.none)
+    case PlaceholderResp(Left(e))  => (state.copy(placeholder = s"ERROR: $e"), Cmd.none)
   }
 
   def subscriptions(state: MonitorState) = Sub.batch(
