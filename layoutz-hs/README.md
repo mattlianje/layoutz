@@ -181,7 +181,9 @@ With `OverloadedStrings` enabled, you can use string literals directly:
 layout ["Hello", "World"]  -- Instead of layout [text "Hello", text "World"]
 ```
 
-**Note:** When passing to functions that take polymorphic `Element a` parameters (like `underline'`, `center'`, `pad`), use `text` explicitly:
+> [!NOTE]
+> When passing to functions that take polymorphic `Element a` parameters (like `underline'`, `center'`, `pad`), use `text` explicitly:
+
 ```haskell
 underline' "=" $ text "Title"  -- Correct
 underline' "=" "Title"         -- Ambiguous type error
@@ -912,9 +914,15 @@ _ <- loader "Inserting" rows insertRow
 _ <- loaderStream "Tailing" logLines indexLine
 ```
 
-Pick a `LoaderStyle` with `loaderStyled` / `loaderStreamStyled`: `styleBlocks`
-(default), `styleBar`, `styleAscii`, `styleDots`, `styleLine`, `stylePipes`, or a
-custom `LoaderStyle { .. }`:
+Pick a `LoaderStyle` with `loaderStyled` / `loaderStreamStyled`
+```
+styleBlocks -- (default)
+styleBar
+styleAscii
+styleDots
+styleLine
+stylePipes
+LoaderStyle { .. } -- (custom)
 
 ```haskell
 _ <- loaderStyled styleAscii "Reindexing" docIds reindex
