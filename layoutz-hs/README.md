@@ -29,7 +29,7 @@ Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.c
 - Easy porting to MicroHs
 
 <p align="center">
-<img src="../demos/showcase.gif"" width="650">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="650">
 <br>
 <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
@@ -153,7 +153,7 @@ main = do
   pure ()
 ```
 <p align="center">
-  <img src="../demos/ask-mini.gif" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="600">
   <br>
   <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
 </p>
@@ -895,7 +895,7 @@ main = do
 ```
 
 <p align="center">
-  <img src="../demos/ask-mini.gif" width="650">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="650">
 </p>
 
 Each `ask*` returns in `IO`... and a `Maybe` if the user can cancel midway:
@@ -959,7 +959,7 @@ main = do
 ```
 
 <p align="center">
-  <img src="../demos/loader.gif" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/loader.gif" width="600">
 </p>
 
 ## Examples
