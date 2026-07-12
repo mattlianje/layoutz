@@ -507,6 +507,7 @@ row(Square(2), Square(4), Square(6))
 <!-- pic hidden for now: pix/example-custom.png -->
 
 ## Collections
+Fuly leverage Scala's functional collection to generate frags of Elements:
 ```scala
 case class User(name: String, role: String)
 val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
