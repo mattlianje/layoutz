@@ -429,7 +429,7 @@ putStrLn $ render $ row
   ]
 ```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-sakuraba.png" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/haskell-kitty-1.png" width="600">
 </p>
 
 Build straight from bytes or raw pixels:
@@ -454,7 +454,7 @@ let (w, h) = (96, 96)
 putStrLn $ render $ box "gradient" [kittyRGBA pixels w h 18 9]
 ```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-raw.png" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/haskell-kitty-2.png" width="600">
 </p>
 
 Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside a
@@ -886,19 +886,19 @@ main = do
   <img src="../demos/ask-mini.gif" width="650">
 </p>
 
-Each `ask*` returns in `IO`... and a Maybe if the user can cancel midway
+Each `ask*` returns in `IO`... and a `Maybe` if the user can cancel midway:
 
-| Call                                       | Returns             |
-| ------------------------------------------ | ------------------- |
-| `askInput prompt placeholder initial`      | `IO (Maybe String)` |
-| `askConfirm question default yes no`       | `IO Bool`           |
-| `askChoose prompt items render`            | `IO (Maybe a)`      |
-| `askChooseMany prompt items limit render`  | `IO (Maybe [a])`    |
-| `askWrite prompt placeholder initial hint` | `IO (Maybe String)` |
-| `askFilter prompt items height render`     | `IO (Maybe a)`      |
-| `askFile start height`                     | `IO (Maybe String)` |
-| `askPager content height lineNumbers`      | `IO ()`             |
-| `askSpin label style task`                 | `IO a`              |
+```haskell
+askInput      prompt placeholder initial       -- IO (Maybe String)
+askConfirm    question default yes no          -- IO Bool
+askChoose     prompt items render              -- IO (Maybe a)
+askChooseMany prompt items limit render        -- IO (Maybe [a])
+askWrite      prompt placeholder initial hint  -- IO (Maybe String)
+askFilter     prompt items height render       -- IO (Maybe a)
+askFile       start height                     -- IO (Maybe String)
+askPager      content height lineNumbers       -- IO ()
+askSpin       label style task                 -- IO a
+```
 
 ## Progress (loader)
 

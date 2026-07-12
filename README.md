@@ -877,19 +877,19 @@ Ask.pager(longString)
 <br>
 </p>
 
-Each `Ask.*` returns its result directly...
+Each `Ask.*` returns its result directly:
 
-| Call                                      | Returns          |
-| ----------------------------------------- | ---------------- |
-| `Ask.input(prompt, placeholder, initial)` | `Option[String]` |
-| `Ask.confirm(q, default)`                 | `Boolean`        |
-| `Ask.choose(prompt, items)`               | `Option[A]`      |
-| `Ask.chooseMany(prompt, items, limit)`    | `Option[Seq[A]]` |
-| `Ask.write(prompt, placeholder)`          | `Option[String]` |
-| `Ask.filter(prompt, items)`               | `Option[A]`      |
-| `Ask.file(start, height)`                 | `Option[String]` |
-| `Ask.pager(content, height, lineNumbers)` | `Unit`           |
-| `Ask.spin(label) { task }`                | `A`              |
+```scala
+Ask.input(prompt, placeholder, initial)  : Option[String]
+Ask.confirm(q, default)                  : Boolean
+Ask.choose(prompt, items)                : Option[A]
+Ask.chooseMany(prompt, items, limit)     : Option[Seq[A]]
+Ask.write(prompt, placeholder)           : Option[String]
+Ask.filter(prompt, items)                : Option[A]
+Ask.file(start, height)                  : Option[String]
+Ask.pager(content, height, lineNumbers)  : Unit
+Ask.spin(label) { task }                 : A
+```
 
 
 ## Progress (loader)
