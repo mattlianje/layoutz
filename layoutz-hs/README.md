@@ -964,7 +964,7 @@ main = do
 
 ## Examples
 
-Small, copy-pasteable snippets for everyday CLI chores. Each folds out.
+Small, copy-pasteable snippets for everyday CLI chores.
 
 <details>
 <summary>Print a deploy / status summary (<code>section</code> + <code>statusCard</code> + <code>kv</code>)</summary>

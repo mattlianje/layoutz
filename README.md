@@ -956,8 +956,6 @@ for (_ <- loader.stream("Streaming", it)) Thread.sleep(45)
 
 Interactive TUI apps using `LayoutzApp` with built-in `Cmd` and `Sub`.
 
-### File viewer
-
 <details>
 <summary>Watch and display file contents (<code>Cmd.file.read</code>, <code>Sub.file.watch</code>)</summary>
 
@@ -1004,8 +1002,6 @@ FileViewer.run
 See [FileViewer.scala](examples/FileViewer.scala).
 
 </details>
-
-### Stopwatch timer
 
 <details>
 <summary>Start/pause timer driven by <code>Sub.time.everyMs</code></summary>
@@ -1075,8 +1071,6 @@ See [StopwatchApp.scala](examples/StopwatchApp.scala).
 
 </details>
 
-### Custom side effects
-
 <details>
 <summary>Async work with <code>Cmd.task</code>, fire-and-forget with <code>Cmd.fire</code></summary>
 
@@ -1134,8 +1128,6 @@ See [SideEffectApp.scala](examples/SideEffectApp.scala).
 
 </details>
 
-### API poller
-
 <details>
 <summary>Poll an endpoint with <code>Sub.http.pollMs</code></summary>
 
@@ -1183,8 +1175,6 @@ ApiPoller.run
 See [ApiPoller.scala](examples/ApiPoller.scala).
 
 </details>
-
-### Multi-endpoint monitor
 
 <details>
 <summary>Monitor several APIs at once with <code>Sub.batch</code></summary>
@@ -1244,8 +1234,6 @@ See [MultiMonitor.scala](examples/MultiMonitor.scala).
 
 </details>
 
-### HTTP fetch on demand
-
 <details>
 <summary>Fetch on demand with <code>Cmd.http.get</code></summary>
 
@@ -1294,8 +1282,6 @@ HttpFetcher.run
 See [HttpFetcher.scala](examples/HttpFetcher.scala).
 
 </details>
-
-### Clipboard
 
 <details>
 <summary>Copy/paste with <code>Cmd.clipboard</code></summary>
@@ -1350,8 +1336,6 @@ ClipboardApp.run
 See [ClipboardApp.scala](examples/ClipboardApp.scala).
 
 </details>
-
-### Form input widgets
 
 <details>
 <summary>Build interactive forms with <code>textInput</code>, <code>SingleChoice</code>, <code>MultiChoice</code></summary>
@@ -1511,8 +1495,6 @@ See [FormExample.scala](examples/FormExample.scala).
 
 </details>
 
-### Complex task manager
-
 <details>
 <summary>Navigation, progress tracking, and stateful emojis with <code>Sub.batch</code></summary>
 
@@ -1545,8 +1527,6 @@ def subscriptions(state: NavLoadState): Sub[NavLoadMessage] =
 ```
 
 </details>
-
-### Snake game
 
 <details>
 <summary>A little terminal game built on <code>LayoutzApp</code></summary>
