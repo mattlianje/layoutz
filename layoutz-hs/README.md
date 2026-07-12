@@ -882,7 +882,7 @@ import Control.Concurrent (threadDelay)
 
 main :: IO ()
 main = do
-  name     <- askInput "Name › " "anonymous" ""              -- prompt placeholder initial
+  name     <- askInput "Name › " "anonymous" ""
   ok       <- askConfirm "Venture on the quest?" True "Yes" "No"
   realm    <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor"] id
   packs    <- askChooseMany "Pack provisions" ["lembas", "pipe-weed", "waybread", "miruvor", "rope"] 3 id
