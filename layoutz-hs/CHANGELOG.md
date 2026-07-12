@@ -8,8 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - Inline raster images via the kitty graphics protocol: `kittyImage`, `kittyImageFile`, `kittyRGB`, `kittyRGBA`. Images measure exactly `cols`×`rows` cells, so they compose with boxes, rows, tables, etc.
-- One-shot `ask*` prompts that collapse to a single line once answered: `askInput`, `askConfirm`, `askChoose`, `askChooseMany`, `askWrite`, `askFilter`, `askFile`, `askPager`, `askSpin`.
-- Progress `loader`s for wrapping work in build scripts and batch jobs: `loader`, `loaderStream`, and their `*Styled` variants.
+- One-shot `ask*` prompts that collapse to a single line once answered
+- Progress `loader`s for wrapping work in build scripts and batch jobs: `loader`, `loaderStream`, and their `*Styled` variants
 
 ## [0.3.4.0] - 2026-03-31
 
