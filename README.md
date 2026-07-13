@@ -167,7 +167,7 @@ val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 - Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic.
 - Ultimately, **layoutz** is just a tiny, declarative DSL to combat this.
 - On the side, **layoutz** also has an Elm-style runtime to bring these arbitrary `Element`s to life: much like a flipbook.
-- The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
+  - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
 - But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff).
 
 ## Core Concepts
