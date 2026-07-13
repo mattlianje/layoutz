@@ -20,6 +20,7 @@ Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs),
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
+- Kitty protocol support
 - Extend `Element` and easily create new primitives
    - (No component library limitations)
 - Built-in commands (file I/O, HTTP requests, clipboard handling)
