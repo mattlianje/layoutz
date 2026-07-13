@@ -59,10 +59,10 @@ Layoutz also lets you easily drop animations into build scripts or any processes
 ## Installation
 On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):
 ```scala
-"xyz.matthieucourt" %% "layoutz" % "0.7.0"
+"xyz.matthieucourt" %% "layoutz" % "0.8.0"
 ```
 ```bash
-scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.7.0
+scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.8.0
 ```
 ```scala
 import layoutz._
