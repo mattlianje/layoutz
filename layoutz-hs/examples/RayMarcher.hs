@@ -7,6 +7,7 @@ module Main where
 import Layoutz
 import Data.List (intercalate)
 import Text.Printf (printf)
+import qualified Data.Text as T
 
 -- | 3D vector
 data V3 = V3 !Double !Double !Double
@@ -212,7 +213,7 @@ renderFrame s =
                , let u = (fromIntegral px / fromIntegral fbW - 0.5) * aspect
                , let rd = vnorm (vadd (vadd fwd (vscale right u)) (vscale up v))
                ]
-  in text (renderFrameBuffer pixels fbW)
+  in text (T.pack (renderFrameBuffer pixels fbW))
 
 -- | Update state in response to a message
 updateRay :: RayMsg -> RayState -> RayState
@@ -256,9 +257,9 @@ viewRay s =
       twoPi = 2 * pi :: Double
 
       cameraStats = withColor ColorBrightBlue $ kv
-        [ ("th",   printf "%.2f" (rsTheta s - twoPi * fromIntegral (floor (rsTheta s / twoPi) :: Int)))
-        , ("ph",   printf "%.2f" (rsPhi s))
-        , ("zoom", printf "%.1f" (rsDist s))
+        [ ("th",   T.pack (printf "%.2f" (rsTheta s - twoPi * fromIntegral (floor (rsTheta s / twoPi) :: Int))))
+        , ("ph",   T.pack (printf "%.2f" (rsPhi s)))
+        , ("zoom", T.pack (printf "%.1f" (rsDist s)))
         ]
 
       rotateLine = tightRow
@@ -283,7 +284,7 @@ viewRay s =
         , withColor ColorBrightYellow (text "~12 fps")
         , withColor ColorBrightCyan (plotSparkline sparkData)
         , br
-        , withColor ColorBrightMagenta (kv [("shape", shapeName)])
+        , withColor ColorBrightMagenta (kv [("shape", T.pack shapeName)])
         , br
         , withColor ColorBrightCyan  (spinner "render" (rsTick s `div` 2) SpinnerDots)
         , withColor ColorBrightGreen (spinner "scene"  (rsTick s `div` 3) SpinnerClock)

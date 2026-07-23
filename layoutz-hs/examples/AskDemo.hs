@@ -13,15 +13,17 @@ import Layoutz
 import Control.Concurrent (threadDelay)
 import Control.Monad (void)
 import Text.Printf (printf)
+import Data.Text (Text)
+import qualified Data.Text as T
 
-companions :: [String]
+companions :: [Text]
 companions =
   [ "Bilbo", "Balin", "Dwalin", "Thorin"
   , "Gandalf", "Kili", "Fili", "Bombur"
   , "Bofur", "Gloin", "Oin", "Dori"
   ]
 
-realms :: [String]
+realms :: [Text]
 realms = ["The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor"]
 
 gap :: IO ()
@@ -46,12 +48,12 @@ main = do
   gap
   _ <- askConfirm "Venture on the quest?" True "Yes" "No"
   gap
-  askPager roster 8 True
+  askPager (T.pack roster) 8 True
   gap
   void $ askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure ("ready" :: String))
   where
     roster = unlines
       [ printf "%2d.  %-12s %s"
-          (i + 1) (companions !! (i `mod` length companions))
-          (realms !! (i `mod` length realms))
+          (i + 1) (T.unpack (companions !! (i `mod` length companions)))
+          (T.unpack (realms !! (i `mod` length realms)))
       | i <- [0 .. 39 :: Int] ]
