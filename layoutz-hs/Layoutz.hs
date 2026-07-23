@@ -1369,7 +1369,7 @@ instance Element PieData where
         cyF    = fromIntegral (h * 4) / 2.0       :: Double
         radius = min cxF (cyF * 0.9)
 
-        findSlice ang = go 0 (tail cumAngs)
+        findSlice ang = go 0 (drop 1 cumAngs)
           where go i []      = max 0 (i - 1)
                 go i (a:as') = if ang < a then i else go (i + 1) as'
 
@@ -1474,7 +1474,7 @@ instance Element StackedBarChartData where
               subHts  = map (\v -> round (v / maxTotal * fromIntegral totalSub) :: Int) vals
               cumHts  = scanl (+) 0 subHts
               bottoms = init cumHts
-              tops    = tail cumHts
+              tops    = drop 1 cumHts
           in zip segs (zip bottoms tops)
           ) groups
 
