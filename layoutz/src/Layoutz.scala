@@ -2380,7 +2380,7 @@ package object layoutz {
     ): Seq[Array[String]] =
       renderedElements.zip(elementWidths).map { case (lines, width) =>
         val paddedLines = lines ++ Array.fill(maxHeight - lines.length)("")
-        paddedLines.map(line => line.padTo(width, Glyphs.SPACE.head))
+        paddedLines.map(line => line + Glyphs.SPACE * (width - realLength(line)))
       }
 
   }
@@ -2489,6 +2489,9 @@ package object layoutz {
     *   a Layout containing all elements stacked vertically
     */
   def layout(elements: Element*): Layout = Layout(elements)
+
+  /* Alias for [[layout]] */
+  def vstack(elements: Element*): Layout = layout(elements: _*)
 
   /** Create a titled section with default separator (=).
     *

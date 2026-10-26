@@ -42,6 +42,13 @@ status: active"""
     assert(rendered.contains("MacDonald"))
   }
 
+  test("row pads CJK lines by display width") {
+    val left = kv("桜庭和志" -> "Sakuraba", "Gegard" -> "Mousasi", "李連杰" -> "Jet Li")
+    val lines = row(left, layout("|", "|", "|")).render.split('\n')
+
+    assert(lines.map(_.width).distinct.length == 1)
+  }
+
   test("code point width: ascii, cjk, combining, emoji, astral") {
     assert("hello".width == 5)
 
@@ -559,6 +566,10 @@ status: active"""
     val expected = """Simple text
 Another line"""
     assert(result.render == expected)
+  }
+
+  test("vstack is an alias for layout") {
+    assert(vstack("a", row("b", "c")) == layout("a", row("b", "c")))
   }
 
   test("nested sections") {

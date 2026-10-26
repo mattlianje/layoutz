@@ -1,83 +1,77 @@
 <div align="right">
-  <sub><em>part of <a href="https://github.com/mattlianje/d4"><img src="https://raw.githubusercontent.com/mattlianje/d4/master/pix/cabinet6-mark-adaptive-light.svg" width="32" align="top" hspace="4">c6</a></em></sub>
+  <sub><em><a href="https://github.com/mattlianje/cabinet6">part of c6</a> <a href="https://github.com/mattlianje/cabinet6"><img src="https://raw.githubusercontent.com/mattlianje/cabinet6/master/pix/d4.svg" width="20" align="top" hspace="4"></a></em></sub>
 </div>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/cabinet6/refs/heads/master/pix/layoutz_with_github.png" width="215">
 </p>
 
-# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
-**Simple, beautiful CLI output 🪶**
+<h1 align="center">layoutz</h1>
 
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots, and interactive Elm-style TUI's in pure Scala.
+<p align="center">
+  ANSI strings, terminal plots & Elm-style TUIs in pure Scala<br>
+  Zero deps · JVM · JS · Native
+</p>
 
-Also in [Haskell](https://github.com/mattlianje/layoutz/tree/master/layoutz-hs), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
+<p align="center">
+  <a href="#reference">Reference</a> ·
+  <a href="examples">Examples</a> ·
+  <a href="layoutz-hs">Haskell</a> ·
+  <a href="layoutz-ocaml">OCaml</a>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" height="440">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" height="440">
+  <br>
+  <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
+</p>
 
 ## Features
-- Pure Scala, zero-dependencies (JVM, Native, JS)
+- Pure Scala, zero-deps 
+     - 2.12, 2.13, 3+ (JVM, JS, Native)
+- Extend Element and easily create new primitives
+     - (No component library limitations)
 - Elm-style TUIs
-- Layout primitives, tables, trees, lists, CJK-aware
+- Layout primitives: tables, trees, lists
+- CJK widths
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
 - Widgets: text input, spinners, progress bars
-- Kitty protocol support
-- Extend `Element` and easily create new primitives
-   - (No component library limitations)
+- Kitty graphics support
 - Built-in commands (file I/O, HTTP requests, clipboard handling)
 
-<p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
-<br>
-<sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
-</p>
-
-Layoutz also lets you easily drop animations into build scripts or any processes that use Stdout:
-
-<p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="600">
-<br>
-<sub><a href="examples/InlineDemo.scala">InlineDemo.scala</a></sub>
-</p>
-
-## Table of Contents
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Why layoutz?](#why-layoutz)
-- [Core Concepts](#core-concepts)
-- [Border Styles](#border-styles)
-- [Elements](#elements)
-- [Custom Elements](#custom-elements)
-- [Collections](#collections)
-- [Colors & Styles](#colors)
-- [Charts & Plots](#charts--plots)
-- [Interactive Apps](#interactive-apps)
-- [Prompts (Ask)](#prompts-ask)
-- [Progress (loader)](#progress-loader)
-- [Examples](#examples)
-- [Contributing](#contributing)
-- [Inspiration](#inspiration)
-
 ## Installation
-On MavenCentral, cross-built for Scala 2.12, 2.13, 3.x (JVM, JS and Native):
+[![Maven Central](https://img.shields.io/maven-central/v/xyz.matthieucourt/layoutz_3)](https://central.sonatype.com/artifact/xyz.matthieucourt/layoutz_3)
 ```scala
 "xyz.matthieucourt" %% "layoutz" % "0.8.0"
 ```
+Or try it in a REPL:
 ```bash
-scala-cli repl --scala 3 --dep xyz.matthieucourt:layoutz_3:0.8.0
+scala-cli repl --dep xyz.matthieucourt::layoutz:0.8.0
 ```
+All you need is one import:
 ```scala
 import layoutz._
 ```
 
-## Quick Start
+## Philosophy
+- With LLM's, boilerplate code that formats & "pretty-prints" is cheaper than ever...
+- Thus, more than ever, "string formatting code" is spawning, and polluting domain logic.
+- Around 2023 I was getting greatly dismayed by LLM string interpolation in enterprise code.
+- Ultimately, layoutz is just a tiny, declarative DSL to combat these AI slop strings.
+- The lib has zero-deps... and the belief is you shouldn't be beholden to a framework, deps or an ideology to render lively ANSI.
+- On the side, layoutz also has an Elm-style runtime to bring these arbitrary Elements to life: much like a flipbook.
+     - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
+- But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
-There are 3 usage paths with this little library:
-
-**(1/3) Static rendering** - Pretty, composable strings:
+## Strings
+A key idea of layoutz, is that you aren't locked in by a component library. Just implement `Element`
+and compose your custom frags with all the built-ins.
 ```scala
 import layoutz._
 
-val demo = layout(
+val demo = vstack(
   row(
     "Layoutz".style(Style.Bold),
     underline("^", Color.Cyan)("DEMO")
@@ -104,82 +98,94 @@ demo.putStrLn
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="600">
 </p>
 
-**(2/3) Interactive apps** - Build Elm-style TUI's:
-
+## TUIs
+Just implement `LayoutzApp`, then call `.run`:
 ```scala
-import layoutz._
-
-object CounterApp extends LayoutzApp[Int, String] {
-  def init = 0
-
-  def update(msg: String, count: Int) = msg match {
-    case "inc" => count + 1
-    case "dec" => count - 1
-    case _     => count
-  }
-
-  def subscriptions(count: Int) =
-    Sub.onKeyPress {
-      case Key.Char('+') => Some("inc")
-      case Key.Char('-') => Some("dec")
-      case _             => None
-    }
-
-  def view(count: Int) = layout(
-    section("Counter")(s"Count: $count"),
-    br,
-    ul("Press `+` or `-`")
-  )
+trait LayoutzApp[State, Message] {
+  def init: (State, Cmd[Message])
+  def update(msg: Message, state: State): (State, Cmd[Message])
+  def subscriptions(state: State): Sub[Message]
+  def view(state: State): Element
 }
-
-CounterApp.run
 ```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="600">
-</p>
+You have built-in `Cmd`/`Sub` for file I/O, HTTP, clipboard, timers and file watching...
 
-**(3/3) Prompts (Ask)**
-
-You often want one-shot CLI prompts with pickers, file pickers, fuzzy-finders, pagers, etc ... **without** dropping
-down into Elm-territory to make them. This is why layoutz has the `Ask` helpers
-
+## Plots
 ```scala
-import layoutz._
-
-val name   = Ask.input("Name › ", placeholder = "anonymous")
-val ok     = Ask.confirm("Venture on the quest?", default = true)
-val realm  = Ask.choose("Choose a realm", Seq("Shire", "Rivendell", "Mirkwood"))
-val packs  = Ask.chooseMany("Provisions", Seq("lembas", "pipe-weed", "rope"), limit = 3)
-val riddle = Ask.write("Pose a riddle", placeholder = "All things it devours…")
-val member = Ask.filter("Search > ", Seq("Bilbo", "Balin", "Dwalin", "Thorin"))
-val path   = Ask.file(start = ".")
-Ask.pager(longString)
-val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
+val sin = (0 to 50).map(i => (i.toDouble, math.sin(i * 0.15) * 5))
+plot(width = 50, height = 12)(Series(sin, "sin(x)").color(Color.BrightCyan))
 ```
 <p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="600">
-<br>
-<sub><a href="examples/AskDemo.scala">AskDemo.scala</a></sub>
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="49%">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="49%">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="49%">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="49%">
 </p>
 
-## Why layoutz?
-- We have `s"..."`, and [full-blown](https://github.com/oyvindberg/tui-scala) TUI libraries - but there is a gap in-between.
-- With LLM's, boilerplate code that formats & "pretty-prints" is **_cheaper than ever_**...
-- Thus, **_more than ever_**, "string formatting code" is spawning, and polluting domain logic.
-- Ultimately, **layoutz** is just a tiny, declarative DSL to combat this.
-- On the side, **layoutz** also has an Elm-style runtime to bring these arbitrary `Element`s to life: much like a flipbook.
-  - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
-- But at the end of the day, you can use **layoutz** merely to structure Strings (without any of the TUI stuff).
+## Prompts
+You often want one-shot CLI prompts with pickers, file pickers, fuzzy-finders, pagers, etc... without dropping
+down into Elm-territory to make them. This is why layoutz has the `Ask` helpers.
+```scala
+val places = Seq(
+  "Bag End", "Bree", "Rivendell", "Erebor",
+  "Edoras", "Lake-town", "Minas Tirith", "Hobbiton"
+)
+
+val name = Ask.input("Name › ", placeholder = "anonymous")
+val role = Ask.choose("Role", Seq("Burglar", "Wizard", "King under the Mountain"))
+val home = Ask.filter("Home › ", places)
+val bio  = Ask.write("Bio")
+val ok   = Ask.confirm("Save profile?")
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-profile.gif" width="600">
+  <br>
+  <sub><a href="examples/AskProfile.scala">AskProfile.scala</a></sub>
+</p>
+
+## Progress
+Wrap any `Iterable` for a live bar, any `Iterator` for a spinner. Works in any script that writes to stdout.
+```scala
+for (file <- loader("Resizing", files)) resize(file)
+for (line <- loader.stream("Tailing", logLines())) index(line)
+val n = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/loader-demo.gif" width="600">
+  <br>
+  <sub><a href="examples/LoaderExample.scala">LoaderExample.scala</a></sub>
+</p>
+
+
+## Reference
+
+- [Core Concepts](#core-concepts)
+- [Border Styles](#border-styles)
+- [Elements](#elements)
+  - [Layout](#layout)
+  - [Content](#content)
+  - [Widgets](#widgets)
+- [Custom Elements](#custom-elements)
+- [Collections](#collections)
+- [Colors](#colors)
+- [Styles](#styles)
+- [Charts & Plots](#charts--plots)
+- [Interactive Apps](#interactive-apps)
+  - [Keys](#key-types)
+  - [Subscriptions](#subscriptions)
+  - [Commands](#commands)
+- [Prompts (Ask)](#prompts-ask)
+- [Progress (loader)](#progress-loader)
+
+
 
 ## Core Concepts
 
 Every piece of content is an `Element`. Elements are immutable and composable.
 
 ```scala
-layout(elem1, elem2, elem3)   // vertical
-row(elem1, elem2)             // horizontal
-elem.render                   // gives a String
-elem.putStrLn                 // prints to console
+elem.render     // gives a String
+elem.putStrLn   // prints to console
 ```
 
 Implement `Element` to create custom components that compose with all built-ins.
@@ -248,7 +254,7 @@ Border.None                                // no borders
 
 #### Stacking & rows
 ```scala
-layout("First", "Second", "Third")
+vstack("First", "Second", "Third")
 // First
 // Second
 // Third
@@ -432,7 +438,7 @@ You can inline raster images via the [kitty graphics protocol](https://sw.kovidg
 
 Layoutz **KittyImage** s compose with all the other built in elements so you can drop them into boxes, tables etc.
 ```scala
-layout(
+vstack(
   row(
     box("the gracie hunter")(kitty.image("pix/sakuraba.png", cols = 35, rows = 14)),
     box("stats")(kv("flying" -> "yes", "opponent" -> "grounded", "rules" -> "PRIDE"))
@@ -611,8 +617,8 @@ Style.Blink
 Style.Reverse
 Style.Hidden
 Style.Strikethrough
-Style.NoStyle                 // conditional no-op
-Style.Bold ++ Style.Italic    // combine with ++
+Style.NoStyle
+Style.Bold ++ Style.Italic  // combine with ++
 ```
 
 <p align="center">
@@ -770,14 +776,14 @@ Three daemon threads coordinate rendering (~50ms), tick/timers, and input captur
 
 ```scala
 app.run(
-  tickIntervalMs   = 100,              // Subscription polling rate
-  renderIntervalMs = 50,               // Screen refresh rate
-  clearOnStart     = true,             // Clear screen on launch
-  clearOnExit      = true,             // Clear screen on quit
-  showQuitMessage  = false,            // Display quit hint
-  quitMessage      = "Ctrl+Q to quit", // Custom quit text
-  quitKey          = Key.Ctrl('Q'),    // Quit on this key
-  alignment        = Alignment.Left    // Left | Center | Right
+  tickIntervalMs   = 100,  // Subscription polling rate
+  renderIntervalMs = 50,   // Screen refresh rate
+  clearOnStart     = true,
+  clearOnExit      = true,
+  showQuitMessage  = false,
+  quitMessage      = "Ctrl+Q to quit",
+  quitKey          = Key.Ctrl('Q'),
+  alignment        = Alignment.Left
 )
 ```
 
@@ -884,6 +890,7 @@ val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="600">
 <br>
+<sub><a href="examples/AskMini.scala">AskMini.scala</a></sub>
 </p>
 
 Each `Ask.*` returns its result directly:
@@ -946,596 +953,14 @@ for (_ <- loader("Bar    ", 1 to 60).bar)    Thread.sleep(16)
 for (_ <- loader("Ascii  ", 1 to 60).ascii)  Thread.sleep(16)
 
 val it = Iterator.from(1).take(90)
-for (_ <- loader.stream("Streaming", it)) Thread.sleep(45)
+for (_ <- loader.stream("Streaming", it).styled(spinner = SpinnerStyle.Dots)) Thread.sleep(45)
 ```
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/loader-demo.gif" width="600">
+<br>
+<sub><a href="examples/LoaderExample.scala">LoaderExample.scala</a></sub>
 </p>
-
-## Examples
-
-Interactive TUI apps using `LayoutzApp` with built-in `Cmd` and `Sub`.
-
-<details>
-<summary>Watch and display file contents (<code>Cmd.file.read</code>, <code>Sub.file.watch</code>)</summary>
-
-```scala
-import layoutz._
-
-case class FileState(content: String, error: Option[String])
-sealed trait Msg
-case class FileLoaded(result: Either[String, String]) extends Msg
-
-object FileViewer extends LayoutzApp[FileState, Msg] {
-  val filename = "README.md"
-
-  def init = (FileState("Loading...", None), Cmd.file.read(filename, FileLoaded))
-
-  def update(msg: Msg, state: FileState) = msg match {
-    case FileLoaded(Right(content)) =>
-      (state.copy(content = content.take(500), error = None), Cmd.none)
-    case FileLoaded(Left(err)) =>
-      (state.copy(error = Some(err)), Cmd.none)
-  }
-
-  def subscriptions(state: FileState) =
-    Sub.file.watch(filename, FileLoaded)
-
-  def view(state: FileState) = {
-    val display = state.error match {
-      case Some(err) => Color.BrightRed(s"Error: $err")
-      case None      => wrap(state.content, 60)
-    }
-
-    layout(
-      underlineColored("=", Color.BrightMagenta)("File Viewer").style(Style.Bold),
-      kv("File" -> filename).color(Color.BrightBlue),
-      box("Content")(display).border(Border.Round),
-      "Auto-reloads on file change".color(Color.BrightBlack)
-    )
-  }
-}
-
-FileViewer.run
-```
-
-See [FileViewer.scala](examples/FileViewer.scala).
-
-</details>
-
-<details>
-<summary>Start/pause timer driven by <code>Sub.time.everyMs</code></summary>
-
-```scala
-import layoutz._
-
-case class TimerState(seconds: Int, running: Boolean)
-sealed trait Msg
-case object Tick extends Msg
-case object ToggleTimer extends Msg
-case object ResetTimer extends Msg
-
-object StopwatchApp extends LayoutzApp[TimerState, Msg] {
-  def init = (TimerState(0, false), Cmd.none)
-
-  def update(msg: Msg, state: TimerState) = msg match {
-    case Tick =>
-      (state.copy(seconds = state.seconds + 1), Cmd.none)
-    case ToggleTimer =>
-      (state.copy(running = !state.running), Cmd.none)
-    case ResetTimer =>
-      (TimerState(0, running = false), Cmd.none)
-  }
-
-  def subscriptions(state: TimerState) = Sub.batch(
-    if (state.running) Sub.time.everyMs(1000, Tick) else Sub.none,
-    Sub.onKeyPress {
-      case Key.Char(' ') => Some(ToggleTimer)
-      case Key.Char('r') => Some(ResetTimer)
-      case _             => None
-    }
-  )
-
-  def view(state: TimerState) = {
-    val minutes = state.seconds / 60
-    val secs = state.seconds % 60
-    val timeDisplay = f"$minutes%02d:$secs%02d"
-
-    val statusColor = if (state.running) Color.BrightGreen else Color.BrightYellow
-    val statusText = if (state.running) "RUNNING" else "PAUSED"
-
-    layout(
-      underlineColored("=", Color.BrightCyan)("Stopwatch").style(Style.Bold),
-      "",
-      box("Time")(
-        timeDisplay.style(Style.Bold).center(20)
-      ).color(statusColor).border(Border.Double),
-      "",
-      kv(
-        "Status" -> statusText,
-        "Elapsed" -> s"${state.seconds}s"
-      ).color(Color.BrightBlue),
-      "",
-      ul(
-        "space: start/pause",
-        "r: reset"
-      ).color(Color.BrightBlack)
-    )
-  }
-}
-
-StopwatchApp.run
-```
-
-See [StopwatchApp.scala](examples/StopwatchApp.scala).
-
-</details>
-
-<details>
-<summary>Async work with <code>Cmd.task</code>, fire-and-forget with <code>Cmd.fire</code></summary>
-
-```scala
-import layoutz._
-
-case class TaskState(status: String = "idle", count: Int = 0)
-
-sealed trait Msg
-case object RunTask extends Msg
-case class TaskDone(result: Either[String, String]) extends Msg
-
-object SideEffectApp extends LayoutzApp[TaskState, Msg] {
-  def init = (TaskState(), Cmd.none)
-
-  def update(msg: Msg, state: TaskState) = msg match {
-    case RunTask =>
-      (state.copy(status = "running..."),
-       Cmd.task {
-         Thread.sleep(500)
-         if (scala.util.Random.nextDouble() < 0.3)
-           throw new Exception("Launch failure")
-         "completed"
-       }(TaskDone))
-
-    case TaskDone(Right(_)) =>
-      state.copy(status = "success", count = state.count + 1)
-
-    case TaskDone(Left(err)) =>
-      state.copy(status = s"error: $err")
-  }
-
-  def subscriptions(state: TaskState) = Sub.onKeyPress {
-    case Key.Char('r') => Some(RunTask)
-    case _             => None
-  }
-
-  def view(state: TaskState) = layout(
-    section("Side Effect Demo")(
-      kv("Status" -> state.status, "Count" -> state.count.toString)
-    ),
-    "r: run task".color(Color.BrightBlack)
-  )
-}
-
-SideEffectApp.run
-```
-
-Use `Cmd.fire` for fire-and-forget effects (logging, analytics, etc.):
-```scala
-Cmd.fire(println("User clicked button"))
-```
-
-See [SideEffectApp.scala](examples/SideEffectApp.scala).
-
-</details>
-
-<details>
-<summary>Poll an endpoint with <code>Sub.http.pollMs</code></summary>
-
-```scala
-import layoutz._
-
-case class ApiState(response: String, lastUpdate: String, error: Option[String])
-sealed trait Msg
-case class ApiResponse(result: Either[String, String]) extends Msg
-
-object ApiPoller extends LayoutzApp[ApiState, Msg] {
-  val apiUrl = "https://api.github.com/zen"
-
-  def init = (ApiState("Loading...", "Never", None), Cmd.none)
-
-  def update(msg: Msg, state: ApiState) = msg match {
-    case ApiResponse(Right(data)) =>
-      val now = java.time.LocalTime.now().toString.take(8)
-      (state.copy(response = data, lastUpdate = now, error = None), Cmd.none)
-    case ApiResponse(Left(err)) =>
-      (state.copy(error = Some(err)), Cmd.none)
-  }
-
-  def subscriptions(state: ApiState) =
-    Sub.http.pollMs(apiUrl, 3000, ApiResponse)
-
-  def view(state: ApiState) = {
-    val display = state.error match {
-      case Some(err) => Color.BrightRed(s"Error: $err")
-      case None      => wrap(state.response, 60).color(Color.BrightGreen)
-    }
-
-    layout(
-      underlineColored("~", Color.BrightCyan)("API Poller").style(Style.Bold),
-      kv("Endpoint" -> apiUrl, "Last Update" -> state.lastUpdate).color(Color.BrightBlue),
-      box("Response")(display).border(Border.Round),
-      "Polls every 3s".color(Color.BrightBlack)
-    )
-  }
-}
-
-ApiPoller.run
-```
-
-See [ApiPoller.scala](examples/ApiPoller.scala).
-
-</details>
-
-<details>
-<summary>Monitor several APIs at once with <code>Sub.batch</code></summary>
-
-```scala
-import layoutz._
-
-case class MonitorState(
-  github: String = "...",
-  httpbin: String = "...",
-  placeholder: String = "..."
-)
-
-sealed trait Msg
-case class GithubResp(result: Either[String, String]) extends Msg
-case class HttpbinResp(result: Either[String, String]) extends Msg
-case class PlaceholderResp(result: Either[String, String]) extends Msg
-
-object MultiMonitor extends LayoutzApp[MonitorState, Msg] {
-  def init = (MonitorState(), Cmd.none)
-
-  def update(msg: Msg, state: MonitorState) = msg match {
-    case GithubResp(Right(data)) => (state.copy(github = data.take(20)), Cmd.none)
-    case GithubResp(Left(e)) => (state.copy(github = s"ERROR: $e"), Cmd.none)
-    case HttpbinResp(Right(_)) => (state.copy(httpbin = "UP"), Cmd.none)
-    case HttpbinResp(Left(e)) => (state.copy(httpbin = s"ERROR: $e"), Cmd.none)
-    case PlaceholderResp(Right(_)) => (state.copy(placeholder = "UP"), Cmd.none)
-    case PlaceholderResp(Left(e)) => (state.copy(placeholder = s"ERROR: $e"), Cmd.none)
-  }
-
-  def subscriptions(state: MonitorState) = Sub.batch(
-    Sub.http.pollMs("https://api.github.com/zen", 4000, GithubResp),
-    Sub.http.pollMs("https://httpbin.org/get", 5000, HttpbinResp),
-    Sub.http.pollMs("https://jsonplaceholder.typicode.com/posts/1", 6000, PlaceholderResp)
-  )
-
-  def view(state: MonitorState) = layout(
-    underlineColored("~", Color.BrightGreen)("Multi-API Monitor").style(Style.Bold),
-    br,
-    table(
-      Seq("Service", "Status"),
-      Seq(
-        Seq("GitHub", state.github),
-        Seq("HTTPBin", state.httpbin),
-        Seq("JSONPlaceholder", state.placeholder)
-      )
-    ).border(Border.Round),
-    br,
-    "Auto-polls all endpoints".color(Color.BrightBlack)
-  )
-}
-
-MultiMonitor.run
-```
-
-See [MultiMonitor.scala](examples/MultiMonitor.scala).
-
-</details>
-
-<details>
-<summary>Fetch on demand with <code>Cmd.http.get</code></summary>
-
-```scala
-import layoutz._
-
-case class FetchState(data: String, loading: Boolean, count: Int)
-sealed trait Msg
-case object Fetch extends Msg
-case class Response(result: Either[String, String]) extends Msg
-
-object HttpFetcher extends LayoutzApp[FetchState, Msg] {
-  def init = (FetchState("Press 'f' to fetch", false, 0), Cmd.none)
-
-  def update(msg: Msg, state: FetchState) = msg match {
-    case Fetch =>
-      (state.copy(loading = true, count = state.count + 1),
-       Cmd.http.get("https://api.github.com/zen", Response))
-    case Response(Right(data)) =>
-      (state.copy(data = data, loading = false), Cmd.none)
-    case Response(Left(err)) =>
-      (state.copy(data = s"Error: $err", loading = false), Cmd.none)
-  }
-
-  def subscriptions(state: FetchState) = Sub.onKeyPress {
-    case Key.Char('f') => Some(Fetch)
-    case _             => None
-  }
-
-  def view(state: FetchState) = {
-    val status: Element = if (state.loading) spinner("Fetching", state.count % 10)
-                          else Text(s"Fetched ${state.count} times")
-
-    layout(
-      underlineColored("=", Color.BrightCyan)("HTTP Fetcher").style(Style.Bold),
-      box("Zen Quote")(wrap(state.data, 50)).border(Border.Round).color(Color.BrightGreen),
-      status,
-      "f: fetch".color(Color.BrightBlack)
-    )
-  }
-}
-
-HttpFetcher.run
-```
-
-See [HttpFetcher.scala](examples/HttpFetcher.scala).
-
-</details>
-
-<details>
-<summary>Copy/paste with <code>Cmd.clipboard</code></summary>
-
-```scala
-import layoutz._
-
-case class ClipState(content: String = "", status: String = "Press 'r' to read clipboard")
-sealed trait Msg
-case class ClipRead(result: Either[String, String]) extends Msg
-case class ClipWritten(result: Either[String, Unit]) extends Msg
-case object ReadClip extends Msg
-case object WriteClip extends Msg
-
-object ClipboardApp extends LayoutzApp[ClipState, Msg] {
-  def init = (ClipState(), Cmd.none)
-
-  def update(msg: Msg, state: ClipState) = msg match {
-    case ReadClip =>
-      (state.copy(status = "Reading..."), Cmd.clipboard.read(ClipRead))
-    case ClipRead(Right(text)) =>
-      (state.copy(content = text.take(200), status = "Read OK"), Cmd.none)
-    case ClipRead(Left(err)) =>
-      (state.copy(status = s"Error: $err"), Cmd.none)
-    case WriteClip =>
-      (state.copy(status = "Writing..."),
-       Cmd.clipboard.write("Hello from layoutz!", ClipWritten))
-    case ClipWritten(Right(_)) =>
-      (state.copy(status = "Written to clipboard!"), Cmd.none)
-    case ClipWritten(Left(err)) =>
-      (state.copy(status = s"Error: $err"), Cmd.none)
-  }
-
-  def subscriptions(state: ClipState) = Sub.onKeyPress {
-    case Key.Char('r') => Some(ReadClip)
-    case Key.Char('w') => Some(WriteClip)
-    case _             => None
-  }
-
-  def view(state: ClipState) = layout(
-    section("Clipboard Demo")(
-      kv("Status" -> state.status),
-      box("Content")(wrap(state.content, 60)).border(Border.Round)
-    ),
-    ul("r: read clipboard", "w: write to clipboard").color(Color.BrightBlack)
-  )
-}
-
-ClipboardApp.run
-```
-
-See [ClipboardApp.scala](examples/ClipboardApp.scala).
-
-</details>
-
-<details>
-<summary>Build interactive forms with <code>textInput</code>, <code>SingleChoice</code>, <code>MultiChoice</code></summary>
-
-```scala
-import layoutz._
-
-case class FormState(
-    name: String = "",
-    mood: Int = 0,                          // index into moods list
-    selectedLetters: Set[Int] = Set.empty,  // indices of selected letters
-    letterCursor: Int = 0,                  // current cursor position in multi-choice
-    activeField: Int = 0,                   // 0=name, 1=mood, 2=letters
-    submitted: Boolean = false
-)
-
-sealed trait FormMsg
-case class UpdateName(newValue: String) extends FormMsg
-case object NextField extends FormMsg
-case object PrevField extends FormMsg
-case object FormMoveUp extends FormMsg
-case object FormMoveDown extends FormMsg
-case object ToggleSelection extends FormMsg
-case object Submit extends FormMsg
-
-object FormExample extends LayoutzApp[FormState, FormMsg] {
-
-  private val moods = Seq("great", "okay", "meh", "not great")
-  private val letters = ('A' to 'F').map(_.toString).toSeq
-
-  def init = (FormState(), Cmd.none)
-
-  def update(msg: FormMsg, state: FormState) = msg match {
-    case UpdateName(newValue) =>
-      (state.copy(name = newValue), Cmd.none)
-
-    case NextField if state.activeField < 2 =>
-      (state.copy(activeField = state.activeField + 1), Cmd.none)
-
-    case PrevField if state.activeField > 0 =>
-      (state.copy(activeField = state.activeField - 1), Cmd.none)
-
-    // Single choice navigation
-    case FormMoveUp if state.activeField == 1 =>
-      val newMood = if (state.mood > 0) state.mood - 1 else moods.length - 1
-      (state.copy(mood = newMood), Cmd.none)
-
-    case FormMoveDown if state.activeField == 1 =>
-      val newMood = if (state.mood < moods.length - 1) state.mood + 1 else 0
-      (state.copy(mood = newMood), Cmd.none)
-
-    // Multi choice navigation and toggle
-    case FormMoveUp if state.activeField == 2 =>
-      val newCursor =
-        if (state.letterCursor > 0) state.letterCursor - 1
-        else letters.length - 1
-      (state.copy(letterCursor = newCursor), Cmd.none)
-
-    case FormMoveDown if state.activeField == 2 =>
-      val newCursor =
-        if (state.letterCursor < letters.length - 1) state.letterCursor + 1
-        else 0
-      (state.copy(letterCursor = newCursor), Cmd.none)
-
-    case ToggleSelection if state.activeField == 2 =>
-      val newSelected =
-        if (state.selectedLetters.contains(state.letterCursor)) {
-          state.selectedLetters - state.letterCursor
-        } else {
-          state.selectedLetters + state.letterCursor
-        }
-      (state.copy(selectedLetters = newSelected), Cmd.none)
-
-    case Submit =>
-      (state.copy(submitted = true), Cmd.none)
-
-    case _ => (state, Cmd.none)
-  }
-
-  def subscriptions(state: FormState) = Sub.onKeyPress { key =>
-    // Space toggles in multi-choice - handle this first!
-    (if (state.activeField == 2 && key == Key.Char(' ')) Some(ToggleSelection)
-     else None)
-      // Check if name field handled the key
-      .orElse(
-        input.handle(key, 0, state.activeField, state.name).map(UpdateName)
-      )
-      // Otherwise check other keys
-      .orElse(key match {
-        case Key.Tab                                 => Some(NextField)
-        case Key.Char('n') if state.activeField != 0 => Some(NextField)
-        case Key.Char('p') if state.activeField != 0 => Some(PrevField)
-        case Key.Up | Key.Char('k')                  => Some(FormMoveUp)
-        case Key.Down | Key.Char('j')                => Some(FormMoveDown)
-        case Key.Enter                               => Some(Submit)
-        case _                                       => None
-      })
-  }
-
-  def view(state: FormState) =
-    if (state.submitted) {
-      layout(
-        section("✓ Form Submitted")(
-          layout(
-            s"Name: ${state.name}",
-            s"Mood: ${moods(state.mood)}",
-            s"Letters: ${state.selectedLetters.toSeq.sorted.map(i => letters(i)).mkString(", ")}",
-            br
-          )
-        )
-      )
-    } else {
-      layout(
-        section("📝 User Survey")(
-          layout(
-            textInput(
-              "What's your name?",
-              state.name,
-              "Type here...",
-              active = state.activeField == 0
-            ),
-            br,
-            SingleChoice(
-              label = "How was your day?",
-              options = moods,
-              selected = state.mood,
-              active = state.activeField == 1
-            ),
-            br,
-            MultiChoice(
-              label = "Favorite letters?",
-              options = letters,
-              selected = state.selectedLetters,
-              cursor = state.letterCursor,
-              active = state.activeField == 2
-            )
-          )
-        ),
-        br,
-        section("Controls")(
-          ul(
-            "Type to enter name",
-            "↑↓ / k/j to navigate options",
-            "Space to toggle multi-choice",
-            "Tab / n to next field, p for previous",
-            "Enter to submit"
-          )
-        )
-      )
-    }
-}
-
-FormExample.run
-```
-
-See [FormExample.scala](examples/FormExample.scala).
-
-</details>
-
-<details>
-<summary>Navigation, progress tracking, and stateful emojis with <code>Sub.batch</code></summary>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/nav-demo-edit.gif" width="600">
-</p>
-
-The full task navigator adds/removes tasks, tracks progress, and swaps emojis per state.
-See [NavLoadApp.scala](examples/NavLoadApp.scala) for the complete runnable file. The heart of it is the
-subscription wiring time ticks and keyboard input together:
-
-```scala
-def subscriptions(state: NavLoadState): Sub[NavLoadMessage] =
-  Sub.batch(
-    // Time updates drive progress bars and spinners
-    Sub.time.everyMs(100, UpdateTick),
-
-    // Keyboard input drives navigation and task editing
-    Sub.onKeyPress {
-      case Key.Escape    => Some(CancelNewTask)
-      case Key.Tab       => Some(ConfirmNewTask)
-      case Key.Backspace => Some(DeleteTaskChar)
-      case Key.Up        => Some(MoveUp)
-      case Key.Down      => Some(MoveDown)
-      case Key.Enter     => Some(StartTask)
-      case Key.Char(c)   => Some(HandleChar(c))
-      case _             => None
-    }
-  )
-```
-
-</details>
-
-<details>
-<summary>A little terminal game built on <code>LayoutzApp</code></summary>
-
-A full snake game driven by `Sub.time.everyMs` for the game loop and `Sub.onKeyPress` for steering.
-See [SimpleGame.scala](examples/SimpleGame.scala) for the complete runnable file.
-
-</details>
 
 
 ## Contributing
@@ -1543,12 +968,12 @@ See [SimpleGame.scala](examples/SimpleGame.scala) for the complete runnable file
 You need [Mill](https://mill-build.org) and a JDK (11+).
 
 ```bash
-make test          # run all tests (JVM, JS, Native)
-make compile       # compile all platforms
-make repl          # Scala 3 REPL with layoutz loaded
+make test
+make compile
+make repl
 ```
 
-Fork, make your change, `make test`, open a PR. Keep it zero-dep.
+API suggestions are most welcome!
 
 ## Inspiration
 - [ScalaTags](https://github.com/com-lihaoyi/scalatags) by Li Haoyi
