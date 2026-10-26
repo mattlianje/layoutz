@@ -21,8 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" height="440">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" height="440">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
   <br>
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
@@ -68,34 +67,8 @@ import layoutz._
 ## Strings
 A key idea of layoutz, is that you aren't locked in by a component library. Just implement `Element`
 and compose your custom frags with all the built-ins.
-```scala
-import layoutz._
-
-val demo = vstack(
-  row(
-    "Layoutz".style(Style.Bold),
-    underline("^", Color.Cyan)("DEMO")
-  ).center(),
-  br,
-  row(
-    statusCard("Users", "1.2K"),
-    statusCard("API", "UP").border(Border.Double),
-    statusCard("CPU", "23%").border(Border.Thick).color(Color.Red),
-    table(
-      Seq("Name", "Role", "Skills"),
-      Seq(
-        Seq("Gegard", "Pugilist",
-          ul("Armenian", ul("bad", ul("man")))),
-        Seq("Eve", "QA", "Testing")
-      )
-    ).border(Border.Round).style(Style.Reverse)
-  )
-)
-
-demo.putStrLn
-```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/docs-demo.png" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="500">
 </p>
 
 ## TUIs
