@@ -4,7 +4,7 @@
 Output demos/loader.gif
 Set FontSize 26
 Set Width 1100
-Set Height 800
+Set Height 320
 Set Theme "Catppuccin Mocha"
 Set Padding 10
 Set Framerate 60
@@ -24,6 +24,6 @@ Sleep 800ms
 Show
 
 # Let every style fill, then the streaming spinner run to completion
-Sleep 12s
+Sleep 15s
 
 Hide

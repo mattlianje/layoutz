@@ -2,7 +2,7 @@ import layoutz._
 
 object LoaderExample {
   def main(args: Array[String]): Unit = {
-    print("[2J[H") // clear the REPL banner
+    print("\u001b[2J\u001b[H") // clear the REPL banner
     Thread.sleep(1000)
 
     // Every built-in bar style (bracketed ones last, so the open bars line up on top)
@@ -13,11 +13,13 @@ object LoaderExample {
     for (_ <- loader("Bar    ", 1 to 60).bar) Thread.sleep(16)
     for (_ <- loader("Ascii  ", 1 to 60).ascii) Thread.sleep(16)
 
-    // No label — just the bar
-    for (_ <- loader(1 to 40)) Thread.sleep(16)
-
     // Unknown size — spinner + running count
-    val it: Iterator[Int] = Iterator.from(1).take(90)
+    val it = Iterator.from(1).take(90)
     for (_ <- loader.stream("Streaming", it).styled(spinner = SpinnerStyle.Dots)) Thread.sleep(45)
+
+    // hold the final frame (cursor hidden) so the recording ends before the REPL prompt
+    print("\u001b[?25l")
+    Thread.sleep(3000)
+    print("\u001b[?25h")
   }
 }
