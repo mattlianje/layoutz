@@ -3,7 +3,7 @@
 </div>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/cabinet6/refs/heads/master/pix/layoutz_with_github.png" width="215">
+  <img src="https://raw.githubusercontent.com/mattlianje/cabinet6/refs/heads/master/pix/layoutz_with_github.png" width="250">
 </p>
 
 <h1 align="center">layoutz</h1>
