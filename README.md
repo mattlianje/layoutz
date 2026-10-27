@@ -26,8 +26,6 @@
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
-layoutz is a fast, zero-dependency library for ANSI layouts, terminal plots and Elm-style TUIs on JVM, JS and Native.
-
 ## Features
 - Scala 2.12, 2.13, 3+ (JVM, JS, Native)
 - Extend Element and easily create new primitives
