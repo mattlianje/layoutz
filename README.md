@@ -1,5 +1,5 @@
 <div align="right">
-  <sub><em><a href="https://github.com/mattlianje/cabinet6">part of c6</a> <a href="https://github.com/mattlianje/cabinet6"><img src="https://raw.githubusercontent.com/mattlianje/cabinet6/master/pix/d4.svg" width="20" align="top" hspace="4"></a></em></sub>
+  <sub><em>part of <a href="https://github.com/mattlianje/cabinet6"><img src="https://raw.githubusercontent.com/mattlianje/cabinet6/master/pix/d4.svg" width="20" align="top" hspace="4">c6</a></em></sub>
 </div>
 
 <p align="center">
@@ -26,9 +26,10 @@
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
+layoutz is a fast, zero-dependency library for ANSI layouts, terminal plots and Elm-style TUIs on JVM, JS and Native.
+
 ## Features
-- Pure Scala, zero-deps 
-     - 2.12, 2.13, 3+ (JVM, JS, Native)
+- Scala 2.12, 2.13, 3+ (JVM, JS, Native)
 - Extend Element and easily create new primitives
      - (No component library limitations)
 - Elm-style TUIs
