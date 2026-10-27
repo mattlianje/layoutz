@@ -553,11 +553,12 @@ Color.NoColor                 // Conditional no-op
 ```scala
 import layoutz._
 
-val palette = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
-
-val redToBlue = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
-val greenFade = tightRow((0 to 255 by 8).map(i => "█".color(Color.True(0, 255 - i, i))): _*)
-val rainbow = tightRow((0 to 255 by 8).map { i =>
+val palette   = tightRow((16 to 231 by 7).map(i => "█".color(Color.Full(i))): _*)
+val redToBlue = tightRow((0 to 255 by 8)
+   .map(i => "█".color(Color.True(i, 100, 255 - i))): _*)
+val greenFade = tightRow((0 to 255 by 8)
+   .map(i => "█".color(Color.True(0, 255 - i, i))): _*)
+val rainbow   = tightRow((0 to 255 by 8).map { i =>
   val r = if (i < 128) i * 2 else 255
   val g = if (i < 128) 255 else (255 - i) * 2
   val b = if (i > 128) (i - 128) * 2 else 0
