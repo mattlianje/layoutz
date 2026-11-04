@@ -9,7 +9,7 @@
 <h1 align="center">layoutz</h1>
 
 <p align="center">
-  ANSI strings, terminal plots & Elm-style TUIs in pure Scala<br>
+  Declarative + composable ANSI strings, plots & Elm-style TUIs in Scala<br>
   Zero deps · JVM · JS · Native
 </p>
 
