@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="#philosophy">Philosophy</a> ·
   <a href="#reference">Reference</a> ·
   <a href="examples">Examples</a>
 </p>
@@ -22,6 +23,12 @@
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
   <br>
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="500">
+  <br>
+  <sub>No component library lock-in: implement <code>Element</code> and compose your own frags with the built-ins</sub>
 </p>
 
 ## Features
@@ -60,13 +67,6 @@ import layoutz._
 - On the side, layoutz also has an Elm-style runtime to bring these arbitrary Elements to life: much like a flipbook.
      - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
-
-## Strings
-A key idea of layoutz, is that you aren't locked in by a component library. Just implement `Element`
-and compose your custom frags with all the built-ins.
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="500">
-</p>
 
 ## TUIs
 Just implement `LayoutzApp`, then call `.run`:
