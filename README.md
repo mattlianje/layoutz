@@ -15,9 +15,7 @@
 
 <p align="center">
   <a href="#reference">Reference</a> ·
-  <a href="examples">Examples</a> ·
-  <a href="layoutz-hs">Haskell</a> ·
-  <a href="layoutz-ocaml">OCaml</a>
+  <a href="examples">Examples</a>
 </p>
 
 <p align="center">
