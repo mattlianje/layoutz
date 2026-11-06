@@ -48,12 +48,11 @@ All you need is one import:
 import layoutz._
 ```
 
-## Philosophy
+## Of note...
 - With LLM's, boilerplate code that formats & "pretty-prints" is cheaper than ever...
 - Thus, more than ever, "string formatting code" is spawning, and polluting domain logic.
-- Around 2023 I was getting greatly dismayed by LLM string interpolation in enterprise code.
-- Ultimately, layoutz is just a tiny, declarative DSL to combat these AI slop strings.
-- The lib has zero-deps... and the belief is you shouldn't be beholden to a framework, deps or an ideology to render lively ANSI.
+- Ultimately, layoutz is just a tiny, declarative DSL to combat this.
+- The lib has zero-deps, and the belief is you shouldn't be beholden to a framework, deps or an ideology to render lively ANSI.
 - On the side, layoutz also has an Elm-style runtime to bring these arbitrary Elements to life: much like a flipbook.
      - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
