@@ -4,7 +4,7 @@
 
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 
-**Simple, beautiful CLI output 🪶**
+**Simple, beautiful CLI output**
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in Scala (JVM, JS, Native).
@@ -18,7 +18,7 @@ and interactive Elm-style TUI's in Scala (JVM, JS, Native).
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo-repl.png" width="600">
   <br>
-  <sub>No component library lock-in: implement <code>Element</code> and compose your own frags with the built-ins</sub>
+  <sub>Implement <code>Element</code> and compose your custom elements with the built-ins</sub>
 </p>
 
 ## Features
