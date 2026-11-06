@@ -76,10 +76,7 @@ val sin = (0 to 50).map(i => (i.toDouble, math.sin(i * 0.15) * 5))
 plot(width = 50, height = 12)(Series(sin, "sin(x)").color(Color.BrightCyan))
 ```
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="49%">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="49%">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="49%">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="49%">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-charts.png" width="600">
 </p>
 
 ## Prompts
