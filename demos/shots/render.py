@@ -231,7 +231,7 @@ def repl_screen(code, output):
     def entry(block):
         while block and not block[-1].strip():
             block = block[:-1]
-        return ['  ' + (ps2 if i else ps1) + highlight(l, None) for i, l in enumerate(block)]
+        return ['  ' + (ps2 if i else ps1) + esc(TEXT) + l for i, l in enumerate(block)]
 
     # The println and the comment above it go in a second entry.
     split = max(i for i, l in enumerate(code) if not l.strip())

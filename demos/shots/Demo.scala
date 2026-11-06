@@ -12,31 +12,7 @@ val people = table(
   )
 ).border(Border.Round)
 
-val rainbow = (0 to 255 by 12).map { i =>
-  val r = if (i < 128) i * 2 else 255
-  val g = if (i < 128) 255 else (255 - i) * 2
-  val b = if (i > 128) (i - 128) * 2 else 0
-  "█".color(Color.True(r, g, b))
-}
-
-val deploy = box("Deploy Status")(
-  inlineBar("Build", 1.0),
-  inlineBar("Test", 0.8),
-  inlineBar("Deploy", 0.3)
-).color(Color.Green)
-
-val project = tree("📁 Project")(
-  tree("src")(
-    tree("main")(tree("App.scala")),
-    tree("test")(tree("AppSpec.scala"))
-  )
-).color(Color.Cyan)
-
 val xs = (0 to 400).map(_ * 0.02)
-val waves = plot(width = 24, height = 6)(
-  Series(xs.map(x => (x, math.sin(x))), "sin").color(Color.BrightCyan),
-  Series(xs.map(x => (x, math.cos(x))), "cos").color(Color.BrightMagenta)
-)
 
 /* Nest, compose, combine them */
 val demo = layout(
@@ -51,7 +27,12 @@ val demo = layout(
     people,
     section("Pugilists")(layout(
       kv("Kazushi" -> "Sakuraba", "Jet 李連杰" -> "Li", "Rory" -> "MacDonald"),
-      tightRow(rainbow: _*)
+      tightRow((0 to 255 by 12).map { i =>
+        val r = if (i < 128) i * 2 else 255
+        val g = if (i < 128) 255 else (255 - i) * 2
+        val b = if (i > 128) (i - 128) * 2 else 0
+        "█".color(Color.True(r, g, b))
+      }: _*)
     ))
   ),
   row(
@@ -61,8 +42,25 @@ val demo = layout(
         .style(Style.Reverse ++ Style.Bold),
       ol("Arcole", "Rivoli", "Austerlitz", ol("Iéna", "Wagram", ol("Бородино")))
     ),
-    margin("[Scala!]")(deploy, project),
-    box("Waves")(waves).border(Border.Round)
+    margin("[Scala!]")(
+      box("Deploy Status")(
+        inlineBar("Build", 1.0),
+        inlineBar("Test", 0.8),
+        inlineBar("Deploy", 0.3)
+      ).color(Color.Green),
+      tree("📁 Project")(
+        tree("src")(
+          tree("main")(tree("App.scala")),
+          tree("test")(tree("AppSpec.scala"))
+        )
+      ).color(Color.Cyan)
+    ),
+    box("Waves")(
+      plot(width = 24, height = 6)(
+        Series(xs.map(x => (x, math.sin(x))), "sin").color(Color.BrightCyan),
+        Series(xs.map(x => (x, math.cos(x))), "cos").color(Color.BrightMagenta)
+      )
+    ).border(Border.Round)
   )
 )
 
