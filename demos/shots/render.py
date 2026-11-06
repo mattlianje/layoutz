@@ -3,6 +3,7 @@
 Render README screenshots of layoutz demos.
 
     render.py Demo.scala out.png                  # vim buffer | program output
+    render.py --repl Demo.scala out.png           # one tall REPL pane
     render.py --output-only Charts.scala out.png  # program output only
 
 Needs scala-cli, rsvg-convert and the JetBrains Mono NL font.
@@ -212,11 +213,33 @@ def split_screen(code, output, name):
     right += [''] * (rows - len(right))
     lines = [l + divider + pad(r, half) for l, r in zip(left, right)]
 
-    session, windows, clock = ' layoutz ', ' 1:nvim*  2:zsh ', f' {CLOCK} '
-    gap = max(width(l) for l in lines) - len(session) - len(windows) - len(clock)
-    lines.append(esc(BASE, GREEN, True) + session + esc(TEXT, MANTLE) + windows
-                 + ' ' * gap + esc(BASE, GREEN) + clock + RESET)
+    lines.append(tmux_bar(max(width(l) for l in lines), '1:nvim*  2:zsh'))
     return lines
+
+
+def tmux_bar(cols, window):
+    session, windows, clock = ' layoutz ', f' {window} ', f' {CLOCK} '
+    gap = cols - len(session) - len(windows) - len(clock)
+    return (esc(BASE, GREEN, True) + session + esc(TEXT, MANTLE) + windows
+            + ' ' * gap + esc(BASE, GREEN) + clock + RESET)
+
+
+def repl_screen(code, output):
+    ps1 = esc(BLUE, bold=True) + 'scala> ' + RESET
+    ps2 = esc(SURFACE1) + '     | ' + RESET
+
+    def entry(block):
+        while block and not block[-1].strip():
+            block = block[:-1]
+        return ['  ' + (ps2 if i else ps1) + highlight(l, None) for i, l in enumerate(block)]
+
+    # The println and the comment above it go in a second entry.
+    split = max(i for i, l in enumerate(code) if not l.strip())
+    lines = [''] + entry(code[:split]) + [''] + entry(code[split + 1:])
+    lines += ['  ' + recolor(l.rstrip()) for l in output]
+    lines += ['', '  ' + ps1 + esc(BASE, TEXT) + ' ' + RESET, '']
+    cols = max(width(l) for l in lines) + 2
+    return [pad(l, cols) for l in lines] + [tmux_bar(cols, '1:scala*')]
 
 
 def cells(line):
@@ -317,7 +340,9 @@ def svg(screen):
 
 def main():
     ap = argparse.ArgumentParser(description='Render a layoutz demo to PNG.')
-    ap.add_argument('--output-only', action='store_true', help='skip the vim pane and tmux bar')
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument('--output-only', action='store_true', help='just the program output')
+    mode.add_argument('--repl', action='store_true', help='one tall REPL pane instead of a split')
     ap.add_argument('source')
     ap.add_argument('png')
     args = ap.parse_args()
@@ -332,7 +357,8 @@ def main():
         screen = output_screen(output, name)
     else:
         with open(args.source) as f:
-            screen = split_screen(displayed_source(f.read()), output, name)
+            code = displayed_source(f.read())
+        screen = repl_screen(code, output) if args.repl else split_screen(code, output, name)
 
     subprocess.run(['rsvg-convert', '-z', '2', '-o', args.png], input=svg(screen).encode(), check=True)
     print(f'wrote {args.png}')

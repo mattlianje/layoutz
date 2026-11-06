@@ -2,31 +2,21 @@
   <sub><em>part of <a href="https://github.com/mattlianje/cabinet6"><img src="https://raw.githubusercontent.com/mattlianje/cabinet6/master/pix/d4.png" width="20" align="top" hspace="4">c6</a></em></sub>
 </div>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/cabinet6/refs/heads/master/pix/layoutz_with_github.png" width="250">
-</p>
+# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 
-<h1 align="center">layoutz</h1>
+**Simple, beautiful CLI output 🪶**
 
-<p align="center">
-  Declarative + composable ANSI strings, plots & Elm-style TUIs in Scala<br>
-  Zero deps · JVM · JS · Native
-</p>
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
+and interactive Elm-style TUI's in Scala (JVM, JS, Native).
 
 <p align="center">
-  <a href="#philosophy">Philosophy</a> ·
-  <a href="#reference">Reference</a> ·
-  <a href="examples">Examples</a>
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="800">
   <br>
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo-split.png" width="800">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo-repl.png" width="600">
   <br>
   <sub>No component library lock-in: implement <code>Element</code> and compose your own frags with the built-ins</sub>
 </p>

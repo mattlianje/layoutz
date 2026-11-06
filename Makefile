@@ -99,4 +99,5 @@ demo:
 # Render README screenshots from demos/shots/*.scala into pix/
 shots:
 	python3 demos/shots/render.py demos/shots/Demo.scala pix/layoutz-demo-split.png
+	python3 demos/shots/render.py --repl demos/shots/Demo.scala pix/layoutz-demo-repl.png
 	python3 demos/shots/render.py --output-only demos/shots/Charts.scala pix/layoutz-charts.png
