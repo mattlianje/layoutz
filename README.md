@@ -8,7 +8,7 @@
 
 # layoutz
 
-**Simple, beautiful CLI output ✨🪶**
+**Simple, beautiful CLI output**
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in Scala (JVM, JS, Native).
