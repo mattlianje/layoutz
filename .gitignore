@@ -29,3 +29,4 @@ layoutz-clj/target/
 
 # scala-cli build output
 .scala-build/
+__pycache__/

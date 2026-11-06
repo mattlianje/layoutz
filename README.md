@@ -26,7 +26,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo-split.png" width="800">
   <br>
   <sub>No component library lock-in: implement <code>Element</code> and compose your own frags with the built-ins</sub>
 </p>

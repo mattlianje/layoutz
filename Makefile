@@ -1,4 +1,4 @@
-.PHONY: compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2 publish-site examples list-examples demos demo
+.PHONY: shots compile test test-jvm test-js test-native publish-local bundle clean fmt fmt-check repl repl2 publish-site examples list-examples demos demo
 
 VERSION := 0.8.0
 BUNDLE_DIR := bundles
@@ -95,3 +95,8 @@ demos:
 # Record a single demo ... e.g: make demo TAPE=simple-game
 demo:
 	./demos/generate.sh $(TAPE)
+
+# Render README screenshots from demos/shots/*.scala into pix/
+shots:
+	python3 demos/shots/render.py demos/shots/Demo.scala pix/layoutz-demo-split.png
+	python3 demos/shots/render.py --output-only demos/shots/Charts.scala pix/layoutz-charts.png
