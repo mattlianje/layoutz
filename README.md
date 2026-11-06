@@ -8,29 +8,12 @@
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo-repl.png" width="600">
-</p>
-
 # <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
 
 **Simple, beautiful CLI output**
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in Scala (JVM, JS, Native).
-
-## Features
-- Scala 2.12, 2.13, 3+ (JVM, JS, Native)
-- Extend Element and easily create new primitives
-     - (No component library limitations)
-- Elm-style TUIs
-- Layout primitives: tables, trees, lists
-- CJK widths
-- Colors, ANSI styles, rich formatting
-- Terminal charts and plots
-- Widgets: text input, spinners, progress bars
-- Kitty graphics support
-- Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 ## Installation
 [![Maven Central](https://img.shields.io/maven-central/v/xyz.matthieucourt/layoutz_3)](https://central.sonatype.com/artifact/xyz.matthieucourt/layoutz_3)
@@ -45,6 +28,23 @@ All you need is one import:
 ```scala
 import layoutz._
 ```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo-repl.png" width="600">
+</p>
+
+## Features
+- Scala 2.12, 2.13, 3+ (JVM, JS, Native)
+- Extend Element and easily create new primitives
+     - (No component library limitations)
+- Elm-style TUIs
+- Layout primitives: tables, trees, lists
+- CJK widths
+- Colors, ANSI styles, rich formatting
+- Terminal charts and plots
+- Widgets: text input, spinners, progress bars
+- Kitty graphics support
+- Built-in commands (file I/O, HTTP requests, clipboard handling)
 
 ## Of note...
 - With LLM's, boilerplate code that formats & "pretty-prints" is cheaper than ever...
