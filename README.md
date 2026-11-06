@@ -2,15 +2,8 @@
   <sub><em>part of <a href="https://github.com/mattlianje/cabinet6"><img src="https://raw.githubusercontent.com/mattlianje/cabinet6/master/pix/d4.png" width="20" align="top" hspace="4">c6</a></em></sub>
 </div>
 
-# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
-
-**Simple, beautiful CLI output**
-
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
-and interactive Elm-style TUI's in Scala (JVM, JS, Native).
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase-mini.gif" width="600">
   <br>
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
@@ -18,6 +11,13 @@ and interactive Elm-style TUI's in Scala (JVM, JS, Native).
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-demo-repl.png" width="600">
 </p>
+
+# <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz.png" width="60"> layoutz
+
+**Simple, beautiful CLI output**
+
+A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
+and interactive Elm-style TUI's in Scala (JVM, JS, Native).
 
 ## Features
 - Scala 2.12, 2.13, 3+ (JVM, JS, Native)
@@ -65,6 +65,12 @@ trait LayoutzApp[State, Message] {
 }
 ```
 You have built-in `Cmd`/`Sub` for file I/O, HTTP, clipboard, timers and file watching...
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase-tour.gif" width="600">
+  <br>
+  <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
+</p>
 
 ## Plots
 ```scala

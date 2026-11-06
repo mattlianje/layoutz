@@ -1,0 +1,142 @@
+# Starts on physics ball scene
+
+Output demos/showcase-tour.gif
+Set FontSize 28
+Set Width 1700
+Set Height 1300
+Set Theme "Catppuccin Mocha"
+Set TypingSpeed 80ms
+Set Padding 10
+Set Framerate 60
+
+# Start mill console and load the showcase (hidden)
+Hide
+Type "./mill -i layoutz.jvm[3.3.7].console"
+Enter
+Sleep 30s
+Type ":load examples/ShowcaseApp.scala"
+Enter
+Sleep 10s
+Type "ShowcaseApp.run(alignment = Alignment.Center)"
+Enter
+Sleep 3s
+# Skip Scene 1 (Ray Marcher) while hidden
+Right
+Sleep 500ms
+Show
+
+# Scene 2/8: Physics Game
+Sleep 500ms
+# Two quick kicks
+Space
+Sleep 1.7s
+Space
+Sleep 3s
+
+# Scene 3/8: Text Input & Lists
+Right
+Sleep 1s
+Type "Austerlitz"
+Sleep 400ms
+Enter
+Sleep 1.5s
+Type "Arcole"
+Sleep 400ms
+Enter
+Sleep 2s
+
+# Scene 4/8: Borders & Styles
+Right
+Sleep 1.5s
+
+# Scene 5/8: Tables
+Right
+Sleep 1s
+Down
+Sleep 200ms
+Down
+Sleep 200ms
+Down
+Sleep 300ms
+# Select Queue
+Space
+Sleep 600ms
+Down
+Sleep 300ms
+# Select Auth
+Space
+Sleep 600ms
+# Browse around without wrapping
+Up
+Sleep 250ms
+Up
+Sleep 250ms
+Up
+Sleep 250ms
+Up
+Sleep 250ms
+Down
+Sleep 250ms
+Down
+Sleep 250ms
+Down
+Sleep 500ms
+
+# Scene 6/8: Charts & Plots
+Right
+Sleep 1s
+# Shift down fast
+Type "-"
+Sleep 150ms
+Type "-"
+Sleep 150ms
+Type "-"
+Sleep 150ms
+Type "-"
+Sleep 150ms
+Type "-"
+Sleep 150ms
+Type "-"
+Sleep 400ms
+# Shift back up fast
+Type "+"
+Sleep 150ms
+Type "+"
+Sleep 150ms
+Type "+"
+Sleep 150ms
+Type "+"
+Sleep 150ms
+Type "+"
+Sleep 150ms
+Type "+"
+Sleep 2s
+
+# Scene 7/8: Bar Charts & Sparklines
+Right
+Sleep 1.5s
+# Toggle chart mode
+Tab
+Sleep 1.5s
+
+# Scene 8/8: Selections & Heatmap
+Right
+Sleep 1s
+Down
+Sleep 200ms
+Down
+Sleep 300ms
+# Select Wed
+Space
+Sleep 600ms
+Down
+Sleep 200ms
+Down
+Sleep 300ms
+# Select Fri
+Space
+Sleep 1.5s
+
+# Quit
+Hide
+Ctrl+Q
