@@ -1,5 +1,6 @@
 <div align="right">
   <sub><em>part of <a href="https://github.com/mattlianje/cabinet6"><img src="https://raw.githubusercontent.com/mattlianje/cabinet6/master/pix/d4.png" width="20" align="top" hspace="4">c6</a></em></sub>
+  <br>
 </div>
 
 <p align="center">
