@@ -58,19 +58,35 @@ import Layoutz
 ## TUIs
 Just fill in a `LayoutzApp`, then call `runApp`:
 ```haskell
-data LayoutzApp state msg = LayoutzApp
-  { appInit          :: (state, Cmd msg)
-  , appUpdate        :: msg -> state -> (state, Cmd msg)
-  , appSubscriptions :: state -> Sub msg
-  , appView          :: state -> L
+data Msg = Inc | Dec
+
+counterApp :: LayoutzApp Int Msg
+counterApp = LayoutzApp
+  { appInit = (0, CmdNone)
+  , appUpdate = \msg count -> case msg of
+      Inc -> (count + 1, CmdNone)
+      Dec -> (count - 1, CmdNone)
+  , appSubscriptions = \_ ->
+      subKeyPress $ \key -> case key of
+        KeyChar '+' -> Just Inc
+        KeyChar '-' -> Just Dec
+        _           -> Nothing
+  , appView = \count ->
+      vstack
+        [ section "Counter" [text $ "Count: " <> show count]
+        , br
+        , ul ["Press '+' or '-'", "Press ESC to quit"]
+        ]
   }
+
+main = runApp counterApp
 ```
 You have built-in `Cmd`/`Sub` for IO tasks, timers, delayed messages and key input...
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="600">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase-tour.gif" width="600">
   <br>
-  <sub><a href="CounterDemo.hs">CounterDemo.hs</a></sub>
+  <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
 
 ## Plots

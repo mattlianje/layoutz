@@ -20,7 +20,7 @@ object CounterApp extends LayoutzApp[Int, String] {
     }
 
   // view: Model -> Html Msg
-  def view(count: Int) = layout(
+  def view(count: Int) = vstack(
     section("Counter")(s"Count: $count"),
     br,
     ul("Press `+` or `-` to change counter"),

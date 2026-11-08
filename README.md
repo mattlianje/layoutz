@@ -57,12 +57,30 @@ import layoutz._
 ## TUIs
 Just implement `LayoutzApp`, then call `.run`:
 ```scala
-trait LayoutzApp[State, Message] {
-  def init: (State, Cmd[Message])
-  def update(msg: Message, state: State): (State, Cmd[Message])
-  def subscriptions(state: State): Sub[Message]
-  def view(state: State): Element
+object CounterApp extends LayoutzApp[Int, String] {
+  def init = (0, Cmd.none)
+
+  def update(msg: String, count: Int) = msg match {
+    case "inc" => (count + 1, Cmd.none)
+    case "dec" => (count - 1, Cmd.none)
+    case _     => (count, Cmd.none)
+  }
+
+  def subscriptions(count: Int) = Sub.onKeyPress {
+    case Key.Char('+') => Some("inc")
+    case Key.Char('-') => Some("dec")
+    case _             => None
+  }
+
+  def view(count: Int) = vstack(
+    section("Counter")(s"Count: $count"),
+    br,
+    ul("Press `+` or `-` to change counter"),
+    ul("Press Ctrl+Q to quit")
+  )
 }
+
+CounterApp.run
 ```
 You have built-in `Cmd`/`Sub` for file I/O, HTTP, clipboard, timers and file watching...
 

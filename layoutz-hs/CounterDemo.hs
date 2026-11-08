@@ -30,7 +30,7 @@ counterApp = LayoutzApp
         _           -> Nothing
   
   , appView = \count ->
-      layout
+      vstack
         [ section "Counter" [text $ "Count: " <> show count]
         , br
         , ul ["Press '+' or '-'", "Press ESC to quit"]
