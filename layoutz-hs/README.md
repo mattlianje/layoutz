@@ -613,98 +613,85 @@ withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The q
 
 ## Charts & Plots
 
-See also [Granite](https://github.com/mchav/granite) for terminal plots in Haskell.
-
-#### Line Plot
-```haskell
-let sinePoints = [(x, sin x) | x <- [0, 0.1 .. 10.0]]
-plotLine 40 10 [Series sinePoints "sine" ColorBrightCyan]
 ```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-1.png" width="500">
-</p>
+plotLine        Series points label color
+plotPie         Slice value label color
+plotBar         BarItem value label color
+plotStackedBar  StackedBarGroup [BarItem] label
+plotHeatmap     HeatmapData rows rowLabels colLabels
+chart           [(label, value)]
+plotSparkline   [Double]
+```
 
-Multiple series:
+<details>
+<summary>Code</summary>
+
 ```haskell
-let sinPts = [(x, sin (x * 0.15) * 5) | x <- [0..50]]
-    cosPts = [(x, cos (x * 0.15) * 5) | x <- [0..50]]
-plotLine 50 12
-  [ Series sinPts "sin(x)" ColorBrightCyan
-  , Series cosPts "cos(x)" ColorBrightMagenta
+sinPts = [(x, sin (x * 0.15) * 5) | x <- [0 .. 60]]
+cosPts = [(x, cos (x * 0.15) * 5) | x <- [0 .. 60]]
+
+charts = layout
+  [ row
+      [ withBorder BorderRound $ box "plotLine"
+          [ plotLine 52 10
+              [ Series sinPts "sin(x)" ColorBrightCyan
+              , Series cosPts "cos(x)" ColorBrightMagenta
+              ]
+          ]
+      , withBorder BorderRound $ box "plotPie"
+          [ plotPie 32 8
+              [ Slice 50 "Liquor" ColorDefault, Slice 20 "Protein" ColorDefault
+              , Slice 10 "Water" ColorDefault, Slice 20 "Fun" ColorDefault
+              ]
+          ]
+      ]
+  , row
+      [ withBorder BorderRound $ box "plotBar"
+          [ plotBar 42 9
+              [ BarItem 100 "Mon" ColorBrightBlue, BarItem 120 "Tue" ColorBrightMagenta
+              , BarItem 110 "Wed" ColorBrightCyan, BarItem 85 "Thu" ColorBrightYellow
+              ]
+          ]
+      , withBorder BorderRound $ box "plotStackedBar"
+          [ plotStackedBar 42 7
+              [ StackedBarGroup [BarItem 30 "Q1" ColorDefault, BarItem 20 "Q2" ColorDefault, BarItem 25 "Q3" ColorDefault] "2023"
+              , StackedBarGroup [BarItem 35 "Q1" ColorDefault, BarItem 25 "Q2" ColorDefault, BarItem 30 "Q3" ColorDefault] "2024"
+              , StackedBarGroup [BarItem 40 "Q1" ColorDefault, BarItem 30 "Q2" ColorDefault, BarItem 35 "Q3" ColorDefault] "2025"
+              ]
+          ]
+      ]
+  , row
+      [ withBorder BorderRound $ box "plotHeatmap"
+          [ plotHeatmap' 5 $ HeatmapData
+              [ [12, 15, 22, 28, 30, 25]
+              , [14, 18, 25, 32, 35, 28]
+              , [10, 13, 20, 26, 28, 22]
+              , [16, 20, 27, 31, 30, 33]
+              ]
+              ["Mon", "Tue", "Wed", "Thu"]
+              ["6am", "9am", "12pm", "3pm", "6pm", "9pm"]
+          ]
+      , layout
+          [ withBorder BorderRound $ box "chart" [chart [("Web", 10), ("Mobile", 20), ("API", 15)]]
+          , withBorder BorderRound $ box "plotSparkline"
+              [withColor ColorBrightGreen $ plotSparkline [1, 4, 2, 8, 5, 7, 3, 6, 9, 4, 6, 8, 5, 9]]
+          ]
+      ]
   ]
+
+putStrLn $ render charts
 ```
+
+</details>
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-function-2.png" width="500">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-charts-all.png" width="700">
+  <br>
+  <sub><a href="../demos/shots/AllCharts.hs">AllCharts.hs</a></sub>
 </p>
 
-#### Pie Chart
-```haskell
-plotPie 20 10
-  [ Slice 50 "A" ColorBrightCyan
-  , Slice 30 "B" ColorBrightMagenta
-  , Slice 20 "C" ColorBrightYellow
-  ]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-pie.png" width="500">
-</p>
-
-#### Bar Chart
-```haskell
-plotBar 40 10
-  [ BarItem 85 "Mon" ColorBrightCyan
-  , BarItem 120 "Tue" ColorBrightGreen
-  , BarItem 95 "Wed" ColorBrightMagenta
-  ]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar.png" width="500">
-</p>
-
-```haskell
-plotBar 40 10
-  [ BarItem 100 "Sales" ColorBrightMagenta
-  , BarItem 80  "Costs" ColorBrightRed
-  , BarItem 20  "Profit" ColorBrightCyan
-  ]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-bar-custom.png" width="500">
-</p>
-
-#### Stacked Bar Chart
-```haskell
-plotStackedBar 40 10
-  [ StackedBarGroup [BarItem 30 "Q1" ColorDefault, BarItem 20 "Q2" ColorDefault, BarItem 25 "Q3" ColorDefault] "2022"
-  , StackedBarGroup [BarItem 35 "Q1" ColorDefault, BarItem 25 "Q2" ColorDefault, BarItem 30 "Q3" ColorDefault] "2023"
-  , StackedBarGroup [BarItem 40 "Q1" ColorDefault, BarItem 30 "Q2" ColorDefault, BarItem 35 "Q3" ColorDefault] "2024"
-  ]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-stacked.png" width="500">
-</p>
-
-#### Sparkline
-```haskell
-plotSparkline [1, 4, 2, 8, 5, 7, 3, 6]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-sparkline.png" width="500">
-</p>
-
-#### Heatmap
-```haskell
-plotHeatmap $ HeatmapData
-  [ [12, 15, 22, 28, 30, 25, 18]
-  , [14, 18, 25, 32, 35, 28, 20]
-  , [10, 13, 20, 26, 28, 22, 15]
-  ]
-  ["Mon", "Tue", "Wed"]
-  ["6am", "9am", "12pm", "3pm", "6pm", "9pm", "12am"]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
-</p>
+See also [Granite](https://github.com/mchav/granite) for terminal plots in Haskell - which was the
+inspiration here.
 
 ## Interactive Apps
 

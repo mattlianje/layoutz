@@ -104,3 +104,4 @@ shots:
 	python3 demos/shots/render.py --output-only demos/shots/AllCharts.scala pix/layoutz-charts-all.png
 	python3 demos/shots/render.py --repl demos/shots/Demo.hs layoutz-hs/pix/layoutz-demo-repl.png
 	python3 demos/shots/render.py --output-only demos/shots/Charts.hs layoutz-hs/pix/layoutz-charts.png
+	python3 demos/shots/render.py --output-only demos/shots/AllCharts.hs layoutz-hs/pix/layoutz-charts-all.png
