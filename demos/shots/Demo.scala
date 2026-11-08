@@ -15,7 +15,7 @@ val people = table(
 val xs = (0 to 400).map(_ * 0.02)
 
 /* Nest, compose, combine them */
-val demo = layout(
+val demo = vstack(
   row(
     underlineColored("^", Color.BrightMagenta)("Layoutz").style(Style.Bold),
     "... A Small Demo (ちいさい)"
@@ -25,7 +25,7 @@ val demo = layout(
     statusCard("API", "UP").border(Border.Double).color(Color.BrightGreen),
     statusCard("CPU", "23%").border(Border.Thick).color(Color.BrightYellow),
     people,
-    section("Pugilists")(layout(
+    section("Pugilists")(vstack(
       kv("Kazushi" -> "Sakuraba", "Jet 李連杰" -> "Li", "Rory" -> "MacDonald"),
       tightRow((0 to 255 by 12).map { i =>
         val r = if (i < 128) i * 2 else 255
@@ -36,7 +36,7 @@ val demo = layout(
     ))
   ),
   row(
-    layout(
+    vstack(
       box("Wrapped")(wrap("Where there is a will ... Water x Necessaries", 20))
         .color(Color.BrightMagenta)
         .style(Style.Reverse ++ Style.Bold),

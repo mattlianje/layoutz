@@ -180,6 +180,9 @@ layoutTests = testGroup "Layout"
   , testCase "row layout" $
       render (row [text "A", text "B"]) @?= "A B"
       
+  , testCase "vstack is an alias for layout" $
+      render (vstack ["a", row ["b", "c"]]) @?= render (layout ["a", row ["b", "c"]])
+
   , testCase "layout composition" $
       render (layout [text "Line 1", text "Line 2"]) @?= "Line 1\nLine 2"
       

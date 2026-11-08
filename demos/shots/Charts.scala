@@ -5,7 +5,7 @@ import layoutz._
 val sin = (0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 5))
 val cos = (0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 5))
 
-val d = layout(
+val d = vstack(
   row(
     box("Signals")(plot(width = 44, height = 9)(
       Series(sin, "sin(x)").color(Color.BrightCyan),

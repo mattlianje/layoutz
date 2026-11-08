@@ -194,7 +194,7 @@ BorderNone                    -- No borders
 
 #### Stacking & rows
 ```haskell
-layout ["First", "Second", "Third"]          -- vertical
+vstack ["First", "Second", "Third"]          -- vertical (alias of layout)
 -- First
 -- Second
 -- Third
@@ -630,7 +630,7 @@ plotSparkline   [Double]
 sinPts = [(x, sin (x * 0.15) * 5) | x <- [0 .. 60]]
 cosPts = [(x, cos (x * 0.15) * 5) | x <- [0 .. 60]]
 
-charts = layout
+charts = vstack
   [ row
       [ withBorder BorderRound $ box "plotLine"
           [ plotLine 52 10
@@ -671,7 +671,7 @@ charts = layout
               ["Mon", "Tue", "Wed", "Thu"]
               ["6am", "9am", "12pm", "3pm", "6pm", "9pm"]
           ]
-      , layout
+      , vstack
           [ withBorder BorderRound $ box "chart" [chart [("Web", 10), ("Mobile", 20), ("API", 15)]]
           , withBorder BorderRound $ box "plotSparkline"
               [withColor ColorBrightGreen $ plotSparkline [1, 4, 2, 8, 5, 7, 3, 6, 9, 4, 6, 8, 5, 9]]

@@ -5,7 +5,7 @@ import layoutz._
 val sin = (0 to 60).map(i => (i.toDouble, math.sin(i * 0.15) * 5))
 val cos = (0 to 60).map(i => (i.toDouble, math.cos(i * 0.15) * 5))
 
-val charts = layout(
+val charts = vstack(
   row(
     box("plot")(plot(width = 52, height = 10)(
       Series(sin, "sin(x)").color(Color.BrightCyan),
@@ -45,7 +45,7 @@ val charts = layout(
       ),
       cellWidth = 5
     )).border(Border.Round),
-    layout(
+    vstack(
       box("chart")(chart(("Web", 10.0), ("Mobile", 20.0), ("API", 15.0))).border(Border.Round),
       box("sparkline")(sparkline(Seq(1, 4, 2, 8, 5, 7, 3, 6, 9, 4, 6, 8, 5, 9)).color(Color.BrightGreen)).border(Border.Round)
     )

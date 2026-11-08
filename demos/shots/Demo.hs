@@ -11,7 +11,7 @@ people = withBorder BorderRound $ table ["Name", "Role", "Status"]
 xs = [0, 0.02 .. 8]
 
 -- Nest, compose, combine them
-demo = layout
+demo = vstack
   [ center $ row
       [ withStyle StyleBold $ underlineColored "^" ColorBrightMagenta $ text "Layoutz"
       , "... A Small Demo (ちいさい)"
@@ -32,7 +32,7 @@ demo = layout
           ]
       ]
   , row
-      [ layout
+      [ vstack
           [ withColor ColorBrightMagenta $ withStyle (StyleReverse <> StyleBold) $
               box "Wrapped" [wrap 20 "Where there is a will ... Water x Necessaries"]
           , ol ["Arcole", "Rivoli", "Austerlitz", ol ["Iéna", "Wagram", ol ["Бородино"]]]

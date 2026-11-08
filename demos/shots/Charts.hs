@@ -4,7 +4,7 @@ import Layoutz
 sinPts = [(fromIntegral i, sin (fromIntegral i * 0.15) * 5) | i <- [0 .. 60 :: Int]]
 cosPts = [(fromIntegral i, cos (fromIntegral i * 0.15) * 5) | i <- [0 .. 60 :: Int]]
 
-d = layout
+d = vstack
   [ row
       [ withBorder BorderRound $ box "Signals"
           [ plotLine 44 9

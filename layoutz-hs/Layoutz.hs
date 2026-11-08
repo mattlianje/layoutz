@@ -25,7 +25,7 @@ module Layoutz
   , L
   , Tree(..)
     -- * Basic Elements
-  , layout
+  , layout, vstack
   , text
   , br
     -- * Layout Functions
@@ -969,6 +969,10 @@ statusCard label content = LStatusCard (T.pack label) (T.pack content) BorderNor
 
 layout :: [L] -> L
 layout elements = L (Layout elements)
+
+-- | Alias for 'layout'
+vstack :: [L] -> L
+vstack = layout
 
 row :: [L] -> L
 row elements = L (Row elements False)
