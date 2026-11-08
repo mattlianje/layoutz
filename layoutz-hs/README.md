@@ -56,30 +56,14 @@ import Layoutz
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
 ## TUIs
-Just fill in a [`LayoutzApp`](#interactive-apps), then call `runApp`. Here is the classic counter app:
+Just fill in a [`LayoutzApp`](#interactive-apps), then call `runApp`:
 ```haskell
-data Msg = Inc | Dec
-
-counterApp :: LayoutzApp Int Msg
-counterApp = LayoutzApp
-  { appInit = (0, CmdNone)
-  , appUpdate = \msg count -> case msg of
-      Inc -> (count + 1, CmdNone)
-      Dec -> (count - 1, CmdNone)
-  , appSubscriptions = \_ ->
-      subKeyPress $ \key -> case key of
-        KeyChar '+' -> Just Inc
-        KeyChar '-' -> Just Dec
-        _           -> Nothing
-  , appView = \count ->
-      vstack
-        [ section "Counter" [text $ "Count: " <> show count]
-        , br
-        , ul ["Press '+' or '-'", "Press ESC to quit"]
-        ]
+data LayoutzApp state msg = LayoutzApp
+  { appInit          :: (state, Cmd msg)
+  , appUpdate        :: msg -> state -> (state, Cmd msg)
+  , appSubscriptions :: state -> Sub msg
+  , appView          :: state -> L
   }
-
-main = runApp counterApp
 ```
 You have built-in `Cmd`/`Sub` for IO tasks, timers, delayed messages and key input...
 
