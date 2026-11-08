@@ -9,10 +9,14 @@
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in pure Haskell.
 
-Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.com/mattlianje/layoutz/tree/master/layoutz-ocaml)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
+  <br>
+  <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
+</p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-demo.png" width="750">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-demo-repl.png" width="600">
 </p>
 
 ## Features
@@ -28,129 +32,65 @@ Also in [Scala](https://github.com/mattlianje/layoutz), [OCaml](https://github.c
 - Implement `Element` to add your own primitives
 - Easy porting to MicroHs
 
-<p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="650">
-<br>
-<sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
-</p>
-
-Layoutz also lets you easily drop animations into build scripts or any processes that use Stdout:
-
-<p align="center">
-<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
-<br>
-<sub><a href="examples/InlineBar.hs">InlineBar.hs</a></sub>
-</p>
-
-## Table of Contents
-- [Installation](#installation)
-- [Quickstart](#quickstart)
-- [Why layoutz?](#why-layoutz)
-- [Core Concepts](#core-concepts)
-- [Elements](#elements)
-- [Border Styles](#border-styles)
-- [Charts & Plots](#charts--plots)
-- [Colors & Styles](#colors-ansi-support)
-- [Inline Images](#inline-images)
-- [Custom Elements](#custom-elements)
-- [Collections](#collections)
-- [Interactive Apps](#interactive-apps)
-- [Prompts (Ask)](#prompts-ask)
-- [Progress (loader)](#progress-loader)
-- [Examples](#examples)
-- [Contributing](#contributing)
-
 ## Installation
-
-**Add Layoutz on [Hackage](https://hackage.haskell.org/package/layoutz) to your project's `.cabal` file:**
+[![Hackage](https://img.shields.io/hackage/v/layoutz)](https://hackage.haskell.org/package/layoutz)
 ```haskell
 build-depends: layoutz
 ```
-
-All you need:
+Or try it in a REPL:
+```bash
+cabal repl --build-depends layoutz
+```
+All you need is one import:
 ```haskell
 import Layoutz
 ```
 
-## Quickstart
+## Of note...
+- With LLM's, boilerplate code that formats & "pretty-prints" is cheaper than ever...
+- Thus, more than ever, "string formatting code" is spawning, and polluting domain logic.
+- We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between.
+- Ultimately, layoutz is just a tiny, declarative DSL to combat this.
+- On the side, layoutz also has an Elm-style runtime to bring these arbitrary Elements to life: much like a flipbook.
+     - The runtime has some little niceties built-in like common cmd's for IO, timers, and a key input handler.
+- But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
-**(1/3) Static rendering**: pretty, composable strings.
-
+## TUIs
+Just fill in a `LayoutzApp`, then call `runApp`:
 ```haskell
-import Layoutz
-
-demo = layout
-  [ center $ row
-      [ withStyle StyleBold $ text "Layoutz"
-      , withColor ColorCyan $ underline' "ˆ" $ text "DEMO"
-      ]
-  , br
-  , row
-    [ statusCard "Users" "1.2K"
-    , withBorder BorderDouble $ statusCard "API" "UP"
-    , withColor ColorRed $ withBorder BorderThick $ statusCard "CPU" "23%"
-    , withStyle StyleReverse $ withBorder BorderRound $ table ["Name", "Role", "Skills"]
-        [ ["Gegard", "Pugilist", ul ["Armenian", ul ["bad", ul["man"]]]]
-        , ["Eve", "QA", "Testing"]
-        ]
-    ]
-  ]
-
-putStrLn $ render demo
-```
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/intro-demo.png" width="700">
-</p>
-
-
-**(2/3) Interactive apps** - Build Elm-style TUI's:
-
-```haskell
-import Layoutz
-
-data Msg = Inc | Dec
-
-counterApp :: LayoutzApp Int Msg
-counterApp = LayoutzApp
-  { appInit = (0, CmdNone)
-  , appUpdate = \msg count -> case msg of
-      Inc -> (count + 1, CmdNone)
-      Dec -> (count - 1, CmdNone)
-  , appSubscriptions = \_ -> subKeyPress $ \key -> case key of
-      KeyChar '+' -> Just Inc
-      KeyChar '-' -> Just Dec
-      _           -> Nothing
-  , appView = \count -> layout
-      [ section "Counter" [text $ "Count: " <> show count]
-      , ul ["Press '+' or '-'", "ESC to quit"]
-      ]
+data LayoutzApp state msg = LayoutzApp
+  { appInit          :: (state, Cmd msg)
+  , appUpdate        :: msg -> state -> (state, Cmd msg)
+  , appSubscriptions :: state -> Sub msg
+  , appView          :: state -> L
   }
-
-main = runApp counterApp
 ```
+You have built-in `Cmd`/`Sub` for IO tasks, timers, delayed messages and key input...
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="650">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/counter-demo.gif" width="600">
+  <br>
+  <sub><a href="CounterDemo.hs">CounterDemo.hs</a></sub>
 </p>
 
-**(3/3) Prompts (Ask)**
-
-One-shot CLI prompts (inputs, choosers, filters, file pickers, spinners) that collapse to a single line as you answer them.
-
+## Plots
 ```haskell
-import Layoutz
-import Control.Concurrent (threadDelay)
+let sinePoints = [(x, sin x * 5) | x <- [0, 0.15 .. 7.5]]
+plotLine 50 12 [Series sinePoints "sin(x)" ColorBrightCyan]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-charts.png" width="600">
+</p>
 
-main :: IO ()
-main = do
-  name   <- askInput "Name › " "anonymous" ""
-  realm  <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood"] id
-  packs  <- askChooseMany "Pack provisions" ["lembas", "pipe-weed", "rope"] 3 id
-  member <- askFilter "Search a companion › " ["Bilbo", "Gandalf", "Thorin"] 8 id
-  riddle <- askWrite "Pose a riddle" "This thing all things devours…" "" "Ctrl-D to save"
-  quest  <- askConfirm "Venture on the quest?" True "Yes" "No"
-  smaug  <- askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure "ready")
-  pure ()
+## Prompts
+You often want one-shot CLI prompts with pickers, file pickers, fuzzy-finders, pagers, etc... without dropping
+down into Elm-territory to make them. This is why layoutz has the `ask*` helpers.
+```haskell
+name   <- askInput "Name › " "anonymous" ""
+realm  <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood"] id
+member <- askFilter "Search a companion › " ["Bilbo", "Gandalf", "Thorin"] 8 id
+riddle <- askWrite "Pose a riddle" "This thing all things devours…" "" "Ctrl-D to save"
+quest  <- askConfirm "Venture on the quest?" True "Yes" "No"
 ```
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="600">
@@ -158,13 +98,41 @@ main = do
   <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
 </p>
 
-## Why layoutz?
-- We have `printf` and [full-blown](https://hackage.haskell.org/package/brick) TUI libraries - but there's a gap in-between
-- **layoutz** is a tiny, declarative DSL for structured CLI output
-- On the side, it has a little Elm-style runtime + keyhandling DSL to animate your elements, much like a flipbook...
-     - But you can just use **Layoutz** without any of the TUI stuff
+## Progress
+Wrap any list with `loader` for a live bar, or use `loaderStream` for a spinner. Works in any script that writes to stdout.
+```haskell
+_ <- loader "Resizing" files resize
+_ <- loaderStream "Tailing" logLines indexLine
+n <- askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure 42)
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/loader.gif" width="600">
+</p>
 
-## Core concepts
+
+## Reference
+
+- [Core Concepts](#core-concepts)
+- [Border Styles](#border-styles)
+- [Elements](#elements)
+  - [Layout](#layout)
+  - [Content](#content)
+- [Custom Elements](#custom-elements)
+- [Collections](#collections)
+- [Colors](#colors)
+- [Styles](#styles)
+- [Charts & Plots](#charts--plots)
+- [Interactive Apps](#interactive-apps)
+  - [Keys](#key-types)
+  - [Subscriptions](#subscriptions)
+  - [Commands](#commands)
+- [Prompts (Ask)](#prompts-ask)
+- [Progress (loader)](#progress-loader)
+- [Examples](#examples)
+
+
+
+## Core Concepts
 - Every piece of content is an `Element`
 - Elements are **immutable** and **composable** - build complex layouts by combining simple elements
 - A `layout` arranges elements **vertically**:
@@ -463,6 +431,186 @@ Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside a
 `LayoutzApp`, each distinct image is transmitted once and re-placed cheaply on
 every frame.
 
+## Custom Elements
+
+Create your own components by implementing the `Element` typeclass
+
+```haskell
+data Square = Square Int
+
+instance Element Square where
+  renderElement (Square size)
+    | size < 2 = ""
+    | otherwise = intercalate "\n" (top : middle ++ [bottom])
+    where
+      w = size * 2 - 2
+      top = "┌" ++ replicate w '─' ++ "┐"
+      middle = replicate (size - 2) ("│" ++ replicate w ' ' ++ "│")
+      bottom = "└" ++ replicate w '─' ++ "┘"
+
+-- Helper to avoid wrapping with L
+square :: Int -> L
+square n = L (Square n)
+
+-- Use it like any other element
+putStrLn $ render $ row
+  [ square 3
+  , square 5
+  , square 7
+  ]
+```
+```
+┌────┐ ┌────────┐ ┌────────────┐
+│    │ │        │ │            │
+└────┘ │        │ │            │
+       │        │ │            │
+       └────────┘ │            │
+                  │            │
+                  └────────────┘
+```
+
+## Collections
+```haskell
+import Data.List (groupBy, sortOn)
+import Data.Function (on)
+
+data User = User { userName :: String, userRole :: String }
+
+users :: [User]
+users =
+  [ User "Alice" "Admin"
+  , User "Bob"   "User"
+  , User "Tom"   "User"
+  ]
+
+putStrLn $ render $ section "Users by Role"
+  [ layout
+      [ box (userRole (head grp)) [ul [text (userName u) | u <- grp]]
+      | grp <- groupBy ((==) `on` userRole) (sortOn userRole users)
+      ]
+  ]
+```
+```
+=== Users by Role ===
+┌──Admin──┐
+│ • Alice │
+└─────────┘
+┌──User──┐
+│ • Bob  │
+│ • Tom  │
+└────────┘
+```
+
+## Colors
+
+Add ANSI colors to any element:
+
+```haskell
+layout
+  [ withColor ColorRed $ text "The quick brown fox..."
+  , withColor ColorBrightCyan $ text "The quick brown fox..."
+  , underlineColored "~" ColorRed $ text "The quick brown fox..."
+  , margin "[INFO]" [withColor ColorCyan $ text "The quick brown fox..."]
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-2.png" width="700">
+</p>
+
+
+```haskell
+ColorBlack
+ColorRed
+ColorGreen
+ColorYellow
+ColorBlue
+ColorMagenta
+ColorCyan
+ColorWhite
+ColorBrightBlack      -- Bright 8
+ColorBrightRed
+ColorBrightGreen
+ColorBrightYellow
+ColorBrightBlue
+ColorBrightMagenta
+ColorBrightCyan
+ColorBrightWhite
+ColorFull 196         -- 256-color palette (0-255)
+ColorTrue 255 128 0   -- 24-bit RGB
+ColorDefault          -- Conditional no-op
+```
+
+### Color Gradients
+
+Create gradients with extended colors:
+
+```haskell
+let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
+    redToBlue = tightRow $ map (\i -> withColor (ColorTrue i 100 (255 - i)) $ text "█") [0, 4..255]
+    greenFade = tightRow $ map (\i -> withColor (ColorTrue 0 (255 - i) i) $ text "█") [0, 4..255]
+    rainbow   = tightRow $ map colorBlock [0, 4..255]
+      where
+        colorBlock i =
+          let r = if i < 128 then i * 2 else 255
+              g = if i < 128 then 255 else (255 - i) * 2
+              b = if i > 128 then (i - 128) * 2 else 0
+          in withColor (ColorTrue r g b) $ text "█"
+
+putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
+```
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-1.png" width="700">
+</p>
+
+## Styles
+
+Add ANSI styles to any element:
+
+```haskell
+layout
+  [ withStyle StyleBold $ text "The quick brown fox..."
+  , withColor ColorRed $ withStyle StyleBold $ text "The quick brown fox..."
+  , withStyle StyleReverse $ withStyle StyleItalic $ text "The quick brown fox..."
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-1.png" width="700">
+</p>
+
+```haskell
+StyleBold
+StyleDim
+StyleItalic
+StyleUnderline
+StyleBlink
+StyleReverse
+StyleHidden
+StyleStrikethrough
+StyleDefault                  -- Conditional no-op
+StyleBold <> StyleItalic      -- Combine with <>
+```
+
+**Combining Styles:**
+
+Use `<>` to combine multiple styles at once:
+
+```haskell
+layout
+  [ withStyle (StyleBold <> StyleItalic <> StyleUnderline) $ text "The quick brown fox..."
+  , withStyle (StyleBold <> StyleReverse) $ text "The quick brown fox..."
+  ]
+```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-2.png" width="700">
+</p>
+
+You can also combine colors and styles:
+
+```haskell
+withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The quick brown fox..."
+```
+
 ## Charts & Plots
 
 See also [Granite](https://github.com/mchav/granite) for terminal plots in Haskell.
@@ -558,209 +706,6 @@ plotHeatmap $ HeatmapData
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/chart-heatmap.png" width="500">
 </p>
 
-## Colors
-
-Add ANSI colors to any element:
-
-```haskell
-layout
-  [ withColor ColorRed $ text "The quick brown fox..."
-  , withColor ColorBrightCyan $ text "The quick brown fox..."
-  , underlineColored "~" ColorRed $ text "The quick brown fox..."
-  , margin "[INFO]" [withColor ColorCyan $ text "The quick brown fox..."]
-  ]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-2.png" width="700">
-</p>
-
-
-```haskell
-ColorBlack
-ColorRed
-ColorGreen
-ColorYellow
-ColorBlue
-ColorMagenta
-ColorCyan
-ColorWhite
-ColorBrightBlack      -- Bright 8
-ColorBrightRed
-ColorBrightGreen
-ColorBrightYellow
-ColorBrightBlue
-ColorBrightMagenta
-ColorBrightCyan
-ColorBrightWhite
-ColorFull 196         -- 256-color palette (0-255)
-ColorTrue 255 128 0   -- 24-bit RGB
-ColorDefault          -- Conditional no-op
-```
-
-### Color Gradients
-
-Create gradients with extended colors:
-
-```haskell
-let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
-    redToBlue = tightRow $ map (\i -> withColor (ColorTrue i 100 (255 - i)) $ text "█") [0, 4..255]
-    greenFade = tightRow $ map (\i -> withColor (ColorTrue 0 (255 - i) i) $ text "█") [0, 4..255]
-    rainbow   = tightRow $ map colorBlock [0, 4..255]
-      where
-        colorBlock i =
-          let r = if i < 128 then i * 2 else 255
-              g = if i < 128 then 255 else (255 - i) * 2
-              b = if i > 128 then (i - 128) * 2 else 0
-          in withColor (ColorTrue r g b) $ text "█"
-
-putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
-```
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-1.png" width="700">
-</p>
-
-
-## Styles
-
-Add ANSI styles to any element:
-
-```haskell
-layout
-  [ withStyle StyleBold $ text "The quick brown fox..."
-  , withColor ColorRed $ withStyle StyleBold $ text "The quick brown fox..."
-  , withStyle StyleReverse $ withStyle StyleItalic $ text "The quick brown fox..."
-  ]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-1.png" width="700">
-</p>
-
-```haskell
-StyleBold
-StyleDim
-StyleItalic
-StyleUnderline
-StyleBlink
-StyleReverse
-StyleHidden
-StyleStrikethrough
-StyleDefault                  -- Conditional no-op
-StyleBold <> StyleItalic      -- Combine with <>
-```
-
-**Combining Styles:**
-
-Use `<>` to combine multiple styles at once:
-
-```haskell
-layout
-  [ withStyle (StyleBold <> StyleItalic <> StyleUnderline) $ text "The quick brown fox..."
-  , withStyle (StyleBold <> StyleReverse) $ text "The quick brown fox..."
-  ]
-```
-<p align="center">
-  <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-2.png" width="700">
-</p>
-
-You can also combine colors and styles:
-
-```haskell
-withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The quick brown fox..."
-```
-
-## Custom Elements
-
-Create your own components by implementing the `Element` typeclass
-
-```haskell
-data Square = Square Int
-
-instance Element Square where
-  renderElement (Square size)
-    | size < 2 = ""
-    | otherwise = intercalate "\n" (top : middle ++ [bottom])
-    where
-      w = size * 2 - 2
-      top = "┌" ++ replicate w '─' ++ "┐"
-      middle = replicate (size - 2) ("│" ++ replicate w ' ' ++ "│")
-      bottom = "└" ++ replicate w '─' ++ "┘"
-
--- Helper to avoid wrapping with L
-square :: Int -> L
-square n = L (Square n)
-
--- Use it like any other element
-putStrLn $ render $ row
-  [ square 3
-  , square 5
-  , square 7
-  ]
-```
-```
-┌────┐ ┌────────┐ ┌────────────┐
-│    │ │        │ │            │
-└────┘ │        │ │            │
-       │        │ │            │
-       └────────┘ │            │
-                  │            │
-                  └────────────┘
-```
-
-## Collections
-```haskell
-import Data.List (groupBy, sortOn)
-import Data.Function (on)
-
-data User = User { userName :: String, userRole :: String }
-
-users :: [User]
-users =
-  [ User "Alice" "Admin"
-  , User "Bob"   "User"
-  , User "Tom"   "User"
-  ]
-
-putStrLn $ render $ section "Users by Role"
-  [ layout
-      [ box (userRole (head grp)) [ul [text (userName u) | u <- grp]]
-      | grp <- groupBy ((==) `on` userRole) (sortOn userRole users)
-      ]
-  ]
-```
-```
-=== Users by Role ===
-┌──Admin──┐
-│ • Alice │
-└─────────┘
-┌──User──┐
-│ • Bob  │
-│ • Tom  │
-└────────┘
-```
-
-## REPL
-
-Drop into GHCi to experiment:
-```bash
-cabal repl
-```
-
-```haskell
-λ> :set -XOverloadedStrings
-λ> import Layoutz
-λ> putStrLn $ render $ center $ box "Hello" ["World!"]
-┌──Hello──┐
-│ World!  │
-└─────────┘
-λ> putStrLn $ render $ table ["A", "B"] [["1", "2"]]
-┌───┬───┐
-│ A │ B │
-├───┼───┤
-│ 1 │ 2 │
-└───┴───┘
-```
-
 ## Interactive Apps
 
 `LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
@@ -792,6 +737,40 @@ runInline app                                                       -- Animate i
 `runInline` renders the app below existing terminal output without clearing the screen. Useful for embedding progress bars or spinners in build scripts... use `CmdExit` to quit programmatically.
 
 Terminal width is detected once at startup via ANSI cursor position report (zero dependencies).
+
+<p align="center">
+<img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
+<br>
+<sub><a href="examples/InlineBar.hs">InlineBar.hs</a></sub>
+</p>
+
+### Key Types
+
+```haskell
+-- Printable
+KeyChar Char        -- 'a', '1', ' '
+
+-- Editing
+KeyEnter
+KeyBackspace
+KeyTab
+KeyEscape
+KeyDelete
+
+-- Navigation
+KeyUp
+KeyDown
+KeyLeft
+KeyRight
+KeyPageUp
+KeyPageDown
+KeyHome
+KeyEnd
+
+-- Modifiers
+KeyCtrl Char        -- Ctrl+'C', Ctrl+'Q', etc.
+KeySpecial String   -- Other unrecognized sequences
+```
 
 ### Subscriptions
 
@@ -837,34 +816,6 @@ loggerApp = LayoutzApp
   }
 
 main = runApp loggerApp
-```
-
-### Key Types
-
-```haskell
--- Printable
-KeyChar Char        -- 'a', '1', ' '
-
--- Editing
-KeyEnter
-KeyBackspace
-KeyTab
-KeyEscape
-KeyDelete
-
--- Navigation
-KeyUp
-KeyDown
-KeyLeft
-KeyRight
-KeyPageUp
-KeyPageDown
-KeyHome
-KeyEnd
-
--- Modifiers
-KeyCtrl Char        -- Ctrl+'C', Ctrl+'Q', etc.
-KeySpecial String   -- Other unrecognized sequences
 ```
 
 ## Prompts (Ask)

@@ -6,7 +6,10 @@ Render README screenshots of layoutz demos.
     render.py --repl Demo.scala out.png           # one tall REPL pane
     render.py --output-only Charts.scala out.png  # program output only
 
-Needs scala-cli, rsvg-convert and the JetBrains Mono NL font.
+Sources may be Scala (.scala, run with scala-cli) or Haskell (.hs, run with
+runghc against layoutz-hs/Layoutz.hs).
+
+Needs scala-cli or runghc, rsvg-convert and the JetBrains Mono NL font.
 """
 import argparse
 import os
@@ -42,6 +45,34 @@ ANSI = [
     '#45475a', '#f38ba8', '#a6e3a1', '#f9e2af', '#89b4fa', '#f5c2e7', '#94e2d5', '#bac2de',
     '#585b70', '#f38ba8', '#a6e3a1', '#f9e2af', '#89b4fa', '#f5c2e7', '#94e2d5', '#a6adc8',
 ]
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+LANGS = {
+    'scala': dict(
+        run=lambda src: ['scala-cli', 'run', '-q', src],
+        shell=lambda name: f'scala-cli run {name}',
+        ps1='scala> ', ps2='     | ', window='1:scala*', filetype='scala',
+        keywords={'val', 'if', 'else', 'import', 'by', 'to', 'def', 'new'},
+        comment=r'/\*.*?\*/|//.*',
+        ops=r'->|=>|\+\+|[=+*\-<>]',
+        main=r'^@main def \w+\s*=\s*',
+    ),
+    'haskell': dict(
+        run=lambda src: ['runghc', f'--ghc-arg=-i{ROOT}/layoutz-hs', '--ghc-arg=-w', src],
+        shell=lambda name: f'runghc {name}',
+        ps1='ghci> ', ps2='    | ', window='1:ghci*', filetype='haskell',
+        keywords={'import', 'let', 'in', 'if', 'then', 'else', 'where', 'do', 'case', 'of', 'data'},
+        comment=r'--.*|\{-.*?-\}',
+        ops=r'->|<-|<>|\.\.|[=+*\-<>$\\|]',
+        main=r'^main\s*=\s*',
+    ),
+}
+
+
+def lang_of(path):
+    return 'haskell' if path.endswith('.hs') else 'scala'
+
 
 SGR = re.compile(r'\x1b\[([0-9;]*)m')
 RESET = '\x1b[0m'
@@ -145,33 +176,49 @@ STYLES = {
     'typ': (YELLOW, False), 'op': (SKY, False), 'punc': (OVERLAY2, False),
     'param': (MAROON, False), 'plain': (TEXT, False),
 }
-KEYWORDS = {'val', 'if', 'else', 'import', 'by', 'to', 'def', 'new'}
-TOKEN = re.compile(
-    r'(?P<com>/\*.*?\*/|//.*)'
-    r'|(?P<str>"[^"]*")'
-    r'|(?P<num>\b\d+(\.\d+)?\b)'
-    r'|(?P<id>[A-Za-z_]\w*)'
-    r'|(?P<op>->|=>|\+\+|[=+*\-<>])'
-    r'|(?P<punc>[()\[\]{},.;:])'
-    r'|(?P<plain>.)'
-)
+def token_re(lang):
+    l = LANGS[lang]
+    return re.compile(
+        rf'(?P<com>{l["comment"]})'
+        r'|(?P<str>"[^"]*")'
+        r'|(?P<num>\b\d+(\.\d+)?\b)'
+        r"|(?P<id>[A-Za-z_][\w']*)"
+        rf'|(?P<op>{l["ops"]})'
+        r'|(?P<punc>[()\[\]{},.;:])'
+        r'|(?P<plain>.)'
+    )
 
 
-def highlight(line, bg):
+PARAMS = ('i', 'r', 'g', 'b', 'x')
+
+
+def classify(lang, line, m, prev):
+    s = m.group(0)
+    if s in LANGS[lang]['keywords']:
+        return 'kw'
+    if lang == 'scala':
+        if s[0].isupper():
+            return 'const' if prev == '.' else 'typ'
+        if line[m.end():].startswith('('):
+            return 'fn'
+        return 'param' if s in PARAMS[:4] else 'plain'
+    # Haskell: Color/Border/Style constructors read as constants, the rest as types.
+    if s[0].isupper():
+        return 'const' if re.match(r'(Color|Border|Style)[A-Z]', s) else 'typ'
+    if s in PARAMS:
+        return 'param'
+    # A name applied to an argument is a function call.
+    if re.match(r' +["(\[A-Za-z0-9$]', line[m.end():]) and not re.match(r' +(in|then|else|of)\b', line[m.end():]):
+        return 'fn'
+    return 'plain'
+
+
+def highlight(line, bg, lang):
     out, prev = [], ''
-    for m in TOKEN.finditer(line):
+    for m in token_re(lang).finditer(line):
         kind, s = m.lastgroup, m.group(0)
         if kind == 'id':
-            if s in KEYWORDS:
-                kind = 'kw'
-            elif s[0].isupper():
-                kind = 'const' if prev == '.' else 'typ'
-            elif line[m.end():].startswith('('):
-                kind = 'fn'
-            elif s in ('i', 'r', 'g', 'b'):
-                kind = 'param'
-            else:
-                kind = 'plain'
+            kind = classify(lang, line, m, prev)
         if s.strip():
             prev = s
         color, italic = STYLES[kind]
@@ -179,33 +226,33 @@ def highlight(line, bg):
     return ''.join(out)
 
 
-def displayed_source(src):
-    lines = [l for l in src.splitlines() if not l.startswith('//>')]
-    lines = [re.sub(r'^@main def \w+\s*=\s*', '', l) for l in lines]
+def displayed_source(src, lang):
+    lines = [l for l in src.splitlines() if not l.startswith(('//>', '{-#'))]
+    lines = [re.sub(LANGS[lang]['main'], '', l) for l in lines]
     while lines and not lines[0].strip():
         lines.pop(0)
     return lines
 
 
-def prompt(name):
+def prompt(name, lang):
     return (esc(MAUVE) + '~/layoutz ' + esc(GREEN, bold=True) + '❯ '
-            + esc(TEXT) + f'scala-cli run {name}' + RESET)
+            + esc(TEXT) + LANGS[lang]['shell'](name) + RESET)
 
 
-def output_screen(output, name):
-    return ['', '  ' + prompt(name), ''] + ['  ' + recolor(l.rstrip()) + '  ' for l in output]
+def output_screen(output, name, lang):
+    return ['', '  ' + prompt(name, lang), ''] + ['  ' + recolor(l.rstrip()) + '  ' for l in output]
 
 
-def split_screen(code, output, name):
-    left = [''] + ['   ' + highlight(l, MANTLE) for l in code] + ['']
-    right = ['', '  ' + prompt(name), ''] + ['  ' + recolor(l.rstrip()) for l in output]
+def split_screen(code, output, name, lang):
+    left = [''] + ['   ' + highlight(l, MANTLE, lang) for l in code] + ['']
+    right = ['', '  ' + prompt(name, lang), ''] + ['  ' + recolor(l.rstrip()) for l in output]
     half = max(max(width(l) for l in code) + 6, max(width(l) for l in right) + 4)
     rows = max(len(left) + 1, len(right))
     left += [''] * (rows - 1 - len(left))
     left = [pad(esc(bg=MANTLE) + l, half, MANTLE) for l in left]
 
     mode = esc(BASE, BLUE, True) + ' NORMAL ' + esc(TEXT, SURFACE0) + f' {name} '
-    pos = esc(OVERLAY2, SURFACE0) + ' scala ' + esc(BASE, BLUE, True) + f' {len(code)}:1 '
+    pos = esc(OVERLAY2, SURFACE0) + f' {LANGS[lang]["filetype"]} ' + esc(BASE, BLUE, True) + f' {len(code)}:1 '
     gap = half - width(mode) - width(pos)
     left.append(mode + esc(bg=MANTLE) + ' ' * gap + pos + RESET)
 
@@ -224,9 +271,9 @@ def tmux_bar(cols, window):
             + ' ' * gap + esc(BASE, GREEN) + clock + RESET)
 
 
-def repl_screen(code, output):
-    ps1 = esc(BLUE, bold=True) + 'scala> ' + RESET
-    ps2 = esc(SURFACE1) + '     | ' + RESET
+def repl_screen(code, output, lang):
+    ps1 = esc(BLUE, bold=True) + LANGS[lang]['ps1'] + RESET
+    ps2 = esc(SURFACE1) + LANGS[lang]['ps2'] + RESET
 
     def entry(block):
         while block and not block[-1].strip():
@@ -239,7 +286,7 @@ def repl_screen(code, output):
     lines += ['  ' + recolor(l.rstrip()) for l in output]
     lines += ['', '  ' + ps1 + esc(BASE, TEXT) + ' ' + RESET, '']
     cols = max(width(l) for l in lines) + 2
-    return [pad(l, cols) for l in lines] + [tmux_bar(cols, '1:scala*')]
+    return [pad(l, cols) for l in lines] + [tmux_bar(cols, LANGS[lang]['window'])]
 
 
 def cells(line):
@@ -347,18 +394,20 @@ def main():
     ap.add_argument('png')
     args = ap.parse_args()
 
-    run = subprocess.run(['scala-cli', 'run', '-q', args.source], capture_output=True, text=True)
+    lang = lang_of(args.source)
+    run = subprocess.run(LANGS[lang]['run'](args.source), capture_output=True, text=True)
     if run.returncode != 0:
         sys.exit(run.stderr or run.stdout)
     output = run.stdout.rstrip('\n').splitlines()
     name = os.path.basename(args.source)
 
     if args.output_only:
-        screen = output_screen(output, name)
+        screen = output_screen(output, name, lang)
     else:
         with open(args.source) as f:
-            code = displayed_source(f.read())
-        screen = repl_screen(code, output) if args.repl else split_screen(code, output, name)
+            code = displayed_source(f.read(), lang)
+        screen = (repl_screen(code, output, lang) if args.repl
+                  else split_screen(code, output, name, lang))
 
     subprocess.run(['rsvg-convert', '-z', '2', '-o', args.png], input=svg(screen).encode(), check=True)
     print(f'wrote {args.png}')

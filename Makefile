@@ -96,9 +96,11 @@ demos:
 demo:
 	./demos/generate.sh $(TAPE)
 
-# Render README screenshots from demos/shots/*.scala into pix/
+# Render README screenshots from demos/shots/*.{scala,hs} into pix/ and layoutz-hs/pix/
 shots:
 	python3 demos/shots/render.py demos/shots/Demo.scala pix/layoutz-demo-split.png
 	python3 demos/shots/render.py --repl demos/shots/Demo.scala pix/layoutz-demo-repl.png
 	python3 demos/shots/render.py --output-only demos/shots/Charts.scala pix/layoutz-charts.png
 	python3 demos/shots/render.py --output-only demos/shots/AllCharts.scala pix/layoutz-charts-all.png
+	python3 demos/shots/render.py --repl demos/shots/Demo.hs layoutz-hs/pix/layoutz-demo-repl.png
+	python3 demos/shots/render.py --output-only demos/shots/Charts.hs layoutz-hs/pix/layoutz-charts.png
