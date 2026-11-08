@@ -13,13 +13,13 @@ import Layoutz
 
 data CounterMsg = Inc | Dec
 
-counterApp :: LayoutzApp Int CounterMsg
-counterApp = LayoutzApp
-  { appInit = (0, CmdNone)
+counterApp :: App Int CounterMsg
+counterApp = App
+  { appInit = (0, cmdNone)
   
   , appUpdate = \msg count -> case msg of
-      Inc -> (count + 1, CmdNone)
-      Dec -> (count - 1, CmdNone)
+      Inc -> (count + 1, cmdNone)
+      Dec -> (count - 1, cmdNone)
   
   , appSubscriptions = \_state ->
       subKeyPress $ \key -> case key of

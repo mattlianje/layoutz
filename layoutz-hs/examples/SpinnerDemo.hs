@@ -17,18 +17,18 @@ data SpinnerState = SpinnerState
 
 data SpinnerMsg = NextFrame
 
-spinnerDemo :: LayoutzApp SpinnerState SpinnerMsg
-spinnerDemo = LayoutzApp
-  { appInit = (SpinnerState 0, CmdNone)
+spinnerDemo :: App SpinnerState SpinnerMsg
+spinnerDemo = App
+  { appInit = (SpinnerState 0, cmdNone)
 
   , appUpdate = \msg state -> case msg of
-      NextFrame -> (state { frameCount = frameCount state + 1 }, CmdNone)
+      NextFrame -> (state { frameCount = frameCount state + 1 }, cmdNone)
 
   , appSubscriptions = \_state ->
       subEveryMs 100 NextFrame
 
   , appView = \state ->
-      layout
+      vstack
         [ section "Spinner Styles"
             [ text "Spinners animate automatically!"
             , text ""
@@ -40,9 +40,9 @@ spinnerDemo = LayoutzApp
         , br
         , section "Examples"
             [ text "With colors:"
-            , withColor ColorGreen $ spinner "Success!" (frameCount state) SpinnerDots
-            , withColor ColorYellow $ spinner "Warning" (frameCount state) SpinnerLine
-            , withColor ColorRed $ spinner "Error" (frameCount state) SpinnerBounce
+            , fg ColorGreen $ spinner "Success!" (frameCount state) SpinnerDots
+            , fg ColorYellow $ spinner "Warning" (frameCount state) SpinnerLine
+            , fg ColorRed $ spinner "Error" (frameCount state) SpinnerBounce
             , br
             , text "Without labels:"
             , row

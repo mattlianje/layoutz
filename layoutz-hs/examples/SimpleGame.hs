@@ -46,20 +46,20 @@ gameHeight = 12
 
 -- | Deterministic per level.
 generateItems :: Int -> [(Int, Int)]
-generateItems level =
-  let itemCount = 3 + level
+generateItems lvl =
+  let itemCount = 3 + lvl
       positions = [ (x `mod` gameWidth, y `mod` gameHeight) 
                   | i <- [0..itemCount-1]
-                  , let x = (i * 5 + level * 3) `mod` gameWidth
-                  , let y = (i * 3 + level * 2) `mod` gameHeight
+                  , let x = (i * 5 + lvl * 3) `mod` gameWidth
+                  , let y = (i * 3 + lvl * 2) `mod` gameHeight
                   ]
   in take itemCount positions
 
 generateEnemies :: Int -> [Enemy]
-generateEnemies level =
-  let enemyCount = 1 + level
-      positions = [ Enemy ((i * 7 + level) `mod` gameWidth) 
-                          ((i * 5 + level * 2) `mod` gameHeight)
+generateEnemies lvl =
+  let enemyCount = 1 + lvl
+      positions = [ Enemy ((i * 7 + lvl) `mod` gameWidth) 
+                          ((i * 5 + lvl * 2) `mod` gameHeight)
                   | i <- [0..enemyCount-1]
                   ]
   in positions
@@ -186,7 +186,7 @@ updateGame msg state
       
       Restart -> initialState
 
-viewGame :: GameState -> L
+viewGame :: GameState -> View m
 viewGame state =
   let renderCell x y
         | x == playerX state && y == playerY state = "🧙"
@@ -196,10 +196,10 @@ viewGame state =
       
       renderRow y = text $ unwords [renderCell x y | x <- [0..gameWidth - 1]]
       
-      gameBoard = layout [renderRow y | y <- [0..gameHeight - 1]]
+      gameBoard = vstack [renderRow y | y <- [0..gameHeight - 1]]
       
       hearts = concat (replicate (lives state) "💖")
-      stats = layout
+      stats = vstack
         [ text $ "Score: " <> show (score state)
         , text $ "Lives: " <> hearts
         , text $ "Level: " <> show (level state)
@@ -222,7 +222,7 @@ viewGame state =
              ]
         ]
       
-  in layout
+  in vstack
        [ gameBoard
        , br
        , row [section "Stats" [stats], section "Status" [text $ message state]]
@@ -231,14 +231,14 @@ viewGame state =
        , controls
        ]
 
-simpleGame :: LayoutzApp GameState GameMsg
-simpleGame = LayoutzApp
-  { appInit = (initialState, CmdNone)
+simpleGame :: App GameState GameMsg
+simpleGame = App
+  { appInit = (initialState, cmdNone)
   
-  , appUpdate = \msg state -> (updateGame msg state, CmdNone)
+  , appUpdate = \msg state -> (updateGame msg state, cmdNone)
   
   , appSubscriptions = \_state ->
-      subBatch
+      mconcat
         [ subEveryMs 100 Tick
         , subKeyPress $ \key -> case key of
             KeyChar 'w' -> Just MoveUp

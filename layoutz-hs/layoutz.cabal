@@ -29,6 +29,8 @@ library
                      , text >= 2.1.2 && < 2.2
                      , containers >= 0.5 && < 0.9
                      , directory >= 1.2 && < 1.4
+  if !os(windows)
+    build-depends:     unix >= 2.7 && < 2.9
   hs-source-dirs:      .
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -60,6 +62,30 @@ executable inline-loading-demo
   default-language:    Haskell2010
   ghc-options:         -Wall
 
+executable click-demo
+  main-is:             ClickDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable fill-demo
+  main-is:             FillDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable focus-demo
+  main-is:             FocusDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
 executable showcase-app
   main-is:             ShowcaseApp.hs
   build-depends:       base >= 4.7 && < 5
@@ -78,6 +104,47 @@ executable raymarcher
   default-language:    Haskell2010
   ghc-options:         -Wall -O2
 
+executable counter-demo
+  main-is:             CounterDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable readme-demo
+  main-is:             ReadmeDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable simple-game
+  main-is:             SimpleGame.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable spinner-demo
+  main-is:             SpinnerDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable task-list-demo
+  main-is:             TaskListDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+                     , containers
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
 test-suite layoutz-tests
   type:                exitcode-stdio-1.0
   main-is:             Test.hs
@@ -89,3 +156,25 @@ test-suite layoutz-tests
   hs-source-dirs:      test
   default-language:    Haskell2010
   ghc-options:         -Wall
+
+-- layoutz vs Bubble Tea and Brick: `make bench`. Linux only.
+benchmark layoutz-bench
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  other-modules:       Dashboard
+                     , Pty
+                     , Report
+  hs-source-dirs:      bench
+  c-sources:           bench/cbits/pty.c
+  extra-libraries:     util
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+                     , bytestring
+                     , directory
+                     , filepath
+                     , process
+                     , unix
+  default-language:    Haskell2010
+  ghc-options:         -Wall -O2
+  if !os(linux)
+    buildable:         False

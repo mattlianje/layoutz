@@ -192,7 +192,7 @@ shade ro rd morph =
              bC  = floor (clampD 0 255 ((nz' * 0.50 + lum * 0.50 + 0.05) * 200 + 30)) :: Int
          in Pixel ch rC gC bC
 
-renderFrame :: RayState -> L
+renderFrame :: RayState -> View m
 renderFrame s =
   let theta = rsTheta s
       phi   = rsPhi s
@@ -236,7 +236,7 @@ updateRay msg s = case msg of
     in s { rsMorphTarget = fromIntegral next }
 
 -- | Build the visible UI for one frame
-viewRay :: RayState -> L
+viewRay :: RayState -> View m
 viewRay s =
   let fb        = renderFrame s
       targetIdx = (round (rsMorphTarget s) `mod` 3 + 3) `mod` 3
@@ -255,53 +255,53 @@ viewRay s =
 
       twoPi = 2 * pi :: Double
 
-      cameraStats = withColor ColorBrightBlue $ kv
+      cameraStats = fg ColorBrightBlue $ kv
         [ ("th",   printf "%.2f" (rsTheta s - twoPi * fromIntegral (floor (rsTheta s / twoPi) :: Int)))
         , ("ph",   printf "%.2f" (rsPhi s))
         , ("zoom", printf "%.1f" (rsDist s))
         ]
 
-      rotateLine = tightRow
-        [ withColor ColorBrightBlack (text "rotate: ")
+      rotateLine = row
+        [ fg ColorBrightBlack (text "rotate: ")
         , if rsAutoRotate s
-            then withStyle StyleBold (withColor ColorBrightGreen (text "auto"))
-            else withColor ColorBrightYellow (text "manual")
+            then styleBold (fg ColorBrightGreen (text "auto"))
+            else fg ColorBrightYellow (text "manual")
+        ] & gap 0
+
+      controls = styleDim $ vstack
+        [ fg ColorBrightYellow (text "<-^v>  orbit")
+        , fg ColorBrightYellow (text "+/-    zoom")
+        , fg ColorBrightYellow (text "m      shape")
+        , fg ColorBrightYellow (text "a      auto")
         ]
 
-      controls = withStyle StyleDim $ layout
-        [ withColor ColorBrightYellow (text "<-^v>  orbit")
-        , withColor ColorBrightYellow (text "+/-    zoom")
-        , withColor ColorBrightYellow (text "m      shape")
-        , withColor ColorBrightYellow (text "a      auto")
-        ]
-
-      camera = layout
+      camera = vstack
         [ cameraStats
         , br
         , rotateLine
         , br
-        , withColor ColorBrightYellow (text "~12 fps")
-        , withColor ColorBrightCyan (plotSparkline sparkData)
+        , fg ColorBrightYellow (text "~12 fps")
+        , fg ColorBrightCyan (plotSparkline sparkData)
         , br
-        , withColor ColorBrightMagenta (kv [("shape", shapeName)])
+        , fg ColorBrightMagenta (kv [("shape", shapeName)])
         , br
-        , withColor ColorBrightCyan  (spinner "render" (rsTick s `div` 2) SpinnerDots)
-        , withColor ColorBrightGreen (spinner "scene"  (rsTick s `div` 3) SpinnerClock)
-        , withColor ColorBrightYellow(spinner "light"  (rsTick s `div` 2) SpinnerBounce)
+        , fg ColorBrightCyan  (spinner "render" (rsTick s `div` 2) SpinnerDots)
+        , fg ColorBrightGreen (spinner "scene"  (rsTick s `div` 3) SpinnerClock)
+        , fg ColorBrightYellow(spinner "light"  (rsTick s `div` 2) SpinnerBounce)
         , br
         , controls
         ]
 
-      cameraBox = withColor ColorBrightMagenta $ setBorder BorderRound $ box "Camera" [camera]
+      cameraBox = fg ColorBrightMagenta $ border BorderRound $ box "Camera" [camera]
 
-      title = withStyle StyleBold (withColor ColorBrightCyan (text "Ray Marcher"))
-  in row [layout [title, fb], cameraBox]
+      title = styleBold (fg ColorBrightCyan (text "Ray Marcher"))
+  in row [vstack [title, fb], cameraBox]
 
-rayMarcher :: LayoutzApp RayState RayMsg
-rayMarcher = LayoutzApp
-  { appInit = (initialState, CmdNone)
-  , appUpdate = \msg state -> (updateRay msg state, CmdNone)
-  , appSubscriptions = \_ -> subBatch
+rayMarcher :: App RayState RayMsg
+rayMarcher = App
+  { appInit = (initialState, cmdNone)
+  , appUpdate = \msg state -> (updateRay msg state, cmdNone)
+  , appSubscriptions = \_ -> mconcat
       [ subEveryMs 80 RTick
       , subKeyPress $ \case
           KeyLeft      -> Just RotL

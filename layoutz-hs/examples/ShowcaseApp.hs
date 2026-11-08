@@ -96,10 +96,10 @@ toggleIn x xs = if x `elem` xs then filter (/= x) xs else x : xs
 
 update :: Msg -> ShowcaseState -> (ShowcaseState, Cmd Msg)
 update msg s = case msg of
-  NextScene -> (s { scene = (scene s + 1) `mod` totalScenes }, CmdNone)
-  PrevScene -> (s { scene = (scene s - 1 + totalScenes) `mod` totalScenes }, CmdNone)
-  GoScene n | n >= 0 && n < totalScenes -> (s { scene = n }, CmdNone)
-  GoScene _ -> (s, CmdNone)
+  NextScene -> (s { scene = (scene s + 1) `mod` totalScenes }, cmdNone)
+  PrevScene -> (s { scene = (scene s - 1 + totalScenes) `mod` totalScenes }, cmdNone)
+  GoScene n | n >= 0 && n < totalScenes -> (s { scene = n }, cmdNone)
+  GoScene _ -> (s, cmdNone)
 
   Tick ->
     let -- Text input adding animation
@@ -120,55 +120,55 @@ update msg s = case msg of
         newMorph = if abs mDiff < 0.01 then rayMorphTarget s1
                    else rayMorph s1 + mDiff * 0.06
     in (s1 { tick = tick s1 + 1, ballY = ny, ballVy = vy, ballTrail = trail
-           , rayMorph = newMorph }, CmdNone)
+           , rayMorph = newMorph }, cmdNone)
 
-  TypeChar c | not (addingItem s) -> (s { textValue = textValue s ++ [c] }, CmdNone)
-  TypeChar _ -> (s, CmdNone)
+  TypeChar c | not (addingItem s) -> (s { textValue = textValue s ++ [c] }, cmdNone)
+  TypeChar _ -> (s, cmdNone)
 
   Backspace | not (addingItem s) ->
-    (s { textValue = if null (textValue s) then "" else init (textValue s) }, CmdNone)
-  Backspace -> (s, CmdNone)
+    (s { textValue = if null (textValue s) then "" else init (textValue s) }, cmdNone)
+  Backspace -> (s, cmdNone)
 
   SubmitItem | not (addingItem s) && not (null (textValue s)) ->
-    (s { addingItem = True, addTick = 0 }, CmdNone)
-  SubmitItem -> (s, CmdNone)
+    (s { addingItem = True, addTick = 0 }, cmdNone)
+  SubmitItem -> (s, cmdNone)
 
   ToggleSelect
-    | scene s == 4 -> (s { tableSelected = toggleIn (tableRow s) (tableSelected s) }, CmdNone)
-    | scene s == 7 -> (s { selected = toggleIn (cursor s) (selected s) }, CmdNone)
-    | otherwise    -> (s, CmdNone)
+    | scene s == 4 -> (s { tableSelected = toggleIn (tableRow s) (tableSelected s) }, cmdNone)
+    | scene s == 7 -> (s { selected = toggleIn (cursor s) (selected s) }, cmdNone)
+    | otherwise    -> (s, cmdNone)
 
   CursorUp
-    | scene s == 4 -> (s { tableRow = (tableRow s - 1 + length services) `mod` length services }, CmdNone)
-    | scene s == 7 -> (s { cursor = (cursor s - 1 + 7) `mod` 7 }, CmdNone)
-    | otherwise    -> (s, CmdNone)
+    | scene s == 4 -> (s { tableRow = (tableRow s - 1 + length services) `mod` length services }, cmdNone)
+    | scene s == 7 -> (s { cursor = (cursor s - 1 + 7) `mod` 7 }, cmdNone)
+    | otherwise    -> (s, cmdNone)
 
   CursorDown
-    | scene s == 4 -> (s { tableRow = (tableRow s + 1) `mod` length services }, CmdNone)
-    | scene s == 7 -> (s { cursor = (cursor s + 1) `mod` 7 }, CmdNone)
-    | otherwise    -> (s, CmdNone)
+    | scene s == 4 -> (s { tableRow = (tableRow s + 1) `mod` length services }, cmdNone)
+    | scene s == 7 -> (s { cursor = (cursor s + 1) `mod` 7 }, cmdNone)
+    | otherwise    -> (s, cmdNone)
 
   AdjustUp
-    | scene s == 1 -> (s { gravity = min (gravity s + 1) 15 }, CmdNone)
-    | scene s == 0 -> (s { rayDist = max (rayDist s - 0.25) 2.0 }, CmdNone)
-    | otherwise    -> (s { lineOffset = min (lineOffset s + 1) 10 }, CmdNone)
+    | scene s == 1 -> (s { gravity = min (gravity s + 1) 15 }, cmdNone)
+    | scene s == 0 -> (s { rayDist = max (rayDist s - 0.25) 2.0 }, cmdNone)
+    | otherwise    -> (s { lineOffset = min (lineOffset s + 1) 10 }, cmdNone)
 
   AdjustDown
-    | scene s == 1 -> (s { gravity = max (gravity s - 1) 1 }, CmdNone)
-    | scene s == 0 -> (s { rayDist = min (rayDist s + 0.25) 8.0 }, CmdNone)
-    | otherwise    -> (s { lineOffset = max (lineOffset s - 1) (-10) }, CmdNone)
+    | scene s == 1 -> (s { gravity = max (gravity s - 1) 1 }, cmdNone)
+    | scene s == 0 -> (s { rayDist = min (rayDist s + 0.25) 8.0 }, cmdNone)
+    | otherwise    -> (s { lineOffset = max (lineOffset s - 1) (-10) }, cmdNone)
 
-  ToggleBarMode -> (s { barMode = (barMode s + 1) `mod` 2 }, CmdNone)
+  ToggleBarMode -> (s { barMode = (barMode s + 1) `mod` 2 }, cmdNone)
 
-  KickBall -> (s { ballVy = 5.0 }, CmdNone)
+  KickBall -> (s { ballVy = 5.0 }, cmdNone)
 
-  RayRotL -> (s { rayTheta = rayTheta s - 0.15 }, CmdNone)
-  RayRotR -> (s { rayTheta = rayTheta s + 0.15 }, CmdNone)
-  RayRotU -> (s { rayPhi = min (rayPhi s + 0.1) 1.3 }, CmdNone)
-  RayRotD -> (s { rayPhi = max (rayPhi s - 0.1) (-1.3) }, CmdNone)
+  RayRotL -> (s { rayTheta = rayTheta s - 0.15 }, cmdNone)
+  RayRotR -> (s { rayTheta = rayTheta s + 0.15 }, cmdNone)
+  RayRotU -> (s { rayPhi = min (rayPhi s + 0.1) 1.3 }, cmdNone)
+  RayRotD -> (s { rayPhi = max (rayPhi s - 0.1) (-1.3) }, cmdNone)
   RayNextShape ->
     let next = (round (rayMorphTarget s) + 1) `mod` 2 :: Int
-    in (s { rayMorphTarget = fromIntegral next }, CmdNone)
+    in (s { rayMorphTarget = fromIntegral next }, cmdNone)
 
 bounce :: Double -> Double -> (Double, Double)
 bounce y vy
@@ -180,7 +180,7 @@ bounce y vy
 -- Subscriptions
 
 subscriptions :: ShowcaseState -> Sub Msg
-subscriptions s = subBatch
+subscriptions s = mconcat
   [ subEveryMs 80 Tick
   , subKeyPress $ \key -> case key of
       KeyRight     -> Just NextScene
@@ -206,7 +206,7 @@ subscriptions s = subBatch
 
 -- View
 
-view :: ShowcaseState -> L
+view :: ShowcaseState -> View m
 view s =
   let header  = renderHeader s
       content = case scene s of
@@ -220,9 +220,9 @@ view s =
         7 -> sceneSelectionsHeatmap s
         _ -> text "Unknown scene"
       footer = renderFooter s
-  in alignLeft sceneWidth $ render $ layout [header, br, content, br, footer]
+  in alignLeft sceneWidth $ vstack [header, br, content, br, footer]
 
-renderHeader :: ShowcaseState -> L
+renderHeader :: ShowcaseState -> View m
 renderHeader s =
   let sceneDots = unwords [ if i == scene s then "●" else "○" | i <- [0..totalScenes-1] ]
       prefix    = " ─── "
@@ -230,20 +230,20 @@ renderHeader s =
       suffix    = show (scene s + 1) ++ " / " ++ show totalScenes
       dashCount = max 3 (sceneWidth - length prefix - length title - length suffix - 2)
       dashes    = replicate dashCount '─'
-  in layout
+  in vstack
        [ br
-       , tightRow
-           [ withColor ColorBrightBlack $ text prefix
-           , withStyle StyleBold $ withColor ColorBrightCyan $ text title
-           , withColor ColorBrightBlack $ text (" " ++ dashes ++ " ")
-           , withColor ColorBrightBlack $ text suffix
-           ]
+       , row
+           [ fg ColorBrightBlack $ text prefix
+           , styleBold $ fg ColorBrightCyan $ text title
+           , fg ColorBrightBlack $ text (" " ++ dashes ++ " ")
+           , fg ColorBrightBlack $ text suffix
+           ] & gap 0
        , br
-       , withStyle StyleBold $ withColor ColorBrightYellow $ text (" " ++ sceneNames !! scene s)
+       , styleBold $ fg ColorBrightYellow $ text (" " ++ sceneNames !! scene s)
        , text (" " ++ sceneDots)
        ]
 
-renderFooter :: ShowcaseState -> L
+renderFooter :: ShowcaseState -> View m
 renderFooter s =
   let hints = case scene s of
         0 -> "  </> scenes  wasd orbit  +/- zoom  Space shape  ESC quit"
@@ -254,11 +254,11 @@ renderFooter s =
         6 -> "  </> scenes  Tab cycle chart mode  ESC quit"
         7 -> "  </> scenes  ^/v navigate  Space toggle  ESC quit"
         _ -> "  </> scenes  ESC quit"
-  in withStyle StyleDim $ withColor ColorBrightBlack $ text hints
+  in styleDim $ fg ColorBrightBlack $ text hints
 
 -- Scene 2: Physics Game
 
-scenePhysicsGame :: ShowcaseState -> L
+scenePhysicsGame :: ShowcaseState -> View m
 scenePhysicsGame s =
   let trailPoints = zip (map fromIntegral [0 :: Int ..]) (ballTrail s)
       gLabel   = printf "g = %.2f" (fromIntegral (gravity s) * 0.08 :: Double) :: String
@@ -272,78 +272,78 @@ scenePhysicsGame s =
       energyBar = "Energy " ++ replicate filled '█' ++ replicate (barW - filled) '░'
                   ++ " " ++ show pct ++ "%"
   in row
-    [ layout
-        [ withColor ColorBrightYellow $ text "Trajectory"
+    [ vstack
+        [ fg ColorBrightYellow $ text "Trajectory"
         , plotLine 35 12
             [ Series trailPoints "ball" ColorBrightCyan
             , Series bounds " " ColorBrightBlack
             ]
         ]
-    , withColor ColorBrightMagenta $ withBorder BorderRound $ box "Physics"
-        [ alignLeft 28 $ render $ layout
+    , fg ColorBrightMagenta $ border BorderRound $ box "Physics"
+        [ alignLeft 28 $ vstack
             [ kv [ ("gravity", gLabel), ("velocity", velLabel), ("height", yLabel) ]
             , br
-            , withColor ColorBrightGreen $ text energyBar
+            , fg ColorBrightGreen $ text energyBar
             , br
-            , withColor ColorBrightCyan $ spinner "Simulating" (tick s `div` 3) SpinnerDots
-            , withStyle StyleBold $ withColor ColorBrightYellow $ text "Press Space to kick ball!"
+            , fg ColorBrightCyan $ spinner "Simulating" (tick s `div` 3) SpinnerDots
+            , styleBold $ fg ColorBrightYellow $ text "Press Space to kick ball!"
             ]
         ]
     ]
 
 -- Scene 1: Ray Marcher
 
-sceneRayMarcher :: ShowcaseState -> L
+sceneRayMarcher :: ShowcaseState -> View m
 sceneRayMarcher s =
   let fb    = renderRayFrame (rayTheta s) (rayPhi s) (rayDist s) (rayMorph s)
       twoPi = 2 * pi :: Double
       thetaWrapped = rayTheta s - twoPi * fromIntegral (floor (rayTheta s / twoPi) :: Int)
-      cameraStats = withColor ColorBrightBlue $ kv
+      cameraStats = fg ColorBrightBlue $ kv
         [ ("th",   printf "%.2f" thetaWrapped :: String)
         , ("ph",   printf "%.2f" (rayPhi s) :: String)
         , ("zoom", printf "%.1f" (rayDist s) :: String)
         ]
-      controls = withStyle StyleDim $ layout
-        [ withColor ColorBrightYellow $ text "wasd   orbit"
-        , withColor ColorBrightYellow $ text "+/-    zoom"
-        , withColor ColorBrightYellow $ text "Space  shape"
+      controls = styleDim $ vstack
+        [ fg ColorBrightYellow $ text "wasd   orbit"
+        , fg ColorBrightYellow $ text "+/-    zoom"
+        , fg ColorBrightYellow $ text "Space  shape"
         ]
-      camera = alignLeft 20 $ render $ layout
+      camera = alignLeft 20 $ vstack
         [ cameraStats
         , br
-        , withColor ColorBrightCyan  $ spinner "render" (tick s `div` 2) SpinnerDots
-        , withColor ColorBrightYellow $ spinner "light"  (tick s `div` 2) SpinnerBounce
+        , fg ColorBrightCyan  $ spinner "render" (tick s `div` 2) SpinnerDots
+        , fg ColorBrightYellow $ spinner "light"  (tick s `div` 2) SpinnerBounce
         , br
         , controls
         ]
-      cameraBox = withColor ColorBrightMagenta $ withBorder BorderRound $ box "Camera" [camera]
+      cameraBox = fg ColorBrightMagenta $ border BorderRound $ box "Camera" [camera]
   in row [text fb, cameraBox]
 
 -- Scene 3: Text Input & Lists
 
-sceneTextInput :: ShowcaseState -> L
+sceneTextInput :: ShowcaseState -> View m
 sceneTextInput s =
   let inputLine =
         if addingItem s then
-          row [ withColor ColorBrightYellow $ spinner "Adding" (addTick s) SpinnerDots
-              , withColor ColorBrightYellow $ text ("  \"" ++ textValue s ++ "\"")
+          row [ fg ColorBrightYellow $ spinner "Adding" (addTick s) SpinnerDots
+              , fg ColorBrightYellow $ text ("  \"" ++ textValue s ++ "\"")
               ]
         else
-          let display = if null (textValue s)
-                        then withColor ColorBrightBlack $ text "Type something..."
-                        else withColor ColorBrightWhite $ text (textValue s)
-          in tightRow [ withColor ColorBrightCyan $ text "> ", display, withStyle StyleBlink $ text "_" ]
+          let shown = if null (textValue s)
+                        then fg ColorBrightBlack $ text "Type something..."
+                        else fg ColorBrightWhite $ text (textValue s)
+          in row [ fg ColorBrightCyan $ text "> ", shown, styleBlink $ text "_" ] & gap 0
 
       itemColors = [ColorBrightGreen, ColorBrightBlue, ColorBrightMagenta, ColorBrightYellow, ColorBrightCyan]
       itemList =
         if null (stItems s) then
-          withColor ColorBrightBlack $ text "  (no items yet)"
+          fg ColorBrightBlack $ text "  (no items yet)"
         else
-          layout $ zipWith (\i item ->
-            tightRow
-              [ withColor ColorBrightBlack $ text ("  " ++ show (i + 1) ++ ". ")
-              , withColor (itemColors !! (i `mod` length itemColors)) $ text item
-              ]
+          vstack $ zipWith (\i item ->
+            row
+              [ fg ColorBrightBlack $ text ("  " ++ show (i + 1) ++ ". ")
+              , fg (itemColors !! (i `mod` length itemColors)) $ text item
+              ] & gap 0
             ) [0 :: Int ..] (stItems s)
 
       boxW     = 32
@@ -352,62 +352,62 @@ sceneTextInput s =
       shortest = if null its then "-" else foldl1 (\a b -> if length a <= length b then a else b) its
       cnt      = length its
   in row
-    [ withColor ColorBrightCyan $ withBorder BorderRound $ box "Add Items"
-        [ alignLeft boxW $ render inputLine
+    [ fg ColorBrightCyan $ border BorderRound $ box "Add Items"
+        [ alignLeft boxW inputLine
         , br
-        , alignLeft boxW $ render $ layout
-            [ withStyle StyleBold $ text "Items:"
+        , alignLeft boxW $ vstack
+            [ styleBold $ text "Items:"
             , itemList
             ]
         ]
-    , withBorder BorderRound $ box "Stats"
-        [ alignLeft boxW $ render $ layout
-            [ tightRow [ text "Total items: ", withStyle StyleBold $ withColor ColorBrightCyan $ text (show cnt) ]
-            , tightRow [ text "Longest:     ", withColor ColorBrightMagenta $ text longest ]
-            , tightRow [ text "Shortest:    ", withColor ColorBrightMagenta $ text shortest ]
+    , border BorderRound $ box "Stats"
+        [ alignLeft boxW $ vstack
+            [ row [ text "Total items: ", styleBold $ fg ColorBrightCyan $ text (show cnt) ] & gap 0
+            , row [ text "Longest:     ", fg ColorBrightMagenta $ text longest ] & gap 0
+            , row [ text "Shortest:    ", fg ColorBrightMagenta $ text shortest ] & gap 0
             ]
         , br
-        , alignLeft boxW $ render $
+        , alignLeft boxW $
             if cnt >= 3
-            then withStyle StyleBold $ withColor ColorBrightGreen $ text "Nice collection!"
-            else withColor ColorBrightBlack $ text ("Add " ++ show (3 - cnt) ++ " more...")
+            then styleBold $ fg ColorBrightGreen $ text "Nice collection!"
+            else fg ColorBrightBlack $ text ("Add " ++ show (3 - cnt) ++ " more...")
         ]
     ]
 
 -- Scene 4: Borders & Styles
 
-sceneBordersStyles :: ShowcaseState -> L
+sceneBordersStyles :: ShowcaseState -> View m
 sceneBordersStyles _ =
-  let mkBox (bdr, name, c) = withColor c $ withBorder bdr $ box name [alignLeft 8 name]
+  let mkBox (bdr, name, c) = fg c $ border bdr $ box name [alignLeft 8 (text name)]
       topRow    = [ (BorderNormal, "Single", ColorBrightCyan)
                   , (BorderDouble, "Double", ColorBrightMagenta)
                   , (BorderRound,  "Round",  ColorBrightGreen) ]
       bottomRow = [ (BorderThick,  "Thick",  ColorBrightYellow)
                   , (BorderDashed, "Dashed", ColorBrightBlue)
                   , (BorderAscii,  "Ascii",  ColorBrightWhite) ]
-  in layout
-    [ withStyle StyleBold $ withColor ColorBrightYellow $ text "Border Styles"
+  in vstack
+    [ styleBold $ fg ColorBrightYellow $ text "Border Styles"
     , row (map mkBox topRow)
     , row (map mkBox bottomRow)
     , br
-    , withStyle StyleBold $ withColor ColorBrightYellow $ text "Text Styles"
+    , styleBold $ fg ColorBrightYellow $ text "Text Styles"
     , row
-        [ withBorder BorderRound $ box "Standard"
-            [ withStyle StyleBold      $ withColor ColorBrightCyan    $ text "Bold"
-            , withStyle StyleItalic    $ withColor ColorBrightMagenta $ text "Italic"
-            , withStyle StyleUnderline $ withColor ColorBrightGreen   $ text "Underline"
+        [ border BorderRound $ box "Standard"
+            [ styleBold      $ fg ColorBrightCyan    $ text "Bold"
+            , styleItalic    $ fg ColorBrightMagenta $ text "Italic"
+            , styleUnderline $ fg ColorBrightGreen   $ text "Underline"
             ]
-        , withBorder BorderRound $ box "Extended"
-            [ withStyle StyleDim           $ withColor ColorBrightYellow $ text "Dim"
-            , withStyle StyleStrikethrough $ withColor ColorBrightRed    $ text "Strikethrough"
-            , withStyle (StyleBold <> StyleItalic) $ withColor ColorBrightWhite $ text "Bold+Italic"
+        , border BorderRound $ box "Extended"
+            [ styleDim           $ fg ColorBrightYellow $ text "Dim"
+            , styleStrikethrough $ fg ColorBrightRed    $ text "Strikethrough"
+            , styleBold . styleItalic $ fg ColorBrightWhite $ text "Bold+Italic"
             ]
         ]
     ]
 
 -- Scene 5: Tables
 
-sceneTables :: ShowcaseState -> L
+sceneTables :: ShowcaseState -> View m
 sceneTables s =
   let coloredRows = zipWith (\idx (name, status, lat, up) ->
         let isActive = idx == tableRow s
@@ -415,28 +415,28 @@ sceneTables s =
             mark     = if isSel then "* " else "  "
             cells    = [mark ++ name, status, lat, up]
             applyStyle
-              | isActive && isSel = withStyle (StyleBold <> StyleReverse) . withColor ColorBrightGreen
-              | isActive          = withStyle (StyleBold <> StyleReverse) . withColor ColorBrightCyan
-              | isSel             = withColor ColorBrightGreen
+              | isActive && isSel = styleBold . styleReverse . fg ColorBrightGreen
+              | isActive          = styleBold . styleReverse . fg ColorBrightCyan
+              | isSel             = fg ColorBrightGreen
               | otherwise         = id
         in map (applyStyle . text) cells
         ) [0 :: Int ..] services
 
       selCount = length (tableSelected s)
       selInfo  = if selCount > 0
-                 then withColor ColorBrightGreen $ text (show selCount ++ " selected")
-                 else withColor ColorBrightBlack $ text "none selected"
-  in layout
-    [ withBorder BorderRound $ table ["Service", "Status", "Latency", "Uptime"] coloredRows
-    , tightRow
-        [ withColor ColorBrightBlack $ text (" Row " ++ show (tableRow s + 1) ++ "/" ++ show (length services) ++ "  |  ")
+                 then fg ColorBrightGreen $ text (show selCount ++ " selected")
+                 else fg ColorBrightBlack $ text "none selected"
+  in vstack
+    [ border BorderRound $ table ["Service", "Status", "Latency", "Uptime"] coloredRows
+    , row
+        [ fg ColorBrightBlack $ text (" Row " ++ show (tableRow s + 1) ++ "/" ++ show (length services) ++ "  |  ")
         , selInfo
-        ]
+        ] & gap 0
     ]
 
 -- Scene 6: Charts & Plots
 
-sceneChartsPlots :: ShowcaseState -> L
+sceneChartsPlots :: ShowcaseState -> View m
 sceneChartsPlots s =
   let sinPoints  = [ (x, sin (x + fromIntegral (tick s) * 0.06) * 4)
                    | i <- [0..100 :: Int], let x = fromIntegral i * 0.08 ]
@@ -446,15 +446,15 @@ sceneChartsPlots s =
       sign       = if intercept' >= 0 then "+" else "-" :: String
       lineLabel  = printf "0.5x %s %.1f" sign (abs intercept') :: String
   in row
-    [ layout
-        [ withColor ColorBrightYellow $ text ("sin(x) & y = " ++ lineLabel ++ "  [+/- to shift]")
+    [ vstack
+        [ fg ColorBrightYellow $ text ("sin(x) & y = " ++ lineLabel ++ "  [+/- to shift]")
         , plotLine 35 12
             [ Series sinPoints  "sin(x)" ColorBrightCyan
             , Series linePoints "linear" ColorBrightYellow
             ]
         ]
-    , layout
-        [ withColor ColorBrightYellow $ text "Revenue Share"
+    , vstack
+        [ fg ColorBrightYellow $ text "Revenue Share"
         , plotPie 30 8
             [ Slice 45 "Product"   ColorBrightCyan
             , Slice 30 "Services"  ColorBrightMagenta
@@ -466,7 +466,7 @@ sceneChartsPlots s =
 
 -- Scene 7: Bar Charts & Sparklines
 
-sceneBarChartsSparklines :: ShowcaseState -> L
+sceneBarChartsSparklines :: ShowcaseState -> View m
 sceneBarChartsSparklines s =
   let sparkData = [ sin (fromIntegral (i + tick s) * 0.3) * 10 + 15
                   | i <- [0..29 :: Int] ]
@@ -494,19 +494,19 @@ sceneBarChartsSparklines s =
                                 , BarItem 25 "Other"  ColorBrightMagenta ] "Q4"
               ]
   in row
-    [ layout
-        [ withColor ColorBrightYellow $ text "Live Signal"
-        , withColor ColorBrightCyan $ plotSparkline sparkData
+    [ vstack
+        [ fg ColorBrightYellow $ text "Live Signal"
+        , fg ColorBrightCyan $ plotSparkline sparkData
         ]
-    , layout
-        [ withColor ColorBrightYellow $ text (modeName ++ "  [Tab to cycle]")
+    , vstack
+        [ fg ColorBrightYellow $ text (modeName ++ "  [Tab to cycle]")
         , chartElem
         ]
     ]
 
 -- Scene 8: Selections & Heatmap
 
-sceneSelectionsHeatmap :: ShowcaseState -> L
+sceneSelectionsHeatmap :: ShowcaseState -> View m
 sceneSelectionsHeatmap s =
   let days  = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
       hours = ["6am", "9am", "12pm", "3pm", "6pm", "9pm"]
@@ -518,9 +518,9 @@ sceneSelectionsHeatmap s =
             arrow = if isCur then "> " else "  "
             label = arrow ++ check ++ " " ++ day
             applyStyle
-              | isCur && isSel = withStyle StyleBold . withColor ColorBrightGreen
-              | isCur          = withStyle StyleBold . withColor ColorBrightCyan
-              | isSel          = withColor ColorBrightGreen
+              | isCur && isSel = styleBold . fg ColorBrightGreen
+              | isCur          = styleBold . fg ColorBrightCyan
+              | isSel          = fg ColorBrightGreen
               | otherwise      = id
         in applyStyle $ text label
         ) [0 :: Int ..] days
@@ -540,13 +540,13 @@ sceneSelectionsHeatmap s =
                    if idx `elem` selected s then r else map (* 0.15) r
                  ) [0 :: Int ..] baseData
   in row
-    [ withColor ColorBrightCyan $ withBorder BorderRound $ box "Schedule"
-        [ layout selectorLines
+    [ fg ColorBrightCyan $ border BorderRound $ box "Schedule"
+        [ vstack selectorLines
         , br
-        , withColor (if selCount > 0 then ColorBrightGreen else ColorBrightBlack) $
+        , fg (if selCount > 0 then ColorBrightGreen else ColorBrightBlack) $
             text (show selCount ++ " of " ++ show (length days) ++ " active")
         ]
-    , withBorder BorderRound $ box "Weekly Activity"
+    , border BorderRound $ box "Weekly Activity"
         [ plotHeatmap' 5 (HeatmapData heatData days hours) ]
     ]
 
@@ -673,12 +673,12 @@ rayShade ro rd morph =
          let hit  = vadd ro (vscale rd t)
              n    = calcNormal hit morph
              diff = max (vdot n rayLightDir) 0.0
-             fill = max (vdot n rayFillDir) 0.0 * 0.35
+             soft = max (vdot n rayFillDir) 0.0 * 0.35
              refl = vsub (vscale n (2.0 * vdot n rayLightDir)) rayLightDir
              spec = (max (vdot refl (vneg rd)) 0.0) ** 32.0 * 0.6
              ao   = 1.0 - clampD 0.0 0.4 (rayScene (vadd hit (vscale n 0.1)) morph * 5.0)
              -- Floor keeps hit surfaces above the ramp's whitespace glyphs
-             lum  = clampD 0.0 1.0 (max ((0.12 + diff * 0.7 + fill + spec) * ao) 0.18)
+             lum  = clampD 0.0 1.0 (max ((0.12 + diff * 0.7 + soft + spec) * ao) 0.18)
              rampLen = length rayRamp
              idx = floor (clampD 0 (fromIntegral rampLen - 1) (lum * fromIntegral (rampLen - 1))) :: Int
              ch  = rayRamp !! idx
@@ -711,13 +711,13 @@ renderRayFrame theta phi dist morph =
 
 -- App
 
-showcaseApp :: LayoutzApp ShowcaseState Msg
-showcaseApp = LayoutzApp
-  { appInit          = (initialState, CmdNone)
+showcaseApp :: App ShowcaseState Msg
+showcaseApp = App
+  { appInit          = (initialState, cmdNone)
   , appUpdate        = \msg s -> update msg s
   , appSubscriptions = subscriptions
   , appView          = view
   }
 
 main :: IO ()
-main = runAppWith defaultAppOptions { optAlignment = AppAlignCenter } showcaseApp
+main = () <$ run defaultOptions { optAlignment = AppAlignCenter } showcaseApp

@@ -14,13 +14,13 @@ import Layoutz
 data S = S { prog :: Double, done :: Int }
 data M = Tick
 
-progressBar :: String -> Double -> LayoutzApp S M
-progressBar label speed = LayoutzApp
-  { appInit = (S 0.0 0, CmdNone)
+progressBar :: String -> Double -> App S M
+progressBar label speed = App
+  { appInit = (S 0.0 0, cmdNone)
   , appUpdate = \Tick st ->
-      if done st > 20     then (st, CmdExit)
-      else if prog st >= 1.0 then (st { done = done st + 1 }, CmdNone)
-      else (st { prog = min 1.0 (prog st + speed) }, CmdNone)
+      if done st > 20     then (st, cmdQuit)
+      else if prog st >= 1.0 then (st { done = done st + 1 }, cmdNone)
+      else (st { prog = min 1.0 (prog st + speed) }, cmdNone)
   , appSubscriptions = \_ -> subEveryMs 16 Tick
   , appView = \st ->
       let w = 40
@@ -29,12 +29,12 @@ progressBar label speed = LayoutzApp
             let r' = fromIntegral i / fromIntegral w :: Double
                 r = floor (r' * 180) + 50
                 g = floor ((1 - r') * 200) + 55
-            in withColor (ColorTrue r g 255) $ text "█"
+            in fg (ColorTrue r g 255) $ text "█"
             ) [0 .. filled - 1]
-          empty = replicate (w - filled) (withColor ColorBrightBlack $ text "░")
+          empty = replicate (w - filled) (fg ColorBrightBlack $ text "░")
           pct = show (floor (prog st * 100) :: Int) ++ "%"
-      in layout [ tightRow (bar ++ empty)
-                , withColor ColorBrightCyan $ text (label <> " " <> pct)
+      in vstack [ row (bar ++ empty) & gap 0
+                , fg ColorBrightCyan $ text (label <> " " <> pct)
                 ]
   }
 

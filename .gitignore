@@ -14,6 +14,8 @@ out/
 bundles/
 
 layoutz-hs/dist-newstyle/
+layoutz-hs/bench/brick/dist-newstyle/
+layoutz-hs/bench/bubbletea/bubbletea
 
 layoutz-ts/node_modules/
 layoutz-ts/dist/

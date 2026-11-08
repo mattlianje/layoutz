@@ -6,13 +6,13 @@ cosPts = [(fromIntegral i, cos (fromIntegral i * 0.15) * 5) | i <- [0 .. 60 :: I
 
 d = vstack
   [ row
-      [ withBorder BorderRound $ box "Signals"
+      [ panel "Signals"
           [ plotLine 44 9
               [ Series sinPts "sin(x)" ColorBrightCyan
               , Series cosPts "cos(x)" ColorBrightMagenta
               ]
           ]
-      , withBorder BorderRound $ box "Diet"
+      , panel "Diet"
           [ plotPie 33 7
               [ Slice 50 "Liquor" ColorDefault, Slice 20 "Protein" ColorDefault
               , Slice 10 "Water" ColorDefault, Slice 20 "Fun" ColorDefault
@@ -20,14 +20,14 @@ d = vstack
           ]
       ]
   , row
-      [ withBorder BorderRound $ box "Commits"
+      [ panel "Commits"
           [ plotBar 47 9
               [ BarItem 100 "Mon" ColorBrightBlue, BarItem 120 "Tue" ColorBrightMagenta
               , BarItem 110 "Wed" ColorBrightCyan, BarItem 85 "Thu" ColorBrightYellow
               , BarItem 115 "Fri" ColorBrightGreen
               ]
           ]
-      , withBorder BorderRound $ box "Load"
+      , panel "Load"
           [ plotHeatmap' 5 $ HeatmapData
               [ [12, 15, 22, 28, 30, 25, 18]
               , [14, 18, 25, 32, 35, 28, 20]
@@ -42,5 +42,7 @@ d = vstack
           ]
       ]
   ]
+
+panel title body = box title body & border BorderRound
 
 main = putStrLn $ render d

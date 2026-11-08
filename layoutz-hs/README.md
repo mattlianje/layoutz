@@ -6,7 +6,7 @@
 
 **Simple, beautiful CLI output**
 
-A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
+A lightweight lib (only GHC boot packages) to build compositional ANSI strings, terminal plots,
 and interactive Elm-style TUI's in pure Haskell.
 
 <p align="center">
@@ -20,8 +20,8 @@ and interactive Elm-style TUI's in pure Haskell.
 </p>
 
 ## Features
-- Pure Haskell, zero-dependencies (use `Layoutz.hs` like a header file)
-- Elm-style TUIs
+- Pure Haskell, no dependencies beyond GHC's boot packages (use `Layoutz.hs` like a header file)
+- Elm-style TUIs, with clickable and scrollable elements
 - Layout primitives, tables, trees, lists, CJK-aware
 - Colors, ANSI styles, rich formatting
 - Terminal charts and plots
@@ -29,7 +29,7 @@ and interactive Elm-style TUI's in pure Haskell.
 - Inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/)
 - One-shot interactive prompts (`askInput`, `askChoose`, `askFilter`, …)
 - Drop-in progress `loader`s for build scripts and batch jobs
-- Implement `Element` to add your own primitives
+- Custom elements are just functions returning a `View`
 - Easy porting to MicroHs
 
 ## Installation
@@ -56,16 +56,17 @@ import Layoutz
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
 ## TUIs
-Just fill in a [`LayoutzApp`](#interactive-apps), then call `runApp`:
+Just fill in an [`App`](#interactive-apps), then call `runApp`:
 ```haskell
-data LayoutzApp state msg = LayoutzApp
-  { appInit          :: (state, Cmd msg)
-  , appUpdate        :: msg -> state -> (state, Cmd msg)
-  , appSubscriptions :: state -> Sub msg
-  , appView          :: state -> L
+data App model msg = App
+  { appInit          :: (model, Cmd msg)
+  , appUpdate        :: msg -> model -> (model, Cmd msg)
+  , appSubscriptions :: model -> Sub msg
+  , appView          :: model -> View msg
   }
 ```
-You have built-in `Cmd`/`Sub` for IO tasks, timers, delayed messages and key input...
+You have built-in `Cmd`/`Sub` for IO tasks, timers, delayed messages and key input, and
+any element can be made [clickable](#mouse)...
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase-tour.gif" width="600">
@@ -126,50 +127,53 @@ n <- askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure 42)
   - [Keys](#key-types)
   - [Subscriptions](#subscriptions)
   - [Commands](#commands)
+  - [Mouse](#mouse)
+  - [Focus](#focus)
+  - [Widgets](#widgets)
 - [Prompts (Ask)](#prompts-ask)
 - [Progress (loader)](#progress-loader)
 - [Examples](#examples)
+- [Upgrading from 0.x](#upgrading-from-0x)
 
 
 
 ## Core Concepts
-- Every piece of content is an `Element`
-- Elements are **immutable** and **composable** - build complex layouts by combining simple elements
-- A `layout` arranges elements **vertically**:
+- Every piece of content is a `View m`
+- Views are **immutable** and **composable** - build complex layouts by combining simple ones
+- Constructors take **content**; everything else is an **attribute** you apply with `&`:
 ```haskell
-layout [elem1, elem2, elem3]  -- Joins with "\n"
+box "Status" ["All systems go"] & border BorderRound & fg ColorGreen
 ```
-Call `render` on any element to get a string
+- Attributes are plain `View m -> View m` functions, so prefix style works too: `fg ColorGreen $ box ...`
+- A `vstack` arranges views **vertically**, a `row` **horizontally**:
+```haskell
+vstack [elem1, elem2, elem3]  -- Joins with "\n"
+```
+Call `render` on any view to get a string.
 
-The power comes from **uniform composition** - since everything has the `Element` typeclass, everything can be combined.
+The `m` is the message type sent by [clickable](#mouse) parts. A view without handlers fits any `m`,
+so write helpers as `Model -> View m` and they drop into any app.
 
 ### String Literals
-With `OverloadedStrings` enabled, you can use string literals directly:
+With `OverloadedStrings` enabled, you can use string literals anywhere a view is expected:
 ```haskell
-layout ["Hello", "World"]  -- Instead of layout [text "Hello", text "World"]
-```
-
-> [!NOTE]
-> When passing to functions that take polymorphic `Element a` parameters (like `underline'`, `center'`, `pad`), use `text` explicitly:
-
-```haskell
-underline' "=" $ text "Title"  -- Correct
-underline' "=" "Title"         -- Ambiguous type error
+vstack ["Hello", "World"]  -- Instead of vstack [text "Hello", text "World"]
+underline "Title"
 ```
 
 ## Border Styles
 
-Applied via `withBorder` to any element with the `HasBorder` typeclass (`box`, `statusCard`, `table`):
+Applied with `border` to `box`, `banner`, `statusCard` and `table` (anything else is left alone):
 ```haskell
-withBorder BorderRound $ box "Info" ["content"]
-withBorder BorderDouble $ statusCard "API" "UP"
-withBorder BorderThick $ table ["Name"] [["Alice"]]
+box "Info" ["content"] & border BorderRound
+statusCard "API" "UP" & border BorderDouble
+table ["Name"] [["Alice"]] & border BorderThick
 ```
 
-Write generic code over bordered elements:
+It's a plain function, so partially apply it to reuse:
 ```haskell
-makeThick :: HasBorder a => a -> a
-makeThick = setBorder BorderThick
+thick :: View m -> View m
+thick = border BorderThick
 ```
 
 ```haskell
@@ -194,39 +198,60 @@ BorderNone                    -- No borders
 
 #### Stacking & rows
 ```haskell
-vstack ["First", "Second", "Third"]          -- vertical (alias of layout)
+vstack ["First", "Second", "Third"]          -- vertical
 -- First
 -- Second
 -- Third
 
-row ["Left", "Middle", "Right"]              -- horizontal
+row ["Left", "Middle", "Right"]              -- horizontal, one space apart
 -- Left Middle Right
 
-columns [layout ["A", "B"], layout ["C", "D"]]
+row [vstack ["A", "B"], vstack ["C", "D"]] & gap 2
 -- A  C
 -- B  D
 
-tightRow [text "A", text "B", text "C"]      -- no spacing
+row ["A", "B", "C"] & gap 0                  -- no spacing
 -- ABC
 ```
 
 #### Spacing & rules
 ```haskell
-layout [text "Line 1", br, text "Line 2"]    -- br is a blank line
+vstack ["Line 1", br, "Line 2"]              -- br is a blank line
 
-hr                 -- default ──────────...
-hr' "~"            -- custom char
-hr'' "=" 20        -- ====================
+hr                          -- default ──────────...
+hr & glyph "~"              -- custom char
+hr & glyph "=" & size 20    -- ====================
 
-vr                 -- vertical rule, 10 high with │
-vr' "║"            -- custom char
-vr'' "|" 5         -- custom char + height
+vr                          -- vertical rule, 10 high with │
+vr & glyph "║"              -- custom char
+vr & glyph "|" & size 5     -- custom char + height
+```
+
+#### Sizing
+Views draw at their natural size. 
+
+`fill` makes one take the room its parent offers: the leftover
+width of a `row`, the leftover height of a `vstack`, or the whole terminal at an app's root.
+Boxes and rules stretch to it.
+```haskell
+renderIn 40 6 $
+  row [box "nav" ["home", "logs"] & fixedWidth 12, box "main" ["hello"] & fill] & fill
+-- ┌───nav────┐ ┌──────────main───────────┐
+-- │ home     │ │ hello                   │
+-- │ logs     │ │                         │
+-- │          │ │                         │
+-- │          │ │                         │
+-- └──────────┘ └─────────────────────────┘
+
+fixedWidth 20 view     -- exactly 20 wide: padded or cut
+fixedHeight 5 view
+renderIn 80 24 view    -- render with 80x24 of room, like an app's root
 ```
 
 #### Text transforms
 ```haskell
-center $ text "Auto-centered"                -- width taken from siblings
-center' 20 $ text "TITLE"                    -- │       TITLE        │
+center "Auto-centered"                       -- width taken from siblings
+centerIn 20 "TITLE"                          -- │       TITLE        │
 alignLeft 20 "Left"                          -- │Left                │
 alignRight 20 "Right"                        -- │               Right│
 
@@ -237,22 +262,22 @@ wrap 20 "Long text here that should wrap"
 -- Long text here that
 -- should wrap
 
-truncate' 15 (text "Very long text that will be cut off")     -- Very long te...
-truncate'' 20 "…" (text "Custom ellipsis example text here")  -- Custom ellipsis exa…
+clip 15 "Very long text that will be cut off"               -- Very long te...
+clip 20 "Custom ellipsis example text here" & ellipsis "…"  -- Custom ellipsis exa…
 
-pad 2 $ text "content"                       -- 2 cells of padding all around
+pad 2 "content"                              -- 2 cells of padding all around
 
-underline $ text "Title"                     -- Title
+underline "Title"                            -- Title
                                              -- ─────
-underline' "=" $ text "Custom"               -- Custom
-                                             -- ══════
-underlineColored "~" ColorCyan $ text "Fancy"
+underline "Custom" & glyph "="               -- Custom
+                                             -- ======
+underline "Fancy" & glyph "~" & accent ColorCyan
 
-margin "[error]"
-  [ text "Ooops!"
-  , row [text "val result: Int = ", underline' "^" (text "getString()")]
-  , text "Expected Int, found String"
-  ]
+vstack
+  [ "Ooops!"
+  , row ["val result: Int = ", underline "getString()" & glyph "^"]
+  , "Expected Int, found String"
+  ] & margin "[error]"
 -- [error] Ooops!
 -- [error] val result: Int =  getString()
 -- [error]                    ^^^^^^^^^^^
@@ -266,11 +291,11 @@ margin "[error]"
 text "hello"
 "hello"   - with OverloadedStrings
 
-section "Status" [text "All systems operational"]
+section "Status" ["All systems operational"]
 -- === Status ===
 -- All systems operational
-section' "-" "Status" [text "ok"]       -- custom glyph
-section'' "#" "Report" 5 [text "42"]    -- custom glyph + width
+section "Status" ["ok"] & glyph "-"            -- custom glyph
+section "Report" ["42"] & glyph "#" & size 5   -- custom glyph + width
 
 kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
 -- Name: Alice
@@ -280,40 +305,33 @@ kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
 
 #### Boxes, cards & banners
 ```haskell
-box "Status" [text "All systems go"]
--- ┌──Status──────────┐
--- │ All systems go   │
--- └──────────────────┘
+box "Status" ["All systems go"]
+-- ┌─────Status─────┐
+-- │ All systems go │
+-- └────────────────┘
 
-withBorder BorderDouble $ box "Fancy" [text "Double border"]
--- ╔══Fancy═══════════╗
--- ║ Double border    ║
--- ╚══════════════════╝
+box "Fancy" ["Double border"] & border BorderDouble
+-- ╔═════Fancy═════╗
+-- ║ Double border ║
+-- ╚═══════════════╝
 
-withBorder BorderRound $ box "Smooth" [text "Rounded corners"]
--- ╭──Smooth────────────╮
--- │ Rounded corners    │
--- ╰────────────────────╯
+box "Smooth" ["Rounded corners"] & border BorderRound
+-- ╭─────Smooth──────╮
+-- │ Rounded corners │
+-- ╰─────────────────╯
 
-row [ withColor ColorGreen $ statusCard "CPU" "45%"
-    , withColor ColorCyan  $ statusCard "MEM" "2.1G"
+row [ statusCard "CPU" "45%"  & fg ColorGreen
+    , statusCard "MEM" "2.1G" & fg ColorCyan
     ]
--- ┌──────┐ ┌───────┐
--- │ CPU  │ │ MEM   │
--- │ 45%  │ │ 2.1G  │
--- └──────┘ └───────┘
+-- ┌───────┐ ┌────────┐
+-- │ CPU   │ │ MEM    │
+-- │ 45%   │ │ 2.1G   │
+-- └───────┘ └────────┘
 
 banner ["System Dashboard"]
 -- ╔══════════════════╗
 -- ║ System Dashboard ║
 -- ╚══════════════════╝
-```
-
-Pipe any `HasBorder` element through `withBorder`:
-```haskell
-withBorder BorderRound $ box "Info" ["content"]
-withBorder BorderDouble $ statusCard "API" "UP"
-withBorder BorderThick $ table ["Name"] [["Alice"]]
 ```
 
 #### Lists & trees
@@ -394,7 +412,7 @@ element: drop it into boxes, rows, tables, `center`, etc.
 img <- kittyImageFile "pix/sakuraba.png" 35 14   -- PNG sized to 35×14 cells
 
 putStrLn $ render $ row
-  [ withBorder BorderRound $ box "the gracie hunter" [img]
+  [ box "the gracie hunter" [img] & border BorderRound
   , box "stats" [kv [("flying", "yes"), ("opponent", "grounded"), ("rules", "PRIDE")]]
   ]
 ```
@@ -427,37 +445,28 @@ putStrLn $ render $ box "gradient" [kittyRGBA pixels w h 18 9]
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/haskell-kitty-2.png" width="600">
 </p>
 
-Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside a
-`LayoutzApp`, each distinct image is transmitted once and re-placed cheaply on
+Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside an
+`App`, each distinct image is transmitted once and re-placed cheaply on
 every frame.
 
 ## Custom Elements
 
-Create your own components by implementing the `Element` typeclass
+A custom element is just a function that returns a `View`. Build it from other views, or
+from lines of text you draw yourself:
 
 ```haskell
-data Square = Square Int
-
-instance Element Square where
-  renderElement (Square size)
-    | size < 2 = ""
-    | otherwise = intercalate "\n" (top : middle ++ [bottom])
-    where
-      w = size * 2 - 2
-      top = "┌" ++ replicate w '─' ++ "┐"
-      middle = replicate (size - 2) ("│" ++ replicate w ' ' ++ "│")
-      bottom = "└" ++ replicate w '─' ++ "┘"
-
--- Helper to avoid wrapping with L
-square :: Int -> L
-square n = L (Square n)
+square :: Int -> View m
+square size
+  | size < 2  = ""
+  | otherwise = vstack (map text (top : middle ++ [bottom]))
+  where
+    w      = size * 2 - 2
+    top    = "┌" ++ replicate w '─' ++ "┐"
+    middle = replicate (size - 2) ("│" ++ replicate w ' ' ++ "│")
+    bottom = "└" ++ replicate w '─' ++ "┘"
 
 -- Use it like any other element
-putStrLn $ render $ row
-  [ square 3
-  , square 5
-  , square 7
-  ]
+putStrLn $ render $ row [square 3, square 5, square 7]
 ```
 ```
 ┌────┐ ┌────────┐ ┌────────────┐
@@ -468,6 +477,8 @@ putStrLn $ render $ row
                   │            │
                   └────────────┘
 ```
+
+Attributes work on it like on anything else: `square 4 & fg ColorCyan`.
 
 ## Collections
 ```haskell
@@ -484,7 +495,7 @@ users =
   ]
 
 putStrLn $ render $ section "Users by Role"
-  [ layout
+  [ vstack
       [ box (userRole (head grp)) [ul [text (userName u) | u <- grp]]
       | grp <- groupBy ((==) `on` userRole) (sortOn userRole users)
       ]
@@ -506,11 +517,11 @@ putStrLn $ render $ section "Users by Role"
 Add ANSI colors to any element:
 
 ```haskell
-layout
-  [ withColor ColorRed $ text "The quick brown fox..."
-  , withColor ColorBrightCyan $ text "The quick brown fox..."
-  , underlineColored "~" ColorRed $ text "The quick brown fox..."
-  , margin "[INFO]" [withColor ColorCyan $ text "The quick brown fox..."]
+vstack
+  [ "The quick brown fox..." & fg ColorRed
+  , "The quick brown fox..." & fg ColorBrightCyan
+  , underline "The quick brown fox..." & glyph "~" & accent ColorRed
+  , "The quick brown fox..." & fg ColorCyan & margin "[INFO]"
   ]
 ```
 <p align="center">
@@ -545,18 +556,18 @@ ColorDefault          -- Conditional no-op
 Create gradients with extended colors:
 
 ```haskell
-let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
-    redToBlue = tightRow $ map (\i -> withColor (ColorTrue i 100 (255 - i)) $ text "█") [0, 4..255]
-    greenFade = tightRow $ map (\i -> withColor (ColorTrue 0 (255 - i) i) $ text "█") [0, 4..255]
-    rainbow   = tightRow $ map colorBlock [0, 4..255]
-      where
-        colorBlock i =
-          let r = if i < 128 then i * 2 else 255
-              g = if i < 128 then 255 else (255 - i) * 2
-              b = if i > 128 then (i - 128) * 2 else 0
-          in withColor (ColorTrue r g b) $ text "█"
+let strip f xs = row [fg (f i) "█" | i <- xs] & gap 0
+    palette    = strip ColorFull [16, 19 .. 205]
+    redToBlue  = strip (\i -> ColorTrue i 100 (255 - i)) [0, 4 .. 255]
+    greenFade  = strip (\i -> ColorTrue 0 (255 - i) i) [0, 4 .. 255]
+    rainbow    = strip colorAt [0, 4 .. 255]
+    colorAt i =
+      let r = if i < 128 then i * 2 else 255
+          g = if i < 128 then 255 else (255 - i) * 2
+          b = if i > 128 then (i - 128) * 2 else 0
+      in ColorTrue r g b
 
-putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
+putStrLn $ render $ vstack [palette, redToBlue, greenFade, rainbow]
 ```
 
 <p align="center">
@@ -568,10 +579,10 @@ putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
 Add ANSI styles to any element:
 
 ```haskell
-layout
-  [ withStyle StyleBold $ text "The quick brown fox..."
-  , withColor ColorRed $ withStyle StyleBold $ text "The quick brown fox..."
-  , withStyle StyleReverse $ withStyle StyleItalic $ text "The quick brown fox..."
+vstack
+  [ "The quick brown fox..." & styleBold
+  , "The quick brown fox..." & styleBold & fg ColorRed
+  , "The quick brown fox..." & styleItalic & styleReverse
   ]
 ```
 <p align="center">
@@ -579,26 +590,24 @@ layout
 </p>
 
 ```haskell
-StyleBold
-StyleDim
-StyleItalic
-StyleUnderline
-StyleBlink
-StyleReverse
-StyleHidden
-StyleStrikethrough
-StyleDefault                  -- Conditional no-op
-StyleBold <> StyleItalic      -- Combine with <>
+styleBold
+styleDim
+styleItalic
+styleUnderline  -- the ANSI style; 'underline' draws a rule below instead
+styleBlink
+styleReverse
+styleHidden
+styleStrikethrough
 ```
 
 **Combining Styles:**
 
-Use `<>` to combine multiple styles at once:
+Chain them. Styles applied one after another merge into a single escape code:
 
 ```haskell
-layout
-  [ withStyle (StyleBold <> StyleItalic <> StyleUnderline) $ text "The quick brown fox..."
-  , withStyle (StyleBold <> StyleReverse) $ text "The quick brown fox..."
+vstack
+  [ "The quick brown fox..." & styleBold & styleItalic & styleUnderline   -- ESC[1;3;4m
+  , "The quick brown fox..." & styleBold & styleReverse
   ]
 ```
 <p align="center">
@@ -608,7 +617,7 @@ layout
 You can also combine colors and styles:
 
 ```haskell
-withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The quick brown fox..."
+"The quick brown fox..." & styleBold & styleItalic & fg ColorBrightYellow
 ```
 
 ## Charts & Plots
@@ -632,13 +641,13 @@ cosPts = [(x, cos (x * 0.15) * 5) | x <- [0 .. 60]]
 
 charts = vstack
   [ row
-      [ withBorder BorderRound $ box "plotLine"
+      [ panel "plotLine"
           [ plotLine 52 10
               [ Series sinPts "sin(x)" ColorBrightCyan
               , Series cosPts "cos(x)" ColorBrightMagenta
               ]
           ]
-      , withBorder BorderRound $ box "plotPie"
+      , panel "plotPie"
           [ plotPie 32 8
               [ Slice 50 "Liquor" ColorDefault, Slice 20 "Protein" ColorDefault
               , Slice 10 "Water" ColorDefault, Slice 20 "Fun" ColorDefault
@@ -646,13 +655,13 @@ charts = vstack
           ]
       ]
   , row
-      [ withBorder BorderRound $ box "plotBar"
+      [ panel "plotBar"
           [ plotBar 42 9
               [ BarItem 100 "Mon" ColorBrightBlue, BarItem 120 "Tue" ColorBrightMagenta
               , BarItem 110 "Wed" ColorBrightCyan, BarItem 85 "Thu" ColorBrightYellow
               ]
           ]
-      , withBorder BorderRound $ box "plotStackedBar"
+      , panel "plotStackedBar"
           [ plotStackedBar 42 7
               [ StackedBarGroup [BarItem 30 "Q1" ColorDefault, BarItem 20 "Q2" ColorDefault, BarItem 25 "Q3" ColorDefault] "2023"
               , StackedBarGroup [BarItem 35 "Q1" ColorDefault, BarItem 25 "Q2" ColorDefault, BarItem 30 "Q3" ColorDefault] "2024"
@@ -661,7 +670,7 @@ charts = vstack
           ]
       ]
   , row
-      [ withBorder BorderRound $ box "plotHeatmap"
+      [ panel "plotHeatmap"
           [ plotHeatmap' 5 $ HeatmapData
               [ [12, 15, 22, 28, 30, 25]
               , [14, 18, 25, 32, 35, 28]
@@ -672,12 +681,14 @@ charts = vstack
               ["6am", "9am", "12pm", "3pm", "6pm", "9pm"]
           ]
       , vstack
-          [ withBorder BorderRound $ box "chart" [chart [("Web", 10), ("Mobile", 20), ("API", 15)]]
-          , withBorder BorderRound $ box "plotSparkline"
-              [withColor ColorBrightGreen $ plotSparkline [1, 4, 2, 8, 5, 7, 3, 6, 9, 4, 6, 8, 5, 9]]
+          [ panel "chart" [chart [("Web", 10), ("Mobile", 20), ("API", 15)]]
+          , panel "plotSparkline"
+              [fg ColorBrightGreen $ plotSparkline [1, 4, 2, 8, 5, 7, 3, 6, 9, 4, 6, 8, 5, 9]]
           ]
       ]
   ]
+
+panel title body = box title body & border BorderRound
 
 putStrLn $ render charts
 ```
@@ -695,35 +706,50 @@ inspiration here.
 
 ## Interactive Apps
 
-`LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
-view is a `layoutz` `Element`.
+`App` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
+view is a layoutz `View`.
 
 ```haskell
-data LayoutzApp state msg = LayoutzApp
-  { appInit          :: (state, Cmd msg)                 -- Initial state + startup command
-  , appUpdate        :: msg -> state -> (state, Cmd msg) -- Pure state transitions
-  , appSubscriptions :: state -> Sub msg                 -- Event sources
-  , appView          :: state -> L                       -- Render to UI
+data App model msg = App
+  { appInit          :: (model, Cmd msg)                 -- Initial model + startup command
+  , appUpdate        :: msg -> model -> (model, Cmd msg) -- Pure state transitions
+  , appSubscriptions :: model -> Sub msg                 -- Event sources
+  , appView          :: model -> View msg                -- Render to UI
   }
 ```
 
-Three daemon threads coordinate rendering (~30fps), tick/timers, and input capture. State updates flow through `appUpdate` synchronously.
+Apps that never need a `Cmd` or a `Sub` can skip the boilerplate:
 
-Press **ESC** to exit.
+```haskell
+sandbox :: model -> (msg -> model -> model) -> (model -> View msg) -> App model msg
+```
+
+Background threads handle rendering (capped at `optMaxFps`, 60 by default), timers, input and
+commands. `appUpdate` runs on a single thread, so updates never race.
+
+Press **ESC** to exit (see `optQuitKeys` below). Ctrl-C always quits.
 
 ### App Options
 
-Customise how your app runs with `runAppWith` and the `AppOptions` record. Override only the fields you need:
-
 ```haskell
-runApp app                                                          -- Default options
-runAppWith defaultAppOptions { optAlignment = AppAlignCenter } app  -- Centered in terminal
-runInline app                                                       -- Animate in-place, no alt screen
+runApp app                                                -- Full screen, default options
+run defaultOptions { optAlignment = AppAlignCenter } app  -- Centered; returns the final model
+runInline app                                             -- Animate in-place, no alt screen
 ```
 
-`runInline` renders the app below existing terminal output without clearing the screen. Useful for embedding progress bars or spinners in build scripts... use `CmdExit` to quit programmatically.
+```haskell
+data Options = Options
+  { optAlignment :: AppAlignment  -- AppAlignLeft (default), AppAlignCenter, AppAlignRight
+  , optInline    :: Bool          -- draw under the current output instead of full screen
+  , optQuitKeys  :: [Key]         -- default [KeyEscape, KeyCtrl 'D']
+  , optMaxFps    :: Int           -- frame cap, default 60; changes in between share a frame
+  }
+```
 
-Terminal width is detected once at startup via ANSI cursor position report (zero dependencies).
+`runInline` renders the app below existing terminal output without clearing the screen. Useful for embedding progress bars or spinners in build scripts... use `cmdQuit` to stop programmatically.
+
+Terminal size comes from an ANSI cursor position report, re-queried on resize so `fill` layouts
+follow along (on Windows it's read once at startup).
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
@@ -756,54 +782,145 @@ KeyEnd
 
 -- Modifiers
 KeyCtrl Char        -- Ctrl+'C', Ctrl+'Q', etc.
-KeySpecial String   -- Other unrecognized sequences
+KeySpecial String   -- Everything else: F-keys, Ctrl-arrows, Alt-keys...
 ```
+
+The decoder behind these is pure, if you want to test against raw bytes or read input yourself:
+
+```haskell
+parseInput :: String -> Maybe (Input, String)  -- first input + leftover, Nothing if incomplete
+parseInput "\ESC[Ax"  -- Just (InputKey KeyUp, "x")
+parseInput "\ESC[<0;10;5M"  -- Just (InputMouse (MouseEvent 0 (4, 9) True), "")
+```
+
+A lone `"\ESC"` is `Nothing` too: it only counts as Esc once nothing follows within ~50ms.
 
 ### Subscriptions
 
 ```haskell
 subKeyPress (\key -> ...)    -- Keyboard input
 subEveryMs 100 msg           -- Periodic ticks (interval in ms)
-subBatch [sub1, sub2, ...]   -- Combine subscriptions
+subNone                      -- Nothing
+sub1 <> sub2                 -- Combine (or mconcat [...]); every key handler sees every key
 ```
 
 ### Commands
 
 ```haskell
-CmdNone                                -- No effect
-CmdExit                                -- Quit the app gracefully
+cmdNone                                -- No effect
+cmdQuit                                -- Quit, after the other effects in the same command ran
 cmdFire (writeFile "log.txt" "entry")  -- Fire and forget IO
-cmdTask (readFile "data.txt")          -- IO that returns a message
-cmdAfterMs 500 msg                     -- Fire a message after delay (ms)
-CmdBatch [cmd1, cmd2, ...]             -- Combine multiple commands
+cmdTask (readFile "data.txt")          -- IO whose result comes back as a message
+cmdAfterMs 500 msg                     -- Send a message after a delay (ms)
+cmd1 <> cmd2                           -- Combine (or mconcat [...]); every message is delivered
 ```
+
+`Cmd` and `Sub` are `Functor`s, so a child component's commands embed with `fmap ChildMsg`.
 
 **Example: Logger with file I/O**
 ```haskell
+{-# LANGUAGE OverloadedStrings #-}
 import Layoutz
 
 data Msg = Log | Saved
 data State = State { count :: Int, status :: String }
 
-loggerApp :: LayoutzApp State Msg
-loggerApp = LayoutzApp
-  { appInit = (State 0 "Ready", CmdNone)
+loggerApp :: App State Msg
+loggerApp = App
+  { appInit = (State 0 "Ready", cmdNone)
   , appUpdate = \msg s -> case msg of
-      Log   -> (s { count = count s + 1 },
-                cmdFire $ appendFile "log.txt" ("Entry " <> show (count s) <> "\n"))
-      Saved -> (s { status = "Saved!" }, CmdNone)
+      Log   -> ( s { count = count s + 1 }
+               , cmdTask $ Saved <$ appendFile "log.txt" ("Entry " <> show (count s) <> "\n") )
+      Saved -> (s { status = "Saved!" }, cmdNone)
   , appSubscriptions = \_ -> subKeyPress $ \key -> case key of
       KeyChar 'l' -> Just Log
       _           -> Nothing
-  , appView = \s -> layout
+  , appView = \s -> vstack
       [ section "Logger" [text $ "Entries: " <> show (count s)]
       , text (status s)
       , ul ["'l' to log", "ESC to quit"]
       ]
   }
 
+main :: IO ()
 main = runApp loggerApp
 ```
+
+### Mouse
+
+Any element can take clicks and wheel events:
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+import Layoutz
+
+data Msg = Inc | Dec
+
+counter :: App Int Msg
+counter = sandbox 0 step $ \n ->
+  row [button "-" Dec, display n, button "+" Inc]
+    & onScroll (\d -> if d > 0 then Dec else Inc)
+  where
+    step Inc = (+ 1)
+    step Dec = subtract 1
+
+main :: IO ()
+main = runApp counter
+```
+
+```haskell
+onClick msg               -- left click anywhere on the view
+onScroll (\notches -> ..) -- wheel: +1 per notch down, -1 up
+button "label" msg        -- a clickable label in reverse video
+```
+
+- Clicks go to the innermost element that handles them, then bubble outward.
+- Mouse reporting is only enabled while something on screen handles it, so text selection works
+  otherwise. Shift-drag selects in most terminals regardless.
+- Full-screen apps only; `runInline` doesn't know which screen row it starts on.
+- Components embed with `fmap`: `Workers <$> stepper "workers" (workers m)`. See [ClickDemo.hs](examples/ClickDemo.hs).
+
+Test without a terminal: `clickAt` and `scrollAt` say what a click at `(row, col)` sends.
+
+```haskell
+clickAt (0, 1) (appView counter 0)  -- Just Dec
+```
+
+### Focus
+
+Mark the views that can hold the keyboard with `focusable`. Tab and Shift-Tab move between them in
+screen order, a click focuses one, and the first starts out focused.
+
+```haskell
+box "services" [list] & focusable "services" & focusStyle (fg ColorCyan . border BorderDouble)
+```
+
+- `onKey (\key -> ...)` handlers inside the focused view get keys first, then handlers outside any
+  focusable, then `subKeyPress`. A key that gets handled stops there.
+- `focusStyle` applies only while the view has focus; your model doesn't track it.
+- `cmdFocus "logs"` moves focus from `appUpdate`; `subFocus Focused` tells you when it changes.
+- Esc still quits by default; change `optQuitKeys` if you need it.
+
+### Widgets
+
+Widget state lives in your model, and each message carries the widget's next state, so
+`appUpdate` just stores it. Give them a height with `fill` or `fixedHeight`.
+
+```haskell
+data Msg = Moved (SelectList String) | Picked String | Scrolled Viewport
+
+selectList Moved Picked text (services m) & fill           -- arrows, wheel, click; Enter picks
+viewport Scrolled (logView m) (map text (logs m)) & fill   -- wheel, arrows, PgUp/PgDn, scrollbar
+
+selectListOf ["api", "worker"] :: SelectList String        -- start a list
+selectedItem (services m)      :: Maybe String
+viewportTop, viewportBottom    :: Viewport                 -- at the bottom, it follows new lines
+```
+
+<sub>[FocusDemo.hs](examples/FocusDemo.hs) puts both together: a service list and its logs, with Tab between them.</sub>
+
+Test without a terminal: `pressKey (Just "logs") KeyDown view` says what a key sends, and
+`focusOrder view` lists the Tab order.
 
 ## Prompts (Ask)
 
@@ -864,18 +981,18 @@ _ <- loaderStream "Tailing" logLines indexLine
 
 Pick a `LoaderStyle` with `loaderStyled` / `loaderStreamStyled`
 ```
-styleBlocks -- (default)
-styleBar
-styleAscii
-styleDots
-styleLine
-stylePipes
+loaderBlocks -- (default)
+loaderBar
+loaderAscii
+loaderDots
+loaderLine
+loaderPipes
 LoaderStyle { .. } -- (custom)
 ```
 
 ```haskell
-_ <- loaderStyled styleAscii "Reindexing" docIds reindex
-_ <- loaderStyled stylePipes "Crawling" urls fetch
+_ <- loaderStyled loaderAscii "Reindexing" docIds reindex
+_ <- loaderStyled loaderPipes "Crawling" urls fetch
 ```
 
 Every built-in style, then an unbounded stream:
@@ -886,12 +1003,12 @@ import Control.Concurrent (threadDelay)
 
 main :: IO ()
 main = do
-  _ <- loaderStyled styleBlocks "Blocks " [1..60] (const (threadDelay 16000))
-  _ <- loaderStyled styleDots   "Dots   " [1..60] (const (threadDelay 16000))
-  _ <- loaderStyled styleLine   "Line   " [1..60] (const (threadDelay 16000))
-  _ <- loaderStyled stylePipes  "Pipes  " [1..60] (const (threadDelay 16000))
-  _ <- loaderStyled styleBar    "Bar    " [1..60] (const (threadDelay 16000))
-  _ <- loaderStyled styleAscii  "Ascii  " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled loaderBlocks "Blocks " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled loaderDots   "Dots   " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled loaderLine   "Line   " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled loaderPipes  "Pipes  " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled loaderBar    "Bar    " [1..60] (const (threadDelay 16000))
+  _ <- loaderStyled loaderAscii  "Ascii  " [1..60] (const (threadDelay 16000))
   _ <- loaderStream "Streaming" [1..90] (const (threadDelay 45000))
   pure ()
 ```
@@ -913,9 +1030,9 @@ import Layoutz
 main :: IO ()
 main = putStrLn $ render $ section "Deploy"
   [ row
-      [ withColor ColorGreen  $ statusCard "build"  "OK"
-      , withColor ColorGreen  $ statusCard "tests"  "142 ✓"
-      , withColor ColorYellow $ statusCard "deploy" "staging"
+      [ statusCard "build"  "OK"      & fg ColorGreen
+      , statusCard "tests"  "142 ✓"   & fg ColorGreen
+      , statusCard "deploy" "staging" & fg ColorYellow
       ]
   , kv [("commit", "a1b2c3d"), ("branch", "master"), ("by", "matt")]
   ]
@@ -923,20 +1040,20 @@ main = putStrLn $ render $ section "Deploy"
 </details>
 
 <details>
-<summary>Compiler-style error message (<code>margin</code> + <code>underline'</code>)</summary>
+<summary>Compiler-style error message (<code>margin</code> + <code>underline</code>)</summary>
 
 ```haskell
 import Layoutz
 
 main :: IO ()
-main = putStrLn $ render $ margin "error:"
-  [ text "type mismatch"
-  , row [text "let x: Int = ", underline' "^" (text "getString()")]
-  , text "  expected Int, found String"
-  ]
+main = putStrLn $ render $ vstack
+  [ "type mismatch"
+  , row ["let x: Int = ", underline "getString()" & glyph "^"]
+  , "  expected Int, found String"
+  ] & margin "error:"
 -- error: type mismatch
--- error: let x: Int = getString()
---                     ^^^^^^^^^^^^
+-- error: let x: Int =  getString()
+-- error:               ^^^^^^^^^^^
 -- error:   expected Int, found String
 ```
 </details>
@@ -1010,16 +1127,53 @@ main = do
 
 ## Contributing
 
-You need [GHC](https://www.haskell.org/ghcup/) (8.10+) and [Cabal](https://www.haskell.org/cabal/).
+You need [GHC](https://www.haskell.org/ghcup/) and [Cabal](https://www.haskell.org/cabal/). Layoutz needs `text >= 2.1.2`, so to use `Layoutz.hs` as a single file your GHC has to ship that (9.10.3 does).
 
 ```bash
 make build     # build library
 make test      # run tests
 make repl      # GHCi with layoutz loaded
+make bench     # layoutz vs Bubble Tea and Brick, Linux only, results in bench/BENCHES.md
 make clean     # clean build artifacts
 ```
 
-Fork, make your change, `make test`, open a PR. Keep it zero-dep.
+Fork, make your change, `make test`, open a PR. Keep it to GHC's boot packages.
+
+## Upgrading from 0.x
+
+1.0 replaces the `Element` typeclass with a single `View` type and `&` attributes. Most code ports by renaming:
+
+| 0.x | 1.0 |
+|---|---|
+| `L`, `Element a => a` | `View m` (helpers: `Model -> View m`) |
+| `layout xs` | `vstack xs` |
+| `tightRow xs` | `row xs & gap 0` |
+| `columns xs` / `columns' n xs` | `row xs & gap 2` / `row xs & gap n` |
+| `withColor c x` | `fg c x` or `x & fg c` |
+| `withStyle StyleBold x` | `styleBold x` or `x & styleBold` |
+| `withStyle (StyleBold <> StyleItalic) x` | `x & styleBold & styleItalic` |
+| `withBorder b x` | `border b x` or `x & border b` |
+| `center' w x` | `centerIn w x` |
+| `underline' g x` | `underline x & glyph g` |
+| `underlineColored g c x` | `underline x & glyph g & accent c` |
+| `hr' g`, `hr'' g n` (same for `vr`) | `hr & glyph g`, `hr & glyph g & size n` |
+| `section' g t xs`, `section'' g t n xs` | `section t xs & glyph g`, `... & size n` |
+| `truncate' n x`, `truncate'' n e x` | `clip n x`, `clip n x & ellipsis e` |
+| `margin p xs` | `vstack xs & margin p` |
+| `alignLeft w "str"` and friends | same, but they take any view |
+| `instance Element` | a function returning `View m` |
+| `LayoutzApp` | `App` (or `sandbox` when there are no effects) |
+| `runAppWith opts app`, `runAppFinal` | `run opts app` (returns the final model) |
+| `AppOptions`, `defaultAppOptions` | `Options`, `defaultOptions` |
+| `optClearOnStart = False, optClearOnExit = False` | `optInline = True` |
+| `CmdNone`, `CmdExit` | `cmdNone`, `cmdQuit` |
+| `CmdBatch cs`, `subBatch ss` | `mconcat cs`, `mconcat ss` (or `<>`) |
+| `executeCmd :: Cmd msg -> IO (Maybe msg)` | `executeCmd :: Cmd msg -> IO [msg]` |
+
+Behaviour changes:
+- Unknown escape sequences (F-keys, Ctrl-arrows, Alt-keys) arrive as `KeySpecial` instead of quitting the app.
+- Every `subKeyPress` handler sees every key, and every message in a combined `Cmd` is delivered.
+- `cmdQuit` lets the other effects in the same command finish before the app exits.
 
 ## Inspiration
 - Original Scala [layoutz](https://github.com/mattlianje/layoutz)

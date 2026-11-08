@@ -24,30 +24,30 @@ companions =
 realms :: [String]
 realms = ["The Shire", "Rivendell", "Mirkwood", "Lake-town", "Erebor"]
 
-gap :: IO ()
-gap = putStrLn ""
+blank :: IO ()
+blank = putStrLn ""
 
 main :: IO ()
 main = do
   putStr "\ESC[2J\ESC[H"
 
   _ <- askInput "Name › " "anonymous" ""
-  gap
+  blank
   _ <- askChoose "Choose a realm" realms id
-  gap
+  blank
   _ <- askChooseMany "Pack provisions (up to 3)"
          ["lembas", "pipe-weed", "waybread", "miruvor", "rope", "athelas"] 3 id
-  gap
+  blank
   _ <- askFilter "Search a companion › " companions 8 id
-  gap
+  blank
   _ <- askWrite "Pose a riddle" "This thing all things devours…" "" "Ctrl-D to save"
-  gap
+  blank
   _ <- askFile "." 12
-  gap
+  blank
   _ <- askConfirm "Venture on the quest?" True "Yes" "No"
-  gap
+  blank
   askPager roster 8 True
-  gap
+  blank
   void $ askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure ("ready" :: String))
   where
     roster = unlines

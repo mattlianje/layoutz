@@ -16,6 +16,7 @@ module Main where
 import Layoutz
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Maybe (fromMaybe)
 
 data TaskState = TaskState
   { tasks           :: [String]
@@ -55,8 +56,8 @@ initialTasks =
   , ("Update documentation", 10)
   ]
 
-taskListApp :: LayoutzApp TaskState TaskMsg
-taskListApp = LayoutzApp
+taskListApp :: App TaskState TaskMsg
+taskListApp = App
   { appInit = 
       ( TaskState
           { tasks = map fst initialTasks
@@ -71,7 +72,7 @@ taskListApp = LayoutzApp
           , loadProgress = 0
           , loadingTaskIdx = -1
           }
-      , CmdNone
+      , cmdNone
       )
   
   , appView = \state ->
@@ -81,7 +82,7 @@ taskListApp = LayoutzApp
           totalCount = length (tasks state)
           
       in if addingTask state then
-           layout
+           vstack
              [ section "Task Manager" taskList
              , br
              , box "Add New Task"
@@ -94,9 +95,9 @@ taskListApp = LayoutzApp
              ]
          else if isLoading state then
            let taskName = tasks state !! loadingTaskIdx state
-               Just duration = lookup taskName (taskDurations state)
+               duration = fromMaybe 1 (lookup taskName (taskDurations state))
                progress = fromIntegral (loadProgress state) / fromIntegral duration
-           in layout
+           in vstack
                 [ section "Task Manager" taskList
                 , br
                 , spinner "Processing..." (spinFrame state) SpinnerDots
@@ -104,14 +105,14 @@ taskListApp = LayoutzApp
                 , text $ "Progress: " <> show (loadProgress state) <> " / " <> show duration
                 ]
          else
-           layout
+           vstack
              [ section "Task Manager" taskList
              , br
              , section "Status"
                  [ text $ "Completed: " <> show completedCount <> " / " <> show totalCount
                  , br
                  , if completedCount == totalCount
-                   then withColor ColorGreen $ text "🎉 All tasks completed!"
+                   then fg ColorGreen $ text "🎉 All tasks completed!"
                    else text "Select a task and press Enter to start"
                  ]
              , br
@@ -146,7 +147,7 @@ taskListApp = LayoutzApp
       
       AdvanceProgress | isLoading state ->
         let taskName = tasks state !! loadingTaskIdx state
-            Just duration = lookup taskName (taskDurations state)
+            duration = fromMaybe 1 (lookup taskName (taskDurations state))
             newProgress = loadProgress state + 1
         in if newProgress >= duration
            then state { isLoading = False
@@ -196,11 +197,11 @@ taskListApp = LayoutzApp
                  }
       
       _ -> state
-    , CmdNone)
+    , cmdNone)
   
   , appSubscriptions = \state ->
       if isLoading state then
-        subBatch
+        mconcat
           [ subEveryMs 100 AdvanceProgress
           , subKeyPress $ \_ -> Nothing
           ]
@@ -231,7 +232,7 @@ taskListApp = LayoutzApp
           _            -> Nothing
   }
   where
-    renderTask :: TaskState -> Int -> String -> L
+    renderTask :: TaskState -> Int -> String -> View m
     renderTask state idx task =
       let isSelected = idx == selected state
           isCompleted = Set.member idx (completed state)
@@ -245,7 +246,7 @@ taskListApp = LayoutzApp
           taskText = marker <> emoji <> " " <> task
           
       in if isSelected
-         then withColor ColorCyan $ text taskText
+         then fg ColorCyan $ text taskText
          else text taskText
 
 main :: IO ()

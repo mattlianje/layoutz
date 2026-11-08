@@ -6,6 +6,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes #-}
 
 {- |
 Module      : Layoutz
@@ -17,83 +19,131 @@ Compositional terminal layouts, charts, prompts and a small Elm-style TUI runtim
 -}
 
 module Layoutz
-  ( -- * Core Types
-    Element(..)
-  , Border(..)
-  , HasBorder(..)
-  , Color(..)
-  , Style(..)
-  , L
-  , Tree(..)
-    -- * Basic Elements
-  , layout, vstack
+  ( -- * Views
+    View
+  , render
+  , renderIn
+  , width
+  , height
+    -- * Content
   , text
+  , display
   , br
-    -- * Layout Functions
-  , center, center'
-  , row, tightRow
-  , columns, columns'
-  , underline, underline', underlineColored
-  , alignLeft, alignRight, alignCenter, justify, wrap
-  , truncate', truncate''
-    -- * Containers
+  , vstack
+  , row
   , box
   , banner
   , statusCard
-    -- * Widgets
   , ul
   , ol
-  , inlineBar
   , table
-  , section, section', section''
+  , section
   , kv
-  , tree, leaf, branch
-    -- * Visual Elements
-  , margin
-  , hr, hr', hr''
-  , vr, vr', vr''
-  , pad
+  , tree
+  , leaf
+  , branch
+  , Tree(..)
+  , hr
+  , vr
+  , inlineBar
   , chart
+    -- * Attributes
+    -- | Apply with @&@ or as plain functions: @box "T" xs & border BorderRound@.
+  , fg
+  , Color(..)
+  , styleBold
+  , styleDim
+  , styleItalic
+  , styleUnderline
+  , styleBlink
+  , styleReverse
+  , styleHidden
+  , styleStrikethrough
+  , border
+  , Border(..)
+  , gap
+  , glyph
+  , size
+  , accent
+  , ellipsis
+  , underline
+  , center
+  , centerIn
+  , pad
+  , margin
+  , clip
+  , fill
+  , fixedWidth
+  , fixedHeight
+  , alignLeft
+  , alignRight
+  , alignCenter
+  , justify
+  , wrap
+  , (&)
+    -- * Events
+  , onClick
+  , onScroll
+  , onKey
+  , button
+  , focusable
+  , focusStyle
+  , clickAt
+  , scrollAt
+  , pressKey
+  , focusOrder
+    -- * Widgets
+  , Viewport
+  , viewport
+  , viewportTop
+  , viewportBottom
+  , SelectList
+  , selectList
+  , selectListOf
+  , selectedItem
     -- * Spinners
   , spinner
   , SpinnerStyle(..)
-    -- * Visualizations
+    -- * Plots
   , plotSparkline
-  , Series(..), plotLine
-  , Slice(..), plotPie
-  , BarItem(..), plotBar
-  , StackedBarGroup(..), plotStackedBar
-  , HeatmapData(..), plotHeatmap, plotHeatmap'
-    -- * Border utilities
-  , withBorder
-    -- * Color utilities
-  , withColor
-    -- * Style utilities
-  , withStyle
-    -- * Rendering
-  , render
-    -- * TUI Runtime
-  , LayoutzApp(..)
+  , Series(..)
+  , plotLine
+  , Slice(..)
+  , plotPie
+  , BarItem(..)
+  , plotBar
+  , StackedBarGroup(..)
+  , plotStackedBar
+  , HeatmapData(..)
+  , plotHeatmap
+  , plotHeatmap'
+    -- * Apps
+  , App(..)
+  , sandbox
+  , run
+  , runApp
+  , runInline
+  , Options(..)
+  , defaultOptions
+  , AppAlignment(..)
   , Key(..)
-  , Cmd(..)
+    -- ** Terminal input
+  , Input(..)
+  , MouseEvent(..)
+  , parseInput
+  , Cmd
+  , cmdNone
   , cmdFire
   , cmdTask
   , cmdAfterMs
+  , cmdQuit
+  , cmdFocus
   , executeCmd
-  , cmdIsExit
-  , Sub(..)
-  , AppOptions(..)
-  , defaultAppOptions
-  , AppAlignment(..)
-  , runApp
-  , runAppFinal
-  , runAppWith
-  , runAppWithFinal
-  , runInline
-    -- * Subscriptions
+  , Sub
+  , subNone
   , subKeyPress
   , subEveryMs
-  , subBatch
+  , subFocus
     -- * Kitty graphics
   , KittyImage(..)
   , kittyImage
@@ -102,8 +152,17 @@ module Layoutz
   , kittyImageFile
     -- * Progress loaders
   , LoaderStyle(..)
-  , styleBlocks, styleBar, styleAscii, styleDots, styleLine, stylePipes, loaderStyles
-  , loader, loaderStyled, loaderStream, loaderStreamStyled
+  , loaderBlocks
+  , loaderBar
+  , loaderAscii
+  , loaderDots
+  , loaderLine
+  , loaderPipes
+  , loaderStyles
+  , loader
+  , loaderStyled
+  , loaderStream
+  , loaderStreamStyled
     -- * Interactive prompts (Ask)
   , askInput
   , askConfirm
@@ -116,23 +175,31 @@ module Layoutz
   , askPager
   ) where
 
-import Data.List (transpose, nub, sortOn)
+import Data.List (transpose, nub, sortOn, intercalate, elemIndex)
 import Data.Text (type Text, pattern (:<), pattern Empty)
 import qualified Data.Text as T
 import qualified Data.Text.IO.Utf8 as Utf8
 import qualified Data.IntSet as IntSet
-import Data.Bits ((.|.), (.&.), xor, shiftL, shiftR)
-import Data.Foldable (asum)
-import Data.Maybe (fromMaybe)
+import Data.Bits ((.|.), (.&.), xor, shiftL, shiftR, bit, setBit, testBit)
+import Data.Maybe (fromMaybe, listToMaybe, catMaybes, mapMaybe, isJust, isNothing)
+import Data.Functor.Identity (Identity(..))
+import Data.Function ((&))
+import Control.Applicative ((<|>))
 import Data.Word (Word8)
+import GHC.Arr (Array, listArray, unsafeAt)
 import Data.String (IsString(..))
 import Data.Char (ord, chr, toLower, isDigit)
 import Text.Printf (printf)
 import System.IO
+#if !defined(mingw32_HOST_OS)
+import System.Posix.Signals (installHandler, Handler(..))
+import System.Posix.Signals.Exts (sigWINCH)
+#endif
 import Control.Exception (catch, finally, throwIO, AsyncException(..), IOException, SomeException)
 import System.Timeout (timeout)
-import Control.Monad (when, unless, forever, forM)
+import Control.Monad (when, unless, forever, forM, forM_, void)
 import Control.Concurrent (forkIO, threadDelay, killThread, newChan, writeChan, readChan)
+import Control.Concurrent.MVar (newMVar, takeMVar, tryPutMVar)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef', modifyIORef')
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (listDirectory, doesDirectoryExist, doesPathExist, canonicalizePath)
@@ -233,28 +300,11 @@ rowColumnDiacriticsSet = IntSet.fromList rowColumnDiacritics
 isRowColumnDiacritic :: Char -> Bool
 isRowColumnDiacritic c = IntSet.member (ord c) rowColumnDiacriticsSet
 
--- | Map over lines, keeping a trailing newline if there was one.
-mapLines :: (Text -> Text) -> Text -> Text
-mapLines f str
-  | T.null str          = str
-  | T.last str == '\n'  = T.unlines (map f (T.lines str))
-  | otherwise           = T.intercalate "\n" (map f (T.lines str))
-
 padRight :: Int -> Text -> Text
 padRight w str = str <> T.replicate (max 0 (w - visibleLength str)) " "
 
 padLeft :: Int -> Text -> Text
 padLeft w str = T.replicate (max 0 (w - visibleLength str)) " " <> str
-
-centerString :: Int -> Text -> Text
-centerString w str
-  | len >= w  = str
-  | otherwise = leftPad <> str <> rightPad
-  where
-    len      = visibleLength str
-    total    = w - len
-    leftPad  = T.replicate (total `div` 2) " "
-    rightPad = T.replicate (total - T.length leftPad) " "
 
 -- | Spread words across @w@ columns, leftmost gaps taking the remainder.
 justifyString :: Int -> Text -> Text
@@ -274,76 +324,76 @@ justifyString w str
 --------------------------------------------------------------------------------
 -- Core
 
+-- | Anything that draws itself as text: the leaves of a 'View'.
 class Element a where
   renderElement :: a -> Text
 
-  -- | Widest visible line.
-  width :: a -> Int
-  width element = case T.lines (renderElement element) of
-    [] -> 0
-    ls -> maximum (0 : map visibleLength ls)
+render :: View m -> String
+render = T.unpack . blockText . drawView natural
 
-  -- | Line count (an empty render still takes one line).
-  height :: a -> Int
-  height element =
-    let rendered = renderElement element
-    in if T.null rendered then 1 else length (T.lines rendered)
+-- | Render with @w@ x @h@ cells of room, the way an app's root is laid out:
+-- 'fill' takes what's left.
+renderIn :: Int -> Int -> View m -> String
+renderIn w h = T.unpack . blockText . drawView (Room (Just w) (Just h) False)
 
-render :: Element a => a -> String
-render = T.unpack . renderElement
+-- | Widest visible line.
+width :: View m -> Int
+width = blockWidth . drawView natural
 
--- | The universal layout node. Anything that is an 'Element' can be wrapped
--- with 'L', so boxes, tables, text and charts compose freely:
+-- | Line count (an empty view still takes one line).
+height :: View m -> Int
+height v = case trimmed (bRows (drawView natural v)) of
+  [] -> 1
+  rs -> length rs
+
+-- | The layout tree. @msg@ is what its handlers send ('onClick', 'onScroll');
+-- a view without handlers fits any @msg@, so write helpers as @Model -> View m@.
+--
+-- Constructors take content; everything else is an attribute you apply with
+-- @&@ (or plain function application):
 --
 -- @
--- 'layout' ['text' "title", 'box' "content" [...], 'center' ('text' "footer")]
+-- 'vstack'
+--   [ 'text' "Status" & 'styleBold' & 'underline'
+--   , 'box' "Deploy" ['inlineBar' "build" 0.8] & 'border' BorderRound & 'fg' ColorGreen
+--   , 'row' ['button' "-" Dec, 'display' n, 'button' "+" Inc]
+--   ]
 -- @
-data L = forall a. Element a => L a
-       | UL [L]
-       | OL [L]
-       | AutoCenter L
-       | Colored Color L
-       | Styled Style L
-       | LBox Text [L] Border
-       | LStatusCard Text Text Border
-       | LTable [Text] [[L]] Border
+data View msg
+  = forall a. Element a => Leaf a
+  | Stack [View msg]
+  | Row Int [View msg]                    -- gap
+  | Margin Text (View msg)
+  | Section Text Text Int [View msg]      -- title, glyph, flank width
+  | Rule Axis Text Int                    -- glyph, length
+  | Underline Text (Maybe Color) (View msg)
+  | Clip Int Text (View msg)              -- max width, ellipsis
+  | Pad Int (View msg)
+  | Aligned Alignment Int (View msg)
+  | Bullets [View msg]
+  | Numbered [View msg]
+  | AutoCenter (View msg)
+  | Colored Color (View msg)
+  | Styled Style (View msg)
+  | Box Text [View msg] Border
+  | StatusCard Text Text Border
+  | Table [Text] [[View msg]] Border
+  | Mapped (Text -> Text) (View msg)      -- reflow the child's text
+  | OnEvent (Handlers msg) (View msg)
+  | Fill (View msg)
+  | Fixed (Maybe Int) (Maybe Int) (View msg)
+  | Focusable Text (View msg)
+  | WhenFocused (forall n. View n -> View n) (View msg)
+  | Scrolled (Viewport -> msg) Viewport (View msg)
+  | Following Int (View msg)               -- keep this row in sight
 
-instance Element L where
-  renderElement (L x) = renderElement x
-  renderElement (UL items) = renderElement (UnorderedList items)
-  renderElement (OL items) = renderElement (OrderedList items)
-  renderElement (AutoCenter element) = renderElement element  -- Layout does the centering
-  renderElement (Colored color element) = mapLines (wrapAnsi color) (renderElement element)
-  renderElement (Styled style element) = mapLines (wrapStyle style) (renderElement element)
-  renderElement (LBox title elements border) = renderElement (Box title elements border)
-  renderElement (LStatusCard label content border) = renderElement (StatusCard label content border)
-  renderElement (LTable headers rows border) = renderElement (Table headers rows border)
+data Axis = Horizontal | Vertical
 
-  width (L x) = width x
-  width (UL items) = width (UnorderedList items)
-  width (OL items) = width (OrderedList items)
-  width (AutoCenter element) = width element
-  width (Colored _ element) = width element
-  width (Styled _ element) = width element
-  width (LBox title elements border) = width (Box title elements border)
-  width (LStatusCard label content border) = width (StatusCard label content border)
-  width (LTable headers rows border) = width (Table headers rows border)
-
-  height (L x) = height x
-  height (UL items) = height (UnorderedList items)
-  height (OL items) = height (OrderedList items)
-  height (AutoCenter element) = height element
-  height (Colored _ element) = height element
-  height (Styled _ element) = height element
-  height (LBox title elements border) = height (Box title elements border)
-  height (LStatusCard label content border) = height (StatusCard label content border)
-  height (LTable headers rows border) = height (Table headers rows border)
-
-instance Show L where
+instance Show (View m) where
   show = render
 
 -- | Lets you write @layout [\"Hello\", \"World\"]@ under @OverloadedStrings@.
-instance IsString L where
+instance IsString (View m) where
   fromString = text
 
 data Border
@@ -361,17 +411,6 @@ data Border
   | BorderCustom Text Text Text  -- ^ corner, horizontal, vertical
   | BorderNone
   deriving (Show, Eq)
-
-class HasBorder a where
-  setBorder :: Border -> a -> a
-
-instance HasBorder L where
-  setBorder border (LBox title elements _) = LBox title elements border
-  setBorder border (LStatusCard label content _) = LStatusCard label content border
-  setBorder border (LTable headers rows _) = LTable headers rows border
-  setBorder border (Colored color element) = Colored color (setBorder border element)
-  setBorder border (Styled style element) = Styled style (setBorder border element)
-  setBorder _ other = other
 
 data Color = ColorDefault | ColorBlack | ColorRed | ColorGreen | ColorYellow
            | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
@@ -500,156 +539,19 @@ instance Element Text where renderElement = id
 data LineBreak = LineBreak
 instance Element LineBreak where renderElement _ = ""
 
-newtype Layout = Layout [L]
-instance Element Layout where
-  renderElement (Layout elements) = T.intercalate "\n" (map renderIn elements)
-    where
-      -- AutoCenter children centre against the widest sibling
-      sized    = [e | e <- elements, not (isAutoCenter e)]
-      ctxWidth = if null sized then 80 else maximum (0 : map width sized)
-
-      isAutoCenter (AutoCenter _) = True
-      isAutoCenter _              = False
-
-      renderIn (AutoCenter e) = renderElement (Centered (renderElement e) ctxWidth)
-      renderIn e              = renderElement e
-
-data Centered = Centered Text Int
-instance Element Centered where
-  renderElement (Centered content w) =
-    T.intercalate "\n" $ map (centerString w) (T.lines content)
-
-data Underlined = Underlined Text Text (Maybe Color)
-instance Element Underlined where
-  renderElement (Underlined content glyph maybeColor) =
-    let contentLines = T.lines content
-        w = if null contentLines then 0 else maximum (map visibleLength contentLines)
-        (reps, rest) = w `divMod` T.length glyph
-        rule = T.replicate reps glyph <> T.take rest glyph
-    in content <> "\n" <> maybe rule (`wrapAnsi` rule) maybeColor
-
-data Row = Row [L] Bool  -- tight?
-instance Element Row where
-  renderElement (Row elements tight)
-    | null elements = ""
-    | otherwise = T.intercalate "\n" $ map (T.intercalate sep) (transpose padded)
-    where
-      sep       = if tight then "" else " "
-      cellLines = map (T.lines . renderElement) elements
-      maxHeight = maximum (map length cellLines)
-      widths    = map (maximum . map visibleLength) cellLines
-      padded    = zipWith padCell widths cellLines
-      padCell w ls = map (padRight w) (ls <> replicate (maxHeight - length ls) "")
-
 data Alignment = AlignLeft | AlignRight | AlignCenter | Justify
   deriving (Show, Eq)
 
-data AlignedText = AlignedText Text Int Alignment
-instance Element AlignedText where
-  renderElement (AlignedText content w alignment) =
-    T.intercalate "\n" $ map align (T.lines content)
-    where
-      align = case alignment of
-        AlignLeft   -> padRight w
-        AlignRight  -> padLeft w
-        AlignCenter -> centerString w
-        Justify     -> justifyString w
-
-data Box = Box Text [L] Border
-
-instance HasBorder Box where
-  setBorder border (Box title elements _) = Box title elements border
-
-instance Element Box where
-  renderElement (Box title elements border) =
-    let content      = T.intercalate "\n" (map renderElement elements)
-        contentLines = if T.null content then [""] else T.lines content
-        contentWidth = maximum (0 : map visibleLength contentLines)
-        titleWidth   = if T.null title then 0 else visibleLength title + 2
-        innerWidth   = max contentWidth titleWidth
-        totalWidth   = innerWidth + 4
-        BorderChars{..} = borderChars border
-        hTop    = T.take 1 bcHTop
-        hBottom = T.take 1 bcHBottom
-
-        topBorder
-          | T.null title = bcTL <> T.replicate (totalWidth - 2) hTop <> bcTR
-          | otherwise =
-              let slack = totalWidth - visibleLength title - 2
-                  l     = slack `div` 2
-              in bcTL <> T.replicate l hTop <> title <> T.replicate (slack - l) hTop <> bcTR
-
-        bottomBorder = bcBL <> T.replicate (totalWidth - 2) hBottom <> bcBR
-        body = map (\line -> bcVLeft <> " " <> padRight innerWidth line <> " " <> bcVRight) contentLines
-
-    in T.intercalate "\n" (topBorder : body <> [bottomBorder])
-
-data StatusCard = StatusCard Text Text Border
-
-instance HasBorder StatusCard where
-  setBorder border (StatusCard label content _) = StatusCard label content border
-
-instance Element StatusCard where
-  renderElement (StatusCard label content border) =
-    let allLines = T.lines label <> T.lines content
-        inner    = maximum (0 : map visibleLength allLines) + 2
-        BorderChars{..} = borderChars border
-        hTop    = T.take 1 bcHTop
-        hBottom = T.take 1 bcHBottom
-        topBorder    = bcTL <> T.replicate (inner + 2) hTop <> bcTR
-        bottomBorder = bcBL <> T.replicate (inner + 2) hBottom <> bcBR
-        cardLine l   = bcVLeft <> " " <> padRight inner l <> " " <> bcVRight
-    in T.intercalate "\n" $ [topBorder] <> map cardLine allLines <> [bottomBorder]
-
-data Margin = Margin Text [L]
-instance Element Margin where
-  renderElement (Margin prefix elements) =
-    let content = case elements of
-          [single] -> renderElement single
-          _        -> renderElement (Layout elements)
-    in T.intercalate "\n" $ map ((prefix <> " ") <>) (T.lines content)
-
-data HorizontalRule = HorizontalRule Text Int
-instance Element HorizontalRule where
-  renderElement (HorizontalRule glyph n) = T.replicate n glyph
-
-data VerticalRule = VerticalRule Text Int
-instance Element VerticalRule where
-  renderElement (VerticalRule glyph n) = T.intercalate "\n" (replicate n glyph)
-
-data Padded = Padded Text Int
-instance Element Padded where
-  renderElement (Padded content p) =
-    let contentLines = T.lines content
-        w      = maximum (0 : map T.length contentLines)
-        side   = T.replicate p " "
-        blank  = replicate p (T.replicate (w + p * 2) " ")
-        body   = map (\line -> side <> padRight w line <> side) contentLines
-    in T.intercalate "\n" (blank <> body <> blank)
-
-data Columns = Columns [L] Int
-instance Element Columns where
-  renderElement (Columns elements spacing)
-    | null elements = ""
-    | otherwise = T.intercalate "\n" $ map (T.intercalate sep) (transpose padded)
-    where
-      sep       = T.replicate spacing " "
-      cellLines = map (T.lines . renderElement) elements
-      maxHeight = maximum (map length cellLines)
-      widths    = map (maximum . (0 :) . map visibleLength) cellLines
-      padded    = zipWith padCol widths cellLines
-      padCol w ls = map (padRight w) (ls <> replicate (maxHeight - length ls) "")
-
-data Truncated = Truncated Text Int Text  -- content, max width, ellipsis
-instance Element Truncated where
-  renderElement (Truncated content maxWidth ellipsis) =
-    T.intercalate "\n" $ map cut (T.lines content)
-    where
-      cut line
-        | visibleLength line <= maxWidth = line
-        | keep <= 0                      = T.take maxWidth ellipsis
-        | otherwise                      = T.take keep (stripAnsi line) <> ellipsis
-        where keep = maxWidth - T.length ellipsis
+renderStatusCard :: Text -> Text -> Border -> Text
+renderStatusCard label content bdr =
+  T.intercalate "\n" $ [topBorder] <> map cardLine allLines <> [bottomBorder]
+  where
+    allLines = T.lines label <> T.lines content
+    inner    = maximum (0 : map visibleLength allLines) + 2
+    BorderChars{..} = borderChars bdr
+    topBorder    = bcTL <> T.replicate (inner + 2) (T.take 1 bcHTop) <> bcTR
+    bottomBorder = bcBL <> T.replicate (inner + 2) (T.take 1 bcHBottom) <> bcBR
+    cardLine l   = bcVLeft <> " " <> padRight inner l <> " " <> bcVRight
 
 newtype Chart = Chart [(Text, Double)]
 instance Element Chart where
@@ -668,52 +570,6 @@ instance Element Chart where
             filled = floor (value / maxValue * fromIntegral barWidth)
             body   = T.replicate filled "█" <> T.replicate (barWidth - filled) "─"
         in padRight labelWidth label' <> " │" <> body <> "│ " <> formatAxisNum value
-
-data Table = Table [Text] [[L]] Border
-
-instance HasBorder Table where
-  setBorder border (Table headers rows _) = Table headers rows border
-
-instance Element Table where
-  renderElement (Table headers rows border) =
-    let rows'  = map (fitRow (length headers)) rows
-        widths = columnWidths rows'
-        BorderChars{..} = borderChars border
-        hTop    = T.take 1 bcHTop
-        hBottom = T.take 1 bcHBottom
-
-        rule l mid r h = l <> h <> T.intercalate (h <> mid <> h) [T.replicate w h | w <- widths] <> h <> r
-        topBorder    = rule bcTL bcTopTee bcTR hTop
-        separator    = rule bcLeftTee bcCross bcRightTee hTop
-        bottomBorder = rule bcBL bcBottomTee bcBR hBottom
-
-        line cells = bcVLeft <> " " <> T.intercalate (" " <> bcVLeft <> " ") cells <> " " <> bcVRight
-        headerRow  = line (zipWith padRight widths headers)
-        dataRows   = concatMap (map line . rowLines widths) rows'
-
-    in T.intercalate "\n" ([topBorder, headerRow, separator] <> dataRows <> [bottomBorder])
-    where
-      fitRow n cells
-        | length cells >= n = take n cells
-        | otherwise         = cells <> replicate (n - length cells) (text "")
-
-      columnWidths rs =
-        let headerWidths = map visibleLength headers
-            cellWidths   = map (map (maximum . (0:) . map visibleLength . T.lines . renderElement)) rs
-        in map (maximum . (0:)) (transpose (headerWidths : cellWidths))
-
-      -- A row may be several lines tall when a cell renders multi-line.
-      rowLines widths cells =
-        let cellLines = map (T.lines . renderElement) cells
-            h         = maximum (1 : map length cellLines)
-            padCell w ls = map (padRight w) (ls <> replicate (h - length ls) "")
-        in transpose (zipWith padCell widths cellLines)
-
-data Section = Section Text [L] Text Int  -- title, content, glyph, flank width
-instance Element Section where
-  renderElement (Section title content glyph n) =
-    let flank = T.replicate n (T.take 1 glyph)
-    in flank <> " " <> title <> " " <> flank <> "\n" <> renderElement (Layout content)
 
 newtype KeyValue = KeyValue [(Text, Text)]
 instance Element KeyValue where
@@ -741,48 +597,6 @@ instance Element Tree where
             childLines = zipWith (\i c -> go False childPrefix (i == n - 1) c) [0 :: Int ..] children
         in T.intercalate "\n" (nodeLine : childLines)
 
--- | Prefix the first line with @marker@ and hang the rest under it.
-hangIndent :: Text -> Text -> Text -> Text
-hangIndent indent marker content = case T.lines content of
-  []     -> indent <> marker
-  (l:ls) -> T.intercalate "\n" $ (indent <> marker <> l) : map (hang <>) ls
-  where hang = indent <> T.replicate (T.length marker) " "
-
-newtype UnorderedList = UnorderedList [L]
-instance Element UnorderedList where
-  renderElement (UnorderedList items) = go 0 items
-    where
-      bullets = ["•", "◦", "▪"]
-      go :: Int -> [L] -> Text
-      go level = T.intercalate "\n" . map item
-        where
-          bullet = bullets !! (level `mod` length bullets)
-          indent = T.replicate (level * 2) " "
-          item (UL nested) = go (level + 1) nested
-          item e           = hangIndent indent (bullet <> " ") (renderElement e)
-
-newtype OrderedList = OrderedList [L]
-instance Element OrderedList where
-  renderElement (OrderedList items) = go 0 items
-    where
-      go :: Int -> [L] -> Text
-      go level = T.intercalate "\n" . zipWith item [1 ..]
-        where
-          indent = T.replicate (level * 2) " "
-          item _ (OL nested) = go (level + 1) nested
-          item n e           = hangIndent indent (marker n <> ". ") (renderElement e)
-
-          marker n = case level `mod` 3 of
-            0 -> T.show n
-            1 -> T.singleton (toEnum (96 + n))
-            _ -> roman n
-
-      roman :: Int -> Text
-      roman = \case
-        1  -> "i";   2  -> "ii";  3  -> "iii"; 4  -> "iv"; 5  -> "v"
-        6  -> "vi";  7  -> "vii"; 8  -> "viii"; 9  -> "ix"; 10 -> "x"
-        n  -> T.show n
-
 data InlineBar = InlineBar Text Double
 instance Element InlineBar where
   renderElement (InlineBar label progress) =
@@ -792,76 +606,773 @@ instance Element InlineBar where
     in label <> " [" <> bar <> "] " <> T.show (floor (p * 100) :: Int) <> "%"
 
 --------------------------------------------------------------------------------
--- Constructors
+-- Drawing
+--
+-- A view draws into a block: rows of cells, the click regions inside them, and
+-- any kitty uploads to send ahead of the grid. Rows are ragged like lines of
+-- text, and containers pad exactly where the old text renderer did, so
+-- 'render' prints the same thing it always has.
 
-text :: String -> L
-text = L . T.pack
+data Attr = Attr { aStyle :: !Int, aFg :: !Text, aBg :: !Text }  -- SGR style bits, colour params
+  deriving Eq
 
-br :: L
-br = L LineBreak
+plain :: Attr
+plain = Attr 0 "" ""
 
--- | Centre against the widest sibling in the enclosing 'layout'.
-center :: Element a => a -> L
-center element = AutoCenter (L element)
+-- | One terminal column. The right half of a wide character is @Cell ""@.
+data Cell = Cell !Text !Attr
+  deriving Eq
 
--- | Centre within a fixed width.
-center' :: Element a => Int -> a -> L
-center' w element = L (Centered (renderElement element) w)
+type Cells = [Cell]
 
-underline :: Element a => a -> L
-underline element = L (Underlined (renderElement element) "─" Nothing)
+data Rect = Rect !Int !Int !Int !Int   -- top, left, height, width
 
-underline' :: Element a => String -> a -> L
-underline' glyph element = L (Underlined (renderElement element) (T.pack glyph) Nothing)
+data Block m = Block
+  { bRows :: [Cells]
+  , bHits :: [(Rect, Handlers m)]      -- outermost first
+  , bRaw  :: [Text]
+  }
 
--- |
+-- | Room a view may grow into. Views keep their natural size unless they sit
+-- under 'fill' or 'fixedWidth' / 'fixedHeight', which set 'roomStretch'.
+data Room = Room { roomW, roomH :: !(Maybe Int), roomStretch :: !Bool }
+
+natural :: Room
+natural = Room Nothing Nothing False
+
+blank :: Cell
+blank = Cell " " plain
+
+rowsBlock :: [Cells] -> Block m
+rowsBlock rs = Block rs [] []
+
+rowsWidth :: [Cells] -> Int
+rowsWidth = maximum . (0 :) . map length
+
+blockWidth :: Block m -> Int
+blockWidth = rowsWidth . bRows
+
+-- | What 'T.lines' would have seen: a trailing empty row goes.
+trimmed :: [Cells] -> [Cells]
+trimmed rs
+  | not (null rs), null (last rs) = init rs
+  | otherwise                     = rs
+
+padTo :: Int -> Cells -> Cells
+padTo w r
+  | n <= 0    = r   -- already wide enough: share the row instead of copying it
+  | otherwise = r <> replicate n blank
+  where n = w - length r
+
+moveHits :: Int -> Int -> [(Rect, h)] -> [(Rect, h)]
+moveHits dy dx = map (\(Rect t l h w, x) -> (Rect (t + dy) (l + dx) h w, x))
+
+-- | Stack blocks top to bottom.
+vcat :: [Block m] -> Block m
+vcat bs = Block (concatMap bRows bs) hits (concatMap bRaw bs)
+  where
+    tops = scanl (+) 0 (map (length . bRows) bs)
+    hits = concat (zipWith (\t b -> moveHits t 0 (bHits b)) tops bs)
+
+cellsOf :: Attr -> Text -> Cells
+cellsOf a = reverse . pushText a []
+
+-- | Add text to a row kept in reverse: combining marks join the cell before,
+-- wide characters take two.
+pushText :: Attr -> Cells -> Text -> Cells
+pushText a = T.foldl' step
+  where
+    step acc c = case charWidth c of
+      0 | Cell "" r : Cell t a' : rest <- acc -> Cell "" r : Cell (T.snoc t c) a' : rest  -- onto the wide character, not its right half
+        | Cell t a' : rest <- acc -> Cell (T.snoc t c) a' : rest
+        | otherwise               -> acc
+      2 -> Cell "" a : Cell (charText c) a : acc
+      _ -> Cell (charText c) a : acc
+
+-- | A one-character 'Text', shared for ASCII, box drawing and block elements so
+-- drawing a row doesn't allocate a fresh string per cell.
+charText :: Char -> Text
+charText c
+  | i < 0x80                  = asciiTexts `unsafeAt` i
+  | i >= 0x2500 && i < 0x25A0 = boxTexts `unsafeAt` (i - 0x2500)
+  | otherwise                 = T.singleton c
+  where i = ord c
+
+asciiTexts, boxTexts :: Array Int Text
+asciiTexts = listArray (0, 0x7F) [ T.singleton (chr n) | n <- [0 .. 0x7F] ]
+boxTexts   = listArray (0, 0x9F) [ T.singleton (chr n) | n <- [0x2500 .. 0x259F] ]
+
+-- | Read text the way a terminal would: SGR moves the pen, kitty uploads are
+-- set aside, any other escape is dropped.
+textBlock :: Text -> Block m
+textBlock = go plain [] [] . T.splitOn "\n"
+  where
+    go _ rows raw [] = Block (reverse rows) [] (reverse raw)
+    go a rows raw (l : ls) =
+      let (line, a', raw') = scan a [] raw l
+      in go a' (reverse line : rows) raw' ls
+
+    scan a acc raw s =
+      let (chunk, rest) = T.break (== '\ESC') s
+          acc'          = pushText a acc chunk
+      in case rest of
+           '\ESC' :< '[' :< more ->
+             let (params, after) = T.span (\c -> c < '@' || c > '~') more
+             in case after of
+                  'm' :< after' -> scan (applySgr a params) acc' raw after'
+                  _ :< after'   -> scan a acc' raw after'
+                  Empty         -> (acc', a, raw)
+           '\ESC' :< '_' :< more ->
+             let (body, after) = T.breakOn kittyST more
+                 raw' | "G" `T.isPrefixOf` body = ("\ESC_" <> body <> kittyST) : raw
+                      | otherwise               = raw
+             in scan a acc' raw' (T.drop (T.length kittyST) after)
+           '\ESC' :< _ :< more -> scan a acc' raw more
+           _                   -> (acc', a, raw)
+
+applySgr :: Attr -> Text -> Attr
+applySgr a0 = go a0 . map param . T.splitOn ";"
+  where
+    param t = case reads (T.unpack t) of
+      [(n, "")] -> n
+      _         -> 0 :: Int
+    rgb k r g b = T.intercalate ";" (map T.show [k, 2, r, g, b])
+
+    go a [] = a
+    go _ (0 : ps)                  = go plain ps
+    go a (38 : 5 : n : ps)         = go a { aFg = "38;5;" <> T.show n } ps
+    go a (38 : 2 : r : g : b : ps) = go a { aFg = rgb 38 r g b } ps
+    go a (48 : 5 : n : ps)         = go a { aBg = "48;5;" <> T.show n } ps
+    go a (48 : 2 : r : g : b : ps) = go a { aBg = rgb 48 r g b } ps
+    go a (n : ps)
+      | n >= 1 && n <= 9                         = go a { aStyle = setBit (aStyle a) n } ps
+      | n >= 30 && n <= 37 || n >= 90 && n <= 97 = go a { aFg = T.show n } ps
+      | n >= 40 && n <= 47 || n >= 100 && n <= 107 = go a { aBg = T.show n } ps
+      | n == 39                                  = go a { aFg = "" } ps
+      | n == 49                                  = go a { aBg = "" } ps
+      | otherwise                                = go a ps
+
+-- | A row as text, switching the pen only where the attributes change.
+rowText :: Cells -> Text
+rowText = T.concat . go plain
+  where
+    go a [] = [ "\ESC[0m" | a /= plain ]
+    go a (Cell t a' : cs)
+      | a' == a   = t : go a cs
+      | otherwise = [ "\ESC[0m" | a /= plain ] <> [pen a', t] <> go a' cs
+
+    pen (Attr st f b) = sgr (T.intercalate ";" [ T.show n | n <- [1 .. 9 :: Int], testBit st n ]) <> sgr f <> sgr b
+    sgr p = if T.null p then "" else "\ESC[" <> p <> "m"
+
+-- | What turns a screen showing @old@ into one showing @new@ (1-based rows
+-- from the top): each run of changed cells behind one cursor move, with short
+-- unchanged gaps rewritten rather than jumped over, and leftover cells cleared.
+-- Assumes the screen is blank past the end of each old row.
+diffRows :: [Cells] -> [Cells] -> Text
+diffRows old new = T.concat (zipWith3 diffRow [1 ..] (upTo old) (upTo new))
+  where
+    upTo rs = take (max (length old) (length new)) (rs <> repeat [])
+
+diffRow :: Int -> Cells -> Cells -> Text
+diffRow i old new
+  | old == new = ""
+  | otherwise  = foldMap draw (runs changed) <> clearTail
+  where
+    newLen  = length new
+    changed = [ c | (c, x, o) <- zip3 [0 :: Int ..] new (map Just old <> repeat Nothing), Just x /= o ]
+
+    -- a cursor move costs about as much as rewriting a few cells
+    runs []       = []
+    runs (c : cs) = go c c cs
+      where
+        go a b (d : ds)
+          | d - b <= 5 = go a d ds
+          | otherwise  = (a, b) : go d d ds
+        go a b [] = [(a, b)]
+
+    draw (a, b) =
+      let a' = startAt a
+      in goto (a' + 1) <> rowText (take (b - a' + 1) (drop a' new))
+
+    -- Never start on the right half of a wide character, or on a kitty
+    -- placeholder that takes its image position from the cell before it.
+    startAt a
+      | a > 0, Cell t _ : _ <- drop a new, T.null t || t == T.singleton kittyPlaceholderChar = startAt (a - 1)
+      | otherwise = a
+
+    clearTail
+      | length old > newLen = goto (newLen + 1) <> "\ESC[K"
+      | otherwise           = ""
+
+    goto c = "\ESC[" <> T.show i <> ";" <> T.show c <> "H"
+
+blockText :: Block m -> Text
+blockText b = T.concat (bRaw b) <> T.intercalate "\n" (map rowText (bRows b))
+
+recolor :: (Attr -> Attr) -> Block m -> Block m
+recolor f b = b { bRows = map (go plain (f plain)) (bRows b) }
+  where
+    -- runs of cells share an Attr: compute it once per run, not per cell
+    go _ _ [] = []
+    go i o (Cell t a : cs)
+      | a == i    = Cell t o : go i o cs
+      | otherwise = let o' = f a in Cell t o' : go a o' cs
+
+styleBits :: Style -> Int
+styleBits = \case
+  StyleDefault       -> 0
+  StyleBold          -> bit 1
+  StyleDim           -> bit 2
+  StyleItalic        -> bit 3
+  StyleUnderline     -> bit 4
+  StyleBlink         -> bit 5
+  StyleReverse       -> bit 7
+  StyleHidden        -> bit 8
+  StyleStrikethrough -> bit 9
+  StyleCombined ss   -> foldr ((.|.) . styleBits) 0 ss
+
+drawView :: Room -> View m -> Block m
+drawView room = \case
+  Leaf x            -> textBlock (renderElement x)
+  Stack xs          -> drawStack room xs
+  Row g xs          -> drawRow room g xs
+  Margin p v        ->
+    let b   = drawView natural v
+        pre = cellsOf plain (p <> " ")
+    in b { bRows = map (pre <>) (trimmed (bRows b)), bHits = moveHits 0 (length pre) (bHits b) }
+  Section t g n xs  ->
+    let flank = T.replicate n (T.take 1 g)
+    in vcat [rowsBlock [cellsOf plain (flank <> " " <> t <> " " <> flank)], drawStack natural xs]
+  Rule h g n        -> drawRule room h g n
+  Underline g c v   -> drawUnderline g c (drawView natural v)
+  Clip n e v        -> drawClip n e (drawView natural v)
+  Pad p v           -> drawPad p (drawView natural v)
+  Aligned a w v     -> alignBlock a w (drawView natural v)
+  Bullets xs        -> drawBullets xs
+  Numbered xs       -> drawNumbered xs
+  AutoCenter v      -> drawView room v  -- the enclosing stack does the centring
+  Colored c v       -> recolor (\a -> if T.null (aFg a) then a { aFg = colorCode c } else a) (drawView room v)
+  Styled st v       -> recolor (\a -> a { aStyle = aStyle a .|. styleBits st }) (drawView room v)
+  Box t xs b        -> drawBox room t xs b
+  StatusCard l c b  -> textBlock (renderStatusCard l c b)
+  Table hs rs b     -> drawTable hs rs b
+  Mapped f v        -> textBlock (f (blockText (drawView natural v)))
+  OnEvent h v       ->
+    let b = drawView room v
+    in b { bHits = (Rect 0 0 (length (bRows b)) (blockWidth b), h { hScope = hScope h <|> focusName v }) : bHits b }
+  Focusable n v     ->
+    let b    = drawView room v
+        own  = (Rect 0 0 (length (bRows b)) (blockWidth b), noHandlers { hFocus = Just n, hScope = Just n })
+        mine = [ (r, if isNothing (hScope h) then h { hScope = Just n } else h) | (r, h) <- bHits b ]
+    in b { bHits = own : mine }
+  WhenFocused _ v   -> drawView room v  -- 'resolveFocus' already applied the focused ones
+  Scrolled k vp v   -> drawScrolled room k vp v
+  Following i v     ->
+    let (inner, h, w) = windowed room v
+    in window (max 0 (min (length (bRows inner) - h) (i - h `div` 2))) h w inner
+  Fill v            -> claim room { roomStretch = True } (drawView room { roomStretch = True } v)
+  Fixed mw mh v     ->
+    let r = Room (mw <|> roomW room) (mh <|> roomH room) True
+    in crop mw mh (claim r (drawView r v))
+
+-- | Under 'fill', take the whole room even where nothing was drawn.
+claim :: Room -> Block m -> Block m
+claim (Room mw mh True) b = b { bRows = rows' }
+  where
+    w     = fromMaybe (blockWidth b) mw
+    rows  = maybe id padTo mw `map` bRows b
+    rows' = rows <> replicate (maybe 0 (subtract (length rows)) mh) (replicate w blank)
+claim _ b = b
+
+crop :: Maybe Int -> Maybe Int -> Block m -> Block m
+crop mw mh b = b { bRows = maybe id take mh (map (maybe id take mw) (bRows b)) }
+
+-- | The content of a scrolling view, the rows it has to show it in, and the
+-- width its scrollbar goes after.
+windowed :: Room -> View m -> (Block m, Int, Int)
+windowed room v = (inner, h, max (blockWidth inner) (fromMaybe 0 innerW))
+  where
+    stretched = roomStretch room
+    innerW    = if stretched then subtract 1 <$> roomW room else Nothing
+    inner     = drawView (Room innerW Nothing False) v
+    h | stretched, Just rh <- roomH room = rh
+      | otherwise                        = length (bRows inner)
+
+-- | @h@ rows of a block starting at @top@, with a scrollbar after column @w@
+-- if it doesn't fit.
+window :: Int -> Int -> Int -> Block m -> Block m
+window top h w b
+  | total <= h = b
+  | otherwise  = Block (zipWith (\r bar -> padTo w r <> [bar]) (take h (drop top rows) <> repeat []) bars) hits (bRaw b)
+  where
+    rows   = bRows b
+    total  = length rows
+    thumb  = max 1 (h * h `div` total)
+    at     = top * (h - thumb) `div` max 1 (total - h)
+    bars   = [ Cell (if i >= at && i < at + thumb then "█" else "│") plain | i <- [0 .. h - 1] ]
+    hits   = [ (Rect t' l (b' - t') ww, x)
+             | (Rect t l hh ww, x) <- bHits b
+             , let t' = max 0 (t - top); b' = min h (t + hh - top)
+             , b' > t' ]
+
+drawScrolled :: Room -> (Viewport -> msg) -> Viewport -> View msg -> Block msg
+drawScrolled room moved (Viewport off) v = b { bHits = own : bHits b }
+  where
+    (inner, h, w) = windowed room v
+    maxTop = max 0 (length (bRows inner) - h)
+    top    = max 0 (min maxTop off)
+    b      = window top h w inner
+    to n   = moved (Viewport (if n >= maxTop then maxBound else max 0 n))
+    own    = (Rect 0 0 h (blockWidth b), noHandlers { hScroll = Just (\d -> to (top + 3 * d)), hKey = Just keys })
+    keys = \case
+      KeyUp       -> Just (to (top - 1))
+      KeyDown     -> Just (to (top + 1))
+      KeyPageUp   -> Just (to (top - h))
+      KeyPageDown -> Just (to (top + h))
+      KeyHome     -> Just (to 0)
+      KeyEnd      -> Just (to maxTop)
+      _           -> Nothing
+
+-- | Children whose size is up to the parent: wrapped in 'fill', perhaps under
+-- colour, style or a handler.
+isFill :: View m -> Bool
+isFill = \case
+  Fill _          -> True
+  Colored _ v     -> isFill v
+  Styled _ v      -> isFill v
+  OnEvent _ v     -> isFill v
+  Focusable _ v   -> isFill v
+  WhenFocused _ v -> isFill v
+  _               -> False
+
+-- | Draw children along one axis: the rest first, offered only the room
+-- across it, then the 'fill' ones sharing whatever is left along it.
+share :: (Block m -> Int) -> Int -> Maybe Int -> (Maybe Int -> Room) -> [View m] -> [Block m]
+share extent gaps room roomFor xs = map draw' (zip xs sized)
+  where
+    sized  = [ if isFill x then Nothing else Just (drawView (roomFor Nothing) x) | x <- xs ]
+    used   = sum [ extent b | Just b <- sized ] + gaps
+    nFills = length (filter isFill xs)
+    each   = (\r -> max 0 (r - used) `div` max 1 nFills) <$> room
+    draw' (x, Nothing) = drawView (roomFor each) x
+    draw' (_, Just b)  = b
+
+drawStack :: Room -> [View m] -> Block m
+drawStack room xs = vcat (zipWith place xs blocks)
+  where
+    blocks = share (length . bRows) 0 (roomH room) (\h -> Room (roomW room) h False) xs
+    sized  = [ b | (x, b) <- zip xs blocks, not (isAutoCenter x) ]
+    ctx | roomStretch room, Just w <- roomW room = w
+        | null sized                             = 80
+        | otherwise                              = maximum (map blockWidth sized)
+
+    isAutoCenter (AutoCenter _) = True
+    isAutoCenter _              = False
+
+    place (AutoCenter _) b = alignBlock AlignCenter ctx b
+    place _ b              = b
+
+drawRow :: Room -> Int -> [View m] -> Block m
+drawRow _ _ [] = rowsBlock []
+drawRow room g xs = Block rows hits (concatMap bRaw blocks)
+  where
+    blocks = share blockWidth (g * (length xs - 1)) (roomW room) (\w -> Room w (roomH room) False) xs
+    cols   = map (trimmed . bRows) blocks
+    widths = map rowsWidth cols
+    h      = maximum (map length cols)
+    padded = zipWith (\w c -> map (padTo w) (take h (c <> repeat []))) widths cols
+    rows   = map (intercalate (replicate g blank)) (transpose padded)
+    lefts  = scanl (\x w -> x + w + g) 0 widths
+    hits   = concat (zipWith (\x b -> moveHits 0 x (bHits b)) lefts blocks)
+
+-- | Prefix the first row with @first@ and the others with @rest@.
+hang :: Text -> Text -> Block m -> Block m
+hang first rest b = Block rows (moveHits 0 (length firstCells) (bHits b)) (bRaw b)
+  where
+    firstCells = cellsOf plain first
+    rows = case trimmed (bRows b) of
+      []     -> [firstCells]
+      r : rs -> (firstCells <> r) : map (cellsOf plain rest <>) rs
+
+drawRule :: Room -> Axis -> Text -> Int -> Block m
+drawRule room axis g n = rowsBlock $ case axis of
+  Horizontal -> [cellsOf plain (T.replicate (stretched roomW) g)]
+  Vertical   -> replicate (stretched roomH) (cellsOf plain g)
+  where
+    stretched along
+      | roomStretch room = fromMaybe n (along room)
+      | otherwise        = n
+
+drawUnderline :: Text -> Maybe Color -> Block m -> Block m
+drawUnderline g color b = b { bRows = bRows b <> [cellsOf pen rule] }
+  where
+    (reps, rest) = rowsWidth (trimmed (bRows b)) `divMod` T.length g
+    rule = T.replicate reps g <> T.take rest g
+    pen  = maybe plain (\c -> plain { aFg = colorCode c }) color
+
+drawClip :: Int -> Text -> Block m -> Block m
+drawClip n ell b = Block (map cut (trimmed (bRows b))) hits (bRaw b)
+  where
+    keep = n - T.length ell
+    cut cs
+      | length cs <= n = cs
+      | keep <= 0       = cellsOf plain (T.take n ell)
+      | otherwise       = whole (take keep cs) (drop keep cs) <> cellsOf plain ell
+    -- don't leave half a wide character behind
+    whole kept (Cell "" _ : _) = init kept <> [blank]
+    whole kept _               = kept
+    hits = [ (Rect t l h (min w (n - l)), x) | (Rect t l h w, x) <- bHits b, l < n ]
+
+drawPad :: Int -> Block m -> Block m
+drawPad p b = Block (border' <> map (\r -> side <> padTo w r <> side) rows <> border') (moveHits p p (bHits b)) (bRaw b)
+  where
+    rows    = trimmed (bRows b)
+    w       = rowsWidth rows
+    side    = replicate p blank
+    border' = replicate p (replicate (w + 2 * p) blank)
+
+alignBlock :: Alignment -> Int -> Block m -> Block m
+alignBlock a w b = Block (zipWith (\l r -> lead l <> align r) lefts rows) hits (bRaw b)
+  where
+    rows  = trimmed (bRows b)
+    lefts = map leftPad rows
+    leftPad r
+      | length r >= w = 0
+      | otherwise = case a of
+          AlignRight  -> w - length r
+          AlignCenter -> (w - length r) `div` 2
+          _           -> 0
+    lead l = replicate l blank
+    align r = case a of
+      AlignLeft   -> padTo w r
+      AlignRight  -> r
+      AlignCenter -> padTo (w - leftPad r) r
+      Justify     -> case bRows (textBlock (justifyString w (rowText r))) of
+                       r' : _ -> r'
+                       []     -> r
+    hits = [ (Rect t (l + dx) h ww, x) | (Rect t l h ww, x) <- bHits b, let dx = fromMaybe 0 (lookup t (zip [0 ..] lefts)) ]
+
+drawBox :: Room -> Text -> [View m] -> Border -> Block m
+drawBox room title xs bdr = Block (cellsOf plain top : body <> [cellsOf plain bottom]) hits (concatMap bRaw blocks)
+  where
+    inner  | roomStretch room = Room (subtract 4 <$> roomW room) (subtract 2 <$> roomH room) False
+           | otherwise        = natural
+    blocks = share (length . bRows) 0 (roomH inner) (\h -> Room (roomW inner) h False) xs
+    rows   = case trimmed (concatMap bRows blocks) of
+      [] -> [[]]
+      rs -> rs
+    content = rows <> replicate (maybe 0 (subtract (length rows)) (roomH inner)) []
+    titleW  = if T.null title then 0 else visibleLength title + 2
+    innerW  = maximum [rowsWidth rows, titleW, fromMaybe 0 (roomW inner)]
+    totalW  = innerW + 4
+    BorderChars{..} = borderChars bdr
+    hTop    = T.take 1 bcHTop
+    hBottom = T.take 1 bcHBottom
+
+    top
+      | T.null title = bcTL <> T.replicate (totalW - 2) hTop <> bcTR
+      | otherwise =
+          let slack = totalW - visibleLength title - 2
+              l     = slack `div` 2
+          in bcTL <> T.replicate l hTop <> title <> T.replicate (slack - l) hTop <> bcTR
+    bottom = bcBL <> T.replicate (totalW - 2) hBottom <> bcBR
+    body   = map (\r -> cellsOf plain (bcVLeft <> " ") <> padTo innerW r <> cellsOf plain (" " <> bcVRight)) content
+
+    tops = scanl (+) 0 (map (length . bRows) blocks)
+    hits = concat (zipWith (\t b -> moveHits (1 + t) 2 (bHits b)) tops blocks)
+
+drawTable :: [Text] -> [[View m]] -> Border -> Block m
+drawTable headers rows bdr =
+  Block (map (cellsOf plain) [topBorder, headerRow, separator] <> concat dataRows <> [cellsOf plain bottomBorder])
+        hits (concatMap bRaw (concat cells))
+  where
+    cells  = map (map (drawView natural) . fitRow (length headers)) rows
+    cellRows = map (map (trimmed . bRows)) cells
+    widths = map (maximum . (0 :)) (transpose (map visibleLength headers : map (map rowsWidth) cellRows))
+    BorderChars{..} = borderChars bdr
+    hTop    = T.take 1 bcHTop
+    hBottom = T.take 1 bcHBottom
+
+    rule l mid r h = l <> h <> T.intercalate (h <> mid <> h) [T.replicate w h | w <- widths] <> h <> r
+    topBorder    = rule bcTL bcTopTee bcTR hTop
+    separator    = rule bcLeftTee bcCross bcRightTee hTop
+    bottomBorder = rule bcBL bcBottomTee bcBR hBottom
+
+    headerRow = bcVLeft <> " " <> T.intercalate (" " <> bcVLeft <> " ") (zipWith padRight widths headers) <> " " <> bcVRight
+    line cs   = cellsOf plain (bcVLeft <> " ") <> intercalate (cellsOf plain (" " <> bcVLeft <> " ")) cs
+                <> cellsOf plain (" " <> bcVRight)
+
+    fitRow n cs
+      | length cs >= n = take n cs
+      | otherwise      = cs <> replicate (n - length cs) (text "")
+
+    -- a row is as tall as its tallest cell
+    heights  = [ maximum (1 : map length r) | r <- cellRows ]
+    dataRows = [ map line (transpose (zipWith (\w c -> map (padTo w) (take h (c <> repeat []))) widths r))
+               | (h, r) <- zip heights cellRows ]
+
+    lefts = scanl (\x w -> x + w + 3) 2 widths
+    tops  = scanl (+) 3 heights
+    hits  = concat [ moveHits t l (bHits b) | (t, rowCells) <- zip tops cells, (l, b) <- zip lefts rowCells ]
+
+drawBullets :: [View m] -> Block m
+drawBullets = go 0
+  where
+    bullets = ["•", "◦", "▪"]
+    go level = vcat . map item
+      where
+        bullet = bullets !! (level `mod` length bullets)
+        indent = T.replicate (level * 2) " "
+        item (Bullets nested) = go (level + 1) nested
+        item x                = hangMarker indent (bullet <> " ") (drawView natural x)
+
+drawNumbered :: [View m] -> Block m
+drawNumbered = go (0 :: Int)
+  where
+    go level = vcat . zipWith item [1 ..]
+      where
+        indent = T.replicate (level * 2) " "
+        item _ (Numbered nested) = go (level + 1) nested
+        item n x                 = hangMarker indent (marker n <> ". ") (drawView natural x)
+
+        marker n = case level `mod` 3 of
+          0 -> T.show n
+          1 -> T.singleton (toEnum (96 + n))
+          _ -> roman n
+
+    roman :: Int -> Text
+    roman = \case
+      1  -> "i";   2  -> "ii";  3  -> "iii"; 4  -> "iv"; 5  -> "v"
+      6  -> "vi";  7  -> "vii"; 8  -> "viii"; 9  -> "ix"; 10 -> "x"
+      n  -> T.show n
+
+hangMarker :: Text -> Text -> Block m -> Block m
+hangMarker indent marker = hang (indent <> marker) (indent <> T.replicate (T.length marker) " ")
+
+--------------------------------------------------------------------------------
+-- Content
+
+text :: String -> View m
+text = Leaf . T.pack
+
+-- | @text . show@
+display :: Show a => a -> View m
+display = text . show
+
+br :: View m
+br = Leaf LineBreak
+
+-- | Top to bottom.
+vstack :: [View m] -> View m
+vstack = Stack
+
+-- | Left to right, one space apart; change it with 'gap'.
+--
 -- @
--- 'underlineColored' "=" 'ColorRed' $ 'text' "Error Section"
+-- 'row' ['vstack' ["A", "B"], 'vstack' ["C", "D"]] & 'gap' 2
+-- -- A  C
+-- -- B  D
 -- @
-underlineColored :: Element a => String -> Color -> a -> L
-underlineColored glyph color element = L (Underlined (renderElement element) (T.pack glyph) (Just color))
+row :: [View m] -> View m
+row = Row 1
 
-ul :: [L] -> L
-ul = UL
+box :: String -> [View m] -> View m
+box title elements = Box (T.pack title) elements BorderNormal
 
-ol :: [L] -> L
-ol = OL
+-- | Titleless box with a double border.
+--
+-- @
+-- 'banner' ["System Dashboard"]
+-- -- ╔══════════════════╗
+-- -- ║ System Dashboard ║
+-- -- ╚══════════════════╝
+-- @
+banner :: [View m] -> View m
+banner content = Box "" content BorderDouble
 
-inlineBar :: String -> Double -> L
-inlineBar label progress = L (InlineBar (T.pack label) progress)
+statusCard :: String -> String -> View m
+statusCard label content = StatusCard (T.pack label) (T.pack content) BorderNormal
 
-statusCard :: String -> String -> L
-statusCard label content = LStatusCard (T.pack label) (T.pack content) BorderNormal
+ul :: [View m] -> View m
+ul = Bullets
 
-layout :: [L] -> L
-layout = L . Layout
+ol :: [View m] -> View m
+ol = Numbered
 
--- | Alias for 'layout'.
-vstack :: [L] -> L
-vstack = layout
+table :: [String] -> [[View m]] -> View m
+table headers rows = Table (map T.pack headers) rows BorderNormal
 
-row :: [L] -> L
-row elements = L (Row elements False)
+-- | @=== title ===@ over its content; see 'glyph' and 'size'.
+section :: String -> [View m] -> View m
+section title = Section (T.pack title) "=" 3
 
--- | 'row' without the single-space gutter.
-tightRow :: [L] -> L
-tightRow elements = L (Row elements True)
+kv :: [(String, String)] -> View m
+kv pairs = Leaf (KeyValue [ (T.pack k, T.pack v) | (k, v) <- pairs ])
 
-alignLeft :: Int -> String -> L
-alignLeft w s = L (AlignedText (T.pack s) w AlignLeft)
+tree :: String -> [Tree] -> View m
+tree name children = Leaf (Tree (T.pack name) children)
 
-alignRight :: Int -> String -> L
-alignRight w s = L (AlignedText (T.pack s) w AlignRight)
+leaf :: String -> Tree
+leaf name = Tree (T.pack name) []
 
-alignCenter :: Int -> String -> L
-alignCenter w s = L (AlignedText (T.pack s) w AlignCenter)
+branch :: String -> [Tree] -> Tree
+branch name = Tree (T.pack name)
 
-justify :: Int -> String -> L
-justify w s = L (AlignedText (T.pack s) w Justify)
+-- | 50 wide; see 'glyph' and 'size'.
+hr :: View m
+hr = Rule Horizontal "─" 50
 
--- | Greedy word wrap. A word longer than @w@ gets a line to itself.
-wrap :: Int -> String -> L
-wrap w = layout . map L . wrapWords . T.words . T.pack
+-- | 10 tall; see 'glyph' and 'size'.
+vr :: View m
+vr = Rule Vertical "│" 10
+
+inlineBar :: String -> Double -> View m
+inlineBar label progress = Leaf (InlineBar (T.pack label) progress)
+
+-- | Horizontal bar chart.
+chart :: [(String, Double)] -> View m
+chart points = Leaf (Chart [ (T.pack label, v) | (label, v) <- points ])
+
+--------------------------------------------------------------------------------
+-- Attributes
+--
+-- Each is a @View m -> View m@. Ones that tune a setting ('gap', 'glyph',
+-- 'size', 'accent', 'ellipsis', 'border') adjust the nearest node that has
+-- it, looking through colour, style and handlers, and leave anything else
+-- alone.
+
+adjust :: (View m -> Maybe (View m)) -> View m -> View m
+adjust f v = fromMaybe inward (f v)
+  where
+    inward = case v of
+      Colored c x  -> Colored c (adjust f x)
+      Styled st x  -> Styled st (adjust f x)
+      OnEvent h x  -> OnEvent h (adjust f x)
+      AutoCenter x -> AutoCenter (adjust f x)
+      Fill x       -> Fill (adjust f x)
+      Fixed w h x  -> Fixed w h (adjust f x)
+      Focusable n x   -> Focusable n (adjust f x)
+      WhenFocused t x -> WhenFocused t (adjust f x)
+      _            -> v
+
+fg :: Color -> View m -> View m
+fg = Colored
+
+styled :: Style -> View m -> View m
+styled st (Styled st' v) = Styled (st' <> st) v
+styled st v              = Styled st v
+
+styleBold, styleDim, styleItalic, styleUnderline, styleBlink, styleReverse, styleHidden, styleStrikethrough
+  :: View m -> View m
+styleBold          = styled StyleBold
+styleDim           = styled StyleDim
+styleItalic        = styled StyleItalic
+styleUnderline     = styled StyleUnderline
+styleBlink         = styled StyleBlink
+styleReverse       = styled StyleReverse
+styleHidden        = styled StyleHidden
+styleStrikethrough = styled StyleStrikethrough
+
+-- | For 'box', 'banner', 'statusCard' and 'table'.
+border :: Border -> View m -> View m
+border b = adjust $ \case
+  Box t xs _       -> Just (Box t xs b)
+  StatusCard l c _ -> Just (StatusCard l c b)
+  Table hs rs _    -> Just (Table hs rs b)
+  _                 -> Nothing
+
+-- | Space between 'row' items.
+gap :: Int -> View m -> View m
+gap n = adjust $ \case
+  Row _ xs -> Just (Row n xs)
+  _           -> Nothing
+
+-- | The character drawn by 'hr', 'vr', 'underline' and 'section'.
+glyph :: String -> View m -> View m
+glyph g = adjust $ \case
+  Rule h _ n       -> Just (Rule h g' n)
+  Underline _ c x  -> Just (Underline g' c x)
+  Section t _ n xs -> Just (Section t g' n xs)
+  _                 -> Nothing
+  where g' = T.pack g
+
+-- | Length of an 'hr' or 'vr', or the flanks of a 'section'.
+size :: Int -> View m -> View m
+size n = adjust $ \case
+  Rule h g _       -> Just (Rule h g n)
+  Section t g _ xs -> Just (Section t g n xs)
+  _                 -> Nothing
+
+-- | Colour of an 'underline' rule, leaving the text alone.
+accent :: Color -> View m -> View m
+accent c = adjust $ \case
+  Underline g _ x -> Just (Underline g (Just c) x)
+  _                -> Nothing
+
+-- | What 'clip' appends, @...@ by default.
+ellipsis :: String -> View m -> View m
+ellipsis e = adjust $ \case
+  Clip n _ x -> Just (Clip n (T.pack e) x)
+  _           -> Nothing
+
+-- | A rule under the content, as wide as it is.
+underline :: View m -> View m
+underline = Underline "─" Nothing
+
+-- | Centre against the widest sibling in the enclosing 'vstack'.
+center :: View m -> View m
+center = AutoCenter
+
+centerIn :: Int -> View m -> View m
+centerIn = Aligned AlignCenter
+
+pad :: Int -> View m -> View m
+pad = Pad
+
+-- | Take all the room the parent offers: the leftover width of a 'row',
+-- the leftover height of a 'vstack', or the terminal for an app's root.
+-- Boxes and rules stretch to it; other views keep their size inside it.
+--
+-- @
+-- 'row' ['box' "nav" navItems & 'fixedWidth' 20, 'box' "main" content & 'fill'] & 'fill'
+-- @
+fill :: View m -> View m
+fill = Fill
+
+fixedWidth :: Int -> View m -> View m
+fixedWidth w = \case
+  Fixed _ h v -> Fixed (Just w) h v
+  v           -> Fixed (Just w) Nothing v
+
+fixedHeight :: Int -> View m -> View m
+fixedHeight h = \case
+  Fixed w _ v -> Fixed w (Just h) v
+  v           -> Fixed Nothing (Just h) v
+
+-- | Prefix every line, e.g. @'text' "boom" & 'margin' "[error]"@.
+margin :: String -> View m -> View m
+margin prefix = Margin (T.pack prefix)
+
+-- | Cut lines longer than @n@, ending them with the 'ellipsis'.
+--
+-- @
+-- 'text' "Very long text that will be cut off" & 'clip' 15  -- Very long te...
+-- @
+clip :: Int -> View m -> View m
+clip n = Clip n "..."
+
+alignLeft, alignRight, alignCenter, justify :: Int -> View m -> View m
+alignLeft   = aligned AlignLeft
+alignRight  = aligned AlignRight
+alignCenter = aligned AlignCenter
+justify     = aligned Justify
+
+aligned :: Alignment -> Int -> View m -> View m
+aligned = Aligned
+
+-- | Greedy word wrap at @w@ columns. A longer word gets a line to itself.
+wrap :: Int -> View m -> View m
+wrap w = Mapped (T.intercalate "\n" . wrapWords . T.words)
   where
     wrapWords :: [Text] -> [Text]
     wrapWords [] = []
@@ -878,110 +1389,211 @@ wrap w = layout . map L . wrapWords . T.words . T.pack
       | otherwise = (T.unwords (reverse acc), y:ys)
       where len' = len + 1 + T.length y
 
-box :: String -> [L] -> L
-box title elements = LBox (T.pack title) elements BorderNormal
+--------------------------------------------------------------------------------
+-- Events
+--
+-- Handlers ride along in the tree as 'OnEvent' nodes. Drawing turns each into
+-- a rectangle on the block it lands in, so a click is answered by the last
+-- (innermost) rectangle under it that handles it.
 
--- | Titleless box with a double border.
+data Handlers m = Handlers
+  { hClick  :: Maybe m
+  , hScroll :: Maybe (Int -> m)        -- +1 per notch down, -1 up
+  , hKey    :: Maybe (Key -> Maybe m)
+  , hFocus  :: Maybe Text              -- this rectangle is a 'focusable'
+  , hScope  :: Maybe Text              -- the focusable whose focus 'hKey' needs
+  }
+
+noHandlers :: Handlers m
+noHandlers = Handlers Nothing Nothing Nothing Nothing Nothing
+
+instance Functor Handlers where
+  fmap f h = h { hClick  = f <$> hClick h
+               , hScroll = (f .) <$> hScroll h
+               , hKey    = (fmap f .) <$> hKey h }
+
+-- | Rebuild a node from its children run through @f@, mapping messages with @g@.
+descend :: Applicative f => (a -> b) -> (View a -> f (View b)) -> View a -> f (View b)
+descend onMsg f = \case
+  Leaf x            -> pure (Leaf x)
+  Stack xs          -> Stack <$> traverse f xs
+  Row g xs          -> Row g <$> traverse f xs
+  Margin p v        -> Margin p <$> f v
+  Section t g n xs  -> Section t g n <$> traverse f xs
+  Rule h g n        -> pure (Rule h g n)
+  Underline g c v   -> Underline g c <$> f v
+  Clip n e v        -> Clip n e <$> f v
+  Pad p v           -> Pad p <$> f v
+  Aligned a w v     -> Aligned a w <$> f v
+  Bullets xs        -> Bullets <$> traverse f xs
+  Numbered xs       -> Numbered <$> traverse f xs
+  AutoCenter v      -> AutoCenter <$> f v
+  Colored c v       -> Colored c <$> f v
+  Styled st v       -> Styled st <$> f v
+  Box t xs b        -> (\ys -> Box t ys b) <$> traverse f xs
+  StatusCard l c b  -> pure (StatusCard l c b)
+  Table hs rs b     -> (\rs' -> Table hs rs' b) <$> traverse (traverse f) rs
+  Mapped g v        -> Mapped g <$> f v
+  OnEvent h v       -> OnEvent (fmap onMsg h) <$> f v
+  Fill v            -> Fill <$> f v
+  Fixed w h v       -> Fixed w h <$> f v
+  Focusable n v     -> Focusable n <$> f v
+  WhenFocused t v   -> WhenFocused t <$> f v
+  Scrolled k vp v   -> Scrolled (onMsg . k) vp <$> f v
+  Following i v     -> Following i <$> f v
+
+-- | Embed a child component: @fmap ChildMsg (childView model)@.
+instance Functor View where
+  fmap g = runIdentity . descend g (Identity . fmap g)
+
+attach :: Handlers m -> View m -> View m
+attach h (AutoCenter v) = AutoCenter (attach h v)  -- keep centring visible to 'layout'
+attach h v              = OnEvent h v
+
+-- | Send @msg@ when the element is left-clicked. Clicks go to the innermost
+-- element that handles them.
+onClick :: msg -> View msg -> View msg
+onClick msg = attach noHandlers { hClick = Just msg }
+
+-- | Mouse wheel over the element: @+1@ per notch down, @-1@ up.
+onScroll :: (Int -> msg) -> View msg -> View msg
+onScroll f = attach noHandlers { hScroll = Just f }
+
+-- | Keys for this view. Inside a 'focusable' they only arrive while it has
+-- focus; elsewhere they arrive whenever nothing focused took the key first.
+onKey :: (Key -> Maybe msg) -> View msg -> View msg
+onKey f = attach noHandlers { hKey = Just f }
+
+-- | A view that can hold the keyboard. Tab and Shift-Tab move focus between
+-- them in screen order, a click focuses one, and the first is focused to
+-- start with.
+focusable :: String -> View msg -> View msg
+focusable name = Focusable (T.pack name)
+
+-- | How the view looks while it has focus, e.g. @'focusStyle' ('border' BorderDouble)@.
+focusStyle :: (forall n. View n -> View n) -> View m -> View m
+focusStyle = WhenFocused
+
+-- | Apply each 'focusStyle' whose view has focus.
+resolveFocus :: Maybe Text -> View m -> View m
+resolveFocus focused = go False
+  where
+    go on = \case
+      Focusable n v   -> Focusable n (go (Just n == focused) v)
+      WhenFocused t v ->
+        let v' = go on v
+        in if on || focusName v == focused && isJust focused then t v' else v'
+      v -> runIdentity (descend id (Identity . go on) v)
+
+-- | The 'focusable' a view is, under colour, style, handlers and sizing.
+focusName :: View m -> Maybe Text
+focusName = \case
+  Focusable n _   -> Just n
+  Colored _ v     -> focusName v
+  Styled _ v      -> focusName v
+  OnEvent _ v     -> focusName v
+  WhenFocused _ v -> focusName v
+  Fill v          -> focusName v
+  Fixed _ _ v     -> focusName v
+  AutoCenter v    -> focusName v
+  _               -> Nothing
+
+-- | A clickable label in reverse video.
+button :: String -> msg -> View msg
+button label msg = onClick msg (styleReverse (text (" " <> label <> " ")))
+
+-- | Handlers under a cell, innermost first.
+hitsAt :: (Int, Int) -> [(Rect, h)] -> [h]
+hitsAt (r, c) hits = reverse [ h | (Rect t l hh w, h) <- hits, r >= t, r < t + hh, c >= l, c < l + w ]
+
+dispatchAt :: (Handlers m -> Maybe m) -> (Int, Int) -> [(Rect, Handlers m)] -> Maybe m
+dispatchAt pick pos = listToMaybe . mapMaybe pick . hitsAt pos
+
+-- | Focusables in screen order.
+focusNames :: [(Rect, Handlers m)] -> [Text]
+focusNames hits = [ n | (_, h) <- hits, Just n <- [hFocus h] ]
+
+-- | Where a key goes: the focused view's handlers, innermost first, then
+-- handlers outside any focusable.
+keyMsg :: Maybe Text -> [(Rect, Handlers m)] -> Key -> Maybe m
+keyMsg focused hits key = (focused >>= try . Just) <|> try Nothing
+  where
+    try scope = listToMaybe (mapMaybe ($ key) (reverse [ k | (_, h) <- hits, hScope h == scope, Just k <- [hKey h] ]))
+
+-- | What a left click at @(row, col)@ of the rendered view sends. For tests.
+clickAt :: (Int, Int) -> View m -> Maybe m
+clickAt pos = dispatchAt hClick pos . bHits . drawView natural
+
+-- | What one wheel notch at @(row, col)@ sends (@+1@ down, @-1@ up).
+scrollAt :: Int -> (Int, Int) -> View m -> Maybe m
+scrollAt d pos = dispatchAt (\h -> ($ d) <$> hScroll h) pos . bHits . drawView natural
+
+-- | What pressing a key sends while the named 'focusable' has focus. For tests.
+pressKey :: Maybe String -> Key -> View m -> Maybe m
+pressKey focused key v = keyMsg f (bHits (drawView natural (resolveFocus f v))) key
+  where f = T.pack <$> focused
+
+-- | The 'focusable' names in Tab order. For tests.
+focusOrder :: View m -> [String]
+focusOrder = map T.unpack . focusNames . bHits . drawView natural
+
+--------------------------------------------------------------------------------
+-- Widgets
+--
+-- Their state lives in your model. Each message carries the widget's next
+-- state, worked out where the real size is known, so 'appUpdate' just stores it.
+
+-- | How far a 'viewport' is scrolled.
+newtype Viewport = Viewport Int   -- first row shown; maxBound sticks to the bottom
+  deriving (Show, Eq)
+
+viewportTop, viewportBottom :: Viewport
+viewportTop    = Viewport 0
+viewportBottom = Viewport maxBound
+
+-- | A scrollable area: wheel, arrows, PgUp\/PgDn, Home\/End, with a scrollbar
+-- once the content outgrows it. Give it a height with 'fill' or
+-- 'fixedHeight'. Scrolled to the end, it stays there as content grows.
 --
 -- @
--- 'banner' ["System Dashboard"]
--- -- ╔══════════════════╗
--- -- ║ System Dashboard ║
--- -- ╚══════════════════╝
+-- 'viewport' LogMoved (logView m) (map text (logs m)) & 'fill' & 'focusable' "logs"
 -- @
-banner :: [L] -> L
-banner content = LBox "" content BorderDouble
+viewport :: (Viewport -> msg) -> Viewport -> [View msg] -> View msg
+viewport moved vp = Scrolled moved vp . vstack
 
--- | Prefix every line, e.g. @'margin' "[error]" ['text' "boom"]@.
-margin :: String -> [L] -> L
-margin prefix elements = L (Margin (T.pack prefix) elements)
+-- | A list with a cursor. Keys, clicks and the wheel move it; Enter picks.
+data SelectList a = SelectList [a] Int
 
-hr :: L
-hr = L (HorizontalRule "─" 50)
+instance Functor SelectList where
+  fmap f (SelectList xs i) = SelectList (map f xs) i
 
-hr' :: String -> L
-hr' glyph = L (HorizontalRule (T.pack glyph) 50)
+selectListOf :: [a] -> SelectList a
+selectListOf xs = SelectList xs 0
 
-hr'' :: String -> Int -> L
-hr'' glyph n = L (HorizontalRule (T.pack glyph) n)
+selectedItem :: SelectList a -> Maybe a
+selectedItem (SelectList xs i) = listToMaybe (drop i xs)
 
-vr :: L
-vr = L (VerticalRule "│" 10)
-
-vr' :: String -> L
-vr' glyph = L (VerticalRule (T.pack glyph) 10)
-
-vr'' :: String -> Int -> L
-vr'' glyph n = L (VerticalRule (T.pack glyph) n)
-
-pad :: Element a => Int -> a -> L
-pad p element = L (Padded (renderElement element) p)
-
--- | Side by side with a two-space gap.
---
--- @
--- 'columns' ['layout' ["A", "B"], 'layout' ["C", "D"]]
--- -- A  C
--- -- B  D
--- @
-columns :: [L] -> L
-columns elements = L (Columns elements 2)
-
-columns' :: Int -> [L] -> L
-columns' spacing elements = L (Columns elements spacing)
-
--- |
--- @
--- 'truncate'' 15 "Very long text that will be cut off"  -- Very long te...
--- @
-truncate' :: Element a => Int -> a -> L
-truncate' maxWidth element = L (Truncated (renderElement element) maxWidth "...")
-
-truncate'' :: Element a => Int -> String -> a -> L
-truncate'' maxWidth ellipsis element = L (Truncated (renderElement element) maxWidth (T.pack ellipsis))
-
--- | Horizontal bar chart.
-chart :: [(String, Double)] -> L
-chart points = L (Chart [ (T.pack label, v) | (label, v) <- points ])
-
-table :: [String] -> [[L]] -> L
-table headers rows = LTable (map T.pack headers) rows BorderNormal
-
-section :: String -> [L] -> L
-section title content = L (Section (T.pack title) content "=" 3)
-
-section' :: String -> String -> [L] -> L
-section' glyph title content = L (Section (T.pack title) content (T.pack glyph) 3)
-
-section'' :: String -> String -> Int -> [L] -> L
-section'' glyph title n content = L (Section (T.pack title) content (T.pack glyph) n)
-
-kv :: [(String, String)] -> L
-kv pairs = L (KeyValue [ (T.pack k, T.pack v) | (k, v) <- pairs ])
-
--- | Only 'box', 'statusCard' and 'table' have borders; anything else passes
--- through untouched.
---
--- @
--- withBorder BorderDouble $ table [\"Name\"] [[text \"Alice\"]]
--- @
-withBorder :: Border -> L -> L
-withBorder = setBorder
-
-withColor :: Color -> L -> L
-withColor = Colored
-
-withStyle :: Style -> L -> L
-withStyle = Styled
-
-tree :: String -> [Tree] -> L
-tree name children = L (Tree (T.pack name) children)
-
-leaf :: String -> Tree
-leaf name = Tree (T.pack name) []
-
-branch :: String -> [Tree] -> Tree
-branch name = Tree (T.pack name)
+-- | @selectList moved picked draw list@. Keeps the cursor in sight when it
+-- has less room than it needs.
+selectList :: (SelectList a -> msg) -> (a -> msg) -> (a -> View msg) -> SelectList a -> View msg
+selectList moved picked draw sl@(SelectList xs i) =
+  Following i (vstack (zipWith item [0 ..] xs))
+    & onKey keys
+    & onScroll (\d -> moved (at (i + d)))
+  where
+    at j = SelectList xs (max 0 (min (length xs - 1) j))
+    item j x
+      | j == i    = row ["›", draw x] & fg ColorCyan & onClick (moved (at j))
+      | otherwise = row [" ", draw x] & onClick (moved (at j))
+    keys = \case
+      KeyUp       -> Just (moved (at (i - 1)))
+      KeyDown     -> Just (moved (at (i + 1)))
+      KeyPageUp   -> Just (moved (at (i - 10)))
+      KeyPageDown -> Just (moved (at (i + 10)))
+      KeyHome     -> Just (moved (at 0))
+      KeyEnd      -> Just (moved (at (length xs - 1)))
+      KeyEnter    -> picked <$> selectedItem sl
+      _           -> Nothing
 
 --------------------------------------------------------------------------------
 -- Spinners
@@ -1014,17 +1626,17 @@ data Spinner = Spinner Text Int SpinnerStyle
 
 instance Element Spinner where
   renderElement (Spinner label frame style)
-    | T.null label = glyph
-    | otherwise    = glyph <> " " <> label
-    where glyph = spinnerFrame style frame
+    | T.null label = frameGlyph
+    | otherwise    = frameGlyph <> " " <> label
+    where frameGlyph = spinnerFrame style frame
 
 -- | One frame of a spinner; bump the frame each tick to animate.
 --
 -- @
 -- 'layout' ['spinner' \"Working\" tick 'SpinnerDots']
 -- @
-spinner :: String -> Int -> SpinnerStyle -> L
-spinner label frame style = L (Spinner (T.pack label) frame style)
+spinner :: String -> Int -> SpinnerStyle -> View m
+spinner label frame style = Leaf (Spinner (T.pack label) frame style)
 
 --------------------------------------------------------------------------------
 -- Plots
@@ -1078,8 +1690,8 @@ instance Element SparklineData where
         | rng == 0  = 4
         | otherwise = max 1 $ min 8 $ floor ((v - mn) / rng * 8)
 
-plotSparkline :: [Double] -> L
-plotSparkline = L . SparklineData
+plotSparkline :: [Double] -> View m
+plotSparkline = Leaf . SparklineData
 
 -- | Points, label, colour.
 data Series = Series [(Double, Double)] String Color
@@ -1110,9 +1722,9 @@ instance Element PlotData where
             where
               plot g p =
                 let (px, py) = toPixel p
-                    bit = brailleDot (py `mod` 4) (px `mod` 2)
+                    dot = brailleDot (py `mod` 4) (px `mod` 2)
                 in updGrid (py `div` 4) (px `div` 2)
-                     (\(b, si) -> (b .|. bit, if si < 0 then sIdx else si)) g
+                     (\(b, si) -> (b .|. dot, if si < 0 then sIdx else si)) g
 
           updGrid r c f g =
             [ if ri == r then [ if ci == c then f x else x | (ci, x) <- zip [0..] row' ] else row'
@@ -1126,9 +1738,9 @@ instance Element PlotData where
 
           cell (bits, si)
             | bits == 0 = " "
-            | si < 0    = glyph
-            | otherwise = wrapAnsi (pickColor si (sColor (ss !! si))) glyph
-            where glyph = T.singleton (chr (0x2800 + bits))
+            | si < 0    = dot
+            | otherwise = wrapAnsi (pickColor si (sColor (ss !! si))) dot
+            where dot = T.singleton (chr (0x2800 + bits))
 
           gridLines = zipWith (\lbl r -> padLeft yLabelW lbl <> " │" <> foldMap cell r) yLabels grid
 
@@ -1149,8 +1761,8 @@ instance Element PlotData where
     where sColor (Series _ _ c) = c
 
 -- | Braille line plot, @w@x@h@ cells.
-plotLine :: Int -> Int -> [Series] -> L
-plotLine w h ss = L (PlotData ss w h)
+plotLine :: Int -> Int -> [Series] -> View m
+plotLine w h ss = Leaf (PlotData ss w h)
 
 -- | Value, label, colour.
 data Slice = Slice Double String Color
@@ -1199,8 +1811,8 @@ instance Element PieData where
     where slColor (Slice _ _ c) = c
 
 -- | Braille pie chart, @w@x@h@ cells.
-plotPie :: Int -> Int -> [Slice] -> L
-plotPie w h sl = L (PieData sl w h)
+plotPie :: Int -> Int -> [Slice] -> View m
+plotPie w h sl = Leaf (PieData sl w h)
 
 -- | Value, label, colour.
 data BarItem = BarItem Double String Color
@@ -1243,8 +1855,8 @@ instance Element BarChartData where
     in T.intercalate "\n" (gridLines <> [xAxis, barLabels])
 
 -- | Vertical bar chart, @w@x@h@ cells.
-plotBar :: Int -> Int -> [BarItem] -> L
-plotBar w h items = L (BarChartData items w h)
+plotBar :: Int -> Int -> [BarItem] -> View m
+plotBar w h items = Leaf (BarChartData items w h)
 
 -- | Segments bottom to top, and the group label.
 data StackedBarGroup = StackedBarGroup [BarItem] String
@@ -1301,8 +1913,8 @@ instance Element StackedBarChartData where
 
     in T.intercalate "\n" (gridLines <> [xAxis, grpLabels] <> legend)
 
-plotStackedBar :: Int -> Int -> [StackedBarGroup] -> L
-plotStackedBar w h groups = L (StackedBarChartData groups w h)
+plotStackedBar :: Int -> Int -> [StackedBarGroup] -> View m
+plotStackedBar w h groups = Leaf (StackedBarChartData groups w h)
 
 -- | Grid of values, row labels, column labels.
 data HeatmapData = HeatmapData [[Double]] [String] [String]
@@ -1344,150 +1956,80 @@ instance Element HeatmapElement where
     in T.intercalate "\n" ([header] <> dataRows <> ["", legendLine])
 
 -- | Heatmap with 6-column cells.
-plotHeatmap :: HeatmapData -> L
+plotHeatmap :: HeatmapData -> View m
 plotHeatmap = plotHeatmap' 6
 
-plotHeatmap' :: Int -> HeatmapData -> L
-plotHeatmap' cellW dat = L (HeatmapElement dat cellW)
+plotHeatmap' :: Int -> HeatmapData -> View m
+plotHeatmap' cellW dat = Leaf (HeatmapElement dat cellW)
 
 --------------------------------------------------------------------------------
--- TUI runtime
-
-data Key
-  = KeyChar Char
-  | KeyCtrl Char           -- ^ e.g. @KeyCtrl 'C'@
-  | KeyEnter
-  | KeyBackspace
-  | KeyTab
-  | KeyEscape
-  | KeyDelete
-  | KeyUp
-  | KeyDown
-  | KeyLeft
-  | KeyRight
-  | KeyPageUp
-  | KeyPageDown
-  | KeyHome
-  | KeyEnd
-  | KeySpecial String      -- ^ unrecognised escape sequence
-  deriving (Show, Eq)
-
--- | Side effects returned from 'appUpdate'.
-data Cmd msg
-  = CmdNone
-  | CmdRun (IO (Maybe msg))
-  | CmdBatch [Cmd msg]
-  | CmdExit
-
--- | Fire and forget.
-cmdFire :: IO () -> Cmd msg
-cmdFire io = CmdRun (io >> pure Nothing)
-
--- | Run IO and feed the result back as a message.
-cmdTask :: IO msg -> Cmd msg
-cmdTask io = CmdRun (Just <$> io)
-
-cmdAfterMs :: Int -> msg -> Cmd msg
-cmdAfterMs ms msg = CmdRun (threadDelay (ms * 1000) >> pure (Just msg))
-
--- | Run a command, returning the first message it produced. 'CmdExit' is
--- left for the runtime to notice via 'cmdIsExit'.
-executeCmd :: Cmd msg -> IO (Maybe msg)
-executeCmd CmdNone         = pure Nothing
-executeCmd CmdExit         = pure Nothing
-executeCmd (CmdRun io)     = io
-executeCmd (CmdBatch cmds) = asum <$> mapM executeCmd cmds
-
-cmdIsExit :: Cmd msg -> Bool
-cmdIsExit CmdExit         = True
-cmdIsExit (CmdBatch cmds) = any cmdIsExit cmds
-cmdIsExit _               = False
-
-data Sub msg
-  = SubNone
-  | SubKeyPress (Key -> Maybe msg)
-  | SubEveryMs Int msg               -- ^ interval in ms
-  | SubBatch [Sub msg]
-
-subBatch :: [Sub msg] -> Sub msg
-subBatch = SubBatch
-
-subKeyPress :: (Key -> Maybe msg) -> Sub msg
-subKeyPress = SubKeyPress
-
-subEveryMs :: Int -> msg -> Sub msg
-subEveryMs = SubEveryMs
-
--- | An Elm-style app.
+-- Terminal
 --
--- @
--- data Msg = Inc | Dec
---
--- counter :: 'LayoutzApp' Int Msg
--- counter = 'LayoutzApp'
---   { 'appInit'          = (0, 'CmdNone')
---   , 'appUpdate'        = \\msg n -> case msg of
---       Inc -> (n + 1, 'CmdNone')
---       Dec -> (n - 1, 'CmdNone')
---   , 'appSubscriptions' = \\_ -> 'subKeyPress' $ \\case
---       'KeyChar' \'+\' -> Just Inc
---       'KeyChar' \'-\' -> Just Dec
---       _             -> Nothing
---   , 'appView'          = \\n -> 'layout' ['text' $ "Count: " <> show n]
---   }
--- @
-data LayoutzApp state msg = LayoutzApp
-  { appInit          :: (state, Cmd msg)
-  , appUpdate        :: msg -> state -> (state, Cmd msg)
-  , appSubscriptions :: state -> Sub msg
-  , appView          :: state -> L
-  }
+-- Everything that touches the tty directly: setup and teardown, escape codes
+-- out, keys and mouse reports in. The runtime and the Ask prompts sit on top.
 
-data AppAlignment = AppAlignLeft | AppAlignCenter | AppAlignRight
-  deriving (Show, Eq)
+data TermMode = FullScreen | Inline
 
--- |
--- @
--- 'runAppWith' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
--- @
-data AppOptions = AppOptions
-  { optAlignment    :: AppAlignment
-  , optClearOnStart :: Bool  -- ^ enter the alt screen and clear
-  , optClearOnExit  :: Bool  -- ^ leave the alt screen
-  } deriving (Show, Eq)
+-- | Unbuffered, no echo, cursor hidden (and the alt screen for 'FullScreen')
+-- while @body@ runs. Put back on the way out, exceptions included.
+withTerm :: TermMode -> IO a -> IO a
+withTerm mode body = do
+  oldBuffering <- hGetBuffering stdin
+  oldEcho      <- hGetEcho stdin
+  hSetBuffering stdin NoBuffering
+  hSetBuffering stdout NoBuffering
+  hSetEcho stdin False
+  when full $ enterAltScreen >> clearScreen
+  hideCursor
+  body `finally` do
+    showCursor
+    when full exitAltScreen
+    hFlush stdout
+    hSetBuffering stdin oldBuffering
+    hSetEcho stdin oldEcho
+  where
+    full = case mode of
+      FullScreen -> True
+      Inline     -> False
 
--- | Left-aligned, full screen.
-defaultAppOptions :: AppOptions
-defaultAppOptions = AppOptions
-  { optAlignment    = AppAlignLeft
-  , optClearOnStart = True
-  , optClearOnExit  = True
-  }
+-- | Run @action@ on every SIGWINCH while @body@ runs. Nothing on Windows.
+onResize :: IO () -> IO a -> IO a
+#if !defined(mingw32_HOST_OS)
+onResize action body = do
+  old <- installHandler sigWINCH (Catch action) Nothing
+  body `finally` installHandler sigWINCH old Nothing
+#else
+onResize _ body = body
+#endif
+
+-- | Press, release and wheel, SGR-encoded.
+mouseEnable, mouseDisable :: Text
+mouseEnable  = "\ESC[?1000h\ESC[?1006h"
+mouseDisable = "\ESC[?1006l\ESC[?1000l"
+
+-- | One write(2) per call. Data.Text.IO on an unbuffered handle issues a
+-- syscall per character, so big frames reach the terminal in pieces and tear.
+putText :: Text -> IO ()
+putText = Utf8.putStr
+
+clearScreen :: IO ()
+clearScreen = putText "\ESC[2J\ESC[H"
+
+hideCursor :: IO ()
+hideCursor = putText "\ESC[?25l"
+
+showCursor :: IO ()
+showCursor = putText "\ESC[?25h"
+
+enterAltScreen :: IO ()
+enterAltScreen = putText "\ESC[?1049h"
+
+exitAltScreen :: IO ()
+exitAltScreen = putText "\ESC[?1049l"
 
 -- | Save cursor, jump to the far corner, ask where we ended up, restore.
 cursorProbe :: Text
 cursorProbe = "\ESC7\ESC[999;999H\ESC[6n\ESC8"
-
--- | Terminal width from a cursor position report; 80 if the terminal
--- doesn't answer within 100ms.
-getTerminalWidth :: IO Int
-getTerminalWidth = do
-  putText cursorProbe
-  hFlush stdout
-  fromMaybe 80 <$> timeout 100000 readCPR
-  where
-    -- ESC [ rows ; cols R
-    readCPR = do
-      c <- getChar
-      if c /= '\ESC' then pure 80 else do
-        c2 <- getChar
-        if c2 /= '[' then pure 80 else parseResponse ""
-    parseResponse acc = do
-      c <- getChar
-      if c /= 'R' then parseResponse (c : acc) else
-        pure $ case break (== ';') (reverse acc) of
-          (_, ';':cols) | [(n, "")] <- reads cols -> n
-          _ -> 80
 
 -- | @(rows, cols)@, falling back to @(24, 80)@. Needs raw mode and nobody
 -- else reading stdin.
@@ -1511,25 +2053,251 @@ getTerminalSize = do
       [(n, "")] -> n
       _         -> d
 
--- | Run full screen. Esc, Ctrl-C or Ctrl-D quits.
-runApp :: LayoutzApp state msg -> IO ()
-runApp app = () <$ runAppWithFinal defaultAppOptions app
+-- | SGR mouse report: button code, 0-based (row, col), press or release.
+data MouseEvent = MouseEvent { meButton :: Int, mePos :: (Int, Int), mePress :: Bool }
+  deriving (Show, Eq)
 
--- | Like 'runApp', returning the final state.
-runAppFinal :: LayoutzApp state msg -> IO state
-runAppFinal = runAppWithFinal defaultAppOptions
+data Input = InputKey Key | InputMouse MouseEvent | InputSize Int Int  -- rows, cols
+  deriving (Show, Eq)
 
--- | Render in place below the current output (no alt screen) until the app
--- issues 'CmdExit'. Handy for progress bars in scripts.
-runInline :: LayoutzApp state msg -> IO ()
-runInline app = () <$ runAppWithFinal defaultAppOptions
-  { optClearOnStart = False, optClearOnExit = False } app
+-- | Keys only; mouse reports are dropped.
+readKey :: IO Key
+readKey = readInput >>= \case
+  InputKey k -> pure k
+  _          -> readKey
 
-runAppWith :: AppOptions -> LayoutzApp state msg -> IO ()
-runAppWith opts app = () <$ runAppWithFinal opts app
+-- | Read a char at a time until 'parseInput' has a whole input, so nothing
+-- is ever read past it. A lone ESC is told apart from the start of a sequence
+-- by waiting 50ms for the next byte.
+readInput :: IO Input
+readInput = getChar >>= go . pure
+  where
+    go buf = case parseInput buf of
+      Just (i, _) -> pure i
+      Nothing
+        | buf == "\ESC" -> timeout 50000 getChar >>= maybe (pure (InputKey KeyEscape)) (more buf)
+        | otherwise     -> getChar >>= more buf
+    more buf c = go (buf <> [c])
 
--- | Every source (keys, ticks, command results) feeds one channel, so a single
--- thread applies 'appUpdate'.
+-- | The first input in what the terminal sent, and what's left after it.
+-- 'Nothing' if it's empty or stops partway through a sequence. A lone ESC is
+-- 'Nothing' too: it's only an Esc keypress once nothing follows it in time,
+-- and that's up to the caller.
+--
+-- Sequences we don't know come back as 'KeySpecial' rather than being
+-- mistaken for Esc.
+parseInput :: String -> Maybe (Input, String)
+parseInput = \case
+  []           -> Nothing
+  '\ESC' : cs  -> escape cs
+  c : cs       -> Just (InputKey (plainKey c), cs)
+  where
+    plainKey c = case ord c of
+      10  -> KeyEnter
+      13  -> KeyEnter
+      9   -> KeyTab
+      127 -> KeyBackspace
+      8   -> KeyBackspace
+      n | n >= 32 && n <= 126 -> KeyChar c
+        | n < 32              -> KeyCtrl (chr (n + 64))
+        | otherwise           -> KeyChar c
+
+    escape = \case
+      []           -> Nothing
+      '[' : cs     -> csi "" cs
+      'O' : c : cs -> Just (InputKey (ss3 c), cs)   -- application cursor mode
+      "O"          -> Nothing
+      c : cs       -> Just (InputKey (KeySpecial [c]), cs)
+
+    ss3 = \case
+      'H' -> KeyHome
+      'F' -> KeyEnd
+      c   -> KeySpecial ['O', c]
+
+    -- parameter and intermediate bytes, then one final byte in @..~
+    csi acc = \case
+      [] -> Nothing
+      c : cs
+        | c >= '@' && c <= '~' -> Just (decode (reverse acc) c, cs)
+        | otherwise            -> csi (c : acc) cs
+
+    decode ('<' : ps) f | f == 'M' || f == 'm' = sgrMouse ps (f == 'M')
+    -- A cursor position report answering 'cursorProbe'. Modified F3 has the
+    -- same shape (ESC [ 1 ; mods R), but a probe at row 999 never reports row 1.
+    decode ps 'R' | Just [r, c] <- mapM readInt (splitOnChar ';' (T.pack ps)), r > 1 =
+      InputSize r c
+    decode ps f = InputKey $ case (ps, f) of
+      ("", 'A')  -> KeyUp
+      ("", 'B')  -> KeyDown
+      ("", 'C')  -> KeyRight
+      ("", 'D')  -> KeyLeft
+      ("", 'H')  -> KeyHome
+      ("", 'F')  -> KeyEnd
+      ("", 'Z')  -> KeyBackTab
+      ("1", '~') -> KeyHome
+      ("3", '~') -> KeyDelete
+      ("4", '~') -> KeyEnd
+      ("5", '~') -> KeyPageUp
+      ("6", '~') -> KeyPageDown
+      _          -> KeySpecial ('[' : ps <> [f])
+
+    -- ESC [ < button ; col ; row (M | m), coordinates 1-based
+    sgrMouse ps press = case mapM readInt (splitOnChar ';' (T.pack ps)) of
+      Just [b, x, y] -> InputMouse (MouseEvent b (y - 1, x - 1) press)
+      _              -> InputKey (KeySpecial ("[<" <> ps))
+    readInt t = case reads (T.unpack t) of
+      [(n, "")] -> Just n
+      _         -> Nothing
+
+--------------------------------------------------------------------------------
+-- TUI runtime
+
+data Key
+  = KeyChar Char
+  | KeyCtrl Char           -- ^ e.g. @KeyCtrl 'C'@
+  | KeyEnter
+  | KeyBackspace
+  | KeyTab
+  | KeyBackTab             -- ^ Shift-Tab
+  | KeyEscape
+  | KeyDelete
+  | KeyUp
+  | KeyDown
+  | KeyLeft
+  | KeyRight
+  | KeyPageUp
+  | KeyPageDown
+  | KeyHome
+  | KeyEnd
+  | KeySpecial String      -- ^ unrecognised escape sequence
+  deriving (Show, Eq)
+
+-- | Effects for the runtime to run after an update. Combine with @<>@; every
+-- message they produce is delivered.
+data Cmd msg = Cmd [IO (Maybe msg)] (Maybe Text) Bool   -- effects, focus, then quit?
+
+instance Semigroup (Cmd msg) where
+  Cmd a f q <> Cmd b g r = Cmd (a <> b) (g <|> f) (q || r)
+
+instance Monoid (Cmd msg) where
+  mempty = Cmd [] Nothing False
+
+instance Functor Cmd where
+  fmap f (Cmd ios fo q) = Cmd (map (fmap (fmap f)) ios) fo q
+
+cmdNone :: Cmd msg
+cmdNone = mempty
+
+-- | Fire and forget.
+cmdFire :: IO () -> Cmd msg
+cmdFire io = Cmd [Nothing <$ io] Nothing False
+
+-- | Run IO and feed the result back as a message.
+cmdTask :: IO msg -> Cmd msg
+cmdTask io = Cmd [Just <$> io] Nothing False
+
+cmdAfterMs :: Int -> msg -> Cmd msg
+cmdAfterMs ms msg = cmdTask (threadDelay (ms * 1000) >> pure msg)
+
+-- | Stop the app once the other effects in the same command have run.
+cmdQuit :: Cmd msg
+cmdQuit = Cmd [] Nothing True
+
+-- | Move keyboard focus to the named 'focusable'.
+cmdFocus :: String -> Cmd msg
+cmdFocus name = Cmd [] (Just (T.pack name)) False
+
+-- | Run a command's effects in order, collecting the messages.
+executeCmd :: Cmd msg -> IO [msg]
+executeCmd (Cmd ios _ _) = catMaybes <$> sequence ios
+
+-- | What the app listens to. Combine with @<>@. Key handlers see every key a
+-- focused view didn't take.
+data Sub msg = Sub [Key -> Maybe msg] [(Int, msg)] [String -> msg]
+
+instance Semigroup (Sub msg) where
+  Sub a b c <> Sub d e g = Sub (a <> d) (b <> e) (c <> g)
+
+instance Monoid (Sub msg) where
+  mempty = Sub [] [] []
+
+instance Functor Sub where
+  fmap f (Sub ks ts fs) = Sub (map (fmap f .) ks) [ (n, f m) | (n, m) <- ts ] (map (f .) fs)
+
+subNone :: Sub msg
+subNone = mempty
+
+subKeyPress :: (Key -> Maybe msg) -> Sub msg
+subKeyPress k = Sub [k] [] []
+
+-- | A message every @n@ milliseconds.
+subEveryMs :: Int -> msg -> Sub msg
+subEveryMs n m = Sub [] [(n, m)] []
+
+-- | The name of the 'focusable' that just got focus.
+subFocus :: (String -> msg) -> Sub msg
+subFocus f = Sub [] [] [f]
+
+-- | An Elm-style app.
+--
+-- @
+-- data Msg = Inc | Dec
+--
+-- counter :: 'App' Int Msg
+-- counter = 'sandbox' 0 step $ \\n ->
+--   'row' ['button' "-" Dec, 'display' n, 'button' "+" Inc]
+--   where step Inc = (+ 1); step Dec = subtract 1
+-- @
+data App model msg = App
+  { appInit          :: (model, Cmd msg)
+  , appUpdate        :: msg -> model -> (model, Cmd msg)
+  , appSubscriptions :: model -> Sub msg
+  , appView          :: model -> View msg
+  }
+
+-- | An app with no effects and no subscriptions.
+sandbox :: model -> (msg -> model -> model) -> (model -> View msg) -> App model msg
+sandbox m step view = App
+  { appInit          = (m, cmdNone)
+  , appUpdate        = \msg s -> (step msg s, cmdNone)
+  , appSubscriptions = const subNone
+  , appView          = view
+  }
+
+data AppAlignment = AppAlignLeft | AppAlignCenter | AppAlignRight
+  deriving (Show, Eq)
+
+-- |
+-- @
+-- 'run' 'defaultOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
+-- @
+data Options = Options
+  { optAlignment :: AppAlignment
+  , optInline    :: Bool   -- ^ draw in place under the current output, no alt screen
+  , optQuitKeys  :: [Key]  -- ^ keys that end the app; Ctrl-C always does
+  , optMaxFps    :: Int    -- ^ frame cap; changes in between share one frame
+  } deriving (Show, Eq)
+
+-- | Full screen, left-aligned, Esc or Ctrl-D quits.
+defaultOptions :: Options
+defaultOptions = Options
+  { optAlignment = AppAlignLeft
+  , optInline    = False
+  , optQuitKeys  = [KeyEscape, KeyCtrl 'D']
+  , optMaxFps    = 60
+  }
+
+-- | Full screen with 'defaultOptions'.
+runApp :: App model msg -> IO ()
+runApp = void . run defaultOptions
+
+-- | Draw in place under the current output until 'cmdQuit'. Handy for
+-- progress bars in scripts.
+runInline :: App model msg -> IO ()
+runInline = void . run defaultOptions { optInline = True }
+
+-- | Every source (keys, mouse, ticks, command results) feeds one channel, so
+-- a single thread applies 'appUpdate'.
 data AppEvent msg
   = AppMsg msg
   | AppExit
@@ -1537,21 +2305,24 @@ data AppEvent msg
 isQuitKey :: Key -> Bool
 isQuitKey k = k == KeyEscape || k == KeyCtrl 'C' || k == KeyCtrl 'D'
 
--- | Like 'runAppWith', returning the final state.
-runAppWithFinal :: AppOptions -> LayoutzApp state msg -> IO state
-runAppWithFinal opts LayoutzApp{..} = do
-  oldBuffering <- hGetBuffering stdin
-  oldEcho <- hGetEcho stdin
+-- | Run an app, returning its final model.
+--
+-- Mouse reporting is on exactly while the view has an 'onClick' or
+-- 'onScroll' in it, so apps without them keep native text selection.
+run :: Options -> App model msg -> IO model
+run opts app
+  | optInline opts = withTerm Inline (runIn opts app)
+  -- on resize, ask for the size again; the input thread reads the answer
+  | otherwise      = withTerm FullScreen (onResize (putText cursorProbe >> hFlush stdout) (runIn opts app))
 
-  hSetBuffering stdin NoBuffering
-  hSetBuffering stdout NoBuffering
-  hSetEcho stdin False
-
-  when (optClearOnStart opts) $ enterAltScreen >> clearScreen
-  hideCursor
+-- | 'run' once the terminal is set up.
+runIn :: Options -> App model msg -> IO model
+runIn opts App{..} = do
+  let fullScreen = not (optInline opts)
+      quits k    = k == KeyCtrl 'C' || k `elem` optQuitKeys opts
 
   -- before any thread starts reading stdin
-  termWidth <- getTerminalWidth
+  termSize <- newIORef =<< getTerminalSize
 
   let (initialState, initialCmd) = appInit
 
@@ -1559,76 +2330,106 @@ runAppWithFinal opts LayoutzApp{..} = do
   eventChan <- newChan
   cmdChan   <- newChan
 
-  let applyMsg msg = do
+  focusRef  <- newIORef Nothing
+
+  -- Full while something the view depends on has changed since the last
+  -- frame; the render thread sleeps on it instead of polling.
+  dirty <- newMVar ()
+
+  let send = writeChan eventChan . AppMsg
+      markDirty = void (tryPutMVar dirty ())
+
+      setFocus new = do
+        old <- atomicModifyIORef' focusRef (\o -> (new, o))
+        when (new /= old) $ do
+          markDirty
+          Sub _ _ listeners <- appSubscriptions <$> readIORef stateRef
+          forM_ new $ \n -> mapM_ (send . ($ T.unpack n)) listeners
+
+      schedule cmd@(Cmd ios focusOn q) = do
+        mapM_ (setFocus . Just) focusOn
+        if null ios then when q (writeChan eventChan AppExit) else writeChan cmdChan cmd
+
+      applyMsg msg = do
         cmd <- atomicModifyIORef' stateRef (appUpdate msg)
-        case cmd of
-          CmdNone -> pure ()
-          CmdExit -> writeChan eventChan AppExit
-          _       -> writeChan cmdChan cmd
+        markDirty
+        schedule cmd
 
   cmdThread <- forkIO $ forever $ do
-    cmd <- readChan cmdChan
-    when (cmdIsExit cmd) $ writeChan eventChan AppExit
+    cmd@(Cmd _ _ q) <- readChan cmdChan
     executeCmd cmd >>= mapM_ (writeChan eventChan . AppMsg)
+    when q $ writeChan eventChan AppExit
 
-  case initialCmd of
-    CmdNone -> pure ()
-    _       -> writeChan cmdChan initialCmd
+  schedule initialCmd
 
-  lastLineCount <- newIORef 0
-  lastRendered  <- newIORef ""
+  lastFrame     <- newIORef ([], [])
+  onScreen      <- newIORef []   -- rows as last written, alignment included
   sentKittyIds  <- newIORef IntSet.empty
+  hitMap        <- newIORef []   -- click regions of what's on screen
+  mouseOn       <- newIORef False
+  resized       <- newIORef False
 
   renderThread <- forkIO $ forever $ do
-    rendered <- renderElement . appView <$> readIORef stateRef
-    prev <- readIORef lastRendered
+    takeMVar dirty
+    frameStart <- getMonotonicTimeNSec
+    (termH, termW) <- readIORef termSize
+    redraw <- atomicModifyIORef' resized (\r -> (False, r))
+    -- Full-screen apps get the terminal as room for 'fill'. Inline ones don't
+    -- know which row they start on, so they get no room and no mouse.
+    let room | fullScreen = Room (Just termW) (Just termH) False
+             | otherwise  = natural
+    focused <- readIORef focusRef
+    block <- drawView room . resolveFocus focused . appView <$> readIORef stateRef
+    let frame = (bRaw block, bRows block)
+    prev <- readIORef lastFrame
 
-    when (rendered /= prev) $ do
-      prevLineCount <- readIORef lastLineCount
+    when (redraw || frame /= prev) $ do
+      -- after a resize the terminal has reflowed the screen: start clean
+      shown <- if redraw then [] <$ clearScreen else readIORef onScreen
+      wasOn <- readIORef mouseOn
       -- upload each kitty image once, not every frame
       sent <- readIORef sentKittyIds
-      let (deduped, sent') = dedupeTransmits sent rendered
-      writeIORef sentKittyIds sent'
-      let ls        = T.lines deduped
-          lineCount = length ls
-          blockW    = maximum (0 : map visibleLength ls)
+      let (uploads, sent') = dedupeTransmits sent (T.concat (bRaw block))
           indent = case optAlignment opts of
             AppAlignLeft   -> 0
-            AppAlignCenter -> max 0 ((termWidth - blockW) `div` 2)
-            AppAlignRight  -> max 0 (termWidth - blockW)
-          aligned
-            | indent > 0 = map (T.replicate indent " " <>) ls
-            | otherwise  = ls
-          home
-            | optClearOnStart opts = "\ESC[H"
-            | prevLineCount > 0    = "\ESC[" <> T.show prevLineCount <> "A\r"
-            | otherwise            = ""
-      putText $ home <> foldMap (<> "\ESC[K\n") aligned
-                <> T.replicate (max 0 (prevLineCount - lineCount)) "\ESC[K\n"
+            AppAlignCenter -> max 0 ((termW - blockWidth block) `div` 2)
+            AppAlignRight  -> max 0 (termW - blockWidth block)
+          rows      = map (replicate indent blank <>) (snd frame)
+          hits      = moveHits 0 indent (bHits block)
+          wantMouse = fullScreen && not (null hits)
+          mouseMode
+            | wantMouse == wasOn = ""
+            | wantMouse          = mouseEnable
+            | otherwise          = mouseDisable
+          body
+            | fullScreen = diffRows shown rows   -- only the cells that changed
+            | otherwise =
+                (if null shown then "" else "\ESC[" <> T.show (length shown) <> "A\r")
+                <> foldMap ((<> "\ESC[K\n") . rowText) rows
+                <> T.replicate (max 0 (length shown - length rows)) "\ESC[K\n"
+      putText $ "\ESC[?2026h" <> mouseMode <> uploads <> body <> "\ESC[?2026l"
       hFlush stdout
-      writeIORef lastRendered rendered
-      writeIORef lastLineCount lineCount
+      writeIORef sentKittyIds sent'
+      writeIORef mouseOn wantMouse
+      writeIORef hitMap hits
+      -- keep focus on something that's on screen
+      case focusNames hits of
+        first : _ | maybe True (`notElem` focusNames hits) focused -> setFocus (Just first)
+        _ -> pure ()
+      writeIORef onScreen rows
+      writeIORef lastFrame frame
 
-    threadDelay 33333
-
-  let keyHandler = \case
-        SubKeyPress f -> Just f
-        SubBatch subs -> case [f | SubKeyPress f <- subs] of
-          (f:_) -> Just f
-          []    -> Nothing
-        _ -> Nothing
-
-      tickSubs = \case
-        SubEveryMs interval msg -> [(interval, msg)]
-        SubBatch subs           -> concatMap tickSubs subs
-        _                       -> []
+    -- Changes arriving before the next frame is due share it.
+    spent <- (`div` 1000) . subtract frameStart <$> getMonotonicTimeNSec
+    threadDelay (max 0 (1000000 `div` max 1 (optMaxFps opts) - fromIntegral spent))
 
   -- Deadlines are tracked per interval so re-subscribing each frame doesn't
-  -- reset the clock. Polls every 5ms.
+  -- reset the clock. Sleeps until the next deadline, waking at least every
+  -- 20ms to pick up changed subscriptions.
   tickThread <- forkIO $
     let loop deadlines = do
-          ticks <- tickSubs . appSubscriptions <$> readIORef stateRef
-          now   <- getMonotonicTimeNSec
+          Sub _ ticks _ <- appSubscriptions <$> readIORef stateRef
+          now <- getMonotonicTimeNSec
           let ns ms     = fromIntegral ms * 1000 * 1000
               armed     = [ (i, fromMaybe (now + ns i) (lookup i deadlines)) | i <- nub (map fst ticks) ]
               due       = [ i | (i, d) <- armed, d <= now ]
@@ -1636,34 +2437,55 @@ runAppWithFinal opts LayoutzApp{..} = do
                 [ (i, if i `elem` due then let nd = d + ns i in if nd <= now then now + ns i else nd else d)
                 | (i, d) <- armed ]
           mapM_ (writeChan eventChan . AppMsg) [ msg | (i, msg) <- ticks, i `elem` due ]
-          threadDelay 5000
+          let nextNs = minimum (now + 20000000 : map snd deadlines')
+          threadDelay (max 1000 (min 20000 (fromIntegral ((nextNs - now) `div` 1000))))
           loop deadlines'
     in loop []
 
   -- EOF on stdin quits, same as Ctrl-D.
   inputThread <- forkIO $
-    let loop = do
-          key <- readKey
-          if isQuitKey key then writeChan eventChan AppExit else do
-            sub <- appSubscriptions <$> readIORef stateRef
-            mapM_ (writeChan eventChan . AppMsg) (keyHandler sub >>= ($ key))
+    let loop = readInput >>= \case
+          InputSize r c -> do
+            writeIORef termSize (r, c)
+            writeIORef resized True
+            markDirty
             loop
+          InputMouse ev -> do
+            hits <- readIORef hitMap
+            when (mePress ev && meButton ev .&. 0x43 == 0) $   -- a left click focuses
+              mapM_ (setFocus . Just) (listToMaybe (mapMaybe hFocus (hitsAt (mePos ev) hits)))
+            mapM_ send (mouseMsg ev hits)
+            loop
+          InputKey key
+            | quits key -> writeChan eventChan AppExit
+            | otherwise -> do
+                hits    <- readIORef hitMap
+                focused <- readIORef focusRef
+                let order = focusNames hits
+                    step  = if key == KeyBackTab then -1 else 1
+                case order of
+                  first : _ | key `elem` [KeyTab, KeyBackTab] ->
+                    setFocus $ Just $ case focused >>= (`elemIndex` order) of
+                      Just i  -> order !! ((i + step) `mod` length order)
+                      Nothing -> first
+                  _ -> case keyMsg focused hits key of
+                    Just m  -> send m
+                    Nothing -> do
+                      Sub keys _ _ <- appSubscriptions <$> readIORef stateRef
+                      mapM_ send (mapMaybe ($ key) keys)
+                loop
     in loop `catch` \(_ :: IOException) -> writeChan eventChan AppExit
 
   let cleanup = do
         mapM_ killThread [renderThread, cmdThread, tickThread, inputThread]
-        showCursor
-        when (optClearOnExit opts) exitAltScreen
-        hFlush stdout
-        hSetBuffering stdin oldBuffering
-        hSetEcho stdin oldEcho
+        readIORef mouseOn >>= \on -> when on (putText mouseDisable)
 
       dispatch = readChan eventChan >>= \case
         AppExit    -> pure ()
         AppMsg msg -> applyMsg msg >> dispatch
 
-      -- Ctrl-C is a normal quit; everything else rethrows, and `finally`
-      -- puts the tty back either way.
+      -- Ctrl-C is a normal quit, everything else rethrows. withTerm puts
+      -- the tty back either way.
       onAsync UserInterrupt = pure ()
       onAsync e             = throwIO e
 
@@ -1671,65 +2493,14 @@ runAppWithFinal opts LayoutzApp{..} = do
 
   readIORef stateRef
 
--- | One write(2) per call. Data.Text.IO on an unbuffered handle issues a
--- syscall per character, so big frames reach the terminal in pieces and tear.
-putText :: Text -> IO ()
-putText = Utf8.putStr
-
-clearScreen :: IO ()
-clearScreen = putText "\ESC[2J\ESC[H"
-
-hideCursor :: IO ()
-hideCursor = putText "\ESC[?25l"
-
-showCursor :: IO ()
-showCursor = putText "\ESC[?25h"
-
-enterAltScreen :: IO ()
-enterAltScreen = putText "\ESC[?1049h"
-
-exitAltScreen :: IO ()
-exitAltScreen = putText "\ESC[?1049l"
-
-readKey :: IO Key
-readKey = getChar >>= \c -> case ord c of
-    10  -> pure KeyEnter
-    13  -> pure KeyEnter
-    27  -> readEscapeSequence
-    9   -> pure KeyTab
-    127 -> pure KeyBackspace
-    8   -> pure KeyBackspace
-    n | n >= 32 && n <= 126 -> pure $ KeyChar c
-      | n < 32              -> pure $ KeyCtrl (chr (n + 64))
-      | otherwise           -> pure $ KeyChar c
-
--- | A lone ESC is told apart from an escape sequence by waiting 50ms for
--- the next byte.
-readEscapeSequence :: IO Key
-readEscapeSequence = timeout 50000 getChar >>= \case
-  Nothing  -> pure KeyEscape
-  Just '[' -> getChar >>= \case
-    'A' -> pure KeyUp
-    'B' -> pure KeyDown
-    'C' -> pure KeyRight
-    'D' -> pure KeyLeft
-    'H' -> pure KeyHome
-    'F' -> pure KeyEnd
-    n | n >= '1' && n <= '6' -> do   -- ESC [ n ~
-      c3 <- getChar
-      pure $ if c3 /= '~' then KeyEscape else case n of
-        '1' -> KeyHome
-        '3' -> KeyDelete
-        '4' -> KeyEnd
-        '5' -> KeyPageUp
-        '6' -> KeyPageDown
-        _   -> KeyEscape
-    _ -> pure KeyEscape
-  Just 'O' -> getChar >>= \case      -- application cursor mode
-    'H' -> pure KeyHome
-    'F' -> pure KeyEnd
-    _   -> pure KeyEscape
-  Just _ -> pure KeyEscape
+-- | Left press without modifiers is a click; codes 64\/65 are the wheel.
+mouseMsg :: MouseEvent -> [(Rect, Handlers m)] -> Maybe m
+mouseMsg MouseEvent{..} hits
+  | not mePress            = Nothing
+  | meButton .&. 64 /= 0   = dispatchAt (\h -> ($ notch) <$> hScroll h) mePos hits
+  | meButton .&. 0x3f == 0 = dispatchAt hClick mePos hits
+  | otherwise              = Nothing
+  where notch = if meButton .&. 1 == 0 then -1 else 1
 
 --------------------------------------------------------------------------------
 -- Small ANSI / text helpers
@@ -1784,8 +2555,6 @@ data KittyImage = KittyImage
 
 instance Element KittyImage where
   renderElement img = kittyTransmit img <> kittyPlacement img
-  width  = kiCols
-  height = kiRows
 
 -- | 24-bit FNV-1a of the payload (never 0). Stable across frames, which is
 -- what lets the runtime skip re-uploading.
@@ -1845,11 +2614,11 @@ kittyPlacement :: KittyImage -> Text
 kittyPlacement img = T.intercalate "\n" (map rowLine [0 .. kiRows img - 1])
   where
     theId = kittyImageId (kiPayload img) (kiIdOverride img)
-    fg = "\ESC[38;2;" <> T.show ((theId `shiftR` 16) .&. 0xff) <> ";"
+    fgCode = "\ESC[38;2;" <> T.show ((theId `shiftR` 16) .&. 0xff) <> ";"
          <> T.show ((theId `shiftR` 8) .&. 0xff) <> ";" <> T.show (theId .&. 0xff) <> "m"
     placeholder = T.singleton kittyPlaceholderChar
     diacritic i = T.singleton (chr (rowColumnDiacritics !! i))
-    rowLine r = fg <> placeholder <> diacritic r <> diacritic 0
+    rowLine r = fgCode <> placeholder <> diacritic r <> diacritic 0
                 <> T.replicate (kiCols img - 1) placeholder <> ansiReset
 
 -- | Drop transmit blocks for ids already in the set, adding new ones.
@@ -1894,19 +2663,19 @@ mkKitty payload fmt cols rows pxW pxH alt
 
 -- | PNG bytes shown in a @cols@ x @rows@ cell box. The terminal does the
 -- decoding and scaling.
-kittyImage :: [Word8] -> Int -> Int -> L
-kittyImage bytes cols rows = L (mkKitty bytes formatPng cols rows 0 0 "")
+kittyImage :: [Word8] -> Int -> Int -> View m
+kittyImage bytes cols rows = Leaf (mkKitty bytes formatPng cols rows 0 0 "")
 
 -- | Raw RGB pixels, @pxW@ x @pxH@, shown in a @cols@ x @rows@ cell box.
-kittyRGB :: [Word8] -> Int -> Int -> Int -> Int -> L
-kittyRGB pixels pxW pxH cols rows = L (mkKitty pixels formatRgb cols rows pxW pxH "")
+kittyRGB :: [Word8] -> Int -> Int -> Int -> Int -> View m
+kittyRGB pixels pxW pxH cols rows = Leaf (mkKitty pixels formatRgb cols rows pxW pxH "")
 
 -- | 'kittyRGB' with an alpha channel.
-kittyRGBA :: [Word8] -> Int -> Int -> Int -> Int -> L
-kittyRGBA pixels pxW pxH cols rows = L (mkKitty pixels formatRgba cols rows pxW pxH "")
+kittyRGBA :: [Word8] -> Int -> Int -> Int -> Int -> View m
+kittyRGBA pixels pxW pxH cols rows = Leaf (mkKitty pixels formatRgba cols rows pxW pxH "")
 
 -- | Load a PNG from disk.
-kittyImageFile :: FilePath -> Int -> Int -> IO L
+kittyImageFile :: FilePath -> Int -> Int -> IO (View m)
 kittyImageFile path cols rows = (\bytes -> kittyImage bytes cols rows) <$> readFileBytes path
 
 readFileBytes :: FilePath -> IO [Word8]
@@ -1931,31 +2700,31 @@ data LoaderStyle = LoaderStyle
   }
 
 -- | @████▊░░░@, the default.
-styleBlocks :: LoaderStyle
-styleBlocks = LoaderStyle '█' '░' "" "" "" True SpinnerGrow ColorCyan
+loaderBlocks :: LoaderStyle
+loaderBlocks = LoaderStyle '█' '░' "" "" "" True SpinnerGrow ColorCyan
 
 -- | @[██████░░░░]@
-styleBar :: LoaderStyle
-styleBar = LoaderStyle '█' '░' "[" "]" "" False SpinnerDots ColorGreen
+loaderBar :: LoaderStyle
+loaderBar = LoaderStyle '█' '░' "[" "]" "" False SpinnerDots ColorGreen
 
 -- | @[====>    ]@
-styleAscii :: LoaderStyle
-styleAscii = LoaderStyle '=' ' ' "[" "]" ">" False SpinnerLine ColorYellow
+loaderAscii :: LoaderStyle
+loaderAscii = LoaderStyle '=' ' ' "[" "]" ">" False SpinnerLine ColorYellow
 
 -- | @●●●●∙∙∙∙@
-styleDots :: LoaderStyle
-styleDots = LoaderStyle '●' '∙' "" "" "" False SpinnerBounce ColorMagenta
+loaderDots :: LoaderStyle
+loaderDots = LoaderStyle '●' '∙' "" "" "" False SpinnerBounce ColorMagenta
 
 -- | @━━━━────@
-styleLine :: LoaderStyle
-styleLine = LoaderStyle '━' '─' "" "" "" False SpinnerLine ColorBlue
+loaderLine :: LoaderStyle
+loaderLine = LoaderStyle '━' '─' "" "" "" False SpinnerLine ColorBlue
 
 -- | @▰▰▰▱▱▱@
-stylePipes :: LoaderStyle
-stylePipes = LoaderStyle '▰' '▱' "" "" "" False SpinnerArrow ColorBrightMagenta
+loaderPipes :: LoaderStyle
+loaderPipes = LoaderStyle '▰' '▱' "" "" "" False SpinnerArrow ColorBrightMagenta
 
 loaderStyles :: [LoaderStyle]
-loaderStyles = [styleBlocks, styleBar, styleAscii, styleDots, styleLine, stylePipes]
+loaderStyles = [loaderBlocks, loaderBar, loaderAscii, loaderDots, loaderLine, loaderPipes]
 
 -- | Partial cells for smooth bars, in eighths.
 blockEighths :: [Text]
@@ -2033,7 +2802,7 @@ streamingFinal label counter = do
 -- _ <- 'loader' "Processing" [1..100] (\\_ -> threadDelay 20000)
 -- @
 loader :: String -> [a] -> (a -> IO b) -> IO [b]
-loader = loaderStyled styleBlocks
+loader = loaderStyled loaderBlocks
 
 loaderStyled :: LoaderStyle -> String -> [a] -> (a -> IO b) -> IO [b]
 loaderStyled style labelS items action = do
@@ -2044,7 +2813,7 @@ loaderStyled style labelS items action = do
 -- | Like 'loader' but for when the length isn't worth forcing: a spinner and
 -- a running count.
 loaderStream :: String -> [a] -> (a -> IO b) -> IO [b]
-loaderStream = loaderStreamStyled styleBlocks
+loaderStream = loaderStreamStyled loaderBlocks
 
 loaderStreamStyled :: LoaderStyle -> String -> [a] -> (a -> IO b) -> IO [b]
 loaderStreamStyled style labelS items action = do
@@ -2066,21 +2835,6 @@ askClearEol = "\ESC[K"
 
 askClearBelow :: Text
 askClearBelow = "\ESC[J"
-
--- | Raw mode and a hidden cursor for the duration of @body@.
-withAskTty :: IO a -> IO a
-withAskTty body = do
-  oldBuffering <- hGetBuffering stdin
-  oldEcho      <- hGetEcho stdin
-  hSetBuffering stdin NoBuffering
-  hSetBuffering stdout NoBuffering
-  hSetEcho stdin False
-  hideCursor
-  body `finally` do
-    showCursor
-    hSetEcho stdin oldEcho
-    hSetBuffering stdin oldBuffering
-    hFlush stdout
 
 -- | Redraw a frame over the previous one; returns its height.
 askRepaint :: Text -> Int -> IO Int
@@ -2113,11 +2867,11 @@ caret = wrapAnsi ColorCyan "▌"
 
 -- | Show @window@ rows of @xs@, scrolled to keep @idx@ roughly centred.
 -- Returns the offset of the first visible row.
-viewport :: Int -> Int -> [a] -> (Int, [a])
-viewport window idx xs = (top, take h (drop top xs))
+visibleSlice :: Int -> Int -> [a] -> (Int, [a])
+visibleSlice rows idx xs = (top, take h (drop top xs))
   where
     total = length xs
-    h     = max 0 (min window total)
+    h     = max 0 (min rows total)
     top   = if total <= h then 0 else max 0 (min (idx - h `div` 2) (total - h))
 
 renderInputFrame :: Text -> Text -> Text -> Text
@@ -2138,16 +2892,16 @@ renderChooseFrame prompt items idx renderItem =
     | (item, i) <- zip items [0 ..] ]
 
 renderChooseManyFrame :: Text -> [a] -> Int -> [Int] -> Int -> (a -> Text) -> Text
-renderChooseManyFrame prompt items idx selected limit renderItem =
+renderChooseManyFrame prompt items idx picked limit renderItem =
   header <> T.intercalate "\n" rows
   where
-    rows = [ let mark = if i `elem` selected then wrapAnsi ColorGreen "[x]" else dimText "[ ]"
+    rows = [ let mark = if i `elem` picked then wrapAnsi ColorGreen "[x]" else dimText "[ ]"
                  line = mark <> " " <> renderItem item
              in if i == idx then wrapAnsi ColorCyan "› " <> line else "  " <> line
            | (item, i) <- zip items [0 ..] ]
-    n = T.show (length selected)
+    n = T.show (length picked)
     tag | limit > 0          = " (" <> n <> "/" <> T.show limit <> ")"
-        | not (null selected) = " (" <> n <> ")"
+        | not (null picked) = " (" <> n <> ")"
         | otherwise          = ""
     header
       | T.null prompt = ""
@@ -2163,7 +2917,7 @@ renderFilterFrame :: Text -> Text -> [a] -> Int -> Int -> (a -> Text) -> Text
 renderFilterFrame prompt query matches idx viewHeight renderItem =
   prompt <> query <> caret <> "\n" <> body
   where
-    (top, visible) = viewport viewHeight idx matches
+    (top, visible) = visibleSlice viewHeight idx matches
     rows = [ if top + i == idx then wrapAnsi ColorCyan ("› " <> label) else "  " <> label
            | (item, i) <- zip visible [0 ..], let label = renderItem item ]
     body = if null rows then dimText "  (no matches)" else T.intercalate "\n" rows
@@ -2175,11 +2929,11 @@ fuzzyScore query target
   | T.null query = Just 0
   | otherwise    = go (T.toLower query) (T.toLower target) (-1) 0 0
   where
-    go Empty _ _ gap _ = Just gap
+    go Empty _ _ slack _ = Just slack
     go _ Empty _ _ _   = Nothing
-    go q@(qc :< qs) (sc :< ss) lastHit gap i
-      | qc == sc  = go qs ss i (if lastHit >= 0 then gap + (i - lastHit - 1) else gap) (i + 1)
-      | otherwise = go q ss lastHit gap (i + 1)
+    go q@(qc :< qs) (sc :< ss) lastHit slack i
+      | qc == sc  = go qs ss i (if lastHit >= 0 then slack + (i - lastHit - 1) else slack) (i + 1)
+      | otherwise = go q ss lastHit slack (i + 1)
 
 fuzzyMatches :: Text -> [a] -> (a -> Text) -> [a]
 fuzzyMatches query items renderItem
@@ -2196,7 +2950,7 @@ renderFileFrame :: FilePath -> [FileEntry] -> Int -> Int -> Text
 renderFileFrame path entries idx viewHeight =
   dimText (T.pack path) <> "\n" <> T.intercalate "\n" rows
   where
-    (top, visible) = viewport viewHeight idx entries
+    (top, visible) = visibleSlice viewHeight idx entries
     rows = [ let name = if feIsDir e then wrapAnsi ColorBlue (feDisplay e) else feDisplay e
              in if top + i == idx then wrapAnsi ColorCyan "› " <> name else "  " <> name
            | (e, i) <- zip visible [0 ..] ]
@@ -2221,7 +2975,7 @@ askInput :: String       -- ^ prompt, e.g. @"› "@
          -> String       -- ^ placeholder
          -> String       -- ^ initial value
          -> IO (Maybe String)
-askInput promptS placeholderS initialS = withAskTty $ do
+askInput promptS placeholderS initialS = withTerm Inline $ do
   let prompt = T.pack promptS; placeholder = T.pack placeholderS
       frame v = renderInputFrame prompt v placeholder
       edit v pl = askRepaint (frame v) pl >>= loop v
@@ -2239,7 +2993,7 @@ askConfirm :: String   -- ^ question
            -> String   -- ^ affirmative label, e.g. @"Yes"@
            -> String   -- ^ negative label, e.g. @"No"@
            -> IO Bool
-askConfirm questionS def affirmativeS negativeS = withAskTty $ do
+askConfirm questionS def affirmativeS negativeS = withTerm Inline $ do
   let question = T.pack questionS; affirmative = T.pack affirmativeS; negative = T.pack negativeS
       draw yes pl = askRepaint (renderConfirmFrame question yes affirmative negative) pl >>= loop yes
       pick yes pl = do
@@ -2259,7 +3013,7 @@ askConfirm questionS def affirmativeS negativeS = withAskTty $ do
 -- | Pick one. 'Nothing' if cancelled or @items@ is empty.
 askChoose :: String -> [a] -> (a -> String) -> IO (Maybe a)
 askChoose _ [] _ = pure Nothing
-askChoose promptS items renderItemS = withAskTty $ do
+askChoose promptS items renderItemS = withTerm Inline $ do
   let prompt = T.pack promptS; renderItem = T.pack . renderItemS
       n = length items
       draw i pl = askRepaint (renderChooseFrame prompt items i renderItem) pl >>= loop i
@@ -2279,7 +3033,7 @@ askChoose promptS items renderItemS = withAskTty $ do
 -- limit. 'Nothing' if cancelled or @items@ is empty.
 askChooseMany :: String -> [a] -> Int -> (a -> String) -> IO (Maybe [a])
 askChooseMany _ [] _ _ = pure Nothing
-askChooseMany promptS items limit renderItemS = withAskTty $ do
+askChooseMany promptS items limit renderItemS = withTerm Inline $ do
   let prompt = T.pack promptS; renderItem = T.pack . renderItemS
       n = length items
       toggle i sel
@@ -2312,8 +3066,8 @@ askSpin labelS style task = do
   hFlush stdout
   outcome <- withTicker (\i -> pure (wrapAnsi ColorCyan (spinnerFrame style i) <> " " <> label)) $
     (Right <$> task) `catch` \(e :: SomeException) -> pure (Left e)
-  let (glyph, col) = either (const ("✗", ColorRed)) (const ("✓", ColorGreen)) outcome
-  putText ("\r" <> wrapAnsi col (glyph <> " " <> label) <> askClearEol <> "\n")
+  let (mark, col) = either (const ("✗", ColorRed)) (const ("✓", ColorGreen)) outcome
+  putText ("\r" <> wrapAnsi col (mark <> " " <> label) <> askClearEol <> "\n")
   showCursor
   hFlush stdout
   either throwIO pure outcome
@@ -2324,7 +3078,7 @@ askWrite :: String   -- ^ prompt
          -> String   -- ^ initial value
          -> String   -- ^ hint line
          -> IO (Maybe String)
-askWrite promptS placeholderS initialS hintS = withAskTty $ do
+askWrite promptS placeholderS initialS hintS = withTerm Inline $ do
   let prompt = T.pack promptS; placeholder = T.pack placeholderS; hint = T.pack hintS
       loop value prev = do
         pl <- askRepaint (renderWriteFrame prompt value placeholder hint) prev
@@ -2345,7 +3099,7 @@ askWrite promptS placeholderS initialS hintS = withAskTty $ do
 -- | Type to fuzzy-filter, arrows to move, Enter to pick.
 askFilter :: String -> [a] -> Int -> (a -> String) -> IO (Maybe a)
 askFilter _ [] _ _ = pure Nothing
-askFilter promptS items viewHeight renderItemS = withAskTty $ do
+askFilter promptS items viewHeight renderItemS = withTerm Inline $ do
   let prompt = T.pack promptS; renderItem = T.pack . renderItemS
       loop query idx prev = do
         let matches = fuzzyMatches query items renderItem
@@ -2370,7 +3124,7 @@ askFilter promptS items viewHeight renderItemS = withAskTty $ do
 -- | Directory browser. Enter or Right descends, Left or Backspace goes up,
 -- Enter on a file picks it.
 askFile :: String -> Int -> IO (Maybe String)
-askFile start viewHeight = withAskTty (loop start 0 0)
+askFile start viewHeight = withTerm Inline (loop start 0 0)
   where
     loop dir idx prev = do
       cwd <- canonicalizePath dir
@@ -2417,7 +3171,7 @@ listEntries path = do
 
 -- | Scrollable pager; @viewHeight@ 0 fills the terminal. q or Esc quits.
 askPager :: String -> Int -> Bool -> IO ()
-askPager contentS viewHeight lineNumbers = withAskTty $ do
+askPager contentS viewHeight lineNumbers = withTerm Inline $ do
   let content = T.pack contentS
       ls = if T.null content then [""] else splitOnChar '\n' content
   (termH, termW) <- getTerminalSize

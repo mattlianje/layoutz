@@ -1,0 +1,17 @@
+cabal-version: 3.0
+name:          brick-dashboard
+version:       0
+synopsis:      The Brick side of the layoutz benchmark (see ../Main.hs)
+build-type:    Simple
+
+executable brick-dashboard
+  main-is:          Main.hs
+  build-depends:    base >= 4.7 && < 5
+                  , brick >= 3.0 && < 3.1
+                  , text
+                  , vector
+                  , vty >= 6.7 && < 6.8
+                  , vty-crossplatform
+  default-language: Haskell2010
+  -- brick wants -threaded
+  ghc-options:      -Wall -O2 -threaded
