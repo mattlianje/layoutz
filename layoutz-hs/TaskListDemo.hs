@@ -17,7 +17,6 @@ import Layoutz
 import Data.Set (Set)
 import qualified Data.Set as Set
 
--- | Task list state
 data TaskState = TaskState
   { tasks           :: [String]
   , selected        :: Int
@@ -26,13 +25,12 @@ data TaskState = TaskState
   , addingTask      :: Bool
   , newTaskName     :: String
   , newTaskDuration :: String
-  , taskDurations   :: [(String, Int)]  -- (task name, duration in steps)
+  , taskDurations   :: [(String, Int)]
   , isLoading       :: Bool
   , loadProgress    :: Int
   , loadingTaskIdx  :: Int
   } deriving (Show)
 
--- | Messages
 data TaskMsg
   = MoveUp
   | MoveDown
@@ -46,7 +44,7 @@ data TaskMsg
   | CancelAdd
   deriving (Show, Eq)
 
--- | Initial tasks with durations (steps needed to complete)
+-- | (name, steps to complete)
 initialTasks :: [(String, Int)]
 initialTasks =
   [ ("Process data", 15)
@@ -57,7 +55,6 @@ initialTasks =
   , ("Update documentation", 10)
   ]
 
--- | The task list application
 taskListApp :: LayoutzApp TaskState TaskMsg
 taskListApp = LayoutzApp
   { appInit = 
@@ -78,10 +75,8 @@ taskListApp = LayoutzApp
       )
   
   , appView = \state ->
-      let -- Render task list
-          taskList = zipWith (renderTask state) [0..] (tasks state)
+      let taskList = zipWith (renderTask state) [0..] (tasks state)
           
-          -- Status section
           completedCount = Set.size (completed state)
           totalCount = length (tasks state)
           

@@ -11,10 +11,8 @@ module Main where
 
 import Layoutz
 
--- | Messages that can change counter state
 data CounterMsg = Inc | Dec
 
--- | The counter application
 counterApp :: LayoutzApp Int CounterMsg
 counterApp = LayoutzApp
   { appInit = (0, CmdNone)

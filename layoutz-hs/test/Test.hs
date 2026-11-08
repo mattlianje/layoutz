@@ -6,17 +6,15 @@ import Layoutz
 import Data.List (isInfixOf)
 import Data.IORef (newIORef, readIORef, writeIORef)
 
--- Helper to strip ANSI codes for testing
 stripAnsiTest :: String -> String
 stripAnsiTest [] = []
 stripAnsiTest ('\ESC':'[':rest) = stripAnsiTest (dropAfterM rest)
-  where 
+  where
     dropAfterM [] = []
     dropAfterM ('m':xs) = xs
     dropAfterM (_:xs) = dropAfterM xs
 stripAnsiTest (c:rest) = c : stripAnsiTest rest
 
--- render to String for the String-based assertions below
 renderS :: Element a => a -> String
 renderS = render
 
@@ -77,7 +75,6 @@ basicElementTests = testGroup "Basic Elements"
       render (underline' "=" $ text "Test") @?= "Test\n===="
       
   , testCase "center default width" $
-      -- center now uses smart auto-centering, test within a layout context
       render (layout [text "wide content here to establish context width", center $ text "Test"]) @?= "wide content here to establish context width\n                    Test                    "
       
   , testCase "center custom width" $

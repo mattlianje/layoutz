@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {- |
 Module      : Layoutz
@@ -12,7 +13,7 @@ Description : Friendly, expressive print-layout DSL for Haskell
 Copyright   : (c) 2026 Matthieu Court
 License     : Apache-2.0
 
-A simple Haskell port of the layoutz library for creating structured terminal layouts.
+Compositional terminal layouts, charts, prompts and a small Elm-style TUI runtime.
 -}
 
 module Layoutz
@@ -118,9 +119,11 @@ module Layoutz
 import Data.List (transpose, nub, sortOn)
 import Data.Text (type Text, pattern (:<), pattern Empty)
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import qualified Data.Text.IO.Utf8 as Utf8
 import qualified Data.IntSet as IntSet
 import Data.Bits ((.|.), (.&.), xor, shiftL, shiftR)
+import Data.Foldable (asum)
+import Data.Maybe (fromMaybe)
 import Data.Word (Word8)
 import Data.String (IsString(..))
 import Data.Char (ord, chr, toLower, isDigit)
@@ -134,12 +137,14 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef', m
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (listDirectory, doesDirectoryExist, doesPathExist, canonicalizePath)
 
+--------------------------------------------------------------------------------
+-- Text measurement
+
 replicateChar :: Int -> Char -> Text
 replicateChar n = T.replicate n . T.singleton
 
--- | Strip ANSI escape codes from a string for accurate width calculation.
--- Also drops kitty graphics APC escapes (@ESC _ G ... ESC \\@) so an inline
--- image's transmit block doesn't get counted as visible width.
+-- | Drop SGR sequences and kitty APC blocks (@ESC _ ... ESC \\@) so neither
+-- counts towards visible width.
 stripAnsi :: Text -> Text
 stripAnsi t = case T.break (== '\ESC') t of
   (before, rest) -> case rest of
@@ -151,44 +156,39 @@ stripAnsi t = case T.break (== '\ESC') t of
     dropAfterM ('m' :< xs) = xs
     dropAfterM (_ :< xs) = dropAfterM xs
     dropAfterM Empty = ""
-    -- APC string terminates at ST (ESC \)
     dropAfterST ('\ESC' :< '\\' :< xs) = xs
     dropAfterST (_ :< xs) = dropAfterST xs
     dropAfterST Empty = ""
 
--- | Returns width of a character in a monospace terminal: 0 for combining
--- characters, 1 for regular characters, 2 for East Asian wide and emoji.
+-- | Terminal cell width: 0 for combining marks, 2 for wide CJK / emoji.
 charWidth :: Char -> Int
 charWidth c
-  | c < '\x0300' = 1                     -- Fast path for ASCII and common Latin
-  | c == kittyPlaceholderChar = 1        -- Kitty Unicode placeholder (one cell)
-  | isRowColumnDiacritic c = 0           -- Kitty row/column combining diacritics
-  | c >= '\x0300' && c < '\x0370' = 0    -- Combining diacriticals
+  | c < '\x0300' = 1
+  | c == kittyPlaceholderChar = 1
+  | isRowColumnDiacritic c = 0
+  | c >= '\x0300' && c < '\x0370' = 0    -- combining diacriticals
   | c >= '\x1100' && c < '\x1200' = 2    -- Hangul Jamo
   | c >= '\x2E80' && c < '\x9FFF' = 2    -- CJK
-  | c >= '\xAC00' && c < '\xD7A4' = 2    -- Hangul Syllables
-  | c >= '\xF900' && c < '\xFB00' = 2    -- CJK Compatibility Ideographs
-  | c >= '\xFE10' && c < '\xFE20' = 2    -- Vertical forms
-  | c >= '\xFE30' && c < '\xFE70' = 2    -- CJK Compatibility Forms
-  | c >= '\xFF00' && c < '\xFF61' = 2    -- Fullwidth Forms
-  | c >= '\xFFE0' && c < '\xFFE7' = 2    -- Fullwidth symbols
-  | c >= '\x1F000' = 2                   -- Emoji, symbols, supplementary ideographs
-  | c >= '\x20000' && c < '\x2FFFF' = 2  -- Supplementary ideographs
-  | c >= '\x30000' && c < '\x3FFFF' = 2  -- Tertiary ideographs
+  | c >= '\xAC00' && c < '\xD7A4' = 2    -- Hangul syllables
+  | c >= '\xF900' && c < '\xFB00' = 2    -- CJK compatibility ideographs
+  | c >= '\xFE10' && c < '\xFE20' = 2    -- vertical forms
+  | c >= '\xFE30' && c < '\xFE70' = 2    -- CJK compatibility forms
+  | c >= '\xFF00' && c < '\xFF61' = 2    -- fullwidth forms
+  | c >= '\xFFE0' && c < '\xFFE7' = 2    -- fullwidth symbols
+  | c >= '\x1F000' = 2                   -- emoji, supplementary planes
+  | c >= '\x20000' && c < '\x2FFFF' = 2
+  | c >= '\x30000' && c < '\x3FFFF' = 2
   | otherwise = 1
 
--- | Calculate visible width of text (handles ANSI codes, emoji, CJK)
 visibleLength :: Text -> Int
 visibleLength = T.foldl' (\acc c -> acc + charWidth c) 0 . stripAnsi
 
--- | The Unicode placeholder code point (U+10EEEE) the kitty graphics protocol
--- uses to reserve one terminal cell per pixel-block of an inline image.
+-- | Kitty reserves one cell per placeholder glyph.
 kittyPlaceholderChar :: Char
 kittyPlaceholderChar = '\x10EEEE'
 
--- | Row/column combining diacritics used by the kitty placeholder protocol to
--- encode a cell's (row, column) into the placeholder glyph. Each renders with
--- zero width. The table's length also caps the maximum image dimensions.
+-- | Zero-width diacritics kitty uses to encode a placeholder's (row, column).
+-- Its length caps the image size in cells.
 rowColumnDiacritics :: [Int]
 rowColumnDiacritics =
   [ 0x0305, 0x030d, 0x030e, 0x0310, 0x0312, 0x033d, 0x033e, 0x033f, 0x0346
@@ -227,101 +227,77 @@ rowColumnDiacritics =
   , 0x1d243, 0x1d244
   ]
 
--- | O(1)-ish membership test for the zero-width kitty diacritics above.
 rowColumnDiacriticsSet :: IntSet.IntSet
 rowColumnDiacriticsSet = IntSet.fromList rowColumnDiacritics
 
 isRowColumnDiacritic :: Char -> Bool
 isRowColumnDiacritic c = IntSet.member (ord c) rowColumnDiacriticsSet
 
--- | Apply a function to each line, preserving trailing newlines
+-- | Map over lines, keeping a trailing newline if there was one.
 mapLines :: (Text -> Text) -> Text -> Text
 mapLines f str
-  | T.null str = str
-  | otherwise  = let ls = T.lines str
-                     hasTrailingNewline = T.last str == '\n'
-                 in if hasTrailingNewline
-                    then T.unlines (map f ls)
-                    else T.intercalate "\n" (map f ls)
+  | T.null str          = str
+  | T.last str == '\n'  = T.unlines (map f (T.lines str))
+  | otherwise           = T.intercalate "\n" (map f (T.lines str))
 
--- | Helper: pad text to a target width on the right (ANSI-aware)
 padRight :: Int -> Text -> Text
-padRight targetWidth str = str <> T.replicate (max 0 (targetWidth - visibleLength str)) " "
+padRight w str = str <> T.replicate (max 0 (w - visibleLength str)) " "
 
--- | Helper: pad text to a target width on the left (ANSI-aware)
 padLeft :: Int -> Text -> Text
-padLeft targetWidth str = T.replicate (max 0 (targetWidth - visibleLength str)) " " <> str
+padLeft w str = T.replicate (max 0 (w - visibleLength str)) " " <> str
 
--- | Helper: center text within a target width (ANSI-aware)
 centerString :: Int -> Text -> Text
-centerString targetWidth str
-  | len >= targetWidth = str
+centerString w str
+  | len >= w  = str
   | otherwise = leftPad <> str <> rightPad
   where
-    len = visibleLength str
-    totalPadding = targetWidth - len
-    leftPad = T.replicate (totalPadding `div` 2) " "
-    rightPad = T.replicate (totalPadding - T.length leftPad) " "
+    len      = visibleLength str
+    total    = w - len
+    leftPad  = T.replicate (total `div` 2) " "
+    rightPad = T.replicate (total - T.length leftPad) " "
 
--- | Helper: justify text (spread words evenly to fill width)
+-- | Spread words across @w@ columns, leftmost gaps taking the remainder.
 justifyString :: Int -> Text -> Text
-justifyString targetWidth str
-  | len >= targetWidth = str
-  | length ws <= 1 = str  -- Can't justify single word
-  | otherwise = T.concat $ zipWith (<>) ws spaces
+justifyString w str
+  | T.length str >= w = str
+  | length ws <= 1    = str
+  | otherwise         = T.concat (zipWith (<>) ws spaces)
   where
-    ws = T.words str
-    len = T.length str
-    wordLengths = sum (map T.length ws)
-    totalSpaces = targetWidth - wordLengths
-    gaps = length ws - 1
-    baseSpaces = totalSpaces `div` gaps
-    extraSpaces = totalSpaces `mod` gaps
-    spaces = replicate extraSpaces (T.replicate (baseSpaces + 1) " ")
-             <> replicate (gaps - extraSpaces) (T.replicate baseSpaces " ")
-             <> [""]  -- No space after last word
+    ws          = T.words str
+    totalSpaces = w - sum (map T.length ws)
+    gaps        = length ws - 1
+    (base, extra) = totalSpaces `divMod` gaps
+    spaces = replicate extra (T.replicate (base + 1) " ")
+          <> replicate (gaps - extra) (T.replicate base " ")
+          <> [""]
 
--- | Core Element typeclass
+--------------------------------------------------------------------------------
+-- Core
+
 class Element a where
   renderElement :: a -> Text
 
-  -- | Calculate element width (longest line)
+  -- | Widest visible line.
   width :: a -> Int
-  width element =
-    let rendered = renderElement element
-        renderedLines = T.lines rendered
-    in if null renderedLines then 0
-       else maximum $ 0 : map visibleLength renderedLines
+  width element = case T.lines (renderElement element) of
+    [] -> 0
+    ls -> maximum (0 : map visibleLength ls)
 
-  -- | Calculate element height (number of lines)
+  -- | Line count (an empty render still takes one line).
   height :: a -> Int
   height element =
     let rendered = renderElement element
-    in if T.null rendered then 1
-       else length (T.lines rendered)
+    in if T.null rendered then 1 else length (T.lines rendered)
 
 render :: Element a => a -> String
 render = T.unpack . renderElement
 
--- | L is the universal layout element type - a type-erased wrapper for the DSL.
---
--- This allows mixing different element types in layouts while providing a common interface.
--- Uses existential quantification to store any Element type inside L.
---
--- Constructors:
---
--- * @L a@          - Wraps any Element (Text, Box, Table, etc.)
--- * @UL [L]@       - Special case for unordered lists (allows nesting)
--- * @AutoCenter L@ - Smart centering that adapts to layout context width
--- * @LBox@, @LStatusCard@, @LTable@ - Specialized constructors for bordered elements
---
--- Example usage:
+-- | The universal layout node. Anything that is an 'Element' can be wrapped
+-- with 'L', so boxes, tables, text and charts compose freely:
 --
 -- @
 -- 'layout' ['text' "title", 'box' "content" [...], 'center' ('text' "footer")]
 -- @
---
--- All different types unified as L, so they can be composed together.
 data L = forall a. Element a => L a
        | UL [L]
        | OL [L]
@@ -336,7 +312,7 @@ instance Element L where
   renderElement (L x) = renderElement x
   renderElement (UL items) = renderElement (UnorderedList items)
   renderElement (OL items) = renderElement (OrderedList items)
-  renderElement (AutoCenter element) = renderElement element  -- Will be handled by Layout
+  renderElement (AutoCenter element) = renderElement element  -- Layout does the centering
   renderElement (Colored color element) = mapLines (wrapAnsi color) (renderElement element)
   renderElement (Styled style element) = mapLines (wrapStyle style) (renderElement element)
   renderElement (LBox title elements border) = renderElement (Box title elements border)
@@ -347,8 +323,8 @@ instance Element L where
   width (UL items) = width (UnorderedList items)
   width (OL items) = width (OrderedList items)
   width (AutoCenter element) = width element
-  width (Colored _ element) = width element  -- Width ignores color
-  width (Styled _ element) = width element  -- Width ignores style
+  width (Colored _ element) = width element
+  width (Styled _ element) = width element
   width (LBox title elements border) = width (Box title elements border)
   width (LStatusCard label content border) = width (StatusCard label content border)
   width (LTable headers rows border) = width (Table headers rows border)
@@ -357,8 +333,8 @@ instance Element L where
   height (UL items) = height (UnorderedList items)
   height (OL items) = height (OrderedList items)
   height (AutoCenter element) = height element
-  height (Colored _ element) = height element  -- Height ignores color
-  height (Styled _ element) = height element  -- Height ignores style
+  height (Colored _ element) = height element
+  height (Styled _ element) = height element
   height (LBox title elements border) = height (Box title elements border)
   height (LStatusCard label content border) = height (StatusCard label content border)
   height (LTable headers rows border) = height (Table headers rows border)
@@ -366,14 +342,10 @@ instance Element L where
 instance Show L where
   show = render
 
--- | Enable string literals to be used directly as elements with OverloadedStrings
---
--- With OverloadedStrings enabled, you can write @layout [\"Hello\", \"World\"]@
--- instead of @layout [text \"Hello\", text \"World\"]@.
+-- | Lets you write @layout [\"Hello\", \"World\"]@ under @OverloadedStrings@.
 instance IsString L where
   fromString = text
 
--- | Border styles
 data Border
   = BorderNormal
   | BorderDouble
@@ -390,9 +362,7 @@ data Border
   | BorderNone
   deriving (Show, Eq)
 
--- | Typeclass for elements that support customizable borders
 class HasBorder a where
-  -- | Set the border style for an element
   setBorder :: Border -> a -> a
 
 instance HasBorder L where
@@ -401,18 +371,16 @@ instance HasBorder L where
   setBorder border (LTable headers rows _) = LTable headers rows border
   setBorder border (Colored color element) = Colored color (setBorder border element)
   setBorder border (Styled style element) = Styled style (setBorder border element)
-  setBorder _ other = other  -- Non-bordered elements remain unchanged
+  setBorder _ other = other
 
--- | Color support with ANSI codes
 data Color = ColorDefault | ColorBlack | ColorRed | ColorGreen | ColorYellow
            | ColorBlue | ColorMagenta | ColorCyan | ColorWhite
            | ColorBrightBlack | ColorBrightRed | ColorBrightGreen | ColorBrightYellow
            | ColorBrightBlue | ColorBrightMagenta | ColorBrightCyan | ColorBrightWhite
-           | ColorFull Int           -- ^ 256-color palette (0-255)
-           | ColorTrue Int Int Int   -- ^ 24-bit RGB true color (r, g, b)
+           | ColorFull Int           -- ^ 256-colour palette index
+           | ColorTrue Int Int Int   -- ^ 24-bit RGB
   deriving (Show, Eq)
 
--- | Get ANSI foreground color code
 colorCode :: Color -> Text
 colorCode ColorDefault       = ""
 colorCode ColorBlack         = "30"
@@ -434,35 +402,32 @@ colorCode ColorBrightWhite   = "97"
 colorCode (ColorFull n)      = "38;5;" <> T.show (clamp n)
 colorCode (ColorTrue r g b)  = "38;2;" <> T.show (clamp r) <> ";" <> T.show (clamp g) <> ";" <> T.show (clamp b)
 
--- | Clamp value to 0-255 range for color codes
 clamp :: Int -> Int
 clamp = max 0 . min 255
 
--- | Wrap text with ANSI color codes
+-- | No-op for 'ColorDefault'.
 wrapAnsi :: Color -> Text -> Text
 wrapAnsi color str
   | T.null (colorCode color) = str
   | otherwise = "\ESC[" <> colorCode color <> "m" <> str <> "\ESC[0m"
 
--- | Style support with ANSI codes
 data Style = StyleDefault | StyleBold | StyleDim | StyleItalic | StyleUnderline
            | StyleBlink | StyleReverse | StyleHidden | StyleStrikethrough
-           | StyleCombined [Style]  -- ^ Combine multiple styles
+           | StyleCombined [Style]
   deriving (Show, Eq)
 
--- | Combine styles using @<>@
+-- | Combine styles with @<>@, e.g. @StyleBold <> StyleItalic@.
 instance Semigroup Style where
   StyleDefault <> other = other
   other <> StyleDefault = other
-  StyleCombined styles1 <> StyleCombined styles2 = StyleCombined (styles1 <> styles2)
-  StyleCombined styles <> style = StyleCombined (styles <> [style])
-  style <> StyleCombined styles = StyleCombined (style : styles)
-  style1 <> style2 = StyleCombined [style1, style2]
+  StyleCombined a <> StyleCombined b = StyleCombined (a <> b)
+  StyleCombined a <> s = StyleCombined (a <> [s])
+  s <> StyleCombined b = StyleCombined (s : b)
+  a <> b = StyleCombined [a, b]
 
 instance Monoid Style where
   mempty = StyleDefault
 
--- | Get ANSI style code
 styleCode :: Style -> Text
 styleCode StyleDefault       = ""
 styleCode StyleBold          = "1"
@@ -474,25 +439,22 @@ styleCode StyleReverse       = "7"
 styleCode StyleHidden        = "8"
 styleCode StyleStrikethrough = "9"
 styleCode (StyleCombined styles) =
-  let codes = filter (not . T.null) (map styleCode styles)
-  in if null codes then "" else T.intercalate ";" codes
+  T.intercalate ";" (filter (not . T.null) (map styleCode styles))
 
--- | Wrap text with ANSI style codes
 wrapStyle :: Style -> Text -> Text
 wrapStyle style str
   | T.null (styleCode style) = str
   | otherwise = "\ESC[" <> styleCode style <> "m" <> str <> "\ESC[0m"
 
--- | Border character set supporting asymmetric borders (e.g. half-block styles)
+-- | Top/bottom and left/right glyphs are separate so half-block borders work.
 data BorderChars = BorderChars
-  { bcTL, bcTR, bcBL, bcBR              :: Text   -- corners
-  , bcHTop, bcHBottom                   :: Text   -- horizontal (top vs bottom)
-  , bcVLeft, bcVRight                   :: Text   -- vertical (left vs right)
-  , bcLeftTee, bcRightTee, bcCross      :: Text   -- separator connectors
-  , bcTopTee, bcBottomTee               :: Text   -- top/bottom column connectors
+  { bcTL, bcTR, bcBL, bcBR         :: Text
+  , bcHTop, bcHBottom              :: Text
+  , bcVLeft, bcVRight              :: Text
+  , bcLeftTee, bcRightTee, bcCross :: Text
+  , bcTopTee, bcBottomTee          :: Text
   }
 
--- | Helper for symmetric borders (hTop == hBottom, vLeft == vRight)
 mkSymmetric :: Text -> Text -> Text -> Text -> Text -> Text
             -> Text -> Text -> Text -> Text -> Text -> BorderChars
 mkSymmetric tl tr bl br' h v lt rt cross tt bt = BorderChars
@@ -530,83 +492,68 @@ borderChars BorderMarkdown = mkSymmetric "|" "|" "|" "|" "-" "|" "|" "|" "|" "|"
 borderChars (BorderCustom corner h v) = mkSymmetric corner corner corner corner h v corner corner corner corner corner
 borderChars BorderNone = mkSymmetric " " " " " " " " " " " " " " " " " " " " " "
 
+--------------------------------------------------------------------------------
 -- Elements
+
 instance Element Text where renderElement = id
 
 data LineBreak = LineBreak
 instance Element LineBreak where renderElement _ = ""
 
-data Layout = Layout [L]
+newtype Layout = Layout [L]
 instance Element Layout where
-  renderElement (Layout elements) =
-    let -- Calculate max width of all non-AutoCenter elements
-        nonAutoCenterElements = [e | e <- elements, not (isAutoCenter e)]
-        maxWidth = if null nonAutoCenterElements
-                  then 80  -- fallback
-                  else maximum (0 : map width nonAutoCenterElements)
-
-        -- Render elements, providing context width to AutoCenter elements
-        renderedElements = map (renderWithContext maxWidth) elements
-    in T.intercalate "\n" renderedElements
+  renderElement (Layout elements) = T.intercalate "\n" (map renderIn elements)
     where
+      -- AutoCenter children centre against the widest sibling
+      sized    = [e | e <- elements, not (isAutoCenter e)]
+      ctxWidth = if null sized then 80 else maximum (0 : map width sized)
+
       isAutoCenter (AutoCenter _) = True
-      isAutoCenter _ = False
+      isAutoCenter _              = False
 
-      renderWithContext contextWidth (AutoCenter element) =
-        renderElement (Centered (renderElement element) contextWidth)
-      renderWithContext _ element = renderElement element
+      renderIn (AutoCenter e) = renderElement (Centered (renderElement e) ctxWidth)
+      renderIn e              = renderElement e
 
--- | Centered element with custom width
-data Centered = Centered Text Int  -- content, target_width
+data Centered = Centered Text Int
 instance Element Centered where
-  renderElement (Centered content targetWidth) =
-    T.intercalate "\n" $ map (centerString targetWidth) (T.lines content)
+  renderElement (Centered content w) =
+    T.intercalate "\n" $ map (centerString w) (T.lines content)
 
--- | Underlined element with custom character
-data Underlined = Underlined Text Text (Maybe Color)  -- content, underline_char, optional color
+data Underlined = Underlined Text Text (Maybe Color)
 instance Element Underlined where
-  renderElement (Underlined content underlineChar maybeColor) =
+  renderElement (Underlined content glyph maybeColor) =
     let contentLines = T.lines content
-        maxWidth = if null contentLines then 0
-                   else maximum (map visibleLength contentLines)
-        repeats = maxWidth `div` T.length underlineChar
-        remainder = maxWidth `mod` T.length underlineChar
-        underlinePart = T.replicate repeats underlineChar <> T.take remainder underlineChar
-        coloredUnderline = maybe underlinePart (`wrapAnsi` underlinePart) maybeColor
-    in content <> "\n" <> coloredUnderline
+        w = if null contentLines then 0 else maximum (map visibleLength contentLines)
+        (reps, rest) = w `divMod` T.length glyph
+        rule = T.replicate reps glyph <> T.take rest glyph
+    in content <> "\n" <> maybe rule (`wrapAnsi` rule) maybeColor
 
-data Row = Row [L] Bool  -- elements, tight (no spacing)
+data Row = Row [L] Bool  -- tight?
 instance Element Row where
   renderElement (Row elements tight)
     | null elements = ""
-    | otherwise = T.intercalate "\n" $ map (T.intercalate separator) (transpose paddedElements)
+    | otherwise = T.intercalate "\n" $ map (T.intercalate sep) (transpose padded)
     where
-      separator = if tight then "" else " "
-      elementStrings = map renderElement elements
-      elementLines = map T.lines elementStrings
-      maxHeight = maximum (map length elementLines)
-      elementWidths = map (maximum . map visibleLength) elementLines
-      paddedElements = zipWith padElement elementWidths elementLines
+      sep       = if tight then "" else " "
+      cellLines = map (T.lines . renderElement) elements
+      maxHeight = maximum (map length cellLines)
+      widths    = map (maximum . map visibleLength) cellLines
+      padded    = zipWith padCell widths cellLines
+      padCell w ls = map (padRight w) (ls <> replicate (maxHeight - length ls) "")
 
-      padElement :: Int -> [Text] -> [Text]
-      padElement cellWidth linesList =
-        let currentLines = linesList <> replicate (maxHeight - length linesList) ""
-        in map (padRight cellWidth) currentLines
-
--- | Text alignment options
 data Alignment = AlignLeft | AlignRight | AlignCenter | Justify
   deriving (Show, Eq)
 
--- | Aligned text with specified width and alignment
-data AlignedText = AlignedText Text Int Alignment  -- content, width, alignment
+data AlignedText = AlignedText Text Int Alignment
 instance Element AlignedText where
-  renderElement (AlignedText content targetWidth alignment) =
-    let alignFn = case alignment of
-          AlignLeft   -> padRight targetWidth
-          AlignRight  -> padLeft targetWidth
-          AlignCenter -> centerString targetWidth
-          Justify     -> justifyString targetWidth
-    in T.intercalate "\n" $ map alignFn (T.lines content)
+  renderElement (AlignedText content w alignment) =
+    T.intercalate "\n" $ map align (T.lines content)
+    where
+      align = case alignment of
+        AlignLeft   -> padRight w
+        AlignRight  -> padLeft w
+        AlignCenter -> centerString w
+        Justify     -> justifyString w
 
 data Box = Box Text [L] Border
 
@@ -615,28 +562,27 @@ instance HasBorder Box where
 
 instance Element Box where
   renderElement (Box title elements border) =
-    let elementStrings = map renderElement elements
-        content = T.intercalate "\n" elementStrings
+    let content      = T.intercalate "\n" (map renderElement elements)
         contentLines = if T.null content then [""] else T.lines content
         contentWidth = maximum (0 : map visibleLength contentLines)
-        titleWidth = if T.null title then 0 else visibleLength title + 2
-        innerWidth = max contentWidth titleWidth
-        totalWidth = innerWidth + 4
+        titleWidth   = if T.null title then 0 else visibleLength title + 2
+        innerWidth   = max contentWidth titleWidth
+        totalWidth   = innerWidth + 4
         BorderChars{..} = borderChars border
-        hTop = T.take 1 bcHTop
+        hTop    = T.take 1 bcHTop
         hBottom = T.take 1 bcHBottom
 
         topBorder
           | T.null title = bcTL <> T.replicate (totalWidth - 2) hTop <> bcTR
-          | otherwise  = let titlePadding = totalWidth - visibleLength title - 2
-                             leftPad = titlePadding `div` 2
-                             rightPad = titlePadding - leftPad
-                         in bcTL <> T.replicate leftPad hTop <> title <> T.replicate rightPad hTop <> bcTR
+          | otherwise =
+              let slack = totalWidth - visibleLength title - 2
+                  l     = slack `div` 2
+              in bcTL <> T.replicate l hTop <> title <> T.replicate (slack - l) hTop <> bcTR
 
         bottomBorder = bcBL <> T.replicate (totalWidth - 2) hBottom <> bcBR
-        paddedContent = map (\line -> bcVLeft <> " " <> padRight innerWidth line <> " " <> bcVRight) contentLines
+        body = map (\line -> bcVLeft <> " " <> padRight innerWidth line <> " " <> bcVRight) contentLines
 
-    in T.intercalate "\n" (topBorder : paddedContent <> [bottomBorder])
+    in T.intercalate "\n" (topBorder : body <> [bottomBorder])
 
 data StatusCard = StatusCard Text Text Border
 
@@ -645,270 +591,194 @@ instance HasBorder StatusCard where
 
 instance Element StatusCard where
   renderElement (StatusCard label content border) =
-    let labelLines = T.lines label
-        contentLines = T.lines content
-        allLines = labelLines <> contentLines
-        maxWidth = maximum (0 : map visibleLength allLines)
-        contentWidth = maxWidth + 2
+    let allLines = T.lines label <> T.lines content
+        inner    = maximum (0 : map visibleLength allLines) + 2
         BorderChars{..} = borderChars border
-        hTop = T.take 1 bcHTop
+        hTop    = T.take 1 bcHTop
         hBottom = T.take 1 bcHBottom
+        topBorder    = bcTL <> T.replicate (inner + 2) hTop <> bcTR
+        bottomBorder = bcBL <> T.replicate (inner + 2) hBottom <> bcBR
+        cardLine l   = bcVLeft <> " " <> padRight inner l <> " " <> bcVRight
+    in T.intercalate "\n" $ [topBorder] <> map cardLine allLines <> [bottomBorder]
 
-        topBorder = bcTL <> T.replicate (contentWidth + 2) hTop <> bcTR
-        bottomBorder = bcBL <> T.replicate (contentWidth + 2) hBottom <> bcBR
-        createCardLine line = bcVLeft <> " " <> padRight contentWidth line <> " " <> bcVRight
-
-    in T.intercalate "\n" $ [topBorder] <> map createCardLine allLines <> [bottomBorder]
-
--- | Margin element that adds prefix to each line
-data Margin = Margin Text [L]  -- prefix, elements
+data Margin = Margin Text [L]
 instance Element Margin where
   renderElement (Margin prefix elements) =
     let content = case elements of
-                    [single] -> renderElement single
-                    _        -> renderElement (Layout elements)
+          [single] -> renderElement single
+          _        -> renderElement (Layout elements)
     in T.intercalate "\n" $ map ((prefix <> " ") <>) (T.lines content)
 
--- | Horizontal rule with custom character and width
-data HorizontalRule = HorizontalRule Text Int  -- char, width
+data HorizontalRule = HorizontalRule Text Int
 instance Element HorizontalRule where
-  renderElement (HorizontalRule char ruleWidth) = T.replicate ruleWidth char
+  renderElement (HorizontalRule glyph n) = T.replicate n glyph
 
--- | Vertical rule with custom character and height
-data VerticalRule = VerticalRule Text Int  -- char, height
+data VerticalRule = VerticalRule Text Int
 instance Element VerticalRule where
-  renderElement (VerticalRule char ruleHeight) = T.intercalate "\n" (replicate ruleHeight char)
+  renderElement (VerticalRule glyph n) = T.intercalate "\n" (replicate n glyph)
 
--- | Padded element with padding around all sides
-data Padded = Padded Text Int  -- content, padding
+data Padded = Padded Text Int
 instance Element Padded where
-  renderElement (Padded content padding) =
+  renderElement (Padded content p) =
     let contentLines = T.lines content
-        maxWidth = maximum (0 : map T.length contentLines)
-        horizontalPad = T.replicate padding " "
-        totalWidth = maxWidth + padding * 2
-        verticalPad = T.replicate totalWidth " "
-        paddedLines = map (\line -> horizontalPad <> padRight maxWidth line <> horizontalPad) contentLines
-        verticalLines = replicate padding verticalPad
-    in T.intercalate "\n" (verticalLines <> paddedLines <> verticalLines)
+        w      = maximum (0 : map T.length contentLines)
+        side   = T.replicate p " "
+        blank  = replicate p (T.replicate (w + p * 2) " ")
+        body   = map (\line -> side <> padRight w line <> side) contentLines
+    in T.intercalate "\n" (blank <> body <> blank)
 
--- | Columns: place elements side by side, each padded to its own width
-data Columns = Columns [L] Int  -- elements, spacing between columns
+data Columns = Columns [L] Int
 instance Element Columns where
   renderElement (Columns elements spacing)
     | null elements = ""
-    | otherwise = T.intercalate "\n" $ map (T.intercalate separator) (transpose paddedElements)
+    | otherwise = T.intercalate "\n" $ map (T.intercalate sep) (transpose padded)
     where
-      separator = T.replicate spacing " "
-      elementLines = map (T.lines . renderElement) elements
-      maxHeight = maximum (map length elementLines)
-      elementWidths = map (maximum . (0 :) . map visibleLength) elementLines
-      paddedElements = zipWith padColumn elementWidths elementLines
+      sep       = T.replicate spacing " "
+      cellLines = map (T.lines . renderElement) elements
+      maxHeight = maximum (map length cellLines)
+      widths    = map (maximum . (0 :) . map visibleLength) cellLines
+      padded    = zipWith padCol widths cellLines
+      padCol w ls = map (padRight w) (ls <> replicate (maxHeight - length ls) "")
 
-      padColumn :: Int -> [Text] -> [Text]
-      padColumn cellWidth linesList =
-        let filled = linesList <> replicate (maxHeight - length linesList) ""
-        in map (padRight cellWidth) filled
-
--- | Truncate each line with an ellipsis when it exceeds the max width
-data Truncated = Truncated Text Int Text  -- content, maxWidth, ellipsis
+data Truncated = Truncated Text Int Text  -- content, max width, ellipsis
 instance Element Truncated where
   renderElement (Truncated content maxWidth ellipsis) =
-    T.intercalate "\n" $ map truncateLine (T.lines content)
+    T.intercalate "\n" $ map cut (T.lines content)
     where
-      truncateLine line
+      cut line
         | visibleLength line <= maxWidth = line
-        | truncateAt <= 0                = T.take maxWidth ellipsis
-        | otherwise                      = T.take truncateAt (stripAnsi line) <> ellipsis
-        where truncateAt = maxWidth - T.length ellipsis
+        | keep <= 0                      = T.take maxWidth ellipsis
+        | otherwise                      = T.take keep (stripAnsi line) <> ellipsis
+        where keep = maxWidth - T.length ellipsis
 
--- | Chart for data visualization
-data Chart = Chart [(Text, Double)]  -- (label, value) pairs
+newtype Chart = Chart [(Text, Double)]
 instance Element Chart where
-  renderElement (Chart dataPoints)
-    | null dataPoints = "No data"
-    | otherwise = T.intercalate "\n" $ map renderBar dataPoints
+  renderElement (Chart points)
+    | null points = "No data"
+    | otherwise   = T.intercalate "\n" $ map bar points
     where
-      maxValue = maximum (0 : map snd dataPoints)
-      maxLabelWidth = minimum [15, maximum (0 : map (T.length . fst) dataPoints)]
-      chartWidth = 40
+      maxValue   = maximum (0 : map snd points)
+      labelWidth = min 15 (maximum (0 : map (T.length . fst) points))
+      barWidth   = 40
 
-      renderBar :: (Text, Double) -> Text
-      renderBar (label, value) =
-        let truncatedLabel
-              | T.length label > maxLabelWidth = T.take (maxLabelWidth - 3) label <> "..."
-              | otherwise = label
-            paddedLabel = padRight maxLabelWidth truncatedLabel
-            percentage = value / maxValue
-            barLength = floor (percentage * fromIntegral chartWidth)
-            bar = T.replicate barLength "█" <> T.replicate (chartWidth - barLength) "─"
-            valueStr
-              | value == fromInteger (round value) = T.show (round value :: Integer)
-              | otherwise = T.pack (printf "%.1f" value)
-        in paddedLabel <> " │" <> bar <> "│ " <> valueStr
+      bar (label, value) =
+        let label'
+              | T.length label > labelWidth = T.take (labelWidth - 3) label <> "..."
+              | otherwise                   = label
+            filled = floor (value / maxValue * fromIntegral barWidth)
+            body   = T.replicate filled "█" <> T.replicate (barWidth - filled) "─"
+        in padRight labelWidth label' <> " │" <> body <> "│ " <> formatAxisNum value
 
--- | Table with headers and borders (fixed alignment)
-data Table = Table [Text] [[L]] Border  -- headers, rows, border
+data Table = Table [Text] [[L]] Border
 
 instance HasBorder Table where
   setBorder border (Table headers rows _) = Table headers rows border
 
 instance Element Table where
   renderElement (Table headers rows border) =
-    let normalizedRows = map (normalizeRow (length headers)) rows
-        columnWidths = calculateColumnWidths headers normalizedRows
+    let rows'  = map (fitRow (length headers)) rows
+        widths = columnWidths rows'
         BorderChars{..} = borderChars border
-        hTop = T.take 1 bcHTop
+        hTop    = T.take 1 bcHTop
         hBottom = T.take 1 bcHBottom
 
-        -- Top border
-        topParts = map (\w -> T.replicate w hTop) columnWidths
-        topBorder = bcTL <> hTop <> T.intercalate (hTop <> bcTopTee <> hTop) topParts <> hTop <> bcTR
+        rule l mid r h = l <> h <> T.intercalate (h <> mid <> h) [T.replicate w h | w <- widths] <> h <> r
+        topBorder    = rule bcTL bcTopTee bcTR hTop
+        separator    = rule bcLeftTee bcCross bcRightTee hTop
+        bottomBorder = rule bcBL bcBottomTee bcBR hBottom
 
-        -- Separator (between header and data)
-        separatorParts = map (\w -> T.replicate w hTop) columnWidths
-        separatorBorder = bcLeftTee <> hTop <> T.intercalate (hTop <> bcCross <> hTop) separatorParts <> hTop <> bcRightTee
+        line cells = bcVLeft <> " " <> T.intercalate (" " <> bcVLeft <> " ") cells <> " " <> bcVRight
+        headerRow  = line (zipWith padRight widths headers)
+        dataRows   = concatMap (map line . rowLines widths) rows'
 
-        -- Bottom border
-        bottomParts = map (\w -> T.replicate w hBottom) columnWidths
-        bottomBorder = bcBL <> hBottom <> T.intercalate (hBottom <> bcBottomTee <> hBottom) bottomParts <> hBottom <> bcBR
-
-        -- Header row
-        headerCells = zipWith padRight columnWidths headers
-        headerRow = bcVLeft <> " " <> T.intercalate (" " <> bcVLeft <> " ") headerCells <> " " <> bcVRight
-
-        -- Data rows
-        dataRows = concatMap (renderTableRow columnWidths bcVLeft bcVRight) normalizedRows
-
-    in T.intercalate "\n" ([topBorder, headerRow, separatorBorder] <> dataRows <> [bottomBorder])
+    in T.intercalate "\n" ([topBorder, headerRow, separator] <> dataRows <> [bottomBorder])
     where
-      normalizeRow :: Int -> [L] -> [L]
-      normalizeRow expectedLen rowData
-        | currentLen >= expectedLen = take expectedLen rowData
-        | otherwise = rowData <> replicate (expectedLen - currentLen) (text "")
-        where currentLen = length rowData
+      fitRow n cells
+        | length cells >= n = take n cells
+        | otherwise         = cells <> replicate (n - length cells) (text "")
 
-      calculateColumnWidths :: [Text] -> [[L]] -> [Int]
-      calculateColumnWidths hdrs rws =
-        let headerWidths = map visibleLength hdrs
-            rowWidths = map (map (maximum . (0:) . map visibleLength . T.lines . renderElement)) rws
-            allWidths = headerWidths : rowWidths
-        in map (maximum . (0:)) (transpose allWidths)
+      columnWidths rs =
+        let headerWidths = map visibleLength headers
+            cellWidths   = map (map (maximum . (0:) . map visibleLength . T.lines . renderElement)) rs
+        in map (maximum . (0:)) (transpose (headerWidths : cellWidths))
 
-      renderTableRow :: [Int] -> Text -> Text -> [L] -> [Text]
-      renderTableRow widths vLeft vRight rowData =
-        let cellContents = map renderElement rowData
-            cellLines = map T.lines cellContents
-            maxCellHeight = maximum (1 : map length cellLines)
-            paddedCells = zipWith (padCell maxCellHeight) widths cellLines
-            tableRows = transpose paddedCells
-        in map (\rowCells -> vLeft <> " " <> T.intercalate (" " <> vLeft <> " ") rowCells <> " " <> vRight) tableRows
+      -- A row may be several lines tall when a cell renders multi-line.
+      rowLines widths cells =
+        let cellLines = map (T.lines . renderElement) cells
+            h         = maximum (1 : map length cellLines)
+            padCell w ls = map (padRight w) (ls <> replicate (h - length ls) "")
+        in transpose (zipWith padCell widths cellLines)
 
-      padCell :: Int -> Int -> [Text] -> [Text]
-      padCell cellHeight cellWidth cellLines =
-        let paddedLines = cellLines <> replicate (cellHeight - length cellLines) ""
-        in map (padRight cellWidth) paddedLines
-
--- | Section with decorative header
-data Section = Section Text [L] Text Int  -- title, content, glyph, flanking_chars
+data Section = Section Text [L] Text Int  -- title, content, glyph, flank width
 instance Element Section where
-  renderElement (Section title content glyph flankingChars) =
-    let flank = T.replicate flankingChars (T.take 1 glyph)
-        header = flank <> " " <> title <> " " <> flank
-        body = renderElement (Layout content)
-    in header <> "\n" <> body
+  renderElement (Section title content glyph n) =
+    let flank = T.replicate n (T.take 1 glyph)
+    in flank <> " " <> title <> " " <> flank <> "\n" <> renderElement (Layout content)
 
--- | Key-value pairs with alignment
-data KeyValue = KeyValue [(Text, Text)]
+newtype KeyValue = KeyValue [(Text, Text)]
 instance Element KeyValue where
-  renderElement (KeyValue pairs) =
-    if null pairs then ""
-    else let maxKeyLength = maximum (map (visibleLength . fst) pairs)
-             alignmentPosition = maxKeyLength + 2
-         in T.intercalate "\n" $ map (renderPair alignmentPosition) pairs
+  renderElement (KeyValue []) = ""
+  renderElement (KeyValue pairs) = T.intercalate "\n" $ map pair pairs
     where
-      renderPair alignPos (key, value) =
-        let keyWithColon = key <> ":"
-            spacesNeeded = alignPos - visibleLength keyWithColon
-            padding = T.replicate (max 1 spacesNeeded) " "
-        in keyWithColon <> padding <> value
+      col = maximum (map (visibleLength . fst) pairs) + 2
+      pair (k, v) =
+        let k' = k <> ":"
+        in k' <> T.replicate (max 1 (col - visibleLength k')) " " <> v
 
--- | Tree structure for hierarchical data
 data Tree = Tree Text [Tree]
 
 instance Element Tree where
-  renderElement treeData = renderTree treeData "" True []
+  renderElement = go True "" True
     where
-      renderTree (Tree name children) prefix isLast parentPrefixes =
-        let nodeLine = if null parentPrefixes
-                      then name
-                      else prefix <> (if isLast then "└── " else "├── ") <> name
-            childPrefix = if null parentPrefixes
-                         then ""
-                         else prefix <> (if isLast then "    " else "│   ")
-            childLines = zipWith (\child idx ->
-                          renderTree child childPrefix (idx == length children - 1) (parentPrefixes <> [not isLast])
-                        ) children [0..]
-        in if null children
-           then nodeLine
-           else nodeLine <> "\n" <> T.intercalate "\n" childLines
+      go isRoot prefix isLast (Tree name children) =
+        let nodeLine
+              | isRoot    = name
+              | otherwise = prefix <> (if isLast then "└── " else "├── ") <> name
+            childPrefix
+              | isRoot    = ""
+              | otherwise = prefix <> (if isLast then "    " else "│   ")
+            n = length children
+            childLines = zipWith (\i c -> go False childPrefix (i == n - 1) c) [0 :: Int ..] children
+        in T.intercalate "\n" (nodeLine : childLines)
 
+-- | Prefix the first line with @marker@ and hang the rest under it.
+hangIndent :: Text -> Text -> Text -> Text
+hangIndent indent marker content = case T.lines content of
+  []     -> indent <> marker
+  (l:ls) -> T.intercalate "\n" $ (indent <> marker <> l) : map (hang <>) ls
+  where hang = indent <> T.replicate (T.length marker) " "
 
 newtype UnorderedList = UnorderedList [L]
 instance Element UnorderedList where
-  renderElement (UnorderedList items) = renderAtLevel 0 items
+  renderElement (UnorderedList items) = go 0 items
     where
-      bulletStyles = ["•", "◦", "▪"]
-
-      renderAtLevel level itemList =
-        let currentBullet = bulletStyles !! (level `mod` length bulletStyles)
-            indent = T.replicate (level * 2) " "
-        in T.intercalate "\n" $ map (renderItem level indent currentBullet) itemList
-
-      renderItem level indent bullet item = case item of
-        UL nested -> renderAtLevel (level + 1) nested
-        _ -> let content = renderElement item
-                 contentLines = T.lines content
-             in case contentLines of
-               [singleLine] -> indent <> bullet <> " " <> singleLine
-               (firstLine:restLines) ->
-                 let firstOutput = indent <> bullet <> " " <> firstLine
-                     restIndent = T.replicate (T.length indent + T.length bullet + 1) " "
-                     restOutput = map (restIndent <>) restLines
-                 in T.intercalate "\n" (firstOutput : restOutput)
-               [] -> indent <> bullet <> " "
+      bullets = ["•", "◦", "▪"]
+      go :: Int -> [L] -> Text
+      go level = T.intercalate "\n" . map item
+        where
+          bullet = bullets !! (level `mod` length bullets)
+          indent = T.replicate (level * 2) " "
+          item (UL nested) = go (level + 1) nested
+          item e           = hangIndent indent (bullet <> " ") (renderElement e)
 
 newtype OrderedList = OrderedList [L]
 instance Element OrderedList where
-  renderElement (OrderedList items) = renderAtLevel 1 0 items
+  renderElement (OrderedList items) = go 0 items
     where
-      renderAtLevel startNum level itemList =
-        let indent = T.replicate (level * 2) " "
-            numbered = zip [startNum..] itemList
-        in T.intercalate "\n" $ map (renderItem level indent) numbered
+      go :: Int -> [L] -> Text
+      go level = T.intercalate "\n" . zipWith item [1 ..]
+        where
+          indent = T.replicate (level * 2) " "
+          item _ (OL nested) = go (level + 1) nested
+          item n e           = hangIndent indent (marker n <> ". ") (renderElement e)
 
-      renderItem level indent (num, item) = case item of
-        OL nested -> renderAtLevel 1 (level + 1) nested
-        _ -> let numStr = formatNumber level num <> ". "
-                 content = renderElement item
-                 contentLines = T.lines content
-             in case contentLines of
-               [singleLine] -> indent <> numStr <> singleLine
-               (firstLine:restLines) ->
-                 let firstOutput = indent <> numStr <> firstLine
-                     restIndent = T.replicate (T.length numStr) " "
-                     restOutput = map ((indent <> restIndent) <>) restLines
-                 in T.intercalate "\n" (firstOutput : restOutput)
-               [] -> indent <> numStr
+          marker n = case level `mod` 3 of
+            0 -> T.show n
+            1 -> T.singleton (toEnum (96 + n))
+            _ -> roman n
 
-      formatNumber :: Int -> Int -> Text
-      formatNumber lvl num = case lvl `mod` 3 of
-        0 -> T.show num                    -- 1, 2, 3
-        1 -> T.singleton (toEnum (96 + num))  -- a, b, c
-        _ -> toRoman num                  -- i, ii, iii
-
-      toRoman :: Int -> Text
-      toRoman = \case
+      roman :: Int -> Text
+      roman = \case
         1  -> "i";   2  -> "ii";  3  -> "iii"; 4  -> "iv"; 5  -> "v"
         6  -> "vi";  7  -> "vii"; 8  -> "viii"; 9  -> "ix"; 10 -> "x"
         n  -> T.show n
@@ -916,44 +786,40 @@ instance Element OrderedList where
 data InlineBar = InlineBar Text Double
 instance Element InlineBar where
   renderElement (InlineBar label progress) =
-    let clampedProgress = max 0.0 (min 1.0 progress)
-        barWidth = 20
-        filledSegments = floor (clampedProgress * fromIntegral barWidth)
-        emptySegments = barWidth - filledSegments
-        bar = T.replicate filledSegments "█" <> T.replicate emptySegments "─"
-        percentage = floor (clampedProgress * 100) :: Int
-    in label <> " [" <> bar <> "] " <> T.show percentage <> "%"
+    let p      = max 0.0 (min 1.0 progress)
+        filled = floor (p * 20)
+        bar    = T.replicate filled "█" <> T.replicate (20 - filled) "─"
+    in label <> " [" <> bar <> "] " <> T.show (floor (p * 100) :: Int) <> "%"
 
--- Smart constructors and automatic conversions
+--------------------------------------------------------------------------------
+-- Constructors
+
 text :: String -> L
 text = L . T.pack
 
 br :: L
 br = L LineBreak
 
+-- | Centre against the widest sibling in the enclosing 'layout'.
 center :: Element a => a -> L
 center element = AutoCenter (L element)
 
--- | Center element within specified width
+-- | Centre within a fixed width.
 center' :: Element a => Int -> a -> L
-center' targetWidth element = L (Centered (renderElement element) targetWidth)
+center' w element = L (Centered (renderElement element) w)
 
 underline :: Element a => a -> L
 underline element = L (Underlined (renderElement element) "─" Nothing)
 
--- | Add underline with custom character
 underline' :: Element a => String -> a -> L
-underline' char element = L (Underlined (renderElement element) (T.pack char) Nothing)
+underline' glyph element = L (Underlined (renderElement element) (T.pack glyph) Nothing)
 
--- | Add colored underline with custom character and color
---
+-- |
 -- @
 -- 'underlineColored' "=" 'ColorRed' $ 'text' "Error Section"
--- 'underlineColored' "~" 'ColorGreen' $ 'text' "Success"
--- 'underlineColored' "─" 'ColorBrightCyan' $ 'text' "Info"
 -- @
 underlineColored :: Element a => String -> Color -> a -> L
-underlineColored char color element = L (Underlined (renderElement element) (T.pack char) (Just color))
+underlineColored glyph color element = L (Underlined (renderElement element) (T.pack glyph) (Just color))
 
 ul :: [L] -> L
 ul = UL
@@ -968,63 +834,54 @@ statusCard :: String -> String -> L
 statusCard label content = LStatusCard (T.pack label) (T.pack content) BorderNormal
 
 layout :: [L] -> L
-layout elements = L (Layout elements)
+layout = L . Layout
 
--- | Alias for 'layout'
+-- | Alias for 'layout'.
 vstack :: [L] -> L
 vstack = layout
 
 row :: [L] -> L
 row elements = L (Row elements False)
 
--- | Create horizontal row with no spacing between elements (for gradients, etc.)
+-- | 'row' without the single-space gutter.
 tightRow :: [L] -> L
 tightRow elements = L (Row elements True)
 
--- | Align text to the left within specified width
 alignLeft :: Int -> String -> L
-alignLeft targetWidth content = L (AlignedText (T.pack content) targetWidth AlignLeft)
+alignLeft w s = L (AlignedText (T.pack s) w AlignLeft)
 
--- | Align text to the right within specified width
 alignRight :: Int -> String -> L
-alignRight targetWidth content = L (AlignedText (T.pack content) targetWidth AlignRight)
+alignRight w s = L (AlignedText (T.pack s) w AlignRight)
 
--- | Align text to the center within specified width
 alignCenter :: Int -> String -> L
-alignCenter targetWidth content = L (AlignedText (T.pack content) targetWidth AlignCenter)
+alignCenter w s = L (AlignedText (T.pack s) w AlignCenter)
 
--- | Justify text (spread words evenly to fill width)
 justify :: Int -> String -> L
-justify targetWidth content = L (AlignedText (T.pack content) targetWidth Justify)
+justify w s = L (AlignedText (T.pack s) w Justify)
 
--- | Wrap text to multiple lines with specified width
+-- | Greedy word wrap. A word longer than @w@ gets a line to itself.
 wrap :: Int -> String -> L
-wrap targetWidth content =
-  let ws = T.words (T.pack content)
-      wrappedLines = wrapWords targetWidth ws
-  in layout (map (L :: Text -> L) wrappedLines)
+wrap w = layout . map L . wrapWords . T.words . T.pack
   where
-    wrapWords :: Int -> [Text] -> [Text]
-    wrapWords _ [] = []
-    wrapWords maxWidth wordsList =
-      let (line, rest) = takeLine maxWidth wordsList
-      in line : wrapWords maxWidth rest
+    wrapWords :: [Text] -> [Text]
+    wrapWords [] = []
+    wrapWords ws = let (line, rest) = takeLine ws in line : wrapWords rest
 
-    takeLine :: Int -> [Text] -> (Text, [Text])
-    takeLine _ [] = ("", [])
-    takeLine maxWidth (firstWord:restWords)
-      | T.length firstWord > maxWidth = (firstWord, restWords)  -- Word too long, put it on its own line
-      | otherwise = go (T.length firstWord) [firstWord] restWords
-      where
-        go _ acc [] = (T.unwords (reverse acc), [])
-        go currentLen acc (nextWord:remainingWords)
-          | currentLen + 1 + T.length nextWord <= maxWidth = go (currentLen + 1 + T.length nextWord) (nextWord:acc) remainingWords
-          | otherwise = (T.unwords (reverse acc), nextWord:remainingWords)
+    takeLine [] = ("", [])
+    takeLine (x:xs)
+      | T.length x > w = (x, xs)
+      | otherwise      = go (T.length x) [x] xs
+
+    go _ acc [] = (T.unwords (reverse acc), [])
+    go len acc (y:ys)
+      | len' <= w = go len' (y:acc) ys
+      | otherwise = (T.unwords (reverse acc), y:ys)
+      where len' = len + 1 + T.length y
 
 box :: String -> [L] -> L
 box title elements = LBox (T.pack title) elements BorderNormal
 
--- | Banner: a titleless bordered box (Double border by default)
+-- | Titleless box with a double border.
 --
 -- @
 -- 'banner' ["System Dashboard"]
@@ -1035,44 +892,32 @@ box title elements = LBox (T.pack title) elements BorderNormal
 banner :: [L] -> L
 banner content = LBox "" content BorderDouble
 
--- | Create margin with custom prefix
---
--- @
--- 'margin' "[error]" ['text' "Something went wrong"]
--- 'margin' "[info]" ['text' "FYI: Check the logs"]
--- @
+-- | Prefix every line, e.g. @'margin' "[error]" ['text' "boom"]@.
 margin :: String -> [L] -> L
 margin prefix elements = L (Margin (T.pack prefix) elements)
 
--- | Horizontal rule with default character and width
 hr :: L
 hr = L (HorizontalRule "─" 50)
 
--- | Horizontal rule with custom character
 hr' :: String -> L
-hr' char = L (HorizontalRule (T.pack char) 50)
+hr' glyph = L (HorizontalRule (T.pack glyph) 50)
 
--- | Horizontal rule with custom character and width
 hr'' :: String -> Int -> L
-hr'' char ruleWidth = L (HorizontalRule (T.pack char) ruleWidth)
+hr'' glyph n = L (HorizontalRule (T.pack glyph) n)
 
--- | Vertical rule with default character and height
 vr :: L
 vr = L (VerticalRule "│" 10)
 
--- | Vertical rule with custom character
 vr' :: String -> L
-vr' char = L (VerticalRule (T.pack char) 10)
+vr' glyph = L (VerticalRule (T.pack glyph) 10)
 
--- | Vertical rule with custom character and height
 vr'' :: String -> Int -> L
-vr'' char ruleHeight = L (VerticalRule (T.pack char) ruleHeight)
+vr'' glyph n = L (VerticalRule (T.pack glyph) n)
 
--- | Add padding around element
 pad :: Element a => Int -> a -> L
-pad padding element = L (Padded (renderElement element) padding)
+pad p element = L (Padded (renderElement element) p)
 
--- | Place elements side by side (2 spaces between columns)
+-- | Side by side with a two-space gap.
 --
 -- @
 -- 'columns' ['layout' ["A", "B"], 'layout' ["C", "D"]]
@@ -1082,50 +927,40 @@ pad padding element = L (Padded (renderElement element) padding)
 columns :: [L] -> L
 columns elements = L (Columns elements 2)
 
--- | Like 'columns' with a custom gap between columns
 columns' :: Int -> [L] -> L
 columns' spacing elements = L (Columns elements spacing)
 
--- | Truncate an element with a trailing @"..."@ when it is too wide
---
+-- |
 -- @
 -- 'truncate'' 15 "Very long text that will be cut off"  -- Very long te...
 -- @
 truncate' :: Element a => Int -> a -> L
 truncate' maxWidth element = L (Truncated (renderElement element) maxWidth "...")
 
--- | Like 'truncate'' with a custom ellipsis
 truncate'' :: Element a => Int -> String -> a -> L
 truncate'' maxWidth ellipsis element = L (Truncated (renderElement element) maxWidth (T.pack ellipsis))
 
--- | Create horizontal bar chart
+-- | Horizontal bar chart.
 chart :: [(String, Double)] -> L
-chart dataPoints = L (Chart [ (T.pack label, v) | (label, v) <- dataPoints ])
+chart points = L (Chart [ (T.pack label, v) | (label, v) <- points ])
 
--- | Create table with headers and rows
 table :: [String] -> [[L]] -> L
 table headers rows = LTable (map T.pack headers) rows BorderNormal
 
--- | Create section with title and content
 section :: String -> [L] -> L
 section title content = L (Section (T.pack title) content "=" 3)
 
--- | Create section with custom glyph
 section' :: String -> String -> [L] -> L
 section' glyph title content = L (Section (T.pack title) content (T.pack glyph) 3)
 
--- | Create section with custom glyph and flanking chars
 section'' :: String -> String -> Int -> [L] -> L
-section'' glyph title flanking content = L (Section (T.pack title) content (T.pack glyph) flanking)
+section'' glyph title n content = L (Section (T.pack title) content (T.pack glyph) n)
 
--- | Create key-value pairs
 kv :: [(String, String)] -> L
 kv pairs = L (KeyValue [ (T.pack k, T.pack v) | (k, v) <- pairs ])
 
--- | Apply a border style to elements that support borders
---
--- Elements that support borders: 'box', 'statusCard', 'table'.
--- Other elements are returned unchanged.
+-- | Only 'box', 'statusCard' and 'table' have borders; anything else passes
+-- through untouched.
 --
 -- @
 -- withBorder BorderDouble $ table [\"Name\"] [[text \"Alice\"]]
@@ -1133,39 +968,24 @@ kv pairs = L (KeyValue [ (T.pack k, T.pack v) | (k, v) <- pairs ])
 withBorder :: Border -> L -> L
 withBorder = setBorder
 
--- | Apply a color to an element
---
--- @
--- withColor ColorBrightYellow $ box \"Warning\" [text "Check logs"]
--- @
 withColor :: Color -> L -> L
 withColor = Colored
 
--- | Apply a style to an element
---
--- @
--- withStyle StyleBold $ text "Important!"
--- @
 withStyle :: Style -> L -> L
 withStyle = Styled
 
--- | Create tree structure
 tree :: String -> [Tree] -> L
 tree name children = L (Tree (T.pack name) children)
 
--- | Create leaf tree node (no children)
 leaf :: String -> Tree
 leaf name = Tree (T.pack name) []
 
--- | Create branch tree node with children
 branch :: String -> [Tree] -> Tree
-branch name children = Tree (T.pack name) children
+branch name = Tree (T.pack name)
 
--- ============================================================================
--- Spinner Animations
--- ============================================================================
+--------------------------------------------------------------------------------
+-- Spinners
 
--- | Spinner style with animation frames
 data SpinnerStyle
   = SpinnerDots
   | SpinnerLine
@@ -1177,7 +997,6 @@ data SpinnerStyle
   | SpinnerArrow
   deriving (Show, Eq)
 
--- | Get animation frames for a spinner style
 spinnerFrames :: SpinnerStyle -> [Text]
 spinnerFrames SpinnerDots   = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 spinnerFrames SpinnerLine   = ["|", "/", "-", "\\"]
@@ -1188,43 +1007,33 @@ spinnerFrames SpinnerMoon   = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "
 spinnerFrames SpinnerGrow   = ["▏", "▎", "▍", "▌", "▋", "▊", "▉", "█", "▉", "▊", "▋", "▌", "▍", "▎"]
 spinnerFrames SpinnerArrow  = ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"]
 
--- | Spinner animation element
-data Spinner = Spinner Text Int SpinnerStyle  -- label, frame, style
+spinnerFrame :: SpinnerStyle -> Int -> Text
+spinnerFrame style i = let fs = spinnerFrames style in fs !! (i `mod` length fs)
+
+data Spinner = Spinner Text Int SpinnerStyle
 
 instance Element Spinner where
-  renderElement (Spinner label frame style) =
-    let frames = spinnerFrames style
-        spinChar = frames !! (frame `mod` length frames)
-    in if T.null label
-       then spinChar
-       else spinChar <> " " <> label
+  renderElement (Spinner label frame style)
+    | T.null label = glyph
+    | otherwise    = glyph <> " " <> label
+    where glyph = spinnerFrame style frame
 
--- | Create an animated spinner
---
--- Example usage:
+-- | One frame of a spinner; bump the frame each tick to animate.
 --
 -- @
--- 'spinner' \"Loading\" 5 'SpinnerDots'   -- Shows the 5th frame of dots spinner
--- 'spinner' \"Processing\" 0 'SpinnerLine'  -- Shows first frame with label
--- @
---
--- Increment the frame number each render to animate:
---
--- @
--- 'layout' ['spinner' \"Working\" (tickCount \`mod\` 10) 'SpinnerDots']
+-- 'layout' ['spinner' \"Working\" tick 'SpinnerDots']
 -- @
 spinner :: String -> Int -> SpinnerStyle -> L
 spinner label frame style = L (Spinner (T.pack label) frame style)
 
--- ============================================================================
--- Visualization Primitives
--- ============================================================================
+--------------------------------------------------------------------------------
+-- Plots
 
--- | Block characters for sparklines and bar charts (indices 0–8)
+-- | Eighth-block ramp, index 0 (blank) to 8 (full).
 blockChars :: Text
 blockChars = " ▁▂▃▄▅▆▇█"
 
--- | Braille dot bit flag for position (row 0–3, col 0–1) in a 2×4 braille cell
+-- | Bit for dot (row, col) of a 2x4 braille cell.
 brailleDot :: Int -> Int -> Int
 brailleDot 0 0 = 0x01
 brailleDot 1 0 = 0x02
@@ -1236,61 +1045,52 @@ brailleDot 2 1 = 0x20
 brailleDot 3 1 = 0x80
 brailleDot _ _ = 0
 
--- | Default color palette for cycling through series/slices
 defaultPalette :: [Color]
 defaultPalette = [ ColorBrightCyan, ColorBrightMagenta, ColorBrightYellow
                  , ColorBrightGreen, ColorBrightRed, ColorBrightBlue ]
 
--- | Use explicit color if not ColorDefault, else cycle palette by index
+-- | Explicit colour wins; 'ColorDefault' cycles the palette by index.
 pickColor :: Int -> Color -> Color
 pickColor idx ColorDefault = defaultPalette !! (idx `mod` length defaultPalette)
 pickColor _   c            = c
 
--- | Format number for axis labels: "3" for integers, "3.5" for decimals
+-- | @3@ for whole numbers, @3.5@ otherwise.
 formatAxisNum :: Double -> Text
 formatAxisNum v
   | v == fromInteger (round v) = T.show (round v :: Integer)
   | otherwise                  = T.pack (printf "%.1f" v)
 
--- | ANSI 256-color background escape sequence
 bgColor256 :: Int -> Text
 bgColor256 n = "\ESC[48;5;" <> T.show n <> "m"
 
--- | ANSI reset sequence
 ansiReset :: Text
 ansiReset = "\ESC[0m"
 
--- Sparkline --------------------------------------------------
-
-data SparklineData = SparklineData [Double]
+newtype SparklineData = SparklineData [Double]
 
 instance Element SparklineData where
   renderElement (SparklineData []) = ""
-  renderElement (SparklineData vals) =
-    let mn  = minimum vals
-        mx  = maximum vals
-        rng = mx - mn
-        idx v | rng == 0  = 4
-              | otherwise = max 1 $ min 8 $ floor ((v - mn) / rng * 8)
-    in T.pack (map (\v -> T.index blockChars (idx v)) vals)
+  renderElement (SparklineData vals) = T.pack (map (T.index blockChars . level) vals)
+    where
+      mn  = minimum vals
+      rng = maximum vals - mn
+      level v
+        | rng == 0  = 4
+        | otherwise = max 1 $ min 8 $ floor ((v - mn) / rng * 8)
 
--- | Create a sparkline from a list of values
 plotSparkline :: [Double] -> L
 plotSparkline = L . SparklineData
 
--- Line Plot (Braille) --------------------------------------------------
-
--- | A data series for line plots: points, label, color
+-- | Points, label, colour.
 data Series = Series [(Double, Double)] String Color
 
-data PlotData = PlotData [Series] Int Int  -- series, width, height
+data PlotData = PlotData [Series] Int Int
 
 instance Element PlotData where
   renderElement (PlotData ss w h)
-    | null ss || all (\(Series ps _ _) -> null ps) ss = "No data"
+    | all (\(Series ps _ _) -> null ps) ss = "No data"
     | otherwise =
-      let allPts = concatMap (\(Series ps _ _) -> ps) ss
-          (xs, ys) = unzip allPts
+      let (xs, ys) = unzip (concatMap (\(Series ps _ _) -> ps) ss)
           xMin = minimum xs; xMax = maximum xs
           yMin = minimum ys; yMax = maximum ys
           xRng = if xMax == xMin then 1.0 else xMax - xMin
@@ -1303,22 +1103,20 @@ instance Element PlotData where
             )
           clampI lo hi = max lo . min hi
 
+          -- Each cell holds its braille bits and the first series to touch it.
           emptyGrid = replicate h (replicate w (0 :: Int, -1 :: Int))
 
-          plotSeries grd sIdx (Series ps _ _) =
-            foldl (\g p ->
-              let (px, py) = toPixel p
-                  cx = px `div` 2; cy = py `div` 4
-                  dx = px `mod` 2; dy = py `mod` 4
-                  bit = brailleDot dy dx
-              in updGrid cy cx (\(b, si) -> (b .|. bit, if si < 0 then sIdx else si)) g
-            ) grd ps
+          plotSeries grd sIdx (Series ps _ _) = foldl plot grd ps
+            where
+              plot g p =
+                let (px, py) = toPixel p
+                    bit = brailleDot (py `mod` 4) (px `mod` 2)
+                in updGrid (py `div` 4) (px `div` 2)
+                     (\(b, si) -> (b .|. bit, if si < 0 then sIdx else si)) g
 
           updGrid r c f g =
-            [ if ri == r
-              then [ if ci == c then f cell else cell | (ci, cell) <- zip [0..] row' ]
-              else row'
-            | (ri, row') <- zip [0..] g ]
+            [ if ri == r then [ if ci == c then f x else x | (ci, x) <- zip [0..] row' ] else row'
+            | (ri, row') <- zip [0 :: Int ..] g ]
 
           grid = foldl (\g (i, s) -> plotSeries g i s) emptyGrid (zip [0..] ss)
 
@@ -1326,39 +1124,35 @@ instance Element PlotData where
           yLabels = map formatAxisNum yTicks
           yLabelW = maximum (0 : map T.length yLabels)
 
-          gridLines = zipWith (\yLbl row' ->
-            padLeft yLabelW yLbl <> " │" <>
-            foldMap (\(bits, si) ->
-              let ch = if bits == 0 then ' ' else chr (0x2800 + bits)
-                  c  = if si >= 0 then pickColor si (sColor (ss !! si)) else ColorDefault
-              in if c == ColorDefault then T.singleton ch else wrapAnsi c (T.singleton ch)
-            ) row'
-            ) yLabels grid
+          cell (bits, si)
+            | bits == 0 = " "
+            | si < 0    = glyph
+            | otherwise = wrapAnsi (pickColor si (sColor (ss !! si))) glyph
+            where glyph = T.singleton (chr (0x2800 + bits))
 
-          xAxis   = T.replicate (yLabelW + 2) " " <> T.replicate w "─"
+          gridLines = zipWith (\lbl r -> padLeft yLabelW lbl <> " │" <> foldMap cell r) yLabels grid
+
+          gutter  = T.replicate (yLabelW + 2) " "
           xMinL   = formatAxisNum xMin
           xMaxL   = formatAxisNum xMax
-          xLabels = T.replicate (yLabelW + 2) " " <> xMinL
+          xAxis   = gutter <> T.replicate w "─"
+          xLabels = gutter <> xMinL
                     <> T.replicate (max 1 (w - T.length xMinL - T.length xMaxL)) " "
                     <> xMaxL
 
           legend
             | length ss <= 1 = []
-            | otherwise      = ["", T.intercalate "  " $
-                zipWith (\i (Series _ nm cl) ->
-                  wrapAnsi (pickColor i cl) "●" <> " " <> T.pack nm
-                ) [0..] ss]
+            | otherwise      = ["", T.intercalate "  "
+                [ wrapAnsi (pickColor i cl) "●" <> " " <> T.pack nm | (i, Series _ nm cl) <- zip [0..] ss ]]
 
       in T.intercalate "\n" (gridLines <> [xAxis, xLabels] <> legend)
     where sColor (Series _ _ c) = c
 
--- | Create a braille line plot
+-- | Braille line plot, @w@x@h@ cells.
 plotLine :: Int -> Int -> [Series] -> L
 plotLine w h ss = L (PlotData ss w h)
 
--- Pie Chart (Braille) --------------------------------------------------
-
--- | A slice of a pie chart: value, label, color
+-- | Value, label, colour.
 data Slice = Slice Double String Color
 
 data PieData = PieData [Slice] Int Int
@@ -1369,98 +1163,90 @@ instance Element PieData where
     let total   = sum [ v | Slice v _ _ <- slices ]
         cumAngs = scanl (+) 0 [ v / total * 2 * pi | Slice v _ _ <- slices ]
 
-        cxF    = fromIntegral w                   :: Double
-        cyF    = fromIntegral (h * 4) / 2.0       :: Double
+        cxF    = fromIntegral w             :: Double
+        cyF    = fromIntegral (h * 4) / 2.0 :: Double
         radius = min cxF (cyF * 0.9)
 
-        findSlice ang = go 0 (drop 1 cumAngs)
-          where go i []      = max 0 (i - 1)
-                go i (a:as') = if ang < a then i else go (i + 1) as'
+        sliceAt ang = go 0 (drop 1 cumAngs)
+          where go i []     = max 0 (i - 1)
+                go i (a:as) = if ang < a then i else go (i + 1) as
 
+        -- Cells are twice as tall as wide, so y distances are doubled.
         renderCell gcx gcy =
-          let subPx = [ (dy, dx, dist, nAng)
-                      | dy <- [0..3], dx <- [0..1]
-                      , let dpx  = fromIntegral (gcx * 2 + dx) :: Double
-                            dpy  = fromIntegral (gcy * 4 + dy) :: Double
-                            relX = dpx - cxF
-                            relY = (dpy - cyF) * 2.0
-                            dist = sqrt (relX * relX + relY * relY)
-                            ang  = atan2 relY relX
-                            nAng = if ang < 0 then ang + 2 * pi else ang
-                      ]
-              inside = [ (dy, dx, nAng) | (dy, dx, dist, nAng) <- subPx, dist <= radius ]
-              bits   = foldl (\acc (dy, dx, _) -> acc .|. brailleDot dy dx) 0 inside
-              domSi  = case inside of
-                         []            -> -1
-                         ((_, _, a):_) -> findSlice a
-              ch     = if bits == 0 then ' ' else chr (0x2800 + bits)
-              color  = if domSi >= 0 && domSi < length slices
-                       then pickColor domSi (slColor (slices !! domSi))
-                       else ColorDefault
-          in if bits == 0 then " " else wrapAnsi color (T.singleton ch)
+          let inside = [ (dy, dx, if ang < 0 then ang + 2 * pi else ang)
+                       | dy <- [0..3], dx <- [0..1]
+                       , let relX = fromIntegral (gcx * 2 + dx) - cxF
+                             relY = (fromIntegral (gcy * 4 + dy) - cyF) * 2.0
+                             ang  = atan2 relY relX
+                       , sqrt (relX * relX + relY * relY) <= radius ]
+              bits  = foldl (\acc (dy, dx, _) -> acc .|. brailleDot dy dx) 0 inside
+              si    = case inside of
+                        []            -> -1
+                        ((_, _, a):_) -> sliceAt a
+              color = if si >= 0 && si < length slices
+                        then pickColor si (slColor (slices !! si))
+                        else ColorDefault
+          in if bits == 0 then " " else wrapAnsi color (T.singleton (chr (0x2800 + bits)))
 
-        gridLines = [ foldMap (\gcx -> renderCell gcx gcy) [0..w-1] | gcy <- [0..h-1] ]
+        gridLines = [ foldMap (`renderCell` gcy) [0..w-1] | gcy <- [0..h-1] ]
 
-        legendLines = zipWith (\i (Slice v nm cl) ->
-          let c   = pickColor i cl
-              pct = T.pack (printf "%.0f" (v / total * 100))
-          in "  " <> wrapAnsi c "●" <> " " <> T.pack nm <> " (" <> pct <> "%)"
-          ) [0..] slices
+        legendLines =
+          [ "  " <> wrapAnsi (pickColor i cl) "●" <> " " <> T.pack nm
+              <> " (" <> T.pack (printf "%.0f" (v / total * 100)) <> "%)"
+          | (i, Slice v nm cl) <- zip [0..] slices ]
 
     in T.intercalate "\n" (gridLines <> [""] <> legendLines)
     where slColor (Slice _ _ c) = c
 
--- | Create a braille pie chart
+-- | Braille pie chart, @w@x@h@ cells.
 plotPie :: Int -> Int -> [Slice] -> L
 plotPie w h sl = L (PieData sl w h)
 
--- Bar Chart (Vertical) --------------------------------------------------------
-
--- | A bar item: value, label, color
+-- | Value, label, colour.
 data BarItem = BarItem Double String Color
 
 data BarChartData = BarChartData [BarItem] Int Int
 
+-- | Y-axis labels top to bottom, plus their width.
+yAxisLabels :: Double -> Int -> ([Text], Int)
+yAxisLabels top h =
+  let ls = [ formatAxisNum (top * fromIntegral (h - 1 - i) / fromIntegral (max 1 (h - 1))) | i <- [0..h-1] ]
+  in (ls, maximum (0 : map T.length ls))
+
+-- | One bar's slice of a row, @filled@ eighths high.
+barCell :: Int -> Color -> Int -> Text
+barCell barW color filled
+  | filled > 0 = wrapAnsi color glyphs
+  | otherwise  = glyphs
+  where glyphs = replicateChar barW (T.index blockChars filled)
+
 instance Element BarChartData where
   renderElement (BarChartData [] _ _) = "No data"
   renderElement (BarChartData items w h) =
-    let maxVal   = maximum [ v | BarItem v _ _ <- items ]
-        nBars    = length items
-        barW     = max 1 $ (w - nBars + 1) `div` nBars
-        totalSub = h * 8
-        barHts   = [ round (v / maxVal * fromIntegral totalSub) :: Int | BarItem v _ _ <- items ]
-
-        yTicks  = [ maxVal * fromIntegral (h - 1 - i) / fromIntegral (max 1 (h - 1)) | i <- [0..h-1] ]
-        yLabels = map formatAxisNum yTicks
-        yLabelW = maximum (0 : map T.length yLabels)
+    let maxVal = maximum [ v | BarItem v _ _ <- items ]
+        nBars  = length items
+        barW   = max 1 $ (w - nBars + 1) `div` nBars
+        barHts = [ round (v / maxVal * fromIntegral (h * 8)) :: Int | BarItem v _ _ <- items ]
+        (yLabels, yLabelW) = yAxisLabels maxVal h
 
         gridLines =
-          [ let r = h - 1 - rowIdx
-                barCells = T.intercalate " " $
-                  map (\(i, (bh, BarItem _ _ cl)) ->
-                    let filled = min 8 $ max 0 (bh - r * 8)
-                        color' = pickColor i cl
-                        barStr = replicateChar barW (T.index blockChars filled)
-                    in if filled > 0 then wrapAnsi color' barStr else barStr
-                  ) (zip [0..] (zip barHts items))
-            in padLeft yLabelW yLab <> " │" <> barCells
-          | (rowIdx, yLab) <- zip [0..] yLabels
-          ]
+          [ padLeft yLabelW yLab <> " │" <> T.intercalate " "
+              [ barCell barW (pickColor i cl) (min 8 $ max 0 (bh - r * 8))
+              | (i, bh, BarItem _ _ cl) <- zip3 [0..] barHts items ]
+          | (r, yLab) <- zip [h - 1, h - 2 ..] yLabels ]
 
-        xAxisW    = nBars * barW + nBars - 1
-        xAxis     = T.replicate (yLabelW + 2) " " <> T.replicate xAxisW "─"
-        barLabels = T.replicate (yLabelW + 2) " " <>
-                    T.intercalate " " [ T.take barW (T.pack nm <> T.replicate barW " ") | BarItem _ nm _ <- items ]
+        gutter    = T.replicate (yLabelW + 2) " "
+        xAxis     = gutter <> T.replicate (nBars * barW + nBars - 1) "─"
+        barLabels = gutter <> T.intercalate " "
+                      [ T.take barW (T.pack nm <> T.replicate barW " ") | BarItem _ nm _ <- items ]
 
     in T.intercalate "\n" (gridLines <> [xAxis, barLabels])
 
--- | Create a vertical bar chart
+-- | Vertical bar chart, @w@x@h@ cells.
 plotBar :: Int -> Int -> [BarItem] -> L
 plotBar w h items = L (BarChartData items w h)
 
--- Stacked Bar Chart -------------------------------------------------------
-
--- | A group of stacked bars: segments and group label
+-- | Segments bottom to top, and the group label.
 data StackedBarGroup = StackedBarGroup [BarItem] String
 
 data StackedBarChartData = StackedBarChartData [StackedBarGroup] Int Int
@@ -1468,88 +1254,60 @@ data StackedBarChartData = StackedBarChartData [StackedBarGroup] Int Int
 instance Element StackedBarChartData where
   renderElement (StackedBarChartData [] _ _) = "No data"
   renderElement (StackedBarChartData groups w h) =
-    let maxTotal  = maximum [ sum [ v | BarItem v _ _ <- segs ] | StackedBarGroup segs _ <- groups ]
-        nGroups   = length groups
-        barW      = max 1 $ (w - nGroups + 1) `div` nGroups
-        totalSub  = h * 8
+    let maxTotal = maximum [ sum [ v | BarItem v _ _ <- segs ] | StackedBarGroup segs _ <- groups ]
+        nGroups  = length groups
+        barW     = max 1 $ (w - nGroups + 1) `div` nGroups
+        (yLabels, yLabelW) = yAxisLabels maxTotal h
 
-        groupBounds = map (\(StackedBarGroup segs _) ->
-          let vals    = [ v | BarItem v _ _ <- segs ]
-              subHts  = map (\v -> round (v / maxTotal * fromIntegral totalSub) :: Int) vals
-              cumHts  = scanl (+) 0 subHts
-              bottoms = init cumHts
-              tops    = drop 1 cumHts
-          in zip segs (zip bottoms tops)
-          ) groups
+        -- (segment, (bottom, top)) in eighths
+        groupBounds =
+          [ let cum = scanl (+) 0 [ round (v / maxTotal * fromIntegral (h * 8)) :: Int | BarItem v _ _ <- segs ]
+            in zip segs (zip cum (drop 1 cum))
+          | StackedBarGroup segs _ <- groups ]
 
         allLabels = nub [ nm | StackedBarGroup segs _ <- groups, BarItem _ nm _ <- segs ]
 
-        -- One resolved color per label, shared by the bars and the legend:
-        -- the first explicit color given for that label, else a palette color
-        -- picked by the label's index.
-        labelColors =
-          [ (nm, pickColor i (firstExplicit nm)) | (i, nm) <- zip [0..] allLabels ]
+        -- A label keeps one colour across bars and legend: its first explicit
+        -- colour, else the palette slot for its index.
+        labelColors = [ (nm, pickColor i (firstExplicit nm)) | (i, nm) <- zip [0..] allLabels ]
         firstExplicit nm = case [ cl | StackedBarGroup segs _ <- groups
                                      , BarItem _ nm' cl <- segs
                                      , nm' == nm, cl /= ColorDefault ] of
           (cl:_) -> cl
           []     -> ColorDefault
-        labelColor nm = case lookup nm labelColors of
-          Just c  -> c
-          Nothing -> ColorDefault
+        labelColor nm = fromMaybe ColorDefault (lookup nm labelColors)
 
-        yTicks  = [ maxTotal * fromIntegral (h - 1 - i) / fromIntegral (max 1 (h - 1)) | i <- [0..h-1] ]
-        yLabels = map formatAxisNum yTicks
-        yLabelW = maximum (0 : map T.length yLabels)
+        -- Only the highest segment reaching into a row is drawn in it.
+        cellAt r bounds =
+          case [ (seg, top) | (seg, (bot, top)) <- bounds, top > r * 8, bot < r * 8 + 8 ] of
+            [] -> T.replicate barW " "
+            overlapping ->
+              let (BarItem _ nm _, top) = foldl1 (\a b -> if snd b > snd a then b else a) overlapping
+              in barCell barW (labelColor nm) (min 8 $ max 0 (top - r * 8))
 
         gridLines =
-          [ let r = h - 1 - rowIdx
-                subBot = r * 8
-                subTop = r * 8 + 8
-                barCells = T.intercalate " " $
-                  map (\bounds ->
-                    let overlapping = [ (bi, bot, top)
-                                      | (bi, (bot, top)) <- bounds
-                                      , top > subBot, bot < subTop ]
-                        topSeg = case overlapping of
-                          [] -> Nothing
-                          _  -> Just $ foldl1 (\a@(_, _, t1) b@(_, _, t2) ->
-                                  if t2 > t1 then b else a) overlapping
-                    in case topSeg of
-                      Nothing -> T.replicate barW " "
-                      Just (BarItem _ nm _, _, top) ->
-                        let filled = min 8 $ max 0 (top - subBot)
-                            color' = labelColor nm
-                            barStr = replicateChar barW (T.index blockChars filled)
-                        in if filled > 0 then wrapAnsi color' barStr else barStr
-                  ) groupBounds
-            in padLeft yLabelW yLab <> " │" <> barCells
-          | (rowIdx, yLab) <- zip [0..] yLabels
-          ]
+          [ padLeft yLabelW yLab <> " │" <> T.intercalate " " (map (cellAt r) groupBounds)
+          | (r, yLab) <- zip [h - 1, h - 2 ..] yLabels ]
 
-        xAxisW    = nGroups * barW + nGroups - 1
-        xAxis     = T.replicate (yLabelW + 2) " " <> T.replicate xAxisW "─"
-        grpLabels = T.replicate (yLabelW + 2) " " <>
-                    T.intercalate " " [ T.take barW (T.pack nm <> T.replicate barW " ")
-                                      | StackedBarGroup _ nm <- groups ]
+        gutter    = T.replicate (yLabelW + 2) " "
+        xAxis     = gutter <> T.replicate (nGroups * barW + nGroups - 1) "─"
+        grpLabels = gutter <> T.intercalate " "
+                      [ T.take barW (T.pack nm <> T.replicate barW " ") | StackedBarGroup _ nm <- groups ]
 
-        legendItems = map (\nm -> wrapAnsi (labelColor nm) "█" <> " " <> T.pack nm) allLabels
-        legendLine
+        legend
           | length allLabels <= 1 = []
-          | otherwise             = ["", T.intercalate "  " legendItems]
+          | otherwise = ["", T.intercalate "  "
+              [ wrapAnsi (labelColor nm) "█" <> " " <> T.pack nm | nm <- allLabels ]]
 
-    in T.intercalate "\n" (gridLines <> [xAxis, grpLabels] <> legendLine)
+    in T.intercalate "\n" (gridLines <> [xAxis, grpLabels] <> legend)
 
--- | Create a stacked vertical bar chart
 plotStackedBar :: Int -> Int -> [StackedBarGroup] -> L
 plotStackedBar w h groups = L (StackedBarChartData groups w h)
 
--- Heatmap -----------------------------------------------------------
-
--- | Heatmap data: grid of values, row labels, column labels
+-- | Grid of values, row labels, column labels.
 data HeatmapData = HeatmapData [[Double]] [String] [String]
 
-data HeatmapElement = HeatmapElement HeatmapData Int  -- data, cellWidth
+data HeatmapElement = HeatmapElement HeatmapData Int
 
 instance Element HeatmapElement where
   renderElement (HeatmapElement (HeatmapData [] _ _) _) = "No data"
@@ -1558,8 +1316,8 @@ instance Element HeatmapElement where
         mn  = minimum allVals
         mx  = maximum allVals
         rng = if mx == mn then 1.0 else mx - mn
-        normalize v = (v - mn) / rng
 
+        -- blue -> cyan -> green -> yellow -> red through the 256-colour cube
         toColor256 :: Double -> Int
         toColor256 t
           | t <= 0.0  = 21
@@ -1567,170 +1325,138 @@ instance Element HeatmapElement where
           | t < 0.25  = let s = t / 0.25      in round (21.0  + s * 30.0)
           | t < 0.5   = let s = (t-0.25)/0.25 in round (51.0  + s * (-5.0))
           | t < 0.75  = let s = (t-0.5)/0.25  in round (46.0  + s * 180.0)
-          | otherwise  = let s = (t-0.75)/0.25 in round (226.0 + s * (-30.0))
+          | otherwise = let s = (t-0.75)/0.25 in round (226.0 + s * (-30.0))
 
         rowLblW = maximum (0 : map length rowLbls)
+        gutter  = T.replicate (rowLblW + 1) " "
+        fit n   = padRight n . T.take n
 
-        header = T.replicate (rowLblW + 1) " " <>
-                 T.intercalate " " (map (\l -> padRight cellW (T.take cellW (T.pack l))) colLbls)
+        header = gutter <> T.intercalate " " (map (fit cellW . T.pack) colLbls)
 
-        dataRows = zipWith (\lbl rowVals ->
-          padRight rowLblW (T.take rowLblW (T.pack lbl)) <> " " <>
-          T.intercalate " " (map (\v ->
-            let n    = normalize v
-                c256 = toColor256 n
-                vs   = formatAxisNum v
-            in bgColor256 c256 <> padRight cellW (T.take cellW vs) <> ansiReset
-          ) rowVals)
+        dataRows = zipWith (\lbl vals ->
+          fit rowLblW (T.pack lbl) <> " " <> T.intercalate " "
+            [ bgColor256 (toColor256 ((v - mn) / rng)) <> fit cellW (formatAxisNum v) <> ansiReset | v <- vals ]
           ) rowLbls grid
 
-        legendCs   = map (\i -> toColor256 (fromIntegral i / 10.0)) [0..10 :: Int]
-        legendBar  = foldMap (\c -> bgColor256 c <> " " <> ansiReset) legendCs
-        legendLine = T.replicate (rowLblW + 1) " " <>
-                     formatAxisNum mn <> " " <> legendBar <> " " <> formatAxisNum mx
+        legendBar  = foldMap (\i -> bgColor256 (toColor256 (fromIntegral i / 10.0)) <> " " <> ansiReset) [0..10 :: Int]
+        legendLine = gutter <> formatAxisNum mn <> " " <> legendBar <> " " <> formatAxisNum mx
 
     in T.intercalate "\n" ([header] <> dataRows <> ["", legendLine])
 
--- | Create a heatmap with default cell width (6)
+-- | Heatmap with 6-column cells.
 plotHeatmap :: HeatmapData -> L
-plotHeatmap dat = L (HeatmapElement dat 6)
+plotHeatmap = plotHeatmap' 6
 
--- | Create a heatmap with custom cell width
 plotHeatmap' :: Int -> HeatmapData -> L
 plotHeatmap' cellW dat = L (HeatmapElement dat cellW)
 
--- ============================================================================
--- TUI Runtime - Simple event loop for interactive terminal applications
--- ============================================================================
+--------------------------------------------------------------------------------
+-- TUI runtime
 
--- | Keyboard input representation
 data Key
-  = KeyChar Char           -- ^ Regular character keys: 'a', '1', ' ', etc.
-  | KeyCtrl Char           -- ^ Ctrl+key: KeyCtrl 'C', KeyCtrl 'Q', etc.
-  | KeyEnter               -- ^ Enter/Return key
-  | KeyBackspace           -- ^ Backspace key
-  | KeyTab                 -- ^ Tab key
-  | KeyEscape              -- ^ Escape key
-  | KeyDelete              -- ^ Delete key
-  | KeyUp                  -- ^ Up arrow
-  | KeyDown                -- ^ Down arrow
-  | KeyLeft                -- ^ Left arrow
-  | KeyRight               -- ^ Right arrow
-  | KeyPageUp              -- ^ Page Up
-  | KeyPageDown            -- ^ Page Down
-  | KeyHome                -- ^ Home
-  | KeyEnd                 -- ^ End
-  | KeySpecial String      -- ^ Other unrecognized escape sequences
+  = KeyChar Char
+  | KeyCtrl Char           -- ^ e.g. @KeyCtrl 'C'@
+  | KeyEnter
+  | KeyBackspace
+  | KeyTab
+  | KeyEscape
+  | KeyDelete
+  | KeyUp
+  | KeyDown
+  | KeyLeft
+  | KeyRight
+  | KeyPageUp
+  | KeyPageDown
+  | KeyHome
+  | KeyEnd
+  | KeySpecial String      -- ^ unrecognised escape sequence
   deriving (Show, Eq)
 
--- | Commands - side effects the runtime will execute after each update
+-- | Side effects returned from 'appUpdate'.
 data Cmd msg
-  = CmdNone                     -- ^ No effect
-  | CmdRun (IO (Maybe msg))    -- ^ Run IO, optionally produce a message
-  | CmdBatch [Cmd msg]         -- ^ Combine multiple commands
-  | CmdExit                    -- ^ Gracefully quit the application
+  = CmdNone
+  | CmdRun (IO (Maybe msg))
+  | CmdBatch [Cmd msg]
+  | CmdExit
 
--- | Create a command from an IO action (fire and forget)
+-- | Fire and forget.
 cmdFire :: IO () -> Cmd msg
 cmdFire io = CmdRun (io >> pure Nothing)
 
--- | Create a command that produces a message after IO completes
+-- | Run IO and feed the result back as a message.
 cmdTask :: IO msg -> Cmd msg
 cmdTask io = CmdRun (Just <$> io)
 
--- | Create a command that fires a message after a delay
 cmdAfterMs :: Int -> msg -> Cmd msg
-cmdAfterMs delayMs msg = CmdRun (threadDelay (delayMs * 1000) >> pure (Just msg))
+cmdAfterMs ms msg = CmdRun (threadDelay (ms * 1000) >> pure (Just msg))
 
--- | Execute a command and return any resulting message.
--- Returns 'Nothing' for 'CmdExit' — the exit signal is handled by the runtime.
+-- | Run a command, returning the first message it produced. 'CmdExit' is
+-- left for the runtime to notice via 'cmdIsExit'.
 executeCmd :: Cmd msg -> IO (Maybe msg)
-executeCmd CmdNone = pure Nothing
-executeCmd CmdExit = pure Nothing
-executeCmd (CmdRun io) = io
-executeCmd (CmdBatch cmds) = do
-  results <- mapM executeCmd cmds
-  pure $ foldr pickFirst Nothing results
-  where
-    pickFirst (Just m) _ = Just m
-    pickFirst Nothing  r = r
+executeCmd CmdNone         = pure Nothing
+executeCmd CmdExit         = pure Nothing
+executeCmd (CmdRun io)     = io
+executeCmd (CmdBatch cmds) = asum <$> mapM executeCmd cmds
 
--- | Check whether a command (or any sub-command in a batch) is 'CmdExit'.
 cmdIsExit :: Cmd msg -> Bool
-cmdIsExit CmdExit = True
+cmdIsExit CmdExit         = True
 cmdIsExit (CmdBatch cmds) = any cmdIsExit cmds
-cmdIsExit _ = False
+cmdIsExit _               = False
 
--- | Subscriptions - event sources your app listens to
 data Sub msg
-  = SubNone                                    -- ^ No subscriptions
-  | SubKeyPress (Key -> Maybe msg)             -- ^ Subscribe to keyboard input
-  | SubEveryMs Int msg                         -- ^ Subscribe to periodic ticks (interval in ms + message)
-  | SubBatch [Sub msg]                         -- ^ Combine multiple subscriptions
+  = SubNone
+  | SubKeyPress (Key -> Maybe msg)
+  | SubEveryMs Int msg               -- ^ interval in ms
+  | SubBatch [Sub msg]
 
--- | Combine multiple subscriptions
 subBatch :: [Sub msg] -> Sub msg
 subBatch = SubBatch
 
--- | Subscribe to keyboard events
 subKeyPress :: (Key -> Maybe msg) -> Sub msg
 subKeyPress = SubKeyPress
 
--- | Subscribe to periodic ticks with custom interval (milliseconds)
 subEveryMs :: Int -> msg -> Sub msg
 subEveryMs = SubEveryMs
 
--- | The core application structure - Elm Architecture style
---
--- Build interactive TUI apps by defining:
---
--- * Initial state and startup commands
--- * How to update state based on messages
--- * What events to subscribe to
--- * How to render state to UI
---
--- Example:
+-- | An Elm-style app.
 --
 -- @
--- data CounterMsg = Inc | Dec
+-- data Msg = Inc | Dec
 --
--- counterApp :: 'LayoutzApp' Int CounterMsg
--- counterApp = 'LayoutzApp'
---   { 'appInit' = (0, 'CmdNone')
---   , 'appUpdate' = \\msg count -> case msg of
---       'Inc' -> (count + 1, 'CmdNone')
---       'Dec' -> (count - 1, 'CmdNone')
---   , 'appSubscriptions' = \\_ -> 'subKeyPress' $ \\key -> case key of
---       'KeyChar' \'+\' -> Just 'Inc'
---       'KeyChar' \'-\' -> Just 'Dec'
---       _           -> Nothing
---   , 'appView' = \\count -> 'layout' ['text' $ "Count: " <> show count]
+-- counter :: 'LayoutzApp' Int Msg
+-- counter = 'LayoutzApp'
+--   { 'appInit'          = (0, 'CmdNone')
+--   , 'appUpdate'        = \\msg n -> case msg of
+--       Inc -> (n + 1, 'CmdNone')
+--       Dec -> (n - 1, 'CmdNone')
+--   , 'appSubscriptions' = \\_ -> 'subKeyPress' $ \\case
+--       'KeyChar' \'+\' -> Just Inc
+--       'KeyChar' \'-\' -> Just Dec
+--       _             -> Nothing
+--   , 'appView'          = \\n -> 'layout' ['text' $ "Count: " <> show n]
 --   }
 -- @
 data LayoutzApp state msg = LayoutzApp
-  { appInit          :: (state, Cmd msg)                 -- ^ Initial state and startup commands
-  , appUpdate        :: msg -> state -> (state, Cmd msg) -- ^ Update state with message, return new state and commands
-  , appSubscriptions :: state -> Sub msg                 -- ^ Declare event subscriptions based on current state
-  , appView          :: state -> L                       -- ^ Render state to UI
+  { appInit          :: (state, Cmd msg)
+  , appUpdate        :: msg -> state -> (state, Cmd msg)
+  , appSubscriptions :: state -> Sub msg
+  , appView          :: state -> L
   }
 
--- | App-level alignment within the terminal window
 data AppAlignment = AppAlignLeft | AppAlignCenter | AppAlignRight
   deriving (Show, Eq)
 
--- | Options for running a 'LayoutzApp'. Use 'defaultAppOptions' and override
--- the fields you care about:
---
+-- |
 -- @
 -- 'runAppWith' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
 -- @
 data AppOptions = AppOptions
-  { optAlignment    :: AppAlignment -- ^ Alignment of the app block in the terminal (default: 'AppAlignLeft')
-  , optClearOnStart :: Bool         -- ^ Enter alt screen and clear on start (default: 'True')
-  , optClearOnExit  :: Bool         -- ^ Exit alt screen on quit (default: 'True')
+  { optAlignment    :: AppAlignment
+  , optClearOnStart :: Bool  -- ^ enter the alt screen and clear
+  , optClearOnExit  :: Bool  -- ^ leave the alt screen
   } deriving (Show, Eq)
 
--- | Sensible defaults: left-aligned, full-screen (alt screen on start\/exit).
+-- | Left-aligned, full screen.
 defaultAppOptions :: AppOptions
 defaultAppOptions = AppOptions
   { optAlignment    = AppAlignLeft
@@ -1738,50 +1464,43 @@ defaultAppOptions = AppOptions
   , optClearOnExit  = True
   }
 
--- | Get terminal width via ANSI cursor position report (zero dependencies).
--- Moves cursor to far bottom-right, queries position, restores cursor.
--- Falls back to 80 columns on timeout or parse failure.
+-- | Save cursor, jump to the far corner, ask where we ended up, restore.
+cursorProbe :: Text
+cursorProbe = "\ESC7\ESC[999;999H\ESC[6n\ESC8"
+
+-- | Terminal width from a cursor position report; 80 if the terminal
+-- doesn't answer within 100ms.
 getTerminalWidth :: IO Int
 getTerminalWidth = do
-  -- Save cursor, move to 999;999, query position, restore cursor
-  TIO.putStr "\ESC7\ESC[999;999H\ESC[6n\ESC8"
+  putText cursorProbe
   hFlush stdout
-  -- Terminal responds with: ESC [ rows ; cols R
-  result <- timeout 100000 readCPR   -- 100ms timeout
-  pure $ maybe 80 id result
+  fromMaybe 80 <$> timeout 100000 readCPR
   where
+    -- ESC [ rows ; cols R
     readCPR = do
       c <- getChar
-      if c == '\ESC' then do
+      if c /= '\ESC' then pure 80 else do
         c2 <- getChar
-        if c2 == '[' then parseResponse ""
-        else pure 80
-      else pure 80
+        if c2 /= '[' then pure 80 else parseResponse ""
     parseResponse acc = do
       c <- getChar
-      if c == 'R' then
-        let resp = reverse acc
-        in pure $ case break (== ';') resp of
-             (_, ';':cols) -> case reads cols of
-               [(n, "")] -> n
-               _         -> 80
-             _ -> 80
-      else parseResponse (c : acc)
+      if c /= 'R' then parseResponse (c : acc) else
+        pure $ case break (== ';') (reverse acc) of
+          (_, ';':cols) | [(n, "")] <- reads cols -> n
+          _ -> 80
 
--- | Get terminal size as @(rows, cols)@ via an ANSI cursor position report.
--- Falls back to @(24, 80)@ on timeout or parse failure. Must be called while
--- raw mode is active and nothing else is reading stdin.
+-- | @(rows, cols)@, falling back to @(24, 80)@. Needs raw mode and nobody
+-- else reading stdin.
 getTerminalSize :: IO (Int, Int)
 getTerminalSize = do
-  TIO.putStr "\ESC7\ESC[999;999H\ESC[6n\ESC8"
+  putText cursorProbe
   hFlush stdout
-  result <- timeout 100000 (readCPR "")
-  pure $ maybe (24, 80) id result
+  fromMaybe (24, 80) <$> timeout 100000 (readCPR "")
   where
     readCPR acc = do
       c <- getChar
       case c of
-        '\ESC' -> getChar >> readCPR acc   -- skip ESC and the following '['
+        '\ESC' -> getChar >> readCPR acc
         '['    -> readCPR acc
         'R'    -> pure (parseRC (reverse acc))
         _      -> readCPR (c : acc)
@@ -1792,57 +1511,33 @@ getTerminalSize = do
       [(n, "")] -> n
       _         -> d
 
--- | Run an interactive TUI application with default options.
---
--- This function:
---
--- * Sets up raw terminal mode (no echo, no buffering)
--- * Clears screen and hides cursor
--- * Enters event loop that:
---
---     * Listens to subscribed events (keyboard, ticks, etc.)
---     * Dispatches messages to update function
---     * Updates state and re-renders
---
--- * Restores terminal on exit (ESC, Ctrl+C, or Ctrl+D)
---
--- Press ESC, Ctrl+C, or Ctrl+D to quit the application.
+-- | Run full screen. Esc, Ctrl-C or Ctrl-D quits.
 runApp :: LayoutzApp state msg -> IO ()
-runApp app = runAppWithFinal defaultAppOptions app >> pure ()
+runApp app = () <$ runAppWithFinal defaultAppOptions app
 
--- | Like 'runApp', but returns the final application state after exit.
--- Useful for interactive tweaking of state followed by further processing.
+-- | Like 'runApp', returning the final state.
 runAppFinal :: LayoutzApp state msg -> IO state
 runAppFinal = runAppWithFinal defaultAppOptions
 
--- | Run an app inline — no alt screen, no clearing. The app renders in-place
--- below whatever is already on screen and returns when it issues 'CmdExit'.
--- Useful for embedding animated progress bars or spinners in scripts.
+-- | Render in place below the current output (no alt screen) until the app
+-- issues 'CmdExit'. Handy for progress bars in scripts.
 runInline :: LayoutzApp state msg -> IO ()
-runInline app = runAppWithFinal defaultAppOptions
-  { optClearOnStart = False, optClearOnExit = False } app >> pure ()
+runInline app = () <$ runAppWithFinal defaultAppOptions
+  { optClearOnStart = False, optClearOnExit = False } app
 
--- | Run an interactive TUI application with custom options.
---
--- @
--- 'runAppWith' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
--- @
 runAppWith :: AppOptions -> LayoutzApp state msg -> IO ()
-runAppWith opts app = runAppWithFinal opts app >> pure ()
+runAppWith opts app = () <$ runAppWithFinal opts app
 
--- | Internal runtime event. Every source (keypresses, interval ticks, command
--- results) is funnelled into a single channel as one of these, so there is
--- exactly one consumer applying 'appUpdate' with no races on state
+-- | Every source (keys, ticks, command results) feeds one channel, so a single
+-- thread applies 'appUpdate'.
 data AppEvent msg
   = AppMsg msg
   | AppExit
 
--- | Like 'runAppWith', but returns the final application state after exit.
--- Useful for interactive tweaking of state followed by further processing.
---
--- @
--- finalState <- 'runAppWithFinal' 'defaultAppOptions' { 'optAlignment' = 'AppAlignCenter' } myApp
--- @
+isQuitKey :: Key -> Bool
+isQuitKey k = k == KeyEscape || k == KeyCtrl 'C' || k == KeyCtrl 'D'
+
+-- | Like 'runAppWith', returning the final state.
 runAppWithFinal :: AppOptions -> LayoutzApp state msg -> IO state
 runAppWithFinal opts LayoutzApp{..} = do
   oldBuffering <- hGetBuffering stdin
@@ -1852,258 +1547,201 @@ runAppWithFinal opts LayoutzApp{..} = do
   hSetBuffering stdout NoBuffering
   hSetEcho stdin False
 
-  when (optClearOnStart opts) $ do
-    enterAltScreen
-    clearScreen
+  when (optClearOnStart opts) $ enterAltScreen >> clearScreen
   hideCursor
 
-  -- Query terminal width once, after raw mode is set, before threads
+  -- before any thread starts reading stdin
   termWidth <- getTerminalWidth
 
   let (initialState, initialCmd) = appInit
 
   stateRef  <- newIORef initialState
-  eventChan <- newChan  -- Single event stream: keys, ticks, cmd results, exit
-  cmdChan   <- newChan  -- Commands awaiting async execution
+  eventChan <- newChan
+  cmdChan   <- newChan
 
   let applyMsg msg = do
-        cmdToRun <- atomicModifyIORef' stateRef $ \s ->
-          let (newState, c) = appUpdate msg s in (newState, c)
-        case cmdToRun of
+        cmd <- atomicModifyIORef' stateRef (appUpdate msg)
+        case cmd of
           CmdNone -> pure ()
           CmdExit -> writeChan eventChan AppExit
-          _       -> writeChan cmdChan cmdToRun
+          _       -> writeChan cmdChan cmd
 
   cmdThread <- forkIO $ forever $ do
-    cmdToRun <- readChan cmdChan
-    when (cmdIsExit cmdToRun) $ writeChan eventChan AppExit
-    maybeMsg <- executeCmd cmdToRun
-    case maybeMsg of
-      Just msg -> writeChan eventChan (AppMsg msg)
-      Nothing  -> pure ()
+    cmd <- readChan cmdChan
+    when (cmdIsExit cmd) $ writeChan eventChan AppExit
+    executeCmd cmd >>= mapM_ (writeChan eventChan . AppMsg)
 
   case initialCmd of
     CmdNone -> pure ()
     _       -> writeChan cmdChan initialCmd
 
   lastLineCount <- newIORef 0
-  lastRendered <- newIORef ""
-  sentKittyIds <- newIORef IntSet.empty  -- kitty images already transmitted this session
+  lastRendered  <- newIORef ""
+  sentKittyIds  <- newIORef IntSet.empty
 
   renderThread <- forkIO $ forever $ do
-    state <- readIORef stateRef
-    let rendered = renderElement (appView state)
-    lastRender <- readIORef lastRendered
+    rendered <- renderElement . appView <$> readIORef stateRef
+    prev <- readIORef lastRendered
 
-    when (rendered /= lastRender) $ do
+    when (rendered /= prev) $ do
       prevLineCount <- readIORef lastLineCount
-      -- Drop transmit blocks for images already sent, so each distinct kitty
-      -- image is uploaded only once across frames.
-      priorIds <- readIORef sentKittyIds
-      let (deduped, newKittyIds) = dedupeTransmits priorIds rendered
-      writeIORef sentKittyIds newKittyIds
-      let renderedLines = T.lines deduped
-          currentLineCount = length renderedLines
-          maxLineWidth = maximum (0 : map visibleLength renderedLines)
-          blockPad = case optAlignment opts of
+      -- upload each kitty image once, not every frame
+      sent <- readIORef sentKittyIds
+      let (deduped, sent') = dedupeTransmits sent rendered
+      writeIORef sentKittyIds sent'
+      let ls        = T.lines deduped
+          lineCount = length ls
+          blockW    = maximum (0 : map visibleLength ls)
+          indent = case optAlignment opts of
             AppAlignLeft   -> 0
-            AppAlignCenter -> max 0 ((termWidth - maxLineWidth) `div` 2)
-            AppAlignRight  -> max 0 (termWidth - maxLineWidth)
-          padding = T.replicate blockPad " "
-          alignedLines = if blockPad > 0
-                         then map (padding <>) renderedLines
-                         else renderedLines
-          moveUp = if optClearOnStart opts
-                     then "\ESC[H"
-                     else if prevLineCount > 0
-                       then "\ESC[" <> T.show prevLineCount <> "A\r"
-                       else ""
-          output = moveUp <> foldMap (\l -> l <> "\ESC[K\n") alignedLines
-                   <> T.replicate (max 0 (prevLineCount - currentLineCount)) "\ESC[K\n"
-      TIO.putStr output
+            AppAlignCenter -> max 0 ((termWidth - blockW) `div` 2)
+            AppAlignRight  -> max 0 (termWidth - blockW)
+          aligned
+            | indent > 0 = map (T.replicate indent " " <>) ls
+            | otherwise  = ls
+          home
+            | optClearOnStart opts = "\ESC[H"
+            | prevLineCount > 0    = "\ESC[" <> T.show prevLineCount <> "A\r"
+            | otherwise            = ""
+      putText $ home <> foldMap (<> "\ESC[K\n") aligned
+                <> T.replicate (max 0 (prevLineCount - lineCount)) "\ESC[K\n"
       hFlush stdout
       writeIORef lastRendered rendered
-      writeIORef lastLineCount currentLineCount
+      writeIORef lastLineCount lineCount
 
     threadDelay 33333
 
-  let getKeyHandler sub = case sub of
-        SubKeyPress handler -> Just handler
-        SubBatch subs -> case [h | SubKeyPress h <- subs] of
-          (h:_) -> Just h
-          [] -> Nothing
+  let keyHandler = \case
+        SubKeyPress f -> Just f
+        SubBatch subs -> case [f | SubKeyPress f <- subs] of
+          (f:_) -> Just f
+          []    -> Nothing
         _ -> Nothing
 
-      getTicks sub = case sub of
+      tickSubs = \case
         SubEveryMs interval msg -> [(interval, msg)]
-        SubBatch subs           -> concatMap getTicks subs
+        SubBatch subs           -> concatMap tickSubs subs
         _                       -> []
 
+  -- Deadlines are tracked per interval so re-subscribing each frame doesn't
+  -- reset the clock. Polls every 5ms.
   tickThread <- forkIO $
-    let tickLoop deadlines = do
-          state <- readIORef stateRef
+    let loop deadlines = do
+          ticks <- tickSubs . appSubscriptions <$> readIORef stateRef
           now   <- getMonotonicTimeNSec
-          let ticks     = getTicks (appSubscriptions state)
-              nsOf ms   = fromIntegral ms * 1000 * 1000
-              intervals = foldr (\i acc -> if i `elem` acc then acc else i : acc)
-                                [] (map fst ticks)
-              armed     = [ (i, maybe (now + nsOf i) id (lookup i deadlines))
-                          | i <- intervals ]
-              dueNow    = [ i | (i, d) <- armed, d <= now ]
-              fired     = [ (i, msg) | (i, msg) <- ticks, i `elem` dueNow ]
-              deadlines' = [ (i, if i `elem` dueNow
-                                   then let nd = d + nsOf i
-                                        in if nd <= now then now + nsOf i else nd
-                                   else d)
-                           | (i, d) <- armed ]
-          mapM_ (\(_, msg) -> writeChan eventChan (AppMsg msg)) fired
-          threadDelay 5000  -- 5ms poll: bounds tick jitter without busy-waiting
-          tickLoop deadlines'
-    in tickLoop []
+          let ns ms     = fromIntegral ms * 1000 * 1000
+              armed     = [ (i, fromMaybe (now + ns i) (lookup i deadlines)) | i <- nub (map fst ticks) ]
+              due       = [ i | (i, d) <- armed, d <= now ]
+              deadlines' =
+                [ (i, if i `elem` due then let nd = d + ns i in if nd <= now then now + ns i else nd else d)
+                | (i, d) <- armed ]
+          mapM_ (writeChan eventChan . AppMsg) [ msg | (i, msg) <- ticks, i `elem` due ]
+          threadDelay 5000
+          loop deadlines'
+    in loop []
 
-  -- Input thread: translate keypresses into events. Exit keys become AppExit;
-  -- a closed stdin (EOF) is treated as a quit request, like Ctrl-D.
+  -- EOF on stdin quits, same as Ctrl-D.
   inputThread <- forkIO $
-    let readLoop = do
+    let loop = do
           key <- readKey
-          case key of
-            KeyEscape   -> writeChan eventChan AppExit
-            KeyCtrl 'C' -> writeChan eventChan AppExit
-            KeyCtrl 'D' -> writeChan eventChan AppExit
-            _ -> do
-              state <- readIORef stateRef
-              case getKeyHandler (appSubscriptions state) of
-                Just handler -> maybe (pure ()) (writeChan eventChan . AppMsg) (handler key)
-                Nothing      -> pure ()
-              readLoop
-    in readLoop `catch` \e ->
-         let _ = (e :: IOException) in writeChan eventChan AppExit
+          if isQuitKey key then writeChan eventChan AppExit else do
+            sub <- appSubscriptions <$> readIORef stateRef
+            mapM_ (writeChan eventChan . AppMsg) (keyHandler sub >>= ($ key))
+            loop
+    in loop `catch` \(_ :: IOException) -> writeChan eventChan AppExit
 
-  let killThreads = killThread renderThread >> killThread cmdThread
-                 >> killThread tickThread   >> killThread inputThread
-
-      doCleanup = do
-        killThreads
+  let cleanup = do
+        mapM_ killThread [renderThread, cmdThread, tickThread, inputThread]
         showCursor
         when (optClearOnExit opts) exitAltScreen
         hFlush stdout
         hSetBuffering stdin oldBuffering
         hSetEcho stdin oldEcho
 
-      dispatchLoop = do
-        ev <- readChan eventChan
-        case ev of
-          AppExit    -> pure ()             -- stop looping; `finally` restores the tty
-          AppMsg msg -> applyMsg msg >> dispatchLoop
+      dispatch = readChan eventChan >>= \case
+        AppExit    -> pure ()
+        AppMsg msg -> applyMsg msg >> dispatch
 
-      -- Ctrl-C quits gracefully; every other exit path (normal quit, an
-      -- exception from update/view, or an async kill) still restores the
-      -- terminal via `finally`, so the tty is never left in raw mode.
-      onAsync :: AsyncException -> IO ()
+      -- Ctrl-C is a normal quit; everything else rethrows, and `finally`
+      -- puts the tty back either way.
       onAsync UserInterrupt = pure ()
       onAsync e             = throwIO e
 
-  (dispatchLoop `catch` onAsync) `finally` doCleanup
+  (dispatch `catch` onAsync) `finally` cleanup
 
   readIORef stateRef
 
--- | Clear the screen and move cursor to top-left
+-- | One write(2) per call. Data.Text.IO on an unbuffered handle issues a
+-- syscall per character, so big frames reach the terminal in pieces and tear.
+putText :: Text -> IO ()
+putText = Utf8.putStr
+
 clearScreen :: IO ()
-clearScreen = TIO.putStr "\ESC[2J\ESC[H"
+clearScreen = putText "\ESC[2J\ESC[H"
 
--- | Hide the terminal cursor
 hideCursor :: IO ()
-hideCursor = TIO.putStr "\ESC[?25l"
+hideCursor = putText "\ESC[?25l"
 
--- | Show the terminal cursor
 showCursor :: IO ()
-showCursor = TIO.putStr "\ESC[?25h"
+showCursor = putText "\ESC[?25h"
 
--- | Enter alternate screen buffer (like vim/less use)
 enterAltScreen :: IO ()
-enterAltScreen = TIO.putStr "\ESC[?1049h"
+enterAltScreen = putText "\ESC[?1049h"
 
--- | Exit alternate screen buffer
 exitAltScreen :: IO ()
-exitAltScreen = TIO.putStr "\ESC[?1049l"
+exitAltScreen = putText "\ESC[?1049l"
 
--- | Read a single key from stdin and parse it
 readKey :: IO Key
-readKey = do
-  c <- getChar
-  case ord c of
-    10  -> return KeyEnter         -- LF (Unix)
-    13  -> return KeyEnter         -- CR (Windows/Mac)
-    27  -> readEscapeSequence      -- ESC - might be arrow key
-    9   -> return KeyTab
-    127 -> return KeyBackspace     -- DEL (often used as backspace)
-    8   -> return KeyBackspace     -- BS
-    n | n >= 32 && n <= 126 -> return $ KeyChar (chr n)  -- Printable ASCII
-      | n < 32 -> return $ KeyCtrl (chr (n + 64))  -- Ctrl+Key
-      | otherwise -> return $ KeyChar (chr n)
+readKey = getChar >>= \c -> case ord c of
+    10  -> pure KeyEnter
+    13  -> pure KeyEnter
+    27  -> readEscapeSequence
+    9   -> pure KeyTab
+    127 -> pure KeyBackspace
+    8   -> pure KeyBackspace
+    n | n >= 32 && n <= 126 -> pure $ KeyChar c
+      | n < 32              -> pure $ KeyCtrl (chr (n + 64))
+      | otherwise           -> pure $ KeyChar c
 
--- | Read escape sequence for arrow keys and other special keys
--- Uses a small timeout to distinguish between ESC key and ESC sequences
+-- | A lone ESC is told apart from an escape sequence by waiting 50ms for
+-- the next byte.
 readEscapeSequence :: IO Key
-readEscapeSequence = do
-  -- Try to read next character with 50ms timeout
-  -- If timeout, it's just ESC key; if character arrives, it's an escape sequence
-  maybeChar <- timeout 50000 getChar  -- 50000 microseconds = 50ms
-  case maybeChar of
-    Nothing -> return KeyEscape  -- Timeout - just ESC key pressed
-    Just '[' -> do
-      -- It's an escape sequence, read the command character
-      c2 <- getChar
-      case c2 of
-        'A' -> return KeyUp
-        'B' -> return KeyDown
-        'C' -> return KeyRight
-        'D' -> return KeyLeft
-        'H' -> return KeyHome
-        'F' -> return KeyEnd
-        -- Numeric sequences terminated by '~': ESC [ n ~
-        n | n >= '1' && n <= '6' -> do
-          c3 <- getChar
-          if c3 == '~'
-            then return $ case n of
-                   '1' -> KeyHome
-                   '3' -> KeyDelete
-                   '4' -> KeyEnd
-                   '5' -> KeyPageUp
-                   '6' -> KeyPageDown
-                   _   -> KeyEscape
-            else return KeyEscape
-        _ -> return KeyEscape
-    Just 'O' -> do
-      -- Application cursor mode: ESC O H/F for Home/End
-      c2 <- getChar
-      case c2 of
-        'H' -> return KeyHome
-        'F' -> return KeyEnd
-        _ -> return KeyEscape
-    Just _ -> return KeyEscape  -- Some other character after ESC
+readEscapeSequence = timeout 50000 getChar >>= \case
+  Nothing  -> pure KeyEscape
+  Just '[' -> getChar >>= \case
+    'A' -> pure KeyUp
+    'B' -> pure KeyDown
+    'C' -> pure KeyRight
+    'D' -> pure KeyLeft
+    'H' -> pure KeyHome
+    'F' -> pure KeyEnd
+    n | n >= '1' && n <= '6' -> do   -- ESC [ n ~
+      c3 <- getChar
+      pure $ if c3 /= '~' then KeyEscape else case n of
+        '1' -> KeyHome
+        '3' -> KeyDelete
+        '4' -> KeyEnd
+        '5' -> KeyPageUp
+        '6' -> KeyPageDown
+        _   -> KeyEscape
+    _ -> pure KeyEscape
+  Just 'O' -> getChar >>= \case      -- application cursor mode
+    'H' -> pure KeyHome
+    'F' -> pure KeyEnd
+    _   -> pure KeyEscape
+  Just _ -> pure KeyEscape
 
+--------------------------------------------------------------------------------
+-- Small ANSI / text helpers
 
--- ============================================================================
--- Shared helpers (small string/ANSI utilities used by kitty, loader and Ask)
--- ============================================================================
-
--- | Dim text with the SGR faint style.
 dimText :: Text -> Text
 dimText = wrapStyle StyleDim
 
--- | Colour text, leaving it untouched for 'ColorDefault'.
-paintColor :: Color -> Text -> Text
-paintColor = wrapAnsi
-
--- | Split on a single character, keeping empty trailing segments (like
--- Scala's @split(sep, -1)@ — unlike 'lines', a trailing separator yields a
--- final empty segment).
+-- | Unlike 'T.lines', a trailing separator yields a final empty segment.
 splitOnChar :: Char -> Text -> [Text]
 splitOnChar c = T.splitOn (T.singleton c)
 
--- | Split text at the first occurrence of a substring pattern, returning
--- @(before, fromPattern)@ where @fromPattern@ begins with the pattern.
+-- | @(before, rest)@ where @rest@ starts with @pat@.
 splitOnFirst :: Text -> Text -> Maybe (Text, Text)
 splitOnFirst pat s
   | T.null pat = Just ("", s)
@@ -2111,46 +1749,37 @@ splitOnFirst pat s
       (before, rest) | T.null rest -> Nothing
                      | otherwise   -> Just (before, rest)
 
--- | ANSI background-colour SGR code corresponding to a foreground 'Color'.
+-- | Background SGR for a foreground 'Color'.
 bgColorCode :: Color -> Text
 bgColorCode ColorDefault      = ""
 bgColorCode (ColorFull n)     = "48;5;" <> T.show (clamp n)
 bgColorCode (ColorTrue r g b) = "48;2;" <> T.show (clamp r) <> ";" <> T.show (clamp g) <> ";" <> T.show (clamp b)
 bgColorCode c = case reads (T.unpack (colorCode c)) :: [(Int, String)] of
-  [(n, "")] -> T.show (n + 10)   -- 30-37 -> 40-47, 90-97 -> 100-107
+  [(n, "")] -> T.show (n + 10)   -- 3x -> 4x, 9x -> 10x
   _         -> ""
 
--- ============================================================================
--- Kitty graphics protocol
--- ============================================================================
+--------------------------------------------------------------------------------
+-- Kitty graphics
 
--- | Kitty transmit format: PNG.
-formatPng :: Int
-formatPng = 100
-
--- | Kitty transmit format: raw RGB (3 bytes/pixel).
-formatRgb :: Int
-formatRgb = 24
-
--- | Kitty transmit format: raw RGBA (4 bytes/pixel).
-formatRgba :: Int
+formatPng, formatRgb, formatRgba :: Int
+formatPng  = 100
+formatRgb  = 24
 formatRgba = 32
 
--- | An inline image rendered via the kitty graphics protocol using Unicode
--- placeholders, so it composes like any other element: it measures exactly
--- @cols@ wide and @rows@ tall and drops into 'box', 'row', 'table', 'center', …
+-- | An inline image drawn with kitty's Unicode placeholders. It measures
+-- exactly @cols@ x @rows@, so it lays out like any other element inside
+-- 'box', 'row', 'table' and friends.
 --
--- Prefer the smart constructors 'kittyImage', 'kittyRGB', 'kittyRGBA' (or the
--- 'kittyImageFile' loader) over building this record directly.
+-- Build one with 'kittyImage', 'kittyRGB', 'kittyRGBA' or 'kittyImageFile'.
 data KittyImage = KittyImage
-  { kiPayload    :: [Word8]    -- ^ Raw image bytes (PNG, or raw RGB\/RGBA pixels)
+  { kiPayload    :: [Word8]    -- ^ PNG bytes, or raw RGB\/RGBA pixels
   , kiFormat     :: Int        -- ^ 100 = PNG, 24 = RGB, 32 = RGBA
-  , kiCols       :: Int        -- ^ Cell width
-  , kiRows       :: Int        -- ^ Cell height
-  , kiPxW        :: Int        -- ^ Source pixel width  (raw formats only)
-  , kiPxH        :: Int        -- ^ Source pixel height (raw formats only)
-  , kiAlt        :: Text       -- ^ Alt text (kept for parity; unused by terminals)
-  , kiIdOverride :: Maybe Int  -- ^ Explicit image id (otherwise a content hash)
+  , kiCols       :: Int
+  , kiRows       :: Int
+  , kiPxW        :: Int        -- ^ source pixel width (raw formats only)
+  , kiPxH        :: Int        -- ^ source pixel height (raw formats only)
+  , kiAlt        :: Text
+  , kiIdOverride :: Maybe Int  -- ^ defaults to a hash of the payload
   }
 
 instance Element KittyImage where
@@ -2158,36 +1787,30 @@ instance Element KittyImage where
   width  = kiCols
   height = kiRows
 
--- | Deterministic 24-bit image id: an explicit override, or an FNV-1a hash of
--- the payload masked to 24 bits (forced non-zero). Stable across redraws so a
--- runtime can transmit each distinct image only once.
+-- | 24-bit FNV-1a of the payload (never 0). Stable across frames, which is
+-- what lets the runtime skip re-uploading.
 kittyImageId :: [Word8] -> Maybe Int -> Int
 kittyImageId payload override =
-  let raw    = maybe (foldl step 0x811c9dc5 payload) id override
-      masked = raw .&. 0xffffff
+  let masked = fromMaybe (foldl step 0x811c9dc5 payload) override .&. 0xffffff
   in if masked == 0 then 1 else masked
   where
     step h b = (h `xor` fromIntegral b) * 0x01000193 .&. 0xffffffff
 
--- | Standard base64 (RFC 4648, @+/@ alphabet, @=@ padding). Shipped inline to
--- keep the library dependency-light.
 kittyBase64 :: [Word8] -> Text
 kittyBase64 = T.pack . go
   where
     alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" :: String
-    idx i = alphabet !! i
+    sextet t s = alphabet !! ((t `shiftR` s) .&. 0x3f)
     go [] = ""
     go (b0:b1:b2:rest) =
       let t = (fromIntegral b0 `shiftL` 16) .|. (fromIntegral b1 `shiftL` 8) .|. fromIntegral b2
-      in idx ((t `shiftR` 18) .&. 0x3f) : idx ((t `shiftR` 12) .&. 0x3f)
-         : idx ((t `shiftR` 6) .&. 0x3f) : idx (t .&. 0x3f) : go rest
+      in sextet t 18 : sextet t 12 : sextet t 6 : sextet t 0 : go rest
     go [b0, b1] =
       let t = (fromIntegral b0 `shiftL` 16) .|. (fromIntegral b1 `shiftL` 8) :: Int
-      in idx ((t `shiftR` 18) .&. 0x3f) : idx ((t `shiftR` 12) .&. 0x3f)
-         : idx ((t `shiftR` 6) .&. 0x3f) : "="
+      in sextet t 18 : sextet t 12 : sextet t 6 : "="
     go [b0] =
       let t = fromIntegral b0 `shiftL` 16 :: Int
-      in idx ((t `shiftR` 18) .&. 0x3f) : idx ((t `shiftR` 12) .&. 0x3f) : "=="
+      in sextet t 18 : sextet t 12 : "=="
 
 kittyApcG :: Text
 kittyApcG = "\ESC_G"
@@ -2195,53 +1818,50 @@ kittyApcG = "\ESC_G"
 kittyST :: Text
 kittyST = "\ESC\\"
 
--- | Transmit block: base64 the payload, chunk into <=4096-char escapes. Every
--- chunk carries @i=\<id\>@ so 'dedupeTransmits' can drop all chunks of an
--- already-sent image.
+-- | Base64 payload split into 4096-byte APC chunks. Every chunk carries
+-- @i=<id>@ so 'dedupeTransmits' can drop all of them at once.
 kittyTransmit :: KittyImage -> Text
-kittyTransmit img =
-  let b64      = kittyBase64 (kiPayload img)
-      chunks   = if T.null b64 then [""] else T.chunksOf 4096 b64
-      theId    = kittyImageId (kiPayload img) (kiIdOverride img)
-      dims     = if kiFormat img == formatPng then ""
-                 else ",s=" <> T.show (kiPxW img) <> ",v=" <> T.show (kiPxH img)
-      firstKeys = "a=T,U=1,i=" <> T.show theId <> ",f=" <> T.show (kiFormat img)
-                  <> ",c=" <> T.show (kiCols img) <> ",r=" <> T.show (kiRows img) <> dims <> ",q=2"
-      contKeys  = "i=" <> T.show theId <> ",q=2"
-      lastIdx   = length chunks - 1
-      block i chunk =
-        let m    = if i == lastIdx then "0" else "1"
-            keys = (if i == 0 then firstKeys else contKeys) <> ",m=" <> m
-        in kittyApcG <> keys <> ";" <> chunk <> kittyST
-  in T.concat (zipWith block [0 ..] chunks)
+kittyTransmit img = T.concat (zipWith block [0 ..] chunks)
+  where
+    b64    = kittyBase64 (kiPayload img)
+    chunks = if T.null b64 then [""] else T.chunksOf 4096 b64
+    theId  = kittyImageId (kiPayload img) (kiIdOverride img)
+    dims
+      | kiFormat img == formatPng = ""
+      | otherwise = ",s=" <> T.show (kiPxW img) <> ",v=" <> T.show (kiPxH img)
+    firstKeys = "a=T,U=1,i=" <> T.show theId <> ",f=" <> T.show (kiFormat img)
+                <> ",c=" <> T.show (kiCols img) <> ",r=" <> T.show (kiRows img) <> dims <> ",q=2"
+    contKeys  = "i=" <> T.show theId <> ",q=2"
+    lastIdx   = length chunks - 1
+    block :: Int -> Text -> Text
+    block i chunk =
+      let more = if i == lastIdx then "0" else "1"
+          keys = (if i == 0 then firstKeys else contKeys) <> ",m=" <> more
+      in kittyApcG <> keys <> ";" <> chunk <> kittyST
 
--- | Placement grid: one line per image row of @U+10EEEE@ placeholders; the
--- image id rides in the foreground colour and the (row, column) in two
--- combining diacritics on the first cell of each row.
+-- | One line of placeholders per image row. The id travels in the foreground
+-- colour; the first cell of each row carries (row, col 0) as diacritics.
 kittyPlacement :: KittyImage -> Text
-kittyPlacement img =
-  let theId = kittyImageId (kiPayload img) (kiIdOverride img)
-      fg = "\ESC[38;2;" <> T.show ((theId `shiftR` 16) .&. 0xff) <> ";"
-           <> T.show ((theId `shiftR` 8) .&. 0xff) <> ";" <> T.show (theId .&. 0xff) <> "m"
-      reset       = "\ESC[0m"
-      placeholder = T.singleton kittyPlaceholderChar
-      col0        = T.singleton (chr (head rowColumnDiacritics))
-      rowLine r =
-        let firstCell = placeholder <> T.singleton (chr (rowColumnDiacritics !! r)) <> col0
-        in fg <> firstCell <> T.replicate (kiCols img - 1) placeholder <> reset
-  in T.intercalate "\n" (map rowLine [0 .. kiRows img - 1])
+kittyPlacement img = T.intercalate "\n" (map rowLine [0 .. kiRows img - 1])
+  where
+    theId = kittyImageId (kiPayload img) (kiIdOverride img)
+    fg = "\ESC[38;2;" <> T.show ((theId `shiftR` 16) .&. 0xff) <> ";"
+         <> T.show ((theId `shiftR` 8) .&. 0xff) <> ";" <> T.show (theId .&. 0xff) <> "m"
+    placeholder = T.singleton kittyPlaceholderChar
+    diacritic i = T.singleton (chr (rowColumnDiacritics !! i))
+    rowLine r = fg <> placeholder <> diacritic r <> diacritic 0
+                <> T.replicate (kiCols img - 1) placeholder <> ansiReset
 
--- | Strip transmit blocks whose image id is already in the seen-set, adding
--- new ids as they are encountered. Returns the rewritten string and the
--- updated set. Placement grids are always left intact.
+-- | Drop transmit blocks for ids already in the set, adding new ones.
+-- Placements are left alone.
 dedupeTransmits :: IntSet.IntSet -> Text -> (Text, IntSet.IntSet)
-dedupeTransmits ids0 input = go ids0 input
+dedupeTransmits = go
   where
     go ids s = case splitOnFirst kittyApcG s of
       Nothing -> (s, ids)
       Just (before, rest) ->
         let (block, after) = takeBlock rest
-            bid            = parseId block
+            bid = parseId block
             (keep, ids')
               | bid /= 0 && IntSet.member bid ids = ("", ids)
               | bid /= 0                          = (block, IntSet.insert bid ids)
@@ -2249,20 +1869,16 @@ dedupeTransmits ids0 input = go ids0 input
             (restOut, idsF) = go ids' after
         in (before <> keep <> restOut, idsF)
 
-    -- @s@ starts with the APC introducer; return (whole block incl. ST, rest).
     takeBlock s = case splitOnFirst kittyST (T.drop (T.length kittyApcG) s) of
-      Nothing          -> (s, "")   -- unterminated: keep verbatim
+      Nothing           -> (s, "")   -- unterminated, keep as is
       Just (mid, after) -> (kittyApcG <> mid <> kittyST, T.drop (T.length kittyST) after)
 
     parseId block =
-      let body   = T.drop (T.length kittyApcG) block
-          keys   = T.takeWhile (/= ';') body
-          fields = splitOnChar ',' keys
-      in case [ T.drop 2 f | f <- fields, "i=" `T.isPrefixOf` f ] of
-           (v:_) -> let ds = T.takeWhile isDigit v in if T.null ds then 0 else read (T.unpack ds)
-           []    -> 0
+      let keys = T.takeWhile (/= ';') (T.drop (T.length kittyApcG) block)
+      in case [ T.drop 2 f | f <- splitOnChar ',' keys, "i=" `T.isPrefixOf` f ] of
+           (v:_) | ds <- T.takeWhile isDigit v, not (T.null ds) -> read (T.unpack ds)
+           _ -> 0
 
--- | Validate dimensions/format and build a 'KittyImage'.
 mkKitty :: [Word8] -> Int -> Int -> Int -> Int -> Int -> Text -> KittyImage
 mkKitty payload fmt cols rows pxW pxH alt
   | cols < 1 || rows < 1 = error "KittyImage cols/rows must be >= 1"
@@ -2276,40 +1892,33 @@ mkKitty payload fmt cols rows pxW pxH alt
     validFormat = fmt == formatPng
                   || ((fmt == formatRgb || fmt == formatRgba) && pxW > 0 && pxH > 0)
 
--- | Inline PNG image sized to a @cols@x@rows@ cell footprint. The terminal
--- decodes the PNG and fits it into that box; layout math uses @cols@\/@rows@.
+-- | PNG bytes shown in a @cols@ x @rows@ cell box. The terminal does the
+-- decoding and scaling.
 kittyImage :: [Word8] -> Int -> Int -> L
 kittyImage bytes cols rows = L (mkKitty bytes formatPng cols rows 0 0 "")
 
--- | Inline raw RGB image (@format 24@): @pxW@x@pxH@ source pixels shown in a
--- @cols@x@rows@ cell footprint.
+-- | Raw RGB pixels, @pxW@ x @pxH@, shown in a @cols@ x @rows@ cell box.
 kittyRGB :: [Word8] -> Int -> Int -> Int -> Int -> L
 kittyRGB pixels pxW pxH cols rows = L (mkKitty pixels formatRgb cols rows pxW pxH "")
 
--- | Inline raw RGBA image (@format 32@): like 'kittyRGB' with an alpha channel.
+-- | 'kittyRGB' with an alpha channel.
 kittyRGBA :: [Word8] -> Int -> Int -> Int -> Int -> L
 kittyRGBA pixels pxW pxH cols rows = L (mkKitty pixels formatRgba cols rows pxW pxH "")
 
--- | Load an image file and size it to a @cols@x@rows@ cell footprint. PNG bytes
--- are sent to the terminal as-is.
+-- | Load a PNG from disk.
 kittyImageFile :: FilePath -> Int -> Int -> IO L
-kittyImageFile path cols rows = do
-  bytes <- readFileBytes path
-  pure (kittyImage bytes cols rows)
+kittyImageFile path cols rows = (\bytes -> kittyImage bytes cols rows) <$> readFileBytes path
 
--- | Read a file strictly as a list of bytes (binary mode, no dependencies).
 readFileBytes :: FilePath -> IO [Word8]
 readFileBytes path = withBinaryFile path ReadMode $ \h -> do
   contents <- hGetContents h
-  let n = length contents
-  n `seq` pure (map (fromIntegral . ord) contents)
+  length contents `seq` pure (map (fromIntegral . ord) contents)
 
--- ============================================================================
+--------------------------------------------------------------------------------
 -- Progress loaders
--- ============================================================================
 
--- | Visual preset for a 'loader'. Controls the bar glyphs and colour for
--- bounded loaders, and the spinner frames + colour for streaming loaders.
+-- | Bar glyphs and colour for bounded loaders; spinner and colour for
+-- streaming ones.
 data LoaderStyle = LoaderStyle
   { lsFill    :: Char
   , lsEmpty   :: Char
@@ -2321,110 +1930,104 @@ data LoaderStyle = LoaderStyle
   , lsColor   :: Color
   }
 
--- | Smooth gradient blocks @████▊░░░@ (default).
+-- | @████▊░░░@, the default.
 styleBlocks :: LoaderStyle
 styleBlocks = LoaderStyle '█' '░' "" "" "" True SpinnerGrow ColorCyan
 
--- | Classic bracketed bar @[██████░░░░]@.
+-- | @[██████░░░░]@
 styleBar :: LoaderStyle
 styleBar = LoaderStyle '█' '░' "[" "]" "" False SpinnerDots ColorGreen
 
--- | Retro ASCII with an arrow head @[====>    ]@.
+-- | @[====>    ]@
 styleAscii :: LoaderStyle
 styleAscii = LoaderStyle '=' ' ' "[" "]" ">" False SpinnerLine ColorYellow
 
--- | Dotted @●●●●∙∙∙∙@.
+-- | @●●●●∙∙∙∙@
 styleDots :: LoaderStyle
 styleDots = LoaderStyle '●' '∙' "" "" "" False SpinnerBounce ColorMagenta
 
--- | Heavy\/light rule @━━━━────@.
+-- | @━━━━────@
 styleLine :: LoaderStyle
 styleLine = LoaderStyle '━' '─' "" "" "" False SpinnerLine ColorBlue
 
--- | Segmented pipes @▰▰▰▱▱▱@.
+-- | @▰▰▰▱▱▱@
 stylePipes :: LoaderStyle
 stylePipes = LoaderStyle '▰' '▱' "" "" "" False SpinnerArrow ColorBrightMagenta
 
--- | All built-in styles, in display order.
 loaderStyles :: [LoaderStyle]
 loaderStyles = [styleBlocks, styleBar, styleAscii, styleDots, styleLine, stylePipes]
 
--- | Fractional block glyphs for the smooth-fill boundary cell (1\/8 .. 8\/8).
+-- | Partial cells for smooth bars, in eighths.
 blockEighths :: [Text]
 blockEighths = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"]
 
--- | Render a progress bar of the given style filled to @progress@ (0..1) over
--- @w@ cells.
 renderProgressBar :: LoaderStyle -> Double -> Int -> Text
-renderProgressBar style progress w =
-  let p      = max 0.0 (min 1.0 progress)
-      exact  = p * fromIntegral w
-      filled = floor exact :: Int
-  in if lsSmooth style
-       then let eighths    = floor ((exact - fromIntegral filled) * 8) :: Int
-                hasPartial = filled < w && eighths > 0
-                partial    = if hasPartial then blockEighths !! eighths else ""
-                used       = filled + (if hasPartial then 1 else 0)
-                body       = paintColor (lsColor style) (replicateChar filled (lsFill style) <> partial)
-            in lsOpen style <> body <> dimText (replicateChar (w - used) (lsEmpty style)) <> lsClose style
-       else let showHead   = not (T.null (lsHead style)) && filled > 0 && filled < w
-                hd         = if showHead then lsHead style else ""
-                emptyCount = max 0 (w - filled - T.length hd)
-                body       = paintColor (lsColor style) (replicateChar filled (lsFill style) <> hd)
-            in lsOpen style <> body <> dimText (replicateChar emptyCount (lsEmpty style)) <> lsClose style
+renderProgressBar LoaderStyle{..} progress w =
+  lsOpen <> wrapAnsi lsColor (replicateChar filled lsFill <> tip) <> dimText (replicateChar rest lsEmpty) <> lsClose
+  where
+    exact  = max 0.0 (min 1.0 progress) * fromIntegral w
+    filled = floor exact :: Int
+    eighths = floor ((exact - fromIntegral filled) * 8) :: Int
+    (tip, rest)
+      | lsSmooth = if filled < w && eighths > 0
+                     then (blockEighths !! eighths, w - filled - 1)
+                     else ("", w - filled)
+      | not (T.null lsHead) && filled > 0 && filled < w = (lsHead, max 0 (w - filled - T.length lsHead))
+      | otherwise = ("", max 0 (w - filled))
 
--- | Run an inline progress line: a background ticker redraws @renderLine@ every
--- 80ms while the main thread maps @action@ over @items@, bumping @counter@ per
--- item. On completion the ticker stops and @finalLine@ is drawn.
-runLoader :: (Int -> IO Text) -> IO Text -> IORef Int -> [a] -> (a -> IO b) -> IO [b]
-runLoader renderLine finalLine counter items action = do
-  hideCursor
-  hFlush stdout
+-- | Redraw @frameAt i@ on the current line every 80ms while @action@ runs.
+withTicker :: (Int -> IO Text) -> IO a -> IO a
+withTicker frameAt action = do
   stopRef <- newIORef False
-  ticker <- forkIO $
-    let tick frame = do
-          stop <- readIORef stopRef
-          unless stop $ do
-            line <- renderLine frame
-            TIO.putStr ("\r" <> line <> "\ESC[K")
-            hFlush stdout
-            threadDelay 80000
-            tick (frame + 1)
-    in tick 0
-  results <- mapM (\x -> do r <- action x; modifyIORef' counter (+ 1); pure r) items
+  let tick i = do
+        stop <- readIORef stopRef
+        unless stop $ do
+          line <- frameAt i
+          putText ("\r" <> line <> "\ESC[K")
+          hFlush stdout
+          threadDelay 80000
+          tick (i + 1)
+  ticker <- forkIO (tick 0)
+  r <- action
   writeIORef stopRef True
   killThread ticker
+  pure r
+
+runLoader :: (Int -> IO Text) -> IO Text -> IORef Int -> [a] -> (a -> IO b) -> IO [b]
+runLoader frameAt finalLine counter items action = do
+  hideCursor
+  hFlush stdout
+  results <- withTicker frameAt $
+    mapM (\x -> action x <* modifyIORef' counter (+ 1)) items
   final <- finalLine
-  TIO.putStr ("\r" <> final <> "\ESC[K\n")
+  putText ("\r" <> final <> "\ESC[K\n")
   showCursor
   hFlush stdout
   pure results
 
-boundedRender :: LoaderStyle -> Text -> Int -> IORef Int -> Int -> IO Text
-boundedRender style label total counter _frame = do
+labelPrefix :: Text -> Text
+labelPrefix label = if T.null label then "" else label <> " "
+
+boundedFrame :: LoaderStyle -> Text -> Int -> IORef Int -> IO Text
+boundedFrame style label total counter = do
   done <- readIORef counter
   let progress = if total > 0 then min 1.0 (fromIntegral done / fromIntegral total) else 1.0
-      bar      = renderProgressBar style progress 20
-      pct      = floor (progress * 100) :: Int
-      prefix   = if T.null label then "" else label <> " "
-  pure (prefix <> bar <> " " <> T.show done <> "/" <> T.show total <> " (" <> T.show pct <> "%)")
+  pure $ labelPrefix label <> renderProgressBar style progress 20
+      <> " " <> T.show done <> "/" <> T.show total
+      <> " (" <> T.show (floor (progress * 100) :: Int) <> "%)"
 
-streamingRender :: LoaderStyle -> Text -> IORef Int -> Int -> IO Text
-streamingRender style label counter frame = do
+streamingFrame :: LoaderStyle -> Text -> IORef Int -> Int -> IO Text
+streamingFrame style label counter i = do
   done <- readIORef counter
-  let frames = spinnerFrames (lsSpinner style)
-      spin   = paintColor (lsColor style) (frames !! (frame `mod` length frames))
-      prefix = if T.null label then "" else label <> " "
-  pure (spin <> " " <> prefix <> "(" <> T.show done <> " processed)")
+  pure $ wrapAnsi (lsColor style) (spinnerFrame (lsSpinner style) i)
+      <> " " <> labelPrefix label <> "(" <> T.show done <> " processed)"
 
 streamingFinal :: Text -> IORef Int -> IO Text
 streamingFinal label counter = do
   done <- readIORef counter
-  let prefix = if T.null label then "" else label <> " "
-  pure (prefix <> T.show done <> " processed")
+  pure (labelPrefix label <> T.show done <> " processed")
 
--- | Iterate a sized collection while streaming an inline progress bar (blocks
--- style). Returns the results of @action@ over each item.
+-- | Map an action over a list while drawing an inline progress bar.
 --
 -- @
 -- _ <- 'loader' "Processing" [1..100] (\\_ -> threadDelay 20000)
@@ -2432,34 +2035,28 @@ streamingFinal label counter = do
 loader :: String -> [a] -> (a -> IO b) -> IO [b]
 loader = loaderStyled styleBlocks
 
--- | Like 'loader' with an explicit 'LoaderStyle' (e.g. 'styleAscii').
 loaderStyled :: LoaderStyle -> String -> [a] -> (a -> IO b) -> IO [b]
 loaderStyled style labelS items action = do
-  let label = T.pack labelS
-      total = length items
   counter <- newIORef 0
-  let rl = boundedRender style label total counter
-  runLoader rl (rl 0) counter items action
+  let frame = boundedFrame style (T.pack labelS) (length items) counter
+  runLoader (const frame) frame counter items action
 
--- | Iterate a collection of unknown \"size\", streaming a spinner + running
--- count (blocks style spinner).
+-- | Like 'loader' but for when the length isn't worth forcing: a spinner and
+-- a running count.
 loaderStream :: String -> [a] -> (a -> IO b) -> IO [b]
 loaderStream = loaderStreamStyled styleBlocks
 
--- | Like 'loaderStream' with an explicit 'LoaderStyle'.
 loaderStreamStyled :: LoaderStyle -> String -> [a] -> (a -> IO b) -> IO [b]
 loaderStreamStyled style labelS items action = do
   let label = T.pack labelS
   counter <- newIORef 0
-  runLoader (streamingRender style label counter) (streamingFinal label counter) counter items action
+  runLoader (streamingFrame style label counter) (streamingFinal label counter) counter items action
 
--- ============================================================================
--- Interactive prompts (Ask)
--- ============================================================================
+--------------------------------------------------------------------------------
+-- Ask: one-shot prompts
 --
--- One-shot prompts. Each takes over the tty briefly, returns a value, and
--- leaves a single committed line behind. 'Nothing' means the user cancelled
--- (Esc / Ctrl-C / Ctrl-D).
+-- Each grabs the tty, returns a value and leaves one summary line behind.
+-- 'Nothing' means cancelled (Esc / Ctrl-C / Ctrl-D).
 
 askCursorUp :: Int -> Text
 askCursorUp n = "\ESC[" <> T.show n <> "A\r"
@@ -2470,8 +2067,7 @@ askClearEol = "\ESC[K"
 askClearBelow :: Text
 askClearBelow = "\ESC[J"
 
--- | Put the tty into raw mode, hide the cursor, run the body, and restore the
--- terminal afterwards (even on exception).
+-- | Raw mode and a hidden cursor for the duration of @body@.
 withAskTty :: IO a -> IO a
 withAskTty body = do
   oldBuffering <- hGetBuffering stdin
@@ -2486,39 +2082,47 @@ withAskTty body = do
     hSetBuffering stdin oldBuffering
     hFlush stdout
 
--- | Redraw a multi-line frame in place, returning its line count.
+-- | Redraw a frame over the previous one; returns its height.
 askRepaint :: Text -> Int -> IO Int
 askRepaint frame prevLines = do
-  let ls   = splitOnChar '\n' frame
-      up   = if prevLines > 0 then askCursorUp prevLines else ""
-      body = foldMap (\l -> l <> askClearEol <> "\n") ls
-      belw = if prevLines > length ls then askClearBelow else ""
-  TIO.putStr (up <> body <> belw)
+  let ls = splitOnChar '\n' frame
+  putText $ (if prevLines > 0 then askCursorUp prevLines else "")
+            <> foldMap (<> askClearEol <> "\n") ls
+            <> (if prevLines > length ls then askClearBelow else "")
   hFlush stdout
   pure (length ls)
 
--- | Replace the live frame with a single committed summary line.
+-- | Replace the live frame with a single summary line.
 askCommit :: Text -> Int -> IO ()
 askCommit summary prevLines = do
-  let up   = if prevLines > 0 then askCursorUp prevLines else ""
-      belw = if prevLines > 1 then askClearBelow else ""
-  TIO.putStr (up <> summary <> askClearEol <> "\n" <> belw)
+  putText $ (if prevLines > 0 then askCursorUp prevLines else "")
+            <> summary <> askClearEol <> "\n"
+            <> (if prevLines > 1 then askClearBelow else "")
   hFlush stdout
 
--- | Wipe the live frame entirely (used on cancel).
 askErase :: Int -> IO ()
 askErase prevLines = when (prevLines > 0) $ do
-  TIO.putStr (askCursorUp prevLines <> askClearBelow)
+  putText (askCursorUp prevLines <> askClearBelow)
   hFlush stdout
 
--- | Render an active confirm button (white on a coloured background, bold).
 askActiveBtn :: Color -> Text -> Text
 askActiveBtn bg t = "\ESC[1;37;" <> bgColorCode bg <> "m" <> t <> "\ESC[0m"
 
+caret :: Text
+caret = wrapAnsi ColorCyan "▌"
+
+-- | Show @window@ rows of @xs@, scrolled to keep @idx@ roughly centred.
+-- Returns the offset of the first visible row.
+viewport :: Int -> Int -> [a] -> (Int, [a])
+viewport window idx xs = (top, take h (drop top xs))
+  where
+    total = length xs
+    h     = max 0 (min window total)
+    top   = if total <= h then 0 else max 0 (min (idx - h `div` 2) (total - h))
+
 renderInputFrame :: Text -> Text -> Text -> Text
 renderInputFrame prompt value placeholder =
-  let body = if T.null value && not (T.null placeholder) then dimText placeholder else value
-  in prompt <> body <> paintColor ColorCyan "▌"
+  prompt <> (if T.null value && not (T.null placeholder) then dimText placeholder else value) <> caret
 
 renderConfirmFrame :: Text -> Bool -> Text -> Text -> Text
 renderConfirmFrame question yes affirmative negative =
@@ -2529,69 +2133,60 @@ renderConfirmFrame question yes affirmative negative =
 
 renderChooseFrame :: Text -> [a] -> Int -> (a -> Text) -> Text
 renderChooseFrame prompt items idx renderItem =
-  let rows = [ if i == idx then paintColor ColorCyan ("› " <> renderItem item) else "  " <> renderItem item
-             | (item, i) <- zip items [0 ..] ]
-  in (if not (T.null prompt) then prompt <> "\n" else "") <> T.intercalate "\n" rows
+  (if T.null prompt then "" else prompt <> "\n") <> T.intercalate "\n"
+    [ if i == idx then wrapAnsi ColorCyan ("› " <> renderItem item) else "  " <> renderItem item
+    | (item, i) <- zip items [0 ..] ]
 
 renderChooseManyFrame :: Text -> [a] -> Int -> [Int] -> Int -> (a -> Text) -> Text
 renderChooseManyFrame prompt items idx selected limit renderItem =
-  let rows = [ let mark = if i `elem` selected then paintColor ColorGreen "[x]" else dimText "[ ]"
-                   line = mark <> " " <> renderItem item
-               in if i == idx then paintColor ColorCyan "› " <> line else "  " <> line
-             | (item, i) <- zip items [0 ..] ]
-      header
-        | T.null prompt = ""
-        | otherwise =
-            let tag | limit > 0              = " (" <> T.show (length selected) <> "/" <> T.show limit <> ")"
-                    | not (null selected)    = " (" <> T.show (length selected) <> ")"
-                    | otherwise              = ""
-            in prompt <> dimText tag <> "\n"
-  in header <> T.intercalate "\n" rows
+  header <> T.intercalate "\n" rows
+  where
+    rows = [ let mark = if i `elem` selected then wrapAnsi ColorGreen "[x]" else dimText "[ ]"
+                 line = mark <> " " <> renderItem item
+             in if i == idx then wrapAnsi ColorCyan "› " <> line else "  " <> line
+           | (item, i) <- zip items [0 ..] ]
+    n = T.show (length selected)
+    tag | limit > 0          = " (" <> n <> "/" <> T.show limit <> ")"
+        | not (null selected) = " (" <> n <> ")"
+        | otherwise          = ""
+    header
+      | T.null prompt = ""
+      | otherwise     = prompt <> dimText tag <> "\n"
 
 renderWriteFrame :: Text -> Text -> Text -> Text -> Text
 renderWriteFrame prompt value placeholder hint =
-  let header = if not (T.null prompt) then prompt <> "\n" else ""
-      body   = if T.null value && not (T.null placeholder)
-                 then dimText placeholder <> paintColor ColorCyan "▌"
-                 else value <> paintColor ColorCyan "▌"
-      footer = if not (T.null hint) then "\n" <> dimText hint else ""
-  in header <> body <> footer
+  (if T.null prompt then "" else prompt <> "\n")
+    <> (if T.null value && not (T.null placeholder) then dimText placeholder else value) <> caret
+    <> (if T.null hint then "" else "\n" <> dimText hint)
 
 renderFilterFrame :: Text -> Text -> [a] -> Int -> Int -> (a -> Text) -> Text
 renderFilterFrame prompt query matches idx viewHeight renderItem =
-  let total   = length matches
-      h       = max 0 (min viewHeight total)
-      top     = if total <= h then 0 else max 0 (min (idx - h `div` 2) (total - h))
-      visible = take h (drop top matches)
-      rows    = [ let absIdx = top + i; label = renderItem item
-                  in if absIdx == idx then paintColor ColorCyan ("› " <> label) else "  " <> label
-                | (item, i) <- zip visible [0 ..] ]
-      header  = prompt <> query <> paintColor ColorCyan "▌"
-      list    = if null rows then dimText "  (no matches)" else T.intercalate "\n" rows
-  in header <> "\n" <> list
+  prompt <> query <> caret <> "\n" <> body
+  where
+    (top, visible) = viewport viewHeight idx matches
+    rows = [ if top + i == idx then wrapAnsi ColorCyan ("› " <> label) else "  " <> label
+           | (item, i) <- zip visible [0 ..], let label = renderItem item ]
+    body = if null rows then dimText "  (no matches)" else T.intercalate "\n" rows
 
--- | Fuzzy-match score: 'Nothing' if @query@ isn't a subsequence of @target@,
--- otherwise @Just gap@ where a smaller gap sum means a tighter match.
+-- | 'Nothing' unless @query@ is a case-insensitive subsequence of @target@;
+-- otherwise the total gap between matched characters (lower is tighter).
 fuzzyScore :: Text -> Text -> Maybe Int
 fuzzyScore query target
   | T.null query = Just 0
-  | otherwise    = loop (T.toLower query) (T.toLower target) (-1) 0 0
+  | otherwise    = go (T.toLower query) (T.toLower target) (-1) 0 0
   where
-    loop Empty _ _ gap _ = Just gap
-    loop _ Empty _ _ _   = Nothing
-    loop q@(qc :< qs) (sc :< ss) lastMatch gap ti
-      | qc == sc  = let gap' = if lastMatch >= 0 then gap + (ti - lastMatch - 1) else gap
-                    in loop qs ss ti gap' (ti + 1)
-      | otherwise = loop q ss lastMatch gap (ti + 1)
+    go Empty _ _ gap _ = Just gap
+    go _ Empty _ _ _   = Nothing
+    go q@(qc :< qs) (sc :< ss) lastHit gap i
+      | qc == sc  = go qs ss i (if lastHit >= 0 then gap + (i - lastHit - 1) else gap) (i + 1)
+      | otherwise = go q ss lastHit gap (i + 1)
 
--- | Filter items to those matching @query@, best (tightest) matches first.
 fuzzyMatches :: Text -> [a] -> (a -> Text) -> [a]
 fuzzyMatches query items renderItem
   | T.null query = items
   | otherwise    = map fst $ sortOn snd
       [ (item, score) | item <- items, Just score <- [fuzzyScore query (renderItem item)] ]
 
--- | A directory entry for the file picker.
 data FileEntry = FileEntry { feName :: FilePath, feIsDir :: Bool }
 
 feDisplay :: FileEntry -> Text
@@ -2599,286 +2194,216 @@ feDisplay e = T.pack (if feIsDir e then feName e <> "/" else feName e)
 
 renderFileFrame :: FilePath -> [FileEntry] -> Int -> Int -> Text
 renderFileFrame path entries idx viewHeight =
-  let total   = length entries
-      h       = max 0 (min viewHeight total)
-      top     = if total <= h then 0 else max 0 (min (idx - h `div` 2) (total - h))
-      visible = take h (drop top entries)
-      rows    = [ let absIdx = top + i
-                      name   = if feIsDir e then paintColor ColorBlue (feDisplay e) else feDisplay e
-                  in if absIdx == idx then paintColor ColorCyan "› " <> name else "  " <> name
-                | (e, i) <- zip visible [0 ..] ]
-  in dimText (T.pack path) <> "\n" <> T.intercalate "\n" rows
+  dimText (T.pack path) <> "\n" <> T.intercalate "\n" rows
+  where
+    (top, visible) = viewport viewHeight idx entries
+    rows = [ let name = if feIsDir e then wrapAnsi ColorBlue (feDisplay e) else feDisplay e
+             in if top + i == idx then wrapAnsi ColorCyan "› " <> name else "  " <> name
+           | (e, i) <- zip visible [0 ..] ]
 
 renderPagerFrame :: [Text] -> Int -> Int -> Int -> Bool -> Text
-renderPagerFrame allLines top h viewWidth lineNumbers =
-  let total    = length allLines
-      visible  = take h (drop top allLines)
-      numWidth = length (show total)
-      gutter   = if lineNumbers then numWidth + 3 else 0
-      maxLineW = max 20 (viewWidth - gutter)
-      body     = T.intercalate "\n"
-        [ let truncated = if T.length line > maxLineW then T.take (maxLineW - 1) line <> "…" else line
-          in if lineNumbers
-               then dimText (padNum numWidth (top + i + 1) <> " │ ") <> truncated
-               else truncated
-        | (line, i) <- zip visible [0 ..] ]
-      viewEnd = min (top + h) total
-      percent = if total == 0 then 100 else (viewEnd * 100) `div` total
-      status  = dimText ("  L" <> T.show (top + 1) <> "–" <> T.show viewEnd <> " of " <> T.show total
-                         <> "  " <> T.show percent <> "%   ↑↓ PgUp/PgDn Home/End  q to quit")
-  in body <> "\n" <> status
+renderPagerFrame allLines top h viewWidth lineNumbers = body <> "\n" <> status
   where
-    padNum w n = let s = T.show n in T.replicate (max 0 (w - T.length s)) " " <> s
+    total    = length allLines
+    numWidth = length (show total)
+    maxLineW = max 20 (viewWidth - if lineNumbers then numWidth + 3 else 0)
+    body = T.intercalate "\n"
+      [ let line' = if T.length line > maxLineW then T.take (maxLineW - 1) line <> "…" else line
+        in if lineNumbers then dimText (padLeft numWidth (T.show (top + i + 1)) <> " │ ") <> line' else line'
+      | (line, i) <- zip (take h (drop top allLines)) [0 ..] ]
+    viewEnd = min (top + h) total
+    percent = if total == 0 then 100 else (viewEnd * 100) `div` total
+    status  = dimText ("  L" <> T.show (top + 1) <> "–" <> T.show viewEnd <> " of " <> T.show total
+                       <> "  " <> T.show percent <> "%   ↑↓ PgUp/PgDn Home/End  q to quit")
 
--- | Prompt for a single line of text. Returns 'Nothing' if cancelled.
-askInput :: String       -- ^ prompt (e.g. @"› "@)
-         -> String       -- ^ placeholder shown when empty
+-- | Single-line text input.
+askInput :: String       -- ^ prompt, e.g. @"› "@
+         -> String       -- ^ placeholder
          -> String       -- ^ initial value
          -> IO (Maybe String)
 askInput promptS placeholderS initialS = withAskTty $ do
-  let prompt = T.pack promptS; placeholder = T.pack placeholderS; initial = T.pack initialS
-  initLines <- askRepaint (renderInputFrame prompt initial placeholder) 0
-  let loop value prevLines = do
-        key <- readKey
-        case key of
-          KeyEnter    -> askCommit (prompt <> value) prevLines >> pure (Just (T.unpack value))
-          KeyEscape   -> askErase prevLines >> pure Nothing
-          KeyCtrl 'C' -> askErase prevLines >> pure Nothing
-          KeyCtrl 'D' -> askErase prevLines >> pure Nothing
-          KeyBackspace | not (T.null value) -> do
-            let nv = T.init value
-            n <- askRepaint (renderInputFrame prompt nv placeholder) prevLines
-            loop nv n
-          KeyChar c -> do
-            let nv = T.snoc value c
-            n <- askRepaint (renderInputFrame prompt nv placeholder) prevLines
-            loop nv n
-          _ -> loop value prevLines
-  loop initial initLines
+  let prompt = T.pack promptS; placeholder = T.pack placeholderS
+      frame v = renderInputFrame prompt v placeholder
+      edit v pl = askRepaint (frame v) pl >>= loop v
+      loop value pl = readKey >>= \case
+        KeyEnter -> askCommit (prompt <> value) pl >> pure (Just (T.unpack value))
+        k | isQuitKey k -> askErase pl >> pure Nothing
+        KeyBackspace | not (T.null value) -> edit (T.init value) pl
+        KeyChar c -> edit (T.snoc value c) pl
+        _ -> loop value pl
+  edit (T.pack initialS) 0
 
--- | Yes\/No confirmation. On cancel returns the opposite of @def@ (matching the
--- Scala @Ask.confirm@).
+-- | Yes\/no. Cancelling returns the opposite of the default.
 askConfirm :: String   -- ^ question
-           -> Bool     -- ^ default selection
-           -> String   -- ^ affirmative label (e.g. @"Yes"@)
-           -> String   -- ^ negative label    (e.g. @"No"@)
+           -> Bool     -- ^ default
+           -> String   -- ^ affirmative label, e.g. @"Yes"@
+           -> String   -- ^ negative label, e.g. @"No"@
            -> IO Bool
-askConfirm questionS def affirmativeS negativeS = do
+askConfirm questionS def affirmativeS negativeS = withAskTty $ do
   let question = T.pack questionS; affirmative = T.pack affirmativeS; negative = T.pack negativeS
-  r <- withAskTty $ do
-    initLines <- askRepaint (renderConfirmFrame question def affirmative negative) 0
-    let picked yes prevLines = do
-          let label = if yes then affirmative else negative
-          askCommit (question <> " " <> paintColor ColorCyan label) prevLines
-          pure (Just yes)
-        loop yes prevLines = do
-          let flipSel = do
-                let ny = not yes
-                n <- askRepaint (renderConfirmFrame question ny affirmative negative) prevLines
-                loop ny n
-          key <- readKey
-          case key of
-            KeyEnter -> picked yes prevLines
-            KeyChar c | c `elem` ("yY" :: String) -> picked True prevLines
-                      | c `elem` ("nN" :: String) -> picked False prevLines
-            KeyLeft     -> flipSel
-            KeyRight    -> flipSel
-            KeyTab      -> flipSel
-            KeyEscape   -> askErase prevLines >> pure (Just (not def))
-            KeyCtrl 'C' -> askErase prevLines >> pure (Just (not def))
-            KeyCtrl 'D' -> askErase prevLines >> pure (Just (not def))
-            _           -> loop yes prevLines
-    loop def initLines
-  pure (maybe def id r)
+      draw yes pl = askRepaint (renderConfirmFrame question yes affirmative negative) pl >>= loop yes
+      pick yes pl = do
+        askCommit (question <> " " <> wrapAnsi ColorCyan (if yes then affirmative else negative)) pl
+        pure yes
+      loop yes pl = readKey >>= \case
+        KeyEnter -> pick yes pl
+        KeyChar c | c `elem` ("yY" :: String) -> pick True pl
+                  | c `elem` ("nN" :: String) -> pick False pl
+        KeyLeft  -> draw (not yes) pl
+        KeyRight -> draw (not yes) pl
+        KeyTab   -> draw (not yes) pl
+        k | isQuitKey k -> askErase pl >> pure (not def)
+        _ -> loop yes pl
+  draw def 0
 
--- | Single-choice menu. Returns 'Nothing' if cancelled or @items@ is empty.
+-- | Pick one. 'Nothing' if cancelled or @items@ is empty.
 askChoose :: String -> [a] -> (a -> String) -> IO (Maybe a)
-askChoose promptS items renderItemS
-  | null items = pure Nothing
-  | otherwise  = withAskTty $ do
-      let prompt = T.pack promptS; renderItem = T.pack . renderItemS
-      initLines <- askRepaint (renderChooseFrame prompt items 0 renderItem) 0
-      let n = length items
-          loop idx prevLines = do
-            let move ni = do
-                  pl <- askRepaint (renderChooseFrame prompt items ni renderItem) prevLines
-                  loop ni pl
-            key <- readKey
-            case key of
-              KeyEnter -> do
-                let pick = items !! idx
-                askCommit (prompt <> " " <> paintColor ColorCyan (renderItem pick)) prevLines
-                pure (Just pick)
-              KeyUp       -> move ((idx - 1 + n) `mod` n)
-              KeyDown     -> move ((idx + 1) `mod` n)
-              KeyTab      -> move ((idx + 1) `mod` n)
-              KeyEscape   -> askErase prevLines >> pure Nothing
-              KeyCtrl 'C' -> askErase prevLines >> pure Nothing
-              KeyCtrl 'D' -> askErase prevLines >> pure Nothing
-              _           -> loop idx prevLines
-      loop 0 initLines
+askChoose _ [] _ = pure Nothing
+askChoose promptS items renderItemS = withAskTty $ do
+  let prompt = T.pack promptS; renderItem = T.pack . renderItemS
+      n = length items
+      draw i pl = askRepaint (renderChooseFrame prompt items i renderItem) pl >>= loop i
+      loop i pl = readKey >>= \case
+        KeyEnter -> do
+          let picked = items !! i
+          askCommit (prompt <> " " <> wrapAnsi ColorCyan (renderItem picked)) pl
+          pure (Just picked)
+        KeyUp   -> draw ((i - 1 + n) `mod` n) pl
+        KeyDown -> draw ((i + 1) `mod` n) pl
+        KeyTab  -> draw ((i + 1) `mod` n) pl
+        k | isQuitKey k -> askErase pl >> pure Nothing
+        _ -> loop i pl
+  draw 0 0
 
--- | Multi-choice menu. @limit@ of 0 means unlimited. Space\/Tab toggles the
--- current row; Enter commits. Returns 'Nothing' if cancelled or empty.
+-- | Pick several. Space or Tab toggles, Enter commits; @limit@ 0 means no
+-- limit. 'Nothing' if cancelled or @items@ is empty.
 askChooseMany :: String -> [a] -> Int -> (a -> String) -> IO (Maybe [a])
-askChooseMany promptS items limit renderItemS
-  | null items = pure Nothing
-  | otherwise  = withAskTty $ do
-      let prompt = T.pack promptS; renderItem = T.pack . renderItemS
-          n = length items
-          toggle i sel
-            | i `elem` sel                     = filter (/= i) sel
-            | limit > 0 && length sel >= limit = sel
-            | otherwise                        = sel <> [i]
-          loop idx selected prevLines = do
-            pl <- askRepaint (renderChooseManyFrame prompt items idx selected limit renderItem) prevLines
-            key <- readKey
-            case key of
-              KeyEnter -> do
-                let picks   = [ item | (item, i) <- zip items [0 ..], i `elem` selected ]
-                    summary = if null picks
-                                then prompt <> " " <> dimText "(nothing)"
-                                else prompt <> " " <> paintColor ColorCyan (T.intercalate ", " (map renderItem picks))
-                askCommit summary pl
-                pure (Just picks)
-              KeyUp       -> loop ((idx - 1 + n) `mod` n) selected pl
-              KeyDown     -> loop ((idx + 1) `mod` n) selected pl
-              KeyChar ' ' -> loop idx (toggle idx selected) pl
-              KeyTab      -> loop idx (toggle idx selected) pl
-              KeyEscape   -> askErase pl >> pure Nothing
-              KeyCtrl 'C' -> askErase pl >> pure Nothing
-              KeyCtrl 'D' -> askErase pl >> pure Nothing
-              _           -> loop idx selected pl
-      loop 0 [] 0
+askChooseMany _ [] _ _ = pure Nothing
+askChooseMany promptS items limit renderItemS = withAskTty $ do
+  let prompt = T.pack promptS; renderItem = T.pack . renderItemS
+      n = length items
+      toggle i sel
+        | i `elem` sel                     = filter (/= i) sel
+        | limit > 0 && length sel >= limit = sel
+        | otherwise                        = sel <> [i]
+      loop i sel prev = do
+        pl <- askRepaint (renderChooseManyFrame prompt items i sel limit renderItem) prev
+        readKey >>= \case
+          KeyEnter -> do
+            let picks = [ item | (item, j) <- zip items [0 ..], j `elem` sel ]
+            askCommit (prompt <> " " <> if null picks
+                         then dimText "(nothing)"
+                         else wrapAnsi ColorCyan (T.intercalate ", " (map renderItem picks))) pl
+            pure (Just picks)
+          KeyUp       -> loop ((i - 1 + n) `mod` n) sel pl
+          KeyDown     -> loop ((i + 1) `mod` n) sel pl
+          KeyChar ' ' -> loop i (toggle i sel) pl
+          KeyTab      -> loop i (toggle i sel) pl
+          k | isQuitKey k -> askErase pl >> pure Nothing
+          _ -> loop i sel pl
+  loop 0 [] 0
 
--- | Run @task@ while animating a spinner labelled @label@; print a ✓\/✗ line
--- when it finishes. Re-throws if the task threw.
+-- | Spin while @task@ runs, then print a ✓ or ✗ line. Exceptions from the
+-- task are rethrown.
 askSpin :: String -> SpinnerStyle -> IO a -> IO a
 askSpin labelS style task = do
   let label = T.pack labelS
   hideCursor
   hFlush stdout
-  stopRef <- newIORef False
-  ticker <- forkIO $
-    let tick i = do
-          stop <- readIORef stopRef
-          unless stop $ do
-            let frames = spinnerFrames style
-                frame  = paintColor ColorCyan (frames !! (i `mod` length frames)) <> " " <> label
-            TIO.putStr ("\r" <> frame <> askClearEol)
-            hFlush stdout
-            threadDelay 80000
-            tick (i + 1)
-    in tick 0
-  outcome <- (Right <$> task) `catch` \e -> pure (Left (e :: SomeException))
-  writeIORef stopRef True
-  killThread ticker
-  let (glyph, col) = case outcome of
-        Right _ -> ("✓", ColorGreen)
-        Left _  -> ("✗", ColorRed)
-  TIO.putStr ("\r" <> paintColor col (glyph <> " " <> label) <> askClearEol <> "\n")
+  outcome <- withTicker (\i -> pure (wrapAnsi ColorCyan (spinnerFrame style i) <> " " <> label)) $
+    (Right <$> task) `catch` \(e :: SomeException) -> pure (Left e)
+  let (glyph, col) = either (const ("✗", ColorRed)) (const ("✓", ColorGreen)) outcome
+  putText ("\r" <> wrapAnsi col (glyph <> " " <> label) <> askClearEol <> "\n")
   showCursor
   hFlush stdout
-  case outcome of
-    Right v -> pure v
-    Left e  -> throwIO e
+  either throwIO pure outcome
 
--- | Multi-line text editor. Enter inserts a newline; Ctrl-D submits; Esc
--- cancels.
+-- | Multi-line input. Enter adds a newline, Ctrl-D submits, Esc cancels.
 askWrite :: String   -- ^ prompt
          -> String   -- ^ placeholder
          -> String   -- ^ initial value
          -> String   -- ^ hint line
          -> IO (Maybe String)
 askWrite promptS placeholderS initialS hintS = withAskTty $ do
-  let prompt = T.pack promptS; placeholder = T.pack placeholderS
-      initial = T.pack initialS; hint = T.pack hintS
-  let loop value prevLines = do
-        pl <- askRepaint (renderWriteFrame prompt value placeholder hint) prevLines
-        key <- readKey
-        case key of
+  let prompt = T.pack promptS; placeholder = T.pack placeholderS; hint = T.pack hintS
+      loop value prev = do
+        pl <- askRepaint (renderWriteFrame prompt value placeholder hint) prev
+        readKey >>= \case
           KeyCtrl 'D' -> do
             let firstLine = case splitOnChar '\n' value of (x:_) -> x; [] -> ""
                 summary   = if T.elem '\n' value then firstLine <> " …" else firstLine
-            askCommit ((if not (T.null prompt) then prompt <> " " else "") <> paintColor ColorCyan summary) pl
+            askCommit ((if T.null prompt then "" else prompt <> " ") <> wrapAnsi ColorCyan summary) pl
             pure (Just (T.unpack value))
-          KeyEscape                          -> askErase pl >> pure Nothing
-          KeyCtrl 'C'                        -> askErase pl >> pure Nothing
-          KeyEnter                           -> loop (value <> "\n") pl
-          KeyChar c                          -> loop (T.snoc value c) pl
-          KeyBackspace | not (T.null value)  -> loop (T.init value) pl
-          _                                  -> loop value pl
-  loop initial 0
+          KeyEscape   -> askErase pl >> pure Nothing
+          KeyCtrl 'C' -> askErase pl >> pure Nothing
+          KeyEnter    -> loop (value <> "\n") pl
+          KeyChar c   -> loop (T.snoc value c) pl
+          KeyBackspace | not (T.null value) -> loop (T.init value) pl
+          _ -> loop value pl
+  loop (T.pack initialS) 0
 
--- | Fuzzy incremental filter over @items@. Type to narrow, arrows to move,
--- Enter to pick. Returns 'Nothing' if cancelled or empty.
+-- | Type to fuzzy-filter, arrows to move, Enter to pick.
 askFilter :: String -> [a] -> Int -> (a -> String) -> IO (Maybe a)
-askFilter promptS items viewHeight renderItemS
-  | null items = pure Nothing
-  | otherwise  = withAskTty $ do
-      let prompt = T.pack promptS; renderItem = T.pack . renderItemS
-      let loop query idx prevLines = do
-            let matches = fuzzyMatches query items renderItem
-                safeIdx = if null matches then 0 else max 0 (min idx (length matches - 1))
-                m       = length matches
-            pl <- askRepaint (renderFilterFrame prompt query matches safeIdx viewHeight renderItem) prevLines
-            key <- readKey
-            case key of
-              KeyEnter | not (null matches) -> do
-                let pick = matches !! safeIdx
-                askCommit (prompt <> query <> "  " <> paintColor ColorCyan (renderItem pick)) pl
-                pure (Just pick)
-              KeyUp   | not (null matches) -> loop query ((safeIdx - 1 + m) `mod` m) pl
-              KeyDown | not (null matches) -> loop query ((safeIdx + 1) `mod` m) pl
-              KeyTab  | not (null matches) -> loop query ((safeIdx + 1) `mod` m) pl
-              KeyBackspace | not (T.null query) -> loop (T.init query) 0 pl
-              KeyChar c   -> loop (T.snoc query c) 0 pl
-              KeyEscape   -> askErase pl >> pure Nothing
-              KeyCtrl 'C' -> askErase pl >> pure Nothing
-              KeyCtrl 'D' -> askErase pl >> pure Nothing
-              _           -> loop query safeIdx pl
-      loop "" 0 0
+askFilter _ [] _ _ = pure Nothing
+askFilter promptS items viewHeight renderItemS = withAskTty $ do
+  let prompt = T.pack promptS; renderItem = T.pack . renderItemS
+      loop query idx prev = do
+        let matches = fuzzyMatches query items renderItem
+            m = length matches
+            i = if null matches then 0 else max 0 (min idx (m - 1))
+            hasMatches = not (null matches)
+        pl <- askRepaint (renderFilterFrame prompt query matches i viewHeight renderItem) prev
+        readKey >>= \case
+          KeyEnter | hasMatches -> do
+            let picked = matches !! i
+            askCommit (prompt <> query <> "  " <> wrapAnsi ColorCyan (renderItem picked)) pl
+            pure (Just picked)
+          KeyUp   | hasMatches -> loop query ((i - 1 + m) `mod` m) pl
+          KeyDown | hasMatches -> loop query ((i + 1) `mod` m) pl
+          KeyTab  | hasMatches -> loop query ((i + 1) `mod` m) pl
+          KeyBackspace | not (T.null query) -> loop (T.init query) 0 pl
+          KeyChar c -> loop (T.snoc query c) 0 pl
+          k | isQuitKey k -> askErase pl >> pure Nothing
+          _ -> loop query i pl
+  loop "" 0 0
 
--- | Directory browser. Enter descends into a directory or picks a file; Right
--- descends; Left\/Backspace goes to the parent. Returns the chosen file path.
+-- | Directory browser. Enter or Right descends, Left or Backspace goes up,
+-- Enter on a file picks it.
 askFile :: String -> Int -> IO (Maybe String)
 askFile start viewHeight = withAskTty (loop start 0 0)
   where
-    loop dir idx prevLines = do
-      canonical <- canonicalizePath dir
-      res <- listEntries canonical
-      case res of
-        Left err -> askCommit (dimText (T.pack err)) prevLines >> pure Nothing
+    loop dir idx prev = do
+      cwd <- canonicalizePath dir
+      listEntries cwd >>= \case
+        Left err -> askCommit (dimText (T.pack err)) prev >> pure Nothing
         Right entries -> do
-          let count   = length entries
-              safeIdx = max 0 (min idx (count - 1))
-              target  = entries !! safeIdx
-          pl <- askRepaint (renderFileFrame canonical entries safeIdx viewHeight) prevLines
-          key <- readKey
-          case key of
-            KeyEnter -> do
-              full <- canonicalizePath (canonical <> "/" <> feName target)
-              if feIsDir target
-                then loop full 0 pl
-                else askCommit (paintColor ColorCyan (T.pack full)) pl >> pure (Just full)
-            KeyRight ->
-              if feIsDir target
-                then do full <- canonicalizePath (canonical <> "/" <> feName target); loop full 0 pl
-                else loop canonical safeIdx pl
-            KeyUp        -> loop canonical ((safeIdx - 1 + count) `mod` count) pl
-            KeyDown      -> loop canonical ((safeIdx + 1) `mod` count) pl
-            KeyTab       -> loop canonical ((safeIdx + 1) `mod` count) pl
-            KeyLeft      -> goParent canonical safeIdx pl
-            KeyBackspace -> goParent canonical safeIdx pl
-            KeyEscape    -> askErase pl >> pure Nothing
-            KeyCtrl 'C'  -> askErase pl >> pure Nothing
-            KeyCtrl 'D'  -> askErase pl >> pure Nothing
-            _            -> loop canonical safeIdx pl
-    goParent canonical safeIdx pl = do
-      parent <- canonicalizePath (canonical <> "/..")
-      if parent /= canonical then loop parent 0 pl else loop canonical safeIdx pl
+          let count  = length entries
+              i      = max 0 (min idx (count - 1))
+              target = entries !! i
+              enter  = canonicalizePath (cwd <> "/" <> feName target)
+          pl <- askRepaint (renderFileFrame cwd entries i viewHeight) prev
+          readKey >>= \case
+            KeyEnter
+              | feIsDir target -> enter >>= \p -> loop p 0 pl
+              | otherwise -> do
+                  full <- enter
+                  askCommit (wrapAnsi ColorCyan (T.pack full)) pl
+                  pure (Just full)
+            KeyRight
+              | feIsDir target -> enter >>= \p -> loop p 0 pl
+              | otherwise      -> loop cwd i pl
+            KeyUp        -> loop cwd ((i - 1 + count) `mod` count) pl
+            KeyDown      -> loop cwd ((i + 1) `mod` count) pl
+            KeyTab       -> loop cwd ((i + 1) `mod` count) pl
+            KeyLeft      -> up cwd i pl
+            KeyBackspace -> up cwd i pl
+            k | isQuitKey k -> askErase pl >> pure Nothing
+            _ -> loop cwd i pl
+    up cwd i pl = do
+      parent <- canonicalizePath (cwd <> "/..")
+      if parent /= cwd then loop parent 0 pl else loop cwd i pl
 
--- | List a directory as sorted 'FileEntry's (dirs first), with @".."@ prepended.
+-- | Directories first, then case-insensitive by name, with @..@ on top.
 listEntries :: String -> IO (Either String [FileEntry])
 listEntries path = do
   exists <- doesPathExist path
@@ -2886,41 +2411,32 @@ listEntries path = do
   if not exists then pure (Left ("not found: " <> path))
   else if not isDir then pure (Left ("not a directory: " <> path))
   else do
-    names <- listDirectory path `catch` \e -> let _ = (e :: IOException) in pure []
-    entries <- forM names $ \nm -> do
-      d <- doesDirectoryExist (path <> "/" <> nm)
-      pure (FileEntry nm d)
-    let sorted = sortOn (\e -> (not (feIsDir e), map toLower (feName e))) entries
-    pure (Right (FileEntry ".." True : sorted))
+    names <- listDirectory path `catch` \(_ :: IOException) -> pure []
+    entries <- forM names $ \nm -> FileEntry nm <$> doesDirectoryExist (path <> "/" <> nm)
+    pure (Right (FileEntry ".." True : sortOn (\e -> (not (feIsDir e), map toLower (feName e))) entries))
 
--- | Scrollable pager. @viewHeight@ of 0 auto-sizes to the terminal.
--- Arrows\/PgUp\/PgDn\/Home\/End navigate; q or Esc quits.
+-- | Scrollable pager; @viewHeight@ 0 fills the terminal. q or Esc quits.
 askPager :: String -> Int -> Bool -> IO ()
-askPager contentS viewHeight lineNumbers = do
+askPager contentS viewHeight lineNumbers = withAskTty $ do
   let content = T.pack contentS
       ls = if T.null content then [""] else splitOnChar '\n' content
-  _ <- withAskTty $ do
-    (termH, termW) <- getTerminalSize
-    let h      = if viewHeight > 0 then viewHeight else max 5 (termH - 3)
-        total  = length ls
-        maxTop = max 0 (total - h)
-        loop top prevLines = do
-          let safeTop = max 0 (min top maxTop)
-          pl <- askRepaint (renderPagerFrame ls safeTop h termW lineNumbers) prevLines
-          key <- readKey
-          case key of
-            KeyChar 'q' -> askErase pl
-            KeyEscape   -> askErase pl
-            KeyCtrl 'C' -> askErase pl
-            KeyUp       -> loop (safeTop - 1) pl
-            KeyDown     -> loop (safeTop + 1) pl
-            KeyEnter    -> loop (safeTop + 1) pl
-            KeyPageUp   -> loop (safeTop - h) pl
-            KeyPageDown -> loop (safeTop + h) pl
-            KeyChar ' ' -> loop (safeTop + h) pl
-            KeyHome     -> loop 0 pl
-            KeyEnd      -> loop maxTop pl
-            _           -> loop safeTop pl
-    loop 0 0
-  pure ()
-
+  (termH, termW) <- getTerminalSize
+  let h      = if viewHeight > 0 then viewHeight else max 5 (termH - 3)
+      maxTop = max 0 (length ls - h)
+      loop top prev = do
+        let t = max 0 (min top maxTop)
+        pl <- askRepaint (renderPagerFrame ls t h termW lineNumbers) prev
+        readKey >>= \case
+          KeyChar 'q' -> askErase pl
+          KeyEscape   -> askErase pl
+          KeyCtrl 'C' -> askErase pl
+          KeyUp       -> loop (t - 1) pl
+          KeyDown     -> loop (t + 1) pl
+          KeyEnter    -> loop (t + 1) pl
+          KeyPageUp   -> loop (t - h) pl
+          KeyPageDown -> loop (t + h) pl
+          KeyChar ' ' -> loop (t + h) pl
+          KeyHome     -> loop 0 pl
+          KeyEnd      -> loop maxTop pl
+          _           -> loop t pl
+  loop 0 0

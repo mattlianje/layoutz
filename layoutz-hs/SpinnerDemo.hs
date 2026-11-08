@@ -11,15 +11,12 @@ module Main where
 
 import Layoutz
 
--- | App state tracks the frame counter
 data SpinnerState = SpinnerState
   { frameCount :: Int
   } deriving (Show)
 
--- | Messages
 data SpinnerMsg = NextFrame
 
--- | The spinner demo application
 spinnerDemo :: LayoutzApp SpinnerState SpinnerMsg
 spinnerDemo = LayoutzApp
   { appInit = (SpinnerState 0, CmdNone)
