@@ -55,7 +55,7 @@ import layoutz._
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
 ## TUIs
-Just implement `LayoutzApp`, then call `.run`:
+Just implement [`LayoutzApp`](#interactive-apps), then call `.run`. Here is the classic counter app:
 ```scala
 object CounterApp extends LayoutzApp[Int, String] {
   def init = (0, Cmd.none)

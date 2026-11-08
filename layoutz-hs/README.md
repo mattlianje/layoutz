@@ -56,7 +56,7 @@ import Layoutz
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
 ## TUIs
-Just fill in a `LayoutzApp`, then call `runApp`:
+Just fill in a [`LayoutzApp`](#interactive-apps), then call `runApp`. Here is the classic counter app:
 ```haskell
 data Msg = Inc | Dec
 
