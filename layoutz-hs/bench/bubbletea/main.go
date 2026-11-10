@@ -1,11 +1,9 @@
-// The Bubble Tea side of the layoutz benchmark (see ../Main.hs).
+// Bubble Tea + lipgloss version of ../Dashboard.hs, driven by ../Main.hs.
 //
-// It draws the same dashboard as ../Dashboard.hs, with lipgloss:
-//
-//	bubbletea-dashboard render   print milliseconds per frame of View
-//	bubbletea-dashboard idle     run the app; redraw only on a "+" keypress
-//	bubbletea-dashboard busy     run the app; also change every 10ms
-//	bubbletea-dashboard version  print the Bubble Tea version it was built with
+//	bubbletea-dashboard render   ms per frame
+//	bubbletea-dashboard idle     run the app, redraw on "+"
+//	bubbletea-dashboard busy     same, plus a tick every 10ms
+//	bubbletea-dashboard version  Bubble Tea version
 package main
 
 import (
@@ -99,7 +97,7 @@ func (m model) View() tea.View {
 	return v
 }
 
-// Same as the Haskell side: skip 100 frames, then time 2000.
+// 100 warmup frames, then time 2000.
 func renderTime() float64 {
 	for k := 1; k <= 100; k++ {
 		_ = dashboard(k)

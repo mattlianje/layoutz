@@ -56,8 +56,8 @@ initialTasks =
   , ("Update documentation", 10)
   ]
 
-taskListApp :: App TaskState TaskMsg
-taskListApp = App
+taskListApp :: LayoutzApp TaskState TaskMsg
+taskListApp = LayoutzApp
   { appInit = 
       ( TaskState
           { tasks = map fst initialTasks

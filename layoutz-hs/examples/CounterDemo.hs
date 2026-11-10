@@ -13,8 +13,8 @@ import Layoutz
 
 data CounterMsg = Inc | Dec
 
-counterApp :: App Int CounterMsg
-counterApp = App
+counterApp :: LayoutzApp Int CounterMsg
+counterApp = LayoutzApp
   { appInit = (0, cmdNone)
   
   , appUpdate = \msg count -> case msg of

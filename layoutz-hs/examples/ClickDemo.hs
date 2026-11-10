@@ -62,7 +62,7 @@ view m = vstack
       | otherwise     = text ("  " <> padTo name) & onClick (Pick i)
     padTo s = s <> replicate (12 - length s) ' '
 
-app :: App Model Msg
+app :: LayoutzApp Model Msg
 app = sandbox initial update view
 
 main :: IO ()

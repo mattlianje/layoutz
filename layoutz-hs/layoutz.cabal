@@ -86,6 +86,14 @@ executable focus-demo
   default-language:    Haskell2010
   ghc-options:         -Wall
 
+executable napkin-demo
+  main-is:             NapkinDemo.hs
+  build-depends:       base >= 4.7 && < 5
+                     , layoutz
+  hs-source-dirs:      examples
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
 executable showcase-app
   main-is:             ShowcaseApp.hs
   build-depends:       base >= 4.7 && < 5
@@ -157,7 +165,7 @@ test-suite layoutz-tests
   default-language:    Haskell2010
   ghc-options:         -Wall
 
--- layoutz vs Bubble Tea and Brick: `make bench`. Linux only.
+-- layoutz vs Bubble Tea, Brick and ratatui: `make bench`. Linux only.
 benchmark layoutz-bench
   type:                exitcode-stdio-1.0
   main-is:             Main.hs

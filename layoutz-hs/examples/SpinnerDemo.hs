@@ -17,8 +17,8 @@ data SpinnerState = SpinnerState
 
 data SpinnerMsg = NextFrame
 
-spinnerDemo :: App SpinnerState SpinnerMsg
-spinnerDemo = App
+spinnerDemo :: LayoutzApp SpinnerState SpinnerMsg
+spinnerDemo = LayoutzApp
   { appInit = (SpinnerState 0, cmdNone)
 
   , appUpdate = \msg state -> case msg of

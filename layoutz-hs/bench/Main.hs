@@ -3,20 +3,16 @@
 {-# LANGUAGE RecordWildCards #-}
 
 {-|
-layoutz vs Bubble Tea vs Brick, all drawing the same dashboard (see Dashboard.hs).
+layoutz vs Bubble Tea vs Brick vs ratatui, all drawing Dashboard.hs.
 
-Two kinds of numbers:
-- render: ms to turn the view into text, timed inside each program
-- running: each program in a 200x60 pty (see Pty.hs). Idle CPU, keypress
-  latency, and CPU/output while the model changes every 10ms
+- render: ms per frame, timed inside each program
+- the rest: each program running in a 200x60 pty (Pty.hs)
 
-Run with `make bench`, or by hand:
+> make bench
+> cabal bench --benchmark-options="--bubbletea BIN --brick BIN --ratatui BIN --out bench"
 
-> cabal bench --benchmark-options="--bubbletea path/to/bin --brick path/to/bin --out bench"
-
-Any flag can be left out. Each run writes results.svg and the results section
-of BENCHES.md into the --out directory (default: bench). Expect a few % noise between runs, so only
-compare rows from the same run.
+Flags are optional. Writes results.svg and README.md into --out (default: bench).
+Runs vary by a few %, only compare rows from the same run.
 -}
 module Main (main) where
 
@@ -38,24 +34,27 @@ import Report
 
 main :: IO ()
 main = getArgs >>= \case
-  -- the bench re-runs itself with these to get the layoutz app
+  -- what the bench spawns for layoutz
   ["--app", "idle"] -> runApp (dashboardApp Idle)
   ["--app", "busy"] -> runApp (dashboardApp Busy)
   args -> maybe usage (uncurry benchmark) (parseArgs args)
   where
     parseArgs = \case
-      []                          -> Just ([], "bench")
-      "--bubbletea" : path : rest -> first (Other "bubbletea" path :) <$> parseArgs rest
-      "--brick" : path : rest     -> first (Other "brick" path :) <$> parseArgs rest
-      "--out" : dir : rest        -> (\(os, _) -> (os, dir)) <$> parseArgs rest
-      _                           -> Nothing
+      [] -> Just ([], "bench")
+      "--out" : dir : rest -> (\(os, _) -> (os, dir)) <$> parseArgs rest
+      ('-' : '-' : name) : path : rest
+        | name `elem` otherNames -> first (Other name path :) <$> parseArgs rest
+      _ -> Nothing
     first f (a, b) = (f a, b)
     usage = do
-      hPutStrLn stderr "usage: layoutz-bench [--bubbletea PATH] [--brick PATH] [--out DIR]"
+      hPutStrLn stderr "usage: layoutz-bench [--bubbletea PATH] [--brick PATH] [--ratatui PATH] [--out DIR]"
       exitFailure
 
--- | Name and path of another library's dashboard binary.
+-- | Another library's dashboard binary.
 data Other = Other String FilePath
+
+otherNames :: [String]
+otherNames = ["bubbletea", "brick", "ratatui"]
 
 data Subject = Subject
   { subjectName :: String
@@ -101,7 +100,7 @@ other (Other name path) = do
     , busyArgs    = ["busy"]
     }
 
--- | Same as the others: 100 warmup frames, then time 2000.
+-- | 100 warmup frames, then time 2000, same as the others.
 layoutzRenderTime :: IO Double
 layoutzRenderTime = do
   forM_ [1 .. 100] frame
@@ -179,13 +178,14 @@ benchmark others out = do
     , runHeaders = headers
     , runRows    = tableRows results
     }
-  forM_ (filter (`notElem` measured) ["bubbletea", "brick"]) $ \name ->
-    putStrLn ("\n" <> name <> " was not measured: " <> howToBuild name)
+  forM_ (filter (`notElem` measured) otherNames) $ \name ->
+    putStrLn ("\n" <> name <> " was not measured, `make bench` builds it: " <> needs name)
   where
     measured = [ name | Other name _ <- others ]
-    howToBuild = \case
-      "bubbletea" -> "`make bench` builds it, needs Go 1.21+ (GO=... to pick one)"
-      _           -> "`make bench` builds it with cabal, see the error above"
+    needs = \case
+      "bubbletea" -> "needs Go 1.21+ (GO=... to pick one)"
+      "ratatui"   -> "needs cargo (CARGO=... to pick one)"
+      _           -> "see the cabal error above"
 
 report :: [(String, Results)] -> View m
 report results = vstack
@@ -216,7 +216,7 @@ tableRows results =
   | (name, Results{..}) <- results
   ]
 
--- | The same numbers as the table, one chart per column.
+-- | One chart per table column.
 charts :: [(String, Results)] -> [Chart]
 charts results =
   [ panel "render, ms per frame" $ \Results{..} ->
@@ -238,7 +238,7 @@ charts results =
 
 notes :: [String]
 notes =
-  [ "render: one frame of the view to text (Brick: to vty spans, it has no plain-text render)"
+  [ "render: one frame to text (Brick: to vty spans, ratatui: to a cell buffer, neither renders plain text)"
   , "idle CPU: nothing changing"
   , "key -> screen: keypress to first byte of the next frame"
   , "busy: model changes every 10ms, output is bytes the terminal has to parse"

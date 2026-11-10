@@ -1,8 +1,5 @@
--- | Saves a bench run: @results.svg@ (one bar chart per measurement) and the
--- generated section of @BENCHES.md@, which shows the chart and a table.
---
--- Only the text between the two markers in BENCHES.md is rewritten, so the
--- rest of the page can be edited by hand.
+-- | Writes @results.svg@ and the results section of @README.md@. Only the
+-- text between the two markers is replaced, the rest is hand-written.
 module Report
   ( Chart (..)
   , Bar (..)
@@ -33,7 +30,7 @@ data Bar = Bar
   }
 
 data Run = Run
-  { runSetup   :: String      -- what was drawn, on what size of terminal
+  { runSetup   :: String
   , runCharts  :: [Chart]
   , runHeaders :: [String]
   , runRows    :: [[String]]
@@ -44,12 +41,11 @@ save dir run = do
   createDirectoryIfMissing True dir
   date    <- shell "date" ["+%Y-%m-%d"]
   machine <- describeMachine
-  let stamp = date <> " on " <> machine
-  writeFile (dir </> svgFile) (svg stamp run)
-  let page = dir </> "BENCHES.md"
+  writeFile (dir </> svgFile) (svg (date <> " on " <> intercalate ", " machine) run)
+  let page = dir </> "README.md"
   exists <- doesFileExist page
   old <- if exists then readFile page else pure ""
-  length old `seq` writeFile page (splice (section stamp run) old)
+  length old `seq` writeFile page (splice (section date machine run) old)
   putStrLn ("\nSaved " <> page <> " and " <> (dir </> svgFile))
 
 svgFile :: FilePath
@@ -61,7 +57,6 @@ startMarker, endMarker :: String
 startMarker = "<!-- results:start, written by `make bench`, edits in here are lost -->"
 endMarker   = "<!-- results:end -->"
 
--- | Put the new section between the markers, or start the page if there is none.
 splice :: [String] -> String -> String
 splice new old = case break isStart (lines old) of
   (before, _ : rest) | (_, _ : after) <- break isEnd rest ->
@@ -74,32 +69,28 @@ splice new old = case break isStart (lines old) of
     intro =
       [ "# Benchmarks"
       , ""
-      , "layoutz, [Bubble Tea](https://github.com/charmbracelet/bubbletea) and"
-      , "[Brick](https://github.com/jtdaugherty/brick) drawing the same dashboard"
+      , "layoutz, [Bubble Tea](https://github.com/charmbracelet/bubbletea),"
+      , "[Brick](https://github.com/jtdaugherty/brick) and"
+      , "[ratatui](https://github.com/ratatui/ratatui) drawing the same dashboard"
       , "([Dashboard.hs](Dashboard.hs), [bubbletea/main.go](bubbletea/main.go),"
-      , "[brick/Main.hs](brick/Main.hs)). How it is measured: [Main.hs](Main.hs)."
+      , "[brick/Main.hs](brick/Main.hs), [ratatui/src/main.rs](ratatui/src/main.rs))."
+      , "How it is measured: [Main.hs](Main.hs)."
       , ""
       , "`make bench` (from `layoutz-hs/`, Linux only) re-runs everything and rewrites"
       , "the chart and the table below. Lower is better everywhere."
       , ""
       ]
 
-section :: String -> Run -> [String]
-section stamp run =
-  [ startMarker
-  , ""
-  , "Last run: " <> stamp <> "."
-  , runSetup run <> "."
-  , ""
-  , "![bench results](" <> svgFile <> ")"
-  , ""
-  , mdRow (runHeaders run)
-  , mdRow (map (const "---") (runHeaders run))
-  ] <> map mdRow (runRows run) <>
-  [ ""
-  , endMarker
+section :: String -> [String] -> Run -> [String]
+section date machine run = concat
+  [ [startMarker, "", "Last run: " <> date, ""]
+  , map ("- " <>) (machine <> [runSetup run])
+  , ["", "![bench results](" <> svgFile <> ")", ""]
+  , map mdRow (headers : map (const "---") headers : runRows run)
+  , ["", endMarker]
   ]
   where
+    headers = runHeaders run
     mdRow cells = "| " <> intercalate " | " (map escape cells) <> " |"
     escape = concatMap (\c -> if c == '|' then "\\|" else [c])
 
@@ -155,12 +146,13 @@ svg stamp run = unlines $
             len | isNaN value || largest <= 0 = 0
                 | otherwise = max 2 (round (fromIntegral barMax * value / largest))
 
-    -- colour follows the library, so it is the same in every chart
+    -- same colour per library in every chart
     series name
       | "layoutz" `isPrefixOf` name   = "s1"
       | "bubbletea" `isPrefixOf` name = "s2"
       | "brick" `isPrefixOf` name     = "s3"
-      | otherwise                     = "s4"
+      | "ratatui" `isPrefixOf` name   = "s4"
+      | otherwise                     = "s5"
 
 textAt :: String -> Int -> Int -> String -> String
 textAt cls x y s = printf "<text class=\"%s\" x=\"%d\" y=\"%d\">%s</text>" cls x y (escapeXml s)
@@ -173,7 +165,6 @@ escapeXml = concatMap $ \c -> case c of
   '"' -> "&quot;"
   _   -> [c]
 
--- Light colours by default, dark ones when the viewer's system is dark.
 style :: String
 style = unlines
   [ "<style>"
@@ -182,20 +173,20 @@ style = unlines
   , "  .name { fill: #0b0b0b }"
   , "  .muted { fill: #52514e }"
   , "  .axis { stroke: #c3c2b7; stroke-width: 1 }"
-  , "  .s1 { fill: #2a78d6 } .s2 { fill: #eb6834 } .s3 { fill: #1baf7a } .s4 { fill: #6250d6 }"
+  , "  .s1 { fill: #2a78d6 } .s2 { fill: #eb6834 } .s3 { fill: #1baf7a } .s4 { fill: #6250d6 } .s5 { fill: #8a8984 }"
   , "  @media (prefers-color-scheme: dark) {"
   , "    .title, .heading, .name { fill: #f0efec }"
   , "    .muted { fill: #c3c2b7 }"
   , "    .axis { stroke: #52514e }"
-  , "    .s1 { fill: #3987e5 } .s2 { fill: #d95926 } .s3 { fill: #199e70 } .s4 { fill: #9085e9 }"
+  , "    .s1 { fill: #3987e5 } .s2 { fill: #d95926 } .s3 { fill: #199e70 } .s4 { fill: #9085e9 } .s5 { fill: #a3a29d }"
   , "  }"
   , "</style>"
   ]
 
 -- Machine ---------------------------------------------------------------------
 
--- | e.g. "AMD Ryzen 7 5800X (16 threads), Linux 5.15.0-56-generic, GHC 9.10.3"
-describeMachine :: IO String
+-- | e.g. ["AMD Ryzen 7 5800X (16 threads)", "Linux 5.15.0-56-generic", "GHC 9.10.3"]
+describeMachine :: IO [String]
 describeMachine = do
   cpuinfo <- either (const "") id <$> (try (readFile "/proc/cpuinfo") :: IO (Either IOException String))
   kernel  <- shell "uname" ["-r"]
@@ -206,8 +197,8 @@ describeMachine = do
       threads = length (filter ("processor" `isPrefixOf`) ls)
       cpuPart | threads > 0 = printf "%s (%d threads)" cpu threads
               | otherwise   = cpu
-  pure (intercalate ", " (cpuPart : [ "Linux " <> kernel | not (null kernel) ]
-                          <> ["GHC " <> showVersion fullCompilerVersion]))
+  pure (cpuPart : [ "Linux " <> kernel | not (null kernel) ]
+                <> ["GHC " <> showVersion fullCompilerVersion])
   where
     trim = dropWhileEnd isSpace . dropWhile isSpace
 

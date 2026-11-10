@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE MagicHash #-}
 
 {- |
 Module      : Layoutz
@@ -73,6 +74,7 @@ module Layoutz
   , margin
   , clip
   , fill
+  , sized
   , fixedWidth
   , fixedHeight
   , alignLeft
@@ -118,7 +120,7 @@ module Layoutz
   , plotHeatmap
   , plotHeatmap'
     -- * Apps
-  , App(..)
+  , LayoutzApp(..)
   , sandbox
   , run
   , runApp
@@ -180,9 +182,9 @@ import Data.Text (type Text, pattern (:<), pattern Empty)
 import qualified Data.Text as T
 import qualified Data.Text.IO.Utf8 as Utf8
 import qualified Data.IntSet as IntSet
+import qualified Data.IntMap.Strict as IntMap
 import Data.Bits ((.|.), (.&.), xor, shiftL, shiftR, bit, setBit, testBit)
 import Data.Maybe (fromMaybe, listToMaybe, catMaybes, mapMaybe, isJust, isNothing)
-import Data.Functor.Identity (Identity(..))
 import Data.Function ((&))
 import Control.Applicative ((<|>))
 import Data.Word (Word8)
@@ -199,9 +201,10 @@ import Control.Exception (catch, finally, throwIO, AsyncException(..), IOExcepti
 import System.Timeout (timeout)
 import Control.Monad (when, unless, forever, forM, forM_, void)
 import Control.Concurrent (forkIO, threadDelay, killThread, newChan, writeChan, readChan)
-import Control.Concurrent.MVar (newMVar, takeMVar, tryPutMVar)
+import Control.Concurrent.MVar (newMVar, newEmptyMVar, takeMVar, tryTakeMVar, tryPutMVar)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef', modifyIORef')
 import GHC.Clock (getMonotonicTimeNSec)
+import GHC.Exts (isTrue#, reallyUnsafePtrEquality#)
 import System.Directory (listDirectory, doesDirectoryExist, doesPathExist, canonicalizePath)
 
 --------------------------------------------------------------------------------
@@ -386,6 +389,7 @@ data View msg
   | WhenFocused (forall n. View n -> View n) (View msg)
   | Scrolled (Viewport -> msg) Viewport (View msg)
   | Following Int (View msg)               -- keep this row in sight
+  | Sized (Int -> Int -> View msg)         -- built from the room it gets
 
 data Axis = Horizontal | Vertical
 
@@ -614,14 +618,31 @@ instance Element InlineBar where
 -- 'render' prints the same thing it always has.
 
 data Attr = Attr { aStyle :: !Int, aFg :: !Text, aBg :: !Text }  -- SGR style bits, colour params
-  deriving Eq
+
+-- Cells and attrs are compared for every cell of every frame (diffing, pen
+-- changes, recolouring), and most of them are shared: 'charText' for the
+-- text, one 'Attr' per run. Checking for the very same object first skips
+-- the byte comparison for nearly all of them.
+instance Eq Attr where
+  a@(Attr s f b) == a'@(Attr s' f' b') = same a a' || (s == s' && sameText f f' && sameText b b')
+
+sameText :: Text -> Text -> Bool
+sameText t t' = same t t' || t == t'
+{-# INLINE sameText #-}
+
+-- | Pointer equality, only ever a shortcut: 'False' says nothing.
+same :: a -> a -> Bool
+same x y = isTrue# (reallyUnsafePtrEquality# x y)
+{-# INLINE same #-}
 
 plain :: Attr
 plain = Attr 0 "" ""
 
 -- | One terminal column. The right half of a wide character is @Cell ""@.
 data Cell = Cell !Text !Attr
-  deriving Eq
+
+instance Eq Cell where
+  Cell t a == Cell t' a' = sameText t t' && a == a'
 
 type Cells = [Cell]
 
@@ -774,12 +795,17 @@ diffRows old new = T.concat (zipWith3 diffRow [1 ..] (upTo old) (upTo new))
     upTo rs = take (max (length old) (length new)) (rs <> repeat [])
 
 diffRow :: Int -> Cells -> Cells -> Text
-diffRow i old new
-  | old == new = ""
-  | otherwise  = foldMap draw (runs changed) <> clearTail
+diffRow i old new = foldMap draw (runs (changedAt 0 new old)) <> clearTail
   where
-    newLen  = length new
-    changed = [ c | (c, x, o) <- zip3 [0 :: Int ..] new (map Just old <> repeat Nothing), Just x /= o ]
+    newLen = length new
+
+    -- columns where @new@ differs from @old@, in one pass over both
+    changedAt :: Int -> Cells -> Cells -> [Int]
+    changedAt c (x : xs) (o : os)
+      | x == o    = c `seq` changedAt (c + 1) xs os
+      | otherwise = c : changedAt (c + 1) xs os
+    changedAt c xs [] = take (length xs) [c ..]
+    changedAt _ [] _  = []
 
     -- a cursor move costs about as much as rewriting a few cells
     runs []       = []
@@ -805,6 +831,19 @@ diffRow i old new
       | otherwise           = ""
 
     goto c = "\ESC[" <> T.show i <> ";" <> T.show c <> "H"
+
+-- | Every row in full, then whatever is left of the screen cleared. For after
+-- a resize, when nothing on screen can be trusted. Unlike clearing first, a
+-- terminal that paints mid-frame (no synchronized updates) shows the old
+-- frame under the new one rather than blank rows.
+repaintRows :: Int -> Int -> [Cells] -> Text
+repaintRows termW termH rows =
+  T.concat [ goto i <> rowText r <> clearRight r | (i, r) <- zip [1 ..] rows ]
+    <> (if length rows < termH then goto (length rows + 1) <> "\ESC[J" else "")
+  where
+    goto i = "\ESC[" <> T.show (i :: Int) <> ";1H"
+    -- not on a full row: the cursor sits on the last cell and would erase it
+    clearRight r = if length r < termW then "\ESC[K" else ""
 
 blockText :: Block m -> Text
 blockText b = T.concat (bRaw b) <> T.intercalate "\n" (map rowText (bRows b))
@@ -874,6 +913,7 @@ drawView room = \case
   Fixed mw mh v     ->
     let r = Room (mw <|> roomW room) (mh <|> roomH room) True
     in crop mw mh (claim r (drawView r v))
+  Sized k           -> drawView room (k (fromMaybe 80 (roomW room)) (fromMaybe 24 (roomH room)))
 
 -- | Under 'fill', take the whole room even where nothing was drawn.
 claim :: Room -> Block m -> Block m
@@ -894,7 +934,8 @@ windowed room v = (inner, h, max (blockWidth inner) (fromMaybe 0 innerW))
   where
     stretched = roomStretch room
     innerW    = if stretched then subtract 1 <$> roomW room else Nothing
-    inner     = drawView (Room innerW Nothing False) v
+    -- lines wider than the room are cut rather than pushing the parent out
+    inner     = crop innerW Nothing (drawView (Room innerW Nothing False) v)
     h | stretched, Just rh <- roomH room = rh
       | otherwise                        = length (bRows inner)
 
@@ -948,10 +989,10 @@ isFill = \case
 -- | Draw children along one axis: the rest first, offered only the room
 -- across it, then the 'fill' ones sharing whatever is left along it.
 share :: (Block m -> Int) -> Int -> Maybe Int -> (Maybe Int -> Room) -> [View m] -> [Block m]
-share extent gaps room roomFor xs = map draw' (zip xs sized)
+share extent gaps room roomFor xs = map draw' (zip xs fixed)
   where
-    sized  = [ if isFill x then Nothing else Just (drawView (roomFor Nothing) x) | x <- xs ]
-    used   = sum [ extent b | Just b <- sized ] + gaps
+    fixed  = [ if isFill x then Nothing else Just (drawView (roomFor Nothing) x) | x <- xs ]
+    used   = sum [ extent b | Just b <- fixed ] + gaps
     nFills = length (filter isFill xs)
     each   = (\r -> max 0 (r - used) `div` max 1 nFills) <$> room
     draw' (x, Nothing) = drawView (roomFor each) x
@@ -961,10 +1002,10 @@ drawStack :: Room -> [View m] -> Block m
 drawStack room xs = vcat (zipWith place xs blocks)
   where
     blocks = share (length . bRows) 0 (roomH room) (\h -> Room (roomW room) h False) xs
-    sized  = [ b | (x, b) <- zip xs blocks, not (isAutoCenter x) ]
+    placed = [ b | (x, b) <- zip xs blocks, not (isAutoCenter x) ]
     ctx | roomStretch room, Just w <- roomW room = w
-        | null sized                             = 80
-        | otherwise                              = maximum (map blockWidth sized)
+        | null placed                            = 80
+        | otherwise                              = maximum (map blockWidth placed)
 
     isAutoCenter (AutoCenter _) = True
     isAutoCenter _              = False
@@ -1339,6 +1380,16 @@ pad = Pad
 fill :: View m -> View m
 fill = Fill
 
+-- | Build a view from the width and height it is given, for things drawn to
+-- a size such as plots. Under 'fill' that is the room the parent offers, so
+-- it redraws as the terminal is resized; with no room to go by it gets 80x24.
+--
+-- @
+-- 'box' "traffic" ['sized' (\w h -> 'plotLine' (w - 8) (h - 2) series) & 'fill'] & 'fill'
+-- @
+sized :: (Int -> Int -> View m) -> View m
+sized = Sized
+
 fixedWidth :: Int -> View m -> View m
 fixedWidth w = \case
   Fixed _ h v -> Fixed (Just w) h v
@@ -1412,39 +1463,40 @@ instance Functor Handlers where
                , hScroll = (f .) <$> hScroll h
                , hKey    = (fmap f .) <$> hKey h }
 
--- | Rebuild a node from its children run through @f@, mapping messages with @g@.
-descend :: Applicative f => (a -> b) -> (View a -> f (View b)) -> View a -> f (View b)
+-- | Rebuild a node from its children run through @f@, mapping messages with @onMsg@.
+descend :: (a -> b) -> (View a -> View b) -> View a -> View b
 descend onMsg f = \case
-  Leaf x            -> pure (Leaf x)
-  Stack xs          -> Stack <$> traverse f xs
-  Row g xs          -> Row g <$> traverse f xs
-  Margin p v        -> Margin p <$> f v
-  Section t g n xs  -> Section t g n <$> traverse f xs
-  Rule h g n        -> pure (Rule h g n)
-  Underline g c v   -> Underline g c <$> f v
-  Clip n e v        -> Clip n e <$> f v
-  Pad p v           -> Pad p <$> f v
-  Aligned a w v     -> Aligned a w <$> f v
-  Bullets xs        -> Bullets <$> traverse f xs
-  Numbered xs       -> Numbered <$> traverse f xs
-  AutoCenter v      -> AutoCenter <$> f v
-  Colored c v       -> Colored c <$> f v
-  Styled st v       -> Styled st <$> f v
-  Box t xs b        -> (\ys -> Box t ys b) <$> traverse f xs
-  StatusCard l c b  -> pure (StatusCard l c b)
-  Table hs rs b     -> (\rs' -> Table hs rs' b) <$> traverse (traverse f) rs
-  Mapped g v        -> Mapped g <$> f v
-  OnEvent h v       -> OnEvent (fmap onMsg h) <$> f v
-  Fill v            -> Fill <$> f v
-  Fixed w h v       -> Fixed w h <$> f v
-  Focusable n v     -> Focusable n <$> f v
-  WhenFocused t v   -> WhenFocused t <$> f v
-  Scrolled k vp v   -> Scrolled (onMsg . k) vp <$> f v
-  Following i v     -> Following i <$> f v
+  Leaf x            -> Leaf x
+  Stack xs          -> Stack (map f xs)
+  Row g xs          -> Row g (map f xs)
+  Margin p v        -> Margin p (f v)
+  Section t g n xs  -> Section t g n (map f xs)
+  Rule h g n        -> Rule h g n
+  Underline g c v   -> Underline g c (f v)
+  Clip n e v        -> Clip n e (f v)
+  Pad p v           -> Pad p (f v)
+  Aligned a w v     -> Aligned a w (f v)
+  Bullets xs        -> Bullets (map f xs)
+  Numbered xs       -> Numbered (map f xs)
+  AutoCenter v      -> AutoCenter (f v)
+  Colored c v       -> Colored c (f v)
+  Styled st v       -> Styled st (f v)
+  Box t xs b        -> Box t (map f xs) b
+  StatusCard l c b  -> StatusCard l c b
+  Table hs rs b     -> Table hs (map (map f) rs) b
+  Mapped g v        -> Mapped g (f v)
+  OnEvent h v       -> OnEvent (fmap onMsg h) (f v)
+  Fill v            -> Fill (f v)
+  Fixed w h v       -> Fixed w h (f v)
+  Focusable n v     -> Focusable n (f v)
+  WhenFocused t v   -> WhenFocused t (f v)
+  Scrolled k vp v   -> Scrolled (onMsg . k) vp (f v)
+  Following i v     -> Following i (f v)
+  Sized k           -> Sized (\w h -> f (k w h))
 
 -- | Embed a child component: @fmap ChildMsg (childView model)@.
 instance Functor View where
-  fmap g = runIdentity . descend g (Identity . fmap g)
+  fmap g = descend g (fmap g)
 
 attach :: Handlers m -> View m -> View m
 attach h (AutoCenter v) = AutoCenter (attach h v)  -- keep centring visible to 'layout'
@@ -1483,7 +1535,7 @@ resolveFocus focused = go False
       WhenFocused t v ->
         let v' = go on v
         in if on || focusName v == focused && isJust focused then t v' else v'
-      v -> runIdentity (descend id (Identity . go on) v)
+      v -> descend id (go on) v
 
 -- | The 'focusable' a view is, under colour, style, handlers and sizing.
 focusName :: View m -> Maybe Text
@@ -1666,11 +1718,13 @@ pickColor :: Int -> Color -> Color
 pickColor idx ColorDefault = defaultPalette !! (idx `mod` length defaultPalette)
 pickColor _   c            = c
 
--- | @3@ for whole numbers, @3.5@ otherwise.
+-- | @3@ for whole numbers, @3.5@ otherwise. Rounds to one decimal first, so a
+-- tick a hair below zero reads @0@, not @-0.0@.
 formatAxisNum :: Double -> Text
 formatAxisNum v
-  | v == fromInteger (round v) = T.show (round v :: Integer)
-  | otherwise                  = T.pack (printf "%.1f" v)
+  | tenths `mod` 10 == 0 = T.show (tenths `div` 10)
+  | otherwise            = T.pack (printf "%.1f" (fromInteger tenths / 10 :: Double))
+  where tenths = round (v * 10) :: Integer
 
 bgColor256 :: Int -> Text
 bgColor256 n = "\ESC[48;5;" <> T.show n <> "m"
@@ -1715,22 +1769,15 @@ instance Element PlotData where
             )
           clampI lo hi = max lo . min hi
 
-          -- Each cell holds its braille bits and the first series to touch it.
-          emptyGrid = replicate h (replicate w (0 :: Int, -1 :: Int))
+          -- Each cell holds its braille bits and the first series to touch it,
+          -- built in one pass so a dense series doesn't cost points × cells.
+          dots = IntMap.fromListWith (\(b, si) (b', si') -> (b .|. b', min si si'))
+            [ ((py `div` 4) * w + px `div` 2, (brailleDot (py `mod` 4) (px `mod` 2), sIdx))
+            | (sIdx, Series ps _ _) <- zip [0 :: Int ..] ss
+            , (px, py) <- map toPixel ps ]
 
-          plotSeries grd sIdx (Series ps _ _) = foldl plot grd ps
-            where
-              plot g p =
-                let (px, py) = toPixel p
-                    dot = brailleDot (py `mod` 4) (px `mod` 2)
-                in updGrid (py `div` 4) (px `div` 2)
-                     (\(b, si) -> (b .|. dot, if si < 0 then sIdx else si)) g
-
-          updGrid r c f g =
-            [ if ri == r then [ if ci == c then f x else x | (ci, x) <- zip [0..] row' ] else row'
-            | (ri, row') <- zip [0 :: Int ..] g ]
-
-          grid = foldl (\g (i, s) -> plotSeries g i s) emptyGrid (zip [0..] ss)
+          grid = [ [ IntMap.findWithDefault (0, -1) (r * w + c) dots | c <- [0 .. w - 1] ]
+                 | r <- [0 .. h - 1] ]
 
           yTicks  = [ yMax - yRng * fromIntegral i / fromIntegral (max 1 (h - 1)) | i <- [0 .. h-1] ]
           yLabels = map formatAxisNum yTicks
@@ -2243,12 +2290,12 @@ subFocus f = Sub [] [] [f]
 -- @
 -- data Msg = Inc | Dec
 --
--- counter :: 'App' Int Msg
+-- counter :: 'LayoutzApp' Int Msg
 -- counter = 'sandbox' 0 step $ \\n ->
 --   'row' ['button' "-" Dec, 'display' n, 'button' "+" Inc]
 --   where step Inc = (+ 1); step Dec = subtract 1
 -- @
-data App model msg = App
+data LayoutzApp model msg = LayoutzApp
   { appInit          :: (model, Cmd msg)
   , appUpdate        :: msg -> model -> (model, Cmd msg)
   , appSubscriptions :: model -> Sub msg
@@ -2256,8 +2303,8 @@ data App model msg = App
   }
 
 -- | An app with no effects and no subscriptions.
-sandbox :: model -> (msg -> model -> model) -> (model -> View msg) -> App model msg
-sandbox m step view = App
+sandbox :: model -> (msg -> model -> model) -> (model -> View msg) -> LayoutzApp model msg
+sandbox m step view = LayoutzApp
   { appInit          = (m, cmdNone)
   , appUpdate        = \msg s -> (step msg s, cmdNone)
   , appSubscriptions = const subNone
@@ -2288,12 +2335,12 @@ defaultOptions = Options
   }
 
 -- | Full screen with 'defaultOptions'.
-runApp :: App model msg -> IO ()
+runApp :: LayoutzApp model msg -> IO ()
 runApp = void . run defaultOptions
 
 -- | Draw in place under the current output until 'cmdQuit'. Handy for
 -- progress bars in scripts.
-runInline :: App model msg -> IO ()
+runInline :: LayoutzApp model msg -> IO ()
 runInline = void . run defaultOptions { optInline = True }
 
 -- | Every source (keys, mouse, ticks, command results) feeds one channel, so
@@ -2309,15 +2356,15 @@ isQuitKey k = k == KeyEscape || k == KeyCtrl 'C' || k == KeyCtrl 'D'
 --
 -- Mouse reporting is on exactly while the view has an 'onClick' or
 -- 'onScroll' in it, so apps without them keep native text selection.
-run :: Options -> App model msg -> IO model
+run :: Options -> LayoutzApp model msg -> IO model
 run opts app
   | optInline opts = withTerm Inline (runIn opts app)
   -- on resize, ask for the size again; the input thread reads the answer
   | otherwise      = withTerm FullScreen (onResize (putText cursorProbe >> hFlush stdout) (runIn opts app))
 
 -- | 'run' once the terminal is set up.
-runIn :: Options -> App model msg -> IO model
-runIn opts App{..} = do
+runIn :: Options -> LayoutzApp model msg -> IO model
+runIn opts LayoutzApp{..} = do
   let fullScreen = not (optInline opts)
       quits k    = k == KeyCtrl 'C' || k `elem` optQuitKeys opts
 
@@ -2335,6 +2382,9 @@ runIn opts App{..} = do
   -- Full while something the view depends on has changed since the last
   -- frame; the render thread sleeps on it instead of polling.
   dirty <- newMVar ()
+  -- Full when the model changed, so the subscriptions may have: wakes the
+  -- tick thread when it has nothing to wait for.
+  modelChanged <- newEmptyMVar
 
   let send = writeChan eventChan . AppMsg
       markDirty = void (tryPutMVar dirty ())
@@ -2353,6 +2403,7 @@ runIn opts App{..} = do
       applyMsg msg = do
         cmd <- atomicModifyIORef' stateRef (appUpdate msg)
         markDirty
+        void (tryPutMVar modelChanged ())
         schedule cmd
 
   cmdThread <- forkIO $ forever $ do
@@ -2382,31 +2433,37 @@ runIn opts App{..} = do
     block <- drawView room . resolveFocus focused . appView <$> readIORef stateRef
     let frame = (bRaw block, bRows block)
     prev <- readIORef lastFrame
+    shown <- readIORef onScreen
+    wasOn <- readIORef mouseOn
+    -- upload each kitty image once, not every frame
+    sent <- readIORef sentKittyIds
+    let (uploads, sent') = dedupeTransmits sent (T.concat (bRaw block))
+        indent = case optAlignment opts of
+          AppAlignLeft   -> 0
+          AppAlignCenter -> max 0 ((termW - blockWidth block) `div` 2)
+          AppAlignRight  -> max 0 (termW - blockWidth block)
+        rows      = map (replicate indent blank <>) (snd frame)
+        hits      = moveHits 0 indent (bHits block)
+        wantMouse = fullScreen && not (null hits)
+        mouseMode
+          | wantMouse == wasOn = ""
+          | wantMouse          = mouseEnable
+          | otherwise          = mouseDisable
+        body
+          | fullScreen && redraw = repaintRows termW termH rows
+          | fullScreen = diffRows shown rows   -- only the cells that changed
+          | otherwise =
+              (if null shown then "" else "\ESC[" <> T.show (length shown) <> "A\r")
+              <> foldMap ((<> "\ESC[K\n") . rowText) rows
+              <> T.replicate (max 0 (length shown - length rows)) "\ESC[K\n"
+        -- Full screen, the diff already says whether anything changed; inline
+        -- rewrites every row, so compare the frames instead.
+        changed
+          | redraw     = True
+          | fullScreen = not (T.null body && T.null mouseMode) || fst frame /= fst prev
+          | otherwise  = frame /= prev
 
-    when (redraw || frame /= prev) $ do
-      -- after a resize the terminal has reflowed the screen: start clean
-      shown <- if redraw then [] <$ clearScreen else readIORef onScreen
-      wasOn <- readIORef mouseOn
-      -- upload each kitty image once, not every frame
-      sent <- readIORef sentKittyIds
-      let (uploads, sent') = dedupeTransmits sent (T.concat (bRaw block))
-          indent = case optAlignment opts of
-            AppAlignLeft   -> 0
-            AppAlignCenter -> max 0 ((termW - blockWidth block) `div` 2)
-            AppAlignRight  -> max 0 (termW - blockWidth block)
-          rows      = map (replicate indent blank <>) (snd frame)
-          hits      = moveHits 0 indent (bHits block)
-          wantMouse = fullScreen && not (null hits)
-          mouseMode
-            | wantMouse == wasOn = ""
-            | wantMouse          = mouseEnable
-            | otherwise          = mouseDisable
-          body
-            | fullScreen = diffRows shown rows   -- only the cells that changed
-            | otherwise =
-                (if null shown then "" else "\ESC[" <> T.show (length shown) <> "A\r")
-                <> foldMap ((<> "\ESC[K\n") . rowText) rows
-                <> T.replicate (max 0 (length shown - length rows)) "\ESC[K\n"
+    when changed $ do
       putText $ "\ESC[?2026h" <> mouseMode <> uploads <> body <> "\ESC[?2026l"
       hFlush stdout
       writeIORef sentKittyIds sent'
@@ -2425,21 +2482,24 @@ runIn opts App{..} = do
 
   -- Deadlines are tracked per interval so re-subscribing each frame doesn't
   -- reset the clock. Sleeps until the next deadline, waking at least every
-  -- 20ms to pick up changed subscriptions.
+  -- 20ms to pick up changed subscriptions. With no ticks at all it sleeps
+  -- until the model changes, so an idle app doesn't wake up.
   tickThread <- forkIO $
     let loop deadlines = do
+          _ <- tryTakeMVar modelChanged
           Sub _ ticks _ <- appSubscriptions <$> readIORef stateRef
-          now <- getMonotonicTimeNSec
-          let ns ms     = fromIntegral ms * 1000 * 1000
-              armed     = [ (i, fromMaybe (now + ns i) (lookup i deadlines)) | i <- nub (map fst ticks) ]
-              due       = [ i | (i, d) <- armed, d <= now ]
-              deadlines' =
-                [ (i, if i `elem` due then let nd = d + ns i in if nd <= now then now + ns i else nd else d)
-                | (i, d) <- armed ]
-          mapM_ (writeChan eventChan . AppMsg) [ msg | (i, msg) <- ticks, i `elem` due ]
-          let nextNs = minimum (now + 20000000 : map snd deadlines')
-          threadDelay (max 1000 (min 20000 (fromIntegral ((nextNs - now) `div` 1000))))
-          loop deadlines'
+          if null ticks then takeMVar modelChanged >> loop [] else do
+            now <- getMonotonicTimeNSec
+            let ns ms     = fromIntegral ms * 1000 * 1000
+                armed     = [ (i, fromMaybe (now + ns i) (lookup i deadlines)) | i <- nub (map fst ticks) ]
+                due       = [ i | (i, d) <- armed, d <= now ]
+                deadlines' =
+                  [ (i, if i `elem` due then let nd = d + ns i in if nd <= now then now + ns i else nd else d)
+                  | (i, d) <- armed ]
+            mapM_ (writeChan eventChan . AppMsg) [ msg | (i, msg) <- ticks, i `elem` due ]
+            let nextNs = minimum (now + 20000000 : map snd deadlines')
+            threadDelay (max 1000 (min 20000 (fromIntegral ((nextNs - now) `div` 1000))))
+            loop deadlines'
     in loop []
 
   -- EOF on stdin quits, same as Ctrl-D.

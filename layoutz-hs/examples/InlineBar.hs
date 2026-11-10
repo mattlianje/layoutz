@@ -47,8 +47,8 @@ view state =
        , fg ColorBrightCyan $ text $ "Linking... " <> pct
        ]
 
-app :: App LoadState Msg
-app = App
+app :: LayoutzApp LoadState Msg
+app = LayoutzApp
   { appInit = (initialState, cmdNone)
   , appUpdate = update
   , appSubscriptions = \_ -> subEveryMs 16 Tick

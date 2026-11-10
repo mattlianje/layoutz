@@ -231,8 +231,8 @@ viewGame state =
        , controls
        ]
 
-simpleGame :: App GameState GameMsg
-simpleGame = App
+simpleGame :: LayoutzApp GameState GameMsg
+simpleGame = LayoutzApp
   { appInit = (initialState, cmdNone)
   
   , appUpdate = \msg state -> (updateGame msg state, cmdNone)

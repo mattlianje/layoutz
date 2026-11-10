@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | What every program in the bench draws. Frame @k@ changes most of the
--- numbers so no two frames are the same.
+-- | What every program in the bench draws. Frame @k@ changes most numbers.
 --
--- bubbletea/main.go and brick/Main.hs copy this, keep them in sync.
+-- Copied in bubbletea/main.go, brick/Main.hs and ratatui/src/main.rs, keep
+-- them in sync.
 module Dashboard
   ( dashboard
   , dashboardApp
@@ -33,8 +33,8 @@ data Mode = Idle | Busy
 
 data Msg = Next
 
-dashboardApp :: Mode -> App Int Msg
-dashboardApp mode = App
+dashboardApp :: Mode -> LayoutzApp Int Msg
+dashboardApp mode = LayoutzApp
   { appInit          = (1, cmdNone)
   , appUpdate        = \Next k -> (k + 1, cmdNone)
   , appSubscriptions = \_ -> mconcat

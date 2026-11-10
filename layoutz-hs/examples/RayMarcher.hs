@@ -297,8 +297,8 @@ viewRay s =
       title = styleBold (fg ColorBrightCyan (text "Ray Marcher"))
   in row [vstack [title, fb], cameraBox]
 
-rayMarcher :: App RayState RayMsg
-rayMarcher = App
+rayMarcher :: LayoutzApp RayState RayMsg
+rayMarcher = LayoutzApp
   { appInit = (initialState, cmdNone)
   , appUpdate = \msg state -> (updateRay msg state, cmdNone)
   , appSubscriptions = \_ -> mconcat

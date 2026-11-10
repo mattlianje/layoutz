@@ -1,0 +1,12 @@
+[package]
+name = "ratatui-dashboard"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "The ratatui side of the layoutz benchmark (see ../Main.hs)"
+
+[dependencies]
+ratatui = "0.30"
+
+[profile.release]
+opt-level = 3

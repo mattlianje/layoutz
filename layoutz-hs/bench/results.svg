@@ -1,86 +1,104 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="912" height="444" viewBox="0 0 912 444" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12">
+<svg xmlns="http://www.w3.org/2000/svg" width="912" height="516" viewBox="0 0 912 516" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12">
 <style>
   .title { font-size: 15px; font-weight: 600; fill: #0b0b0b }
   .heading { font-weight: 600; fill: #0b0b0b }
   .name { fill: #0b0b0b }
   .muted { fill: #52514e }
   .axis { stroke: #c3c2b7; stroke-width: 1 }
-  .s1 { fill: #2a78d6 } .s2 { fill: #eb6834 } .s3 { fill: #1baf7a } .s4 { fill: #6250d6 }
+  .s1 { fill: #2a78d6 } .s2 { fill: #eb6834 } .s3 { fill: #1baf7a } .s4 { fill: #6250d6 } .s5 { fill: #8a8984 }
   @media (prefers-color-scheme: dark) {
     .title, .heading, .name { fill: #f0efec }
     .muted { fill: #c3c2b7 }
     .axis { stroke: #52514e }
-    .s1 { fill: #3987e5 } .s2 { fill: #d95926 } .s3 { fill: #199e70 } .s4 { fill: #9085e9 }
+    .s1 { fill: #3987e5 } .s2 { fill: #d95926 } .s3 { fill: #199e70 } .s4 { fill: #9085e9 } .s5 { fill: #a3a29d }
   }
 </style>
 
-<text class="title" x="0" y="18">layoutz vs bubbletea vs brick (lower is better)</text>
+<text class="title" x="0" y="18">layoutz vs bubbletea vs brick vs ratatui (lower is better)</text>
 <text class="muted" x="0" y="38">Dashboard on a 200x60 terminal: 40-row table, 15 bars, 20-line log</text>
 <text class="muted" x="0" y="56">2026-11-08 on Intel(R) Core(TM) i7-8650U CPU @ 1.90GHz (8 threads), Linux 5.15.0-56-generic, GHC 9.10.3</text>
 <text class="heading" x="0" y="96">render, ms per frame</text>
-<line class="axis" x1="128" y1="106" x2="128" y2="182"/>
+<line class="axis" x1="128" y1="106" x2="128" y2="206"/>
 <text class="name" x="0" y="122">layoutz</text>
-<rect class="s1" x="128" y="110" width="41" height="16" rx="3"/>
-<text class="muted" x="175" y="122">0.39 ms</text>
+<rect class="s1" x="128" y="110" width="39" height="16" rx="3"/>
+<text class="muted" x="173" y="122">0.38 ms</text>
 <text class="name" x="0" y="146">bubbletea v2.1.1</text>
-<rect class="s2" x="128" y="134" width="192" height="16" rx="3"/>
-<text class="muted" x="326" y="146">1.84 ms</text>
+<rect class="s2" x="128" y="134" width="187" height="16" rx="3"/>
+<text class="muted" x="321" y="146">1.81 ms</text>
 <text class="name" x="0" y="170">brick 3.0</text>
-<rect class="s3" x="128" y="158" width="181" height="16" rx="3"/>
-<text class="muted" x="315" y="170">1.73 ms</text>
+<rect class="s3" x="128" y="158" width="192" height="16" rx="3"/>
+<text class="muted" x="326" y="170">1.86 ms</text>
+<text class="name" x="0" y="194">ratatui v0.30.2</text>
+<rect class="s4" x="128" y="182" width="20" height="16" rx="3"/>
+<text class="muted" x="154" y="194">0.20 ms</text>
 <text class="heading" x="472" y="96">idle CPU, % of one core</text>
-<line class="axis" x1="600" y1="106" x2="600" y2="182"/>
+<line class="axis" x1="600" y1="106" x2="600" y2="206"/>
 <text class="name" x="472" y="122">layoutz</text>
-<rect class="s1" x="600" y="110" width="96" height="16" rx="3"/>
-<text class="muted" x="702" y="122">0.8%</text>
+<rect class="s1" x="600" y="110" width="2" height="16" rx="3"/>
+<text class="muted" x="608" y="122">0.0%</text>
 <text class="name" x="472" y="146">bubbletea v2.1.1</text>
 <rect class="s2" x="600" y="134" width="192" height="16" rx="3"/>
-<text class="muted" x="798" y="146">1.6%</text>
+<text class="muted" x="798" y="146">1.4%</text>
 <text class="name" x="472" y="170">brick 3.0</text>
 <rect class="s3" x="600" y="158" width="2" height="16" rx="3"/>
 <text class="muted" x="608" y="170">0.0%</text>
-<text class="heading" x="0" y="216">keypress -&gt; screen, ms (p50)</text>
-<line class="axis" x1="128" y1="226" x2="128" y2="302"/>
-<text class="name" x="0" y="242">layoutz</text>
-<rect class="s1" x="128" y="230" width="22" height="16" rx="3"/>
-<text class="muted" x="156" y="242">3.5 ms (p90 5.3)</text>
-<text class="name" x="0" y="266">bubbletea v2.1.1</text>
-<rect class="s2" x="128" y="254" width="192" height="16" rx="3"/>
-<text class="muted" x="326" y="266">30.2 ms (p90 34.0)</text>
-<text class="name" x="0" y="290">brick 3.0</text>
-<rect class="s3" x="128" y="278" width="80" height="16" rx="3"/>
-<text class="muted" x="214" y="290">12.6 ms (p90 15.5)</text>
-<text class="heading" x="472" y="216">busy CPU, % of one core</text>
-<line class="axis" x1="600" y1="226" x2="600" y2="302"/>
-<text class="name" x="472" y="242">layoutz</text>
-<rect class="s1" x="600" y="230" width="46" height="16" rx="3"/>
-<text class="muted" x="652" y="242">22.8%</text>
-<text class="name" x="472" y="266">bubbletea v2.1.1</text>
-<rect class="s2" x="600" y="254" width="192" height="16" rx="3"/>
-<text class="muted" x="798" y="266">95.4%</text>
-<text class="name" x="472" y="290">brick 3.0</text>
-<rect class="s3" x="600" y="278" width="101" height="16" rx="3"/>
-<text class="muted" x="707" y="290">50.2%</text>
-<text class="heading" x="0" y="336">busy output, KiB/s</text>
-<line class="axis" x1="128" y1="346" x2="128" y2="422"/>
-<text class="name" x="0" y="362">layoutz</text>
-<rect class="s1" x="128" y="350" width="19" height="16" rx="3"/>
-<text class="muted" x="153" y="362">104 KiB/s</text>
-<text class="name" x="0" y="386">bubbletea v2.1.1</text>
-<rect class="s2" x="128" y="374" width="26" height="16" rx="3"/>
-<text class="muted" x="160" y="386">141 KiB/s</text>
-<text class="name" x="0" y="410">brick 3.0</text>
-<rect class="s3" x="128" y="398" width="192" height="16" rx="3"/>
-<text class="muted" x="326" y="410">1034 KiB/s</text>
-<text class="heading" x="472" y="336">memory, MiB (busy peak)</text>
-<line class="axis" x1="600" y1="346" x2="600" y2="422"/>
-<text class="name" x="472" y="362">layoutz</text>
-<rect class="s1" x="600" y="350" width="110" height="16" rx="3"/>
-<text class="muted" x="716" y="362">10.2 MiB</text>
-<text class="name" x="472" y="386">bubbletea v2.1.1</text>
-<rect class="s2" x="600" y="374" width="192" height="16" rx="3"/>
-<text class="muted" x="798" y="386">17.9 MiB</text>
-<text class="name" x="472" y="410">brick 3.0</text>
-<rect class="s3" x="600" y="398" width="155" height="16" rx="3"/>
-<text class="muted" x="761" y="410">14.4 MiB</text>
+<text class="name" x="472" y="194">ratatui v0.30.2</text>
+<rect class="s4" x="600" y="182" width="2" height="16" rx="3"/>
+<text class="muted" x="608" y="194">0.0%</text>
+<text class="heading" x="0" y="240">keypress -&gt; screen, ms (p50)</text>
+<line class="axis" x1="128" y1="250" x2="128" y2="350"/>
+<text class="name" x="0" y="266">layoutz</text>
+<rect class="s1" x="128" y="254" width="34" height="16" rx="3"/>
+<text class="muted" x="168" y="266">2.9 ms (p90 3.8)</text>
+<text class="name" x="0" y="290">bubbletea v2.1.1</text>
+<rect class="s2" x="128" y="278" width="192" height="16" rx="3"/>
+<text class="muted" x="326" y="290">16.5 ms (p90 28.1)</text>
+<text class="name" x="0" y="314">brick 3.0</text>
+<rect class="s3" x="128" y="302" width="145" height="16" rx="3"/>
+<text class="muted" x="279" y="314">12.4 ms (p90 15.2)</text>
+<text class="name" x="0" y="338">ratatui v0.30.2</text>
+<rect class="s4" x="128" y="326" width="25" height="16" rx="3"/>
+<text class="muted" x="159" y="338">2.1 ms (p90 2.4)</text>
+<text class="heading" x="472" y="240">busy CPU, % of one core</text>
+<line class="axis" x1="600" y1="250" x2="600" y2="350"/>
+<text class="name" x="472" y="266">layoutz</text>
+<rect class="s1" x="600" y="254" width="38" height="16" rx="3"/>
+<text class="muted" x="644" y="266">17.8%</text>
+<text class="name" x="472" y="290">bubbletea v2.1.1</text>
+<rect class="s2" x="600" y="278" width="192" height="16" rx="3"/>
+<text class="muted" x="798" y="290">89.4%</text>
+<text class="name" x="472" y="314">brick 3.0</text>
+<rect class="s3" x="600" y="302" width="108" height="16" rx="3"/>
+<text class="muted" x="714" y="314">50.4%</text>
+<text class="name" x="472" y="338">ratatui v0.30.2</text>
+<rect class="s4" x="600" y="326" width="45" height="16" rx="3"/>
+<text class="muted" x="651" y="338">21.0%</text>
+<text class="heading" x="0" y="384">busy output, KiB/s</text>
+<line class="axis" x1="128" y1="394" x2="128" y2="494"/>
+<text class="name" x="0" y="410">layoutz</text>
+<rect class="s1" x="128" y="398" width="20" height="16" rx="3"/>
+<text class="muted" x="154" y="410">104 KiB/s</text>
+<text class="name" x="0" y="434">bubbletea v2.1.1</text>
+<rect class="s2" x="128" y="422" width="27" height="16" rx="3"/>
+<text class="muted" x="161" y="434">141 KiB/s</text>
+<text class="name" x="0" y="458">brick 3.0</text>
+<rect class="s3" x="128" y="446" width="192" height="16" rx="3"/>
+<text class="muted" x="326" y="458">1019 KiB/s</text>
+<text class="name" x="0" y="482">ratatui v0.30.2</text>
+<rect class="s4" x="128" y="470" width="37" height="16" rx="3"/>
+<text class="muted" x="171" y="482">196 KiB/s</text>
+<text class="heading" x="472" y="384">memory, MiB (busy peak)</text>
+<line class="axis" x1="600" y1="394" x2="600" y2="494"/>
+<text class="name" x="472" y="410">layoutz</text>
+<rect class="s1" x="600" y="398" width="113" height="16" rx="3"/>
+<text class="muted" x="719" y="410">10.4 MiB</text>
+<text class="name" x="472" y="434">bubbletea v2.1.1</text>
+<rect class="s2" x="600" y="422" width="192" height="16" rx="3"/>
+<text class="muted" x="798" y="434">17.7 MiB</text>
+<text class="name" x="472" y="458">brick 3.0</text>
+<rect class="s3" x="600" y="446" width="156" height="16" rx="3"/>
+<text class="muted" x="762" y="458">14.4 MiB</text>
+<text class="name" x="472" y="482">ratatui v0.30.2</text>
+<rect class="s4" x="600" y="470" width="39" height="16" rx="3"/>
+<text class="muted" x="645" y="482">3.6 MiB</text>
 </svg>

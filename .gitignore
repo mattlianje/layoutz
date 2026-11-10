@@ -16,6 +16,7 @@ bundles/
 layoutz-hs/dist-newstyle/
 layoutz-hs/bench/brick/dist-newstyle/
 layoutz-hs/bench/bubbletea/bubbletea
+layoutz-hs/bench/ratatui/target/
 
 layoutz-ts/node_modules/
 layoutz-ts/dist/

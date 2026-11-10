@@ -56,9 +56,9 @@ import Layoutz
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
 ## TUIs
-Just fill in an [`App`](#interactive-apps), then call `runApp`:
+Just fill in a [`LayoutzApp`](#interactive-apps), then call `runApp`:
 ```haskell
-data App model msg = App
+data LayoutzApp model msg = LayoutzApp
   { appInit          :: (model, Cmd msg)
   , appUpdate        :: msg -> model -> (model, Cmd msg)
   , appSubscriptions :: model -> Sub msg
@@ -246,6 +246,9 @@ renderIn 40 6 $
 fixedWidth 20 view     -- exactly 20 wide: padded or cut
 fixedHeight 5 view
 renderIn 80 24 view    -- render with 80x24 of room, like an app's root
+
+-- built from the room it gets, so it redraws as the terminal is resized
+sized (\w h -> plotLine (w - 8) (h - 2) series) & fill
 ```
 
 #### Text transforms
@@ -446,7 +449,7 @@ putStrLn $ render $ box "gradient" [kittyRGBA pixels w h 18 9]
 </p>
 
 Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside an
-`App`, each distinct image is transmitted once and re-placed cheaply on
+`LayoutzApp`, each distinct image is transmitted once and re-placed cheaply on
 every frame.
 
 ## Custom Elements
@@ -706,11 +709,11 @@ inspiration here.
 
 ## Interactive Apps
 
-`App` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
+`LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
 view is a layoutz `View`.
 
 ```haskell
-data App model msg = App
+data LayoutzApp model msg = LayoutzApp
   { appInit          :: (model, Cmd msg)                 -- Initial model + startup command
   , appUpdate        :: msg -> model -> (model, Cmd msg) -- Pure state transitions
   , appSubscriptions :: model -> Sub msg                 -- Event sources
@@ -721,7 +724,7 @@ data App model msg = App
 Apps that never need a `Cmd` or a `Sub` can skip the boilerplate:
 
 ```haskell
-sandbox :: model -> (msg -> model -> model) -> (model -> View msg) -> App model msg
+sandbox :: model -> (msg -> model -> model) -> (model -> View msg) -> LayoutzApp model msg
 ```
 
 Background threads handle rendering (capped at `optMaxFps`, 60 by default), timers, input and
@@ -825,8 +828,8 @@ import Layoutz
 data Msg = Log | Saved
 data State = State { count :: Int, status :: String }
 
-loggerApp :: App State Msg
-loggerApp = App
+loggerApp :: LayoutzApp State Msg
+loggerApp = LayoutzApp
   { appInit = (State 0 "Ready", cmdNone)
   , appUpdate = \msg s -> case msg of
       Log   -> ( s { count = count s + 1 }
@@ -856,7 +859,7 @@ import Layoutz
 
 data Msg = Inc | Dec
 
-counter :: App Int Msg
+counter :: LayoutzApp Int Msg
 counter = sandbox 0 step $ \n ->
   row [button "-" Dec, display n, button "+" Inc]
     & onScroll (\d -> if d > 0 then Dec else Inc)
@@ -917,7 +920,7 @@ selectedItem (services m)      :: Maybe String
 viewportTop, viewportBottom    :: Viewport                 -- at the bottom, it follows new lines
 ```
 
-<sub>[FocusDemo.hs](examples/FocusDemo.hs) puts both together: a service list and its logs, with Tab between them.</sub>
+<sub>[FocusDemo.hs](examples/FocusDemo.hs) puts both together: a list of fighters and their fight logs, with Tab between them, under a chart that uses `sized` to fit the terminal.</sub>
 
 Test without a terminal: `pressKey (Just "logs") KeyDown view` says what a key sends, and
 `focusOrder view` lists the Tab order.
@@ -1133,7 +1136,7 @@ You need [GHC](https://www.haskell.org/ghcup/) and [Cabal](https://www.haskell.o
 make build     # build library
 make test      # run tests
 make repl      # GHCi with layoutz loaded
-make bench     # layoutz vs Bubble Tea and Brick, Linux only, results in bench/BENCHES.md
+make bench     # layoutz vs Bubble Tea, Brick and ratatui, Linux only, results in bench/README.md
 make clean     # clean build artifacts
 ```
 
@@ -1162,7 +1165,7 @@ Fork, make your change, `make test`, open a PR. Keep it to GHC's boot packages.
 | `margin p xs` | `vstack xs & margin p` |
 | `alignLeft w "str"` and friends | same, but they take any view |
 | `instance Element` | a function returning `View m` |
-| `LayoutzApp` | `App` (or `sandbox` when there are no effects) |
+| `LayoutzApp` | same name, `appView` now returns `View msg` (or `sandbox` when there are no effects) |
 | `runAppWith opts app`, `runAppFinal` | `run opts app` (returns the final model) |
 | `AppOptions`, `defaultAppOptions` | `Options`, `defaultOptions` |
 | `optClearOnStart = False, optClearOnExit = False` | `optInline = True` |

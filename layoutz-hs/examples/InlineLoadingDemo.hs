@@ -14,8 +14,8 @@ import Layoutz
 data S = S { prog :: Double, done :: Int }
 data M = Tick
 
-progressBar :: String -> Double -> App S M
-progressBar label speed = App
+progressBar :: String -> Double -> LayoutzApp S M
+progressBar label speed = LayoutzApp
   { appInit = (S 0.0 0, cmdNone)
   , appUpdate = \Tick st ->
       if done st > 20     then (st, cmdQuit)

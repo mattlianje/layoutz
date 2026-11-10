@@ -657,6 +657,15 @@ widgetTests = testGroup "Widgets"
       end @?= viewportBottom
       lines (render (numbers end)) @?= ["8 │", "9 │", "10█"]
       lines (render (numbers (scrolled KeyUp end))) @?= ["7 │", "8 █", "9 │"]
+
+  , testCase "viewport cuts lines wider than its room" $
+      lines (renderIn 5 2 (viewport id viewportTop (map text ["abcdefgh", "ij", "klmnop"]) & fill))
+        @?= ["abcd█", "ij  │"]
+
+  , testCase "sized gets the room it is drawn in" $ do
+      let dims = sized (\w h -> text (show w <> "x" <> show h))
+      lines (renderIn 7 3 (box "" [dims & fill] & fill)) @?= ["┌─────┐", "│ 3x1 │", "└─────┘"]
+      render dims @?= "80x24"
   ]
   where
     fruits sl = selectList id (const sl) text sl

@@ -80,9 +80,8 @@ runDashboard busy = do
   vty <- mkVty V.defaultConfig
   void (customMain vty (mkVty V.defaultConfig) (Just chan) app 1)
 
--- | ms per frame, widgets -> vty spans ('renderWidget' then 'displayOpsForPic').
--- Closest thing to layoutz's 'renderIn' or lipgloss's View, all that's left
--- after is writing escape codes. 100 warmup frames, then time 2000.
+-- | ms per frame, widgets -> vty spans ('renderWidget' then 'displayOpsForPic'),
+-- everything short of writing escape codes. 100 warmup frames, then time 2000.
 renderTime :: IO Double
 renderTime = do
   forM_ [1 .. 100] frame

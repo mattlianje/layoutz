@@ -711,8 +711,8 @@ renderRayFrame theta phi dist morph =
 
 -- App
 
-showcaseApp :: App ShowcaseState Msg
-showcaseApp = App
+showcaseApp :: LayoutzApp ShowcaseState Msg
+showcaseApp = LayoutzApp
   { appInit          = (initialState, cmdNone)
   , appUpdate        = \msg s -> update msg s
   , appSubscriptions = subscriptions
