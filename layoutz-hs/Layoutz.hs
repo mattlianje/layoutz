@@ -145,6 +145,7 @@ module Layoutz
   , subNone
   , subKeyPress
   , subEveryMs
+  , subAnimationFrame
   , subFocus
     -- * Kitty graphics
   , KittyImage(..)
@@ -187,7 +188,7 @@ import Data.Bits ((.|.), (.&.), xor, shiftL, shiftR, bit, setBit, testBit)
 import Data.Maybe (fromMaybe, listToMaybe, catMaybes, mapMaybe, isJust, isNothing)
 import Data.Function ((&))
 import Control.Applicative ((<|>))
-import Data.Word (Word8)
+import Data.Word (Word8, Word64)
 import GHC.Arr (Array, listArray, unsafeAt)
 import Data.String (IsString(..))
 import Data.Char (ord, chr, toLower, isDigit)
@@ -201,7 +202,7 @@ import Control.Exception (catch, finally, throwIO, AsyncException(..), IOExcepti
 import System.Timeout (timeout)
 import Control.Monad (when, unless, forever, forM, forM_, void)
 import Control.Concurrent (forkIO, threadDelay, killThread, newChan, writeChan, readChan)
-import Control.Concurrent.MVar (newMVar, newEmptyMVar, takeMVar, tryTakeMVar, tryPutMVar)
+import Control.Concurrent.MVar (MVar, newMVar, putMVar, newEmptyMVar, takeMVar, tryTakeMVar, tryPutMVar)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef', modifyIORef')
 import GHC.Clock (getMonotonicTimeNSec)
 import GHC.Exts (isTrue#, reallyUnsafePtrEquality#)
@@ -754,9 +755,9 @@ textBlock = go plain [] [] . T.splitOn "\n"
 applySgr :: Attr -> Text -> Attr
 applySgr a0 = go a0 . map param . T.splitOn ";"
   where
-    param t = case reads (T.unpack t) of
-      [(n, "")] -> n
-      _         -> 0 :: Int
+    param t
+      | not (T.null t), T.all isDigit t = T.foldl' (\n c -> n * 10 + ord c - 48) 0 t
+      | otherwise                       = 0 :: Int
     rgb k r g b = T.intercalate ";" (map T.show [k, 2, r, g, b])
 
     go a [] = a
@@ -2260,30 +2261,42 @@ executeCmd (Cmd ios _ _) = catMaybes <$> sequence ios
 
 -- | What the app listens to. Combine with @<>@. Key handlers see every key a
 -- focused view didn't take.
-data Sub msg = Sub [Key -> Maybe msg] [(Int, msg)] [String -> msg]
+data Sub msg = Sub [Key -> Maybe msg] [(Int, msg)] [String -> msg] [Double -> msg]
 
 instance Semigroup (Sub msg) where
-  Sub a b c <> Sub d e g = Sub (a <> d) (b <> e) (c <> g)
+  Sub a b c d <> Sub e f g h = Sub (a <> e) (b <> f) (c <> g) (d <> h)
 
 instance Monoid (Sub msg) where
-  mempty = Sub [] [] []
+  mempty = Sub [] [] [] []
 
 instance Functor Sub where
-  fmap f (Sub ks ts fs) = Sub (map (fmap f .) ks) [ (n, f m) | (n, m) <- ts ] (map (f .) fs)
+  fmap f (Sub ks ts fs as) = Sub (map (fmap f .) ks) [ (n, f m) | (n, m) <- ts ] (map (f .) fs) (map (f .) as)
 
 subNone :: Sub msg
 subNone = mempty
 
 subKeyPress :: (Key -> Maybe msg) -> Sub msg
-subKeyPress k = Sub [k] [] []
+subKeyPress k = Sub [k] [] [] []
 
 -- | A message every @n@ milliseconds.
 subEveryMs :: Int -> msg -> Sub msg
-subEveryMs n m = Sub [] [(n, m)] []
+subEveryMs n m = Sub [] [(n, m)] [] []
 
 -- | The name of the 'focusable' that just got focus.
 subFocus :: (String -> msg) -> Sub msg
-subFocus f = Sub [] [] [f]
+subFocus f = Sub [] [] [f] []
+
+-- | A message every frame while subscribed, carrying the monotonic time in
+-- seconds, for animation. The first one comes as soon as the subscription
+-- appears rather than an interval later, so motion starts on the frame after
+-- the change that asked for it. Drop it once things are still and an idle app
+-- stops waking up.
+--
+-- @
+-- subscriptions m = if moving m then 'subAnimationFrame' Frame else 'subNone'
+-- @
+subAnimationFrame :: (Double -> msg) -> Sub msg
+subAnimationFrame f = Sub [] [] [] [f]
 
 -- | An Elm-style app.
 --
@@ -2347,6 +2360,7 @@ runInline = void . run defaultOptions { optInline = True }
 -- a single thread applies 'appUpdate'.
 data AppEvent msg
   = AppMsg msg
+  | AppFrame Double (MVar ())   -- an animation frame's time; acked once applied
   | AppExit
 
 isQuitKey :: Key -> Bool
@@ -2388,23 +2402,31 @@ runIn opts LayoutzApp{..} = do
 
   let send = writeChan eventChan . AppMsg
       markDirty = void (tryPutMVar dirty ())
+      frameNs = 1000000000 `div` fromIntegral (max 1 (optMaxFps opts)) :: Word64
 
       setFocus new = do
         old <- atomicModifyIORef' focusRef (\o -> (new, o))
         when (new /= old) $ do
           markDirty
-          Sub _ _ listeners <- appSubscriptions <$> readIORef stateRef
+          Sub _ _ listeners _ <- appSubscriptions <$> readIORef stateRef
           forM_ new $ \n -> mapM_ (send . ($ T.unpack n)) listeners
 
       schedule cmd@(Cmd ios focusOn q) = do
         mapM_ (setFocus . Just) focusOn
         if null ios then when q (writeChan eventChan AppExit) else writeChan cmdChan cmd
 
+      -- Only this thread writes the model. An update that hands back the
+      -- model it was given (@(m, cmd)@) changed nothing on screen, so it
+      -- doesn't cost a frame, which would hold up the next real one.
       applyMsg msg = do
-        cmd <- atomicModifyIORef' stateRef (appUpdate msg)
-        markDirty
-        void (tryPutMVar modelChanged ())
-        schedule cmd
+        old <- readIORef stateRef
+        case appUpdate msg old of
+          (new, cmd) -> do
+            unless (same old new) $ do
+              writeIORef stateRef $! new
+              markDirty
+              void (tryPutMVar modelChanged ())
+            schedule cmd
 
   cmdThread <- forkIO $ forever $ do
     cmd@(Cmd _ _ q) <- readChan cmdChan
@@ -2420,65 +2442,92 @@ runIn opts LayoutzApp{..} = do
   mouseOn       <- newIORef False
   resized       <- newIORef False
 
-  renderThread <- forkIO $ forever $ do
-    takeMVar dirty
-    frameStart <- getMonotonicTimeNSec
-    (termH, termW) <- readIORef termSize
-    redraw <- atomicModifyIORef' resized (\r -> (False, r))
-    -- Full-screen apps get the terminal as room for 'fill'. Inline ones don't
-    -- know which row they start on, so they get no room and no mouse.
-    let room | fullScreen = Room (Just termW) (Just termH) False
-             | otherwise  = natural
-    focused <- readIORef focusRef
-    block <- drawView room . resolveFocus focused . appView <$> readIORef stateRef
-    let frame = (bRaw block, bRows block)
-    prev <- readIORef lastFrame
-    shown <- readIORef onScreen
-    wasOn <- readIORef mouseOn
-    -- upload each kitty image once, not every frame
-    sent <- readIORef sentKittyIds
-    let (uploads, sent') = dedupeTransmits sent (T.concat (bRaw block))
-        indent = case optAlignment opts of
-          AppAlignLeft   -> 0
-          AppAlignCenter -> max 0 ((termW - blockWidth block) `div` 2)
-          AppAlignRight  -> max 0 (termW - blockWidth block)
-        rows      = map (replicate indent blank <>) (snd frame)
-        hits      = moveHits 0 indent (bHits block)
-        wantMouse = fullScreen && not (null hits)
-        mouseMode
-          | wantMouse == wasOn = ""
-          | wantMouse          = mouseEnable
-          | otherwise          = mouseDisable
-        body
-          | fullScreen && redraw = repaintRows termW termH rows
-          | fullScreen = diffRows shown rows   -- only the cells that changed
-          | otherwise =
-              (if null shown then "" else "\ESC[" <> T.show (length shown) <> "A\r")
-              <> foldMap ((<> "\ESC[K\n") . rowText) rows
-              <> T.replicate (max 0 (length shown - length rows)) "\ESC[K\n"
-        -- Full screen, the diff already says whether anything changed; inline
-        -- rewrites every row, so compare the frames instead.
-        changed
-          | redraw     = True
-          | fullScreen = not (T.null body && T.null mouseMode) || fst frame /= fst prev
-          | otherwise  = frame /= prev
+  let drawFrame = do
+        (termH, termW) <- readIORef termSize
+        redraw <- atomicModifyIORef' resized (\r -> (False, r))
+        -- Full-screen apps get the terminal as room for 'fill'. Inline ones don't
+        -- know which row they start on, so they get no room and no mouse.
+        let room | fullScreen = Room (Just termW) (Just termH) False
+                 | otherwise  = natural
+        focused <- readIORef focusRef
+        block <- drawView room . resolveFocus focused . appView <$> readIORef stateRef
+        let frame = (bRaw block, bRows block)
+        prev <- readIORef lastFrame
+        shown <- readIORef onScreen
+        wasOn <- readIORef mouseOn
+        -- upload each kitty image once, not every frame
+        sent <- readIORef sentKittyIds
+        let (uploads, sent') = dedupeTransmits sent (T.concat (bRaw block))
+            indent = case optAlignment opts of
+              AppAlignLeft   -> 0
+              AppAlignCenter -> max 0 ((termW - blockWidth block) `div` 2)
+              AppAlignRight  -> max 0 (termW - blockWidth block)
+            rows      = map (replicate indent blank <>) (snd frame)
+            hits      = moveHits 0 indent (bHits block)
+            wantMouse = fullScreen && not (null hits)
+            mouseMode
+              | wantMouse == wasOn = ""
+              | wantMouse          = mouseEnable
+              | otherwise          = mouseDisable
+            body
+              | fullScreen && redraw = repaintRows termW termH rows
+              | fullScreen = diffRows shown rows   -- only the cells that changed
+              | otherwise =
+                  (if null shown then "" else "\ESC[" <> T.show (length shown) <> "A\r")
+                  <> foldMap ((<> "\ESC[K\n") . rowText) rows
+                  <> T.replicate (max 0 (length shown - length rows)) "\ESC[K\n"
+            -- Full screen, the diff already says whether anything changed; inline
+            -- rewrites every row, so compare the frames instead.
+            changed
+              | redraw     = True
+              | fullScreen = not (T.null body && T.null mouseMode) || fst frame /= fst prev
+              | otherwise  = frame /= prev
 
-    when changed $ do
-      putText $ "\ESC[?2026h" <> mouseMode <> uploads <> body <> "\ESC[?2026l"
-      hFlush stdout
-      writeIORef sentKittyIds sent'
-      writeIORef mouseOn wantMouse
-      writeIORef hitMap hits
-      -- keep focus on something that's on screen
-      case focusNames hits of
-        first : _ | maybe True (`notElem` focusNames hits) focused -> setFocus (Just first)
-        _ -> pure ()
-      writeIORef onScreen rows
-      writeIORef lastFrame frame
+        when changed $ do
+          putText $ "\ESC[?2026h" <> mouseMode <> uploads <> body <> "\ESC[?2026l"
+          hFlush stdout
+          writeIORef sentKittyIds sent'
+          writeIORef mouseOn wantMouse
+          writeIORef hitMap hits
+          -- keep focus on something that's on screen
+          case focusNames hits of
+            first : _ | maybe True (`notElem` focusNames hits) focused -> setFocus (Just first)
+            _ -> pure ()
+          writeIORef onScreen rows
+          writeIORef lastFrame frame
 
-    -- Changes arriving before the next frame is due share it.
-    spent <- (`div` 1000) . subtract frameStart <$> getMonotonicTimeNSec
-    threadDelay (max 0 (1000000 `div` max 1 (optMaxFps opts) - fromIntegral spent))
+
+      animating = (\(Sub _ _ _ frames) -> not (null frames)) . appSubscriptions <$> readIORef stateRef
+
+  -- Draws whenever something changed, at most once a frame. While the app
+  -- wants animation frames this loop also keeps the beat: each frame the app
+  -- is handed that frame's own time, evenly spaced, and the frame is drawn
+  -- once that update is in. One clock, so motion doesn't judder from two
+  -- loops drifting in and out of step.
+  renderThread <- forkIO $
+    let loop due = animating >>= \case
+          False -> do
+            takeMVar dirty
+            frameStart <- getMonotonicTimeNSec
+            drawFrame
+            -- changes arriving before the next frame is due share it
+            spent <- (`div` 1000) . subtract frameStart <$> getMonotonicTimeNSec
+            threadDelay (max 0 (1000000 `div` max 1 (optMaxFps opts) - fromIntegral spent))
+            loop Nothing
+          True -> do
+            now <- getMonotonicTimeNSec
+            -- on the beat, unless this is the first frame or one ran long
+            let t = case due of
+                  Just d | d + frameNs > now -> d
+                  _                          -> now
+            when (t > now) $ threadDelay (fromIntegral ((t - now) `div` 1000))
+            applied <- newEmptyMVar
+            writeChan eventChan (AppFrame (fromIntegral t / 1e9) applied)
+            takeMVar applied
+            _ <- tryTakeMVar dirty
+            drawFrame
+            loop (Just (t + frameNs))
+    in loop Nothing
 
   -- Deadlines are tracked per interval so re-subscribing each frame doesn't
   -- reset the clock. Sleeps until the next deadline, waking at least every
@@ -2487,7 +2536,7 @@ runIn opts LayoutzApp{..} = do
   tickThread <- forkIO $
     let loop deadlines = do
           _ <- tryTakeMVar modelChanged
-          Sub _ ticks _ <- appSubscriptions <$> readIORef stateRef
+          Sub _ ticks _ _ <- appSubscriptions <$> readIORef stateRef
           if null ticks then takeMVar modelChanged >> loop [] else do
             now <- getMonotonicTimeNSec
             let ns ms     = fromIntegral ms * 1000 * 1000
@@ -2531,7 +2580,7 @@ runIn opts LayoutzApp{..} = do
                   _ -> case keyMsg focused hits key of
                     Just m  -> send m
                     Nothing -> do
-                      Sub keys _ _ <- appSubscriptions <$> readIORef stateRef
+                      Sub keys _ _ _ <- appSubscriptions <$> readIORef stateRef
                       mapM_ send (mapMaybe ($ key) keys)
                 loop
     in loop `catch` \(_ :: IOException) -> writeChan eventChan AppExit
@@ -2543,6 +2592,11 @@ runIn opts LayoutzApp{..} = do
       dispatch = readChan eventChan >>= \case
         AppExit    -> pure ()
         AppMsg msg -> applyMsg msg >> dispatch
+        AppFrame t applied -> do
+          Sub _ _ _ frames <- appSubscriptions <$> readIORef stateRef
+          mapM_ (applyMsg . ($ t)) frames
+          putMVar applied ()
+          dispatch
 
       -- Ctrl-C is a normal quit, everything else rethrows. withTerm puts
       -- the tty back either way.
