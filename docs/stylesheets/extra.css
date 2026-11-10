@@ -1,0 +1,414 @@
+/* ============================================================
+   Layoutz — Dark Zen Garden Theme
+   ============================================================ */
+
+/* --- Palette overrides ------------------------------------ */
+:root {
+  --md-primary-fg-color: #1a1a2e;
+  --md-primary-bg-color: #e0e0e8;
+  --md-accent-fg-color: #7c6fea;
+  --zen-glow: rgba(124, 111, 234, 0.35);
+  --zen-glow-soft: rgba(124, 111, 234, 0.12);
+  --zen-surface: rgba(255, 255, 255, 0.04);
+  --zen-surface-hover: rgba(255, 255, 255, 0.07);
+  --zen-border: rgba(255, 255, 255, 0.06);
+  --zen-divider: linear-gradient(
+    90deg,
+    transparent,
+    rgba(124, 111, 234, 0.3) 30%,
+    rgba(168, 130, 255, 0.25) 50%,
+    rgba(124, 111, 234, 0.3) 70%,
+    transparent
+  );
+}
+
+/* --- Smooth scroll --------------------------------------- */
+html {
+  scroll-behavior: smooth;
+}
+
+/* --- Body background — subtle radial glow ---------------- */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0f0f1a;
+}
+
+.md-main {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(124, 111, 234, 0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 100%, rgba(100, 80, 200, 0.04) 0%, transparent 60%);
+}
+
+/* --- Hide nav sidebar (SPA) ------------------------------ */
+.md-sidebar--primary {
+  display: none;
+}
+
+/* --- Widen content --------------------------------------- */
+.md-main__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.md-content {
+  max-width: none;
+}
+
+/* --- Header — glass -------------------------------------- */
+.md-header {
+  background: rgba(15, 15, 26, 0.85) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--zen-border);
+}
+
+
+/* ============================================================
+   Hero
+   ============================================================ */
+.hero {
+  text-align: center;
+  padding: 4rem 1rem 5rem;
+  position: relative;
+}
+
+.hero img[alt="Layoutz"] {
+  max-width: 240px;
+  margin-bottom: 1.5rem;
+  filter: drop-shadow(0 0 30px var(--zen-glow-soft));
+  animation: zen-breathe 6s ease-in-out infinite;
+}
+
+.hero h1 {
+  font-size: 2.8rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #e0e0ff 0%, #a78bfa 50%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero .tagline {
+  font-size: 1.35rem;
+  opacity: 0.7;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  margin-bottom: 2rem;
+}
+
+.hero ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.hero ul li {
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+/* Hero showcase GIF */
+.demo-gif-hero {
+  display: block;
+  width: 100%;
+  max-width: 960px;
+  margin: 2.5rem auto 0;
+  border-radius: 14px;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.5),
+    0 0 60px var(--zen-glow-soft);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.5s ease;
+}
+
+.demo-gif-hero:hover {
+  transform: scale(1.01) translateY(-4px);
+  box-shadow:
+    0 12px 50px rgba(0, 0, 0, 0.6),
+    0 0 80px var(--zen-glow);
+}
+
+/* ============================================================
+   Breathing / floating keyframes
+   ============================================================ */
+@keyframes zen-breathe {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+@keyframes zen-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33%      { transform: translateY(-4px) rotate(0.3deg); }
+  66%      { transform: translateY(2px) rotate(-0.2deg); }
+}
+
+@keyframes zen-pulse-border {
+  0%, 100% { border-color: rgba(124, 111, 234, 0.08); }
+  50%      { border-color: rgba(124, 111, 234, 0.18); }
+}
+
+/* ============================================================
+   Section cards (glassmorphism)
+   ============================================================ */
+.demo-section {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+  background: var(--zen-surface);
+  border: 1px solid var(--zen-border);
+  border-radius: 20px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: zen-pulse-border 8s ease-in-out infinite;
+  margin-bottom: 1.5rem;
+}
+
+.demo-section h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Gradient dividers replacing --- */
+.md-content hr {
+  border: none;
+  height: 1px;
+  background: var(--zen-divider);
+  margin: 3rem auto;
+  max-width: 600px;
+}
+
+/* ============================================================
+   GIF containers
+   ============================================================ */
+.demo-gif,
+.demo-gif-sm {
+  display: block;
+  max-width: 100%;
+  margin: 2rem auto;
+  border-radius: 12px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    0 0 40px var(--zen-glow-soft);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.5s ease;
+  animation: zen-float 8s ease-in-out infinite;
+}
+
+.demo-gif-sm {
+  max-width: 88%;
+}
+
+.demo-gif:hover,
+.demo-gif-sm:hover {
+  transform: scale(1.015) translateY(-6px);
+  box-shadow:
+    0 8px 36px rgba(0, 0, 0, 0.5),
+    0 0 60px var(--zen-glow);
+  animation-play-state: paused;
+}
+
+/* Stagger float animations per section */
+.demo-section:nth-child(odd) .demo-gif  { animation-delay: -2s; }
+.demo-section:nth-child(even) .demo-gif { animation-delay: -5s; }
+
+/* ============================================================
+   Feature grid (Games, Animations, Dashboards)
+   ============================================================ */
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  max-width: 960px;
+  margin: 2rem auto;
+}
+
+.feature-card {
+  text-align: center;
+  background: var(--zen-surface);
+  border: 1px solid var(--zen-border);
+  border-radius: 16px;
+  padding: 1.2rem;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.4s ease,
+              border-color 0.4s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 40px var(--zen-glow-soft);
+  border-color: rgba(124, 111, 234, 0.2);
+}
+
+.feature-card img {
+  width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  margin-bottom: 0.75rem;
+  transition: box-shadow 0.4s ease;
+}
+
+.feature-card:hover img {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 30px var(--zen-glow-soft);
+}
+
+.feature-card p {
+  font-size: 0.95rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 720px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Capability list
+   ============================================================ */
+.capability-list {
+  text-align: center;
+  opacity: 0.65;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ============================================================
+   Get started
+   ============================================================ */
+.get-started {
+  max-width: 800px;
+  margin: 3rem auto;
+  padding: 3rem 2rem;
+  text-align: center;
+  background: var(--zen-surface);
+  border: 1px solid var(--zen-border);
+  border-radius: 20px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.get-started h2 {
+  margin-bottom: 1.5rem;
+}
+
+/* ============================================================
+   Code blocks — softer, glassy
+   ============================================================ */
+.md-typeset code {
+  border-radius: 6px;
+}
+
+.md-typeset pre {
+  border-radius: 12px;
+  border: 1px solid var(--zen-border);
+}
+
+/* ============================================================
+   Tabs — refined
+   ============================================================ */
+.md-typeset .tabbed-labels > label {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.md-typeset .tabbed-labels > label:hover {
+  opacity: 1;
+}
+
+.md-typeset .tabbed-labels > label.active,
+.md-typeset .tabbed-labels > .tabbed-set > input:checked + label {
+  opacity: 1;
+}
+
+/* ============================================================
+   Details / collapsible — match glass style
+   ============================================================ */
+.md-typeset details {
+  border-radius: 12px;
+  border: 1px solid var(--zen-border);
+  background: var(--zen-surface);
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.md-typeset .md-button--primary {
+  background: linear-gradient(135deg, #7c6fea, #a78bfa);
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 2rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.md-typeset .md-button--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px var(--zen-glow);
+}
+
+/* ============================================================
+   Footer — subtle
+   ============================================================ */
+.md-footer {
+  background: rgba(15, 15, 26, 0.6) !important;
+  border-top: 1px solid var(--zen-border);
+}
+
+/* ============================================================
+   Scrollbar — minimal
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 111, 234, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 111, 234, 0.4);
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 600px) {
+  .hero {
+    padding: 2.5rem 1rem 3rem;
+  }
+
+  .hero h1 {
+    font-size: 2rem;
+  }
+
+  .demo-section {
+    padding: 2rem 1rem;
+    border-radius: 14px;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+  }
+
+  .get-started {
+    padding: 2rem 1rem;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+  }
+}
