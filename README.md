@@ -54,8 +54,8 @@ import layoutz._
      - The runtime has some little niceties built-in like common cmd's for file I/O, HTTP-requests, and a key input handler.
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
-## TUIs
-Just implement [`LayoutzApp`](#interactive-apps), then call `.run`:
+## Build TUIs
+Implement [`LayoutzApp`](#build-interactive-apps) and call `.run`:
 ```scala
 trait LayoutzApp[State, Message] {
   def init: (State, Cmd[Message])
@@ -64,7 +64,7 @@ trait LayoutzApp[State, Message] {
   def view(state: State): Element
 }
 ```
-You have built-in `Cmd`/`Sub` for file I/O, HTTP, clipboard, timers and file watching...
+File I/O, HTTP, clipboard, timers and file watching come built in.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase-tour.gif" width="600">
@@ -72,7 +72,7 @@ You have built-in `Cmd`/`Sub` for file I/O, HTTP, clipboard, timers and file wat
   <sub><a href="examples/ShowcaseApp.scala">ShowcaseApp.scala</a></sub>
 </p>
 
-## Plots
+## Draw plots
 ```scala
 val sin = (0 to 50).map(i => (i.toDouble, math.sin(i * 0.15) * 5))
 plot(width = 50, height = 12)(Series(sin, "sin(x)").color(Color.BrightCyan))
@@ -81,9 +81,8 @@ plot(width = 50, height = 12)(Series(sin, "sin(x)").color(Color.BrightCyan))
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-charts.png" width="600">
 </p>
 
-## Prompts
-You often want one-shot CLI prompts with pickers, file pickers, fuzzy-finders, pagers, etc... without dropping
-down into Elm-territory to make them. This is why layoutz has the `Ask` helpers.
+## Prompt the user
+For one-off prompts (pickers, fuzzy finders, pagers...) you don't need a whole app. Just call `Ask`:
 ```scala
 val places = Seq(
   "Bag End", "Bree", "Rivendell", "Erebor",
@@ -102,8 +101,8 @@ val ok   = Ask.confirm("Save profile?")
   <sub><a href="examples/AskProfile.scala">AskProfile.scala</a></sub>
 </p>
 
-## Progress
-Wrap any `Iterable` for a live bar, any `Iterator` for a spinner. Works in any script that writes to stdout.
+## Show progress bars
+Wrap any Iterable for a live bar, or any Iterator for a spinner. Works in any script that writes to stdout.
 ```scala
 for (file <- loader("Resizing", files)) resize(file)
 for (line <- loader.stream("Tailing", logLines())) index(line)
@@ -118,42 +117,41 @@ val n = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 
 ## Reference
 
-- [Core Concepts](#core-concepts)
-- [Border Styles](#border-styles)
-- [Elements](#elements)
-  - [Layout](#layout)
-  - [Content](#content)
-  - [Widgets](#widgets)
-- [Custom Elements](#custom-elements)
-- [Collections](#collections)
-- [Colors](#colors)
-- [Styles](#styles)
-- [Charts & Plots](#charts--plots)
-- [Interactive Apps](#interactive-apps)
-  - [Keys](#key-types)
-  - [Subscriptions](#subscriptions)
-  - [Commands](#commands)
-- [Prompts (Ask)](#prompts-ask)
-- [Progress (loader)](#progress-loader)
+- [Build and render elements](#build-and-render-elements)
+- [Change borders](#change-borders)
+- [Use the built-in elements](#use-the-built-in-elements)
+  - [Lay things out](#lay-things-out)
+  - [Show content](#show-content)
+  - [Add form widgets](#add-form-widgets)
+- [Make your own elements](#make-your-own-elements)
+- [Generate elements from collections](#generate-elements-from-collections)
+- [Add color](#add-color)
+- [Style text](#style-text)
+- [Draw charts and plots](#draw-charts-and-plots)
+- [Build interactive apps](#build-interactive-apps)
+  - [Handle keys](#handle-keys)
+  - [Subscribe to time, files and HTTP](#subscribe-to-time-files-and-http)
+  - [Run commands](#run-commands)
+- [Ask for input with `Ask`](#ask-for-input-with-ask)
+- [Show progress with `loader`](#show-progress-with-loader)
 
 
 
-## Core Concepts
+## Build and render elements
 
-Every piece of content is an `Element`. Elements are immutable and composable.
+Everything is an `Element`, and elements are immutable and compose with each other.
 
 ```scala
 elem.render     // gives a String
 elem.putStrLn   // prints to console
 ```
 
-Implement `Element` to create custom components that compose with all built-ins.
+You can also [write your own](#make-your-own-elements) and they'll work with all the built-ins.
 
-### Fluent API
+### Chain transforms with dots
 
-Some typesetting elements work as both nouns ("an underline") and verbs ("to underline something").
-For these, layoutz offers a fluent syntax with transformations available in infix position via dot-completion.
-Both styles produce the same case classes and render identically:
+Some elements are both a noun ("an underline") and a verb ("underline this"). Those can be written nested or
+chained with dots. Both give you the same thing:
 
 ```scala
 /* Nested style */
@@ -168,7 +166,7 @@ margin(">>")(underline()("Hello\nWorld!"))
 // >> ──────
 ```
 
-Available methods:
+These work both ways:
 ```
 .center()
 .pad()
@@ -180,9 +178,9 @@ Available methods:
 .colorBg()
 ```
 
-## Border Styles
+## Change borders
 
-Applied via `.border()` to any element with the `HasBorder` typeclass (`box`, `statusCard`, `table`):
+Call `.border` on anything with a border (`box`, `statusCard`, `table`):
 ```scala
 box("Title")("content").border(Border.Round)
 table(h, r).border(Border.Thick)
@@ -207,11 +205,11 @@ Border.Custom(corner = "+", horizontal = "=", vertical = "|")
 Border.None                                // no borders
 ```
 
-## Elements
+## Use the built-in elements
 
-### Layout
+### Lay things out
 
-#### Stacking & rows
+#### Stack and line up elements
 ```scala
 vstack("First", "Second", "Third")
 // First
@@ -226,7 +224,7 @@ columns(layout("A", "B"), layout("C", "D"))
 // B  D
 ```
 
-#### Spacing & rules
+#### Add spacing and rules
 ```scala
 layout("Line 1", br, "Line 2")
 
@@ -239,7 +237,7 @@ space(10)
 empty
 ```
 
-#### Text transforms
+#### Align, wrap and pad text
 ```scala
 "TITLE".center(20)     // │        TITLE       │
 "Left".leftAlign(20)   // │Left                │
@@ -281,9 +279,9 @@ layout(
 ```
 <!-- pics hidden for now: pix/example-vr.png, pix/example-compiler.png -->
 
-### Content
+### Show content
 
-#### Basics
+#### Show text and key-values
 ```scala
 "Simple text"
 
@@ -296,7 +294,7 @@ kv("name" -> "Alice", "role" -> "admin")
 // role: admin
 ```
 
-#### Boxes, cards & banners
+#### Draw boxes, cards and banners
 ```scala
 box("Summary")(kv("total" -> "42"))
 // ┌──Summary──┐
@@ -325,7 +323,7 @@ banner("System Dashboard").border(Border.Double)
 // ╚══════════════════╝
 ```
 
-#### Lists & trees
+#### Make lists and trees
 ```scala
 ul("Backend", ul("API", ul("REST", "GraphQL"), "DB"), "Frontend")
 // • Backend
@@ -357,7 +355,7 @@ tree("Project")(
 //         └── AppTest.scala
 ```
 
-#### Table
+#### Make a table
 ```scala
 table(
   headers = Seq("Name", "Age", "City"),
@@ -376,7 +374,7 @@ table(
 // └─────────┴─────┴──────────┘
 ```
 
-#### Progress & spinners
+#### Draw progress bars and spinners
 ```scala
 inlineBar("Download", 0.75)
 // Download [███████████████─────] 75%
@@ -391,11 +389,10 @@ spinner("Loading", frame, SpinnerStyle.Grow)   // ▏ ▎ ▍ ▌ ▋ ▊ ▉ �
 spinner("Loading", frame, SpinnerStyle.Arrow)  // ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-#### Inline Images
+#### Show images inline
 
-You can inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
-
-Layoutz **KittyImage** s compose with all the other built in elements so you can drop them into boxes, tables etc.
+You can show images with the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/). They're
+elements like any other, so you can drop them into boxes, tables and so on.
 ```scala
 vstack(
   row(
@@ -408,7 +405,7 @@ vstack(
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-sakuraba.png" width="600">
 </p>
 
-You can also build an image straight from raw RGBA pixels with `kittyRGBA`:
+Or build one straight from raw RGBA pixels with `kittyRGBA`:
 ```scala
 val (w, h) = (96, 96)
 val pixels = Array.tabulate(w * h * 4) { i =>
@@ -429,12 +426,10 @@ box("gradient")(pic).putStrLn
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/kitty-raw.png" width="600">
 </p>
 
-You needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty)..
+You'll need a terminal that supports it (kitty, WezTerm, Ghostty).
 
 
-### Widgets
-
-#### Form Widgets
+### Add form widgets
 
 ```scala
 textInput("Username", "alice", "Enter name", active = true)
@@ -447,9 +442,9 @@ MultiChoice("Colors?", Seq("Red", "Blue"), selected = Set(0), cursor = 1, active
 //     ○ meh
 ```
 
-## Custom Elements
+## Make your own elements
 
-Implement `Element` to create reusable components:
+Extend `Element` and implement `render`:
 ```scala
 case class Square(size: Int) extends Element {
   def render: String = {
@@ -472,8 +467,8 @@ row(Square(2), Square(4), Square(6))
 ```
 <!-- pic hidden for now: pix/example-custom.png -->
 
-## Collections
-Fuly leverage Scala's functional collection to generate frags of Elements:
+## Generate elements from collections
+Elements are just values, so use normal Scala collection code to build them:
 ```scala
 case class User(name: String, role: String)
 val users = Seq(User("Alice", "Admin"), User("Bob", "User"), User("Tom", "User"))
@@ -496,9 +491,9 @@ section("Users by Role")(
 // └────────┘
 ```
 
-## Colors
+## Add color
 
-Foreground with `.color`, background with `.bg`:
+Set the text color with `.color` and the background with `.bg`:
 
 ```scala
 Color.Red("Error!")
@@ -557,7 +552,7 @@ layout(palette, redToBlue, greenFade, rainbow)
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-colours-1.png" width="600">
 </p>
 
-### Styles
+### Style text
 ```scala
 "text".style(Style.Bold)
 "text".color(Color.Red).style(Style.Bold)
@@ -585,7 +580,7 @@ Style.Bold ++ Style.Italic  // combine with ++
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/layoutz-styles-2.png" width="600">
 </p>
 
-## Charts & Plots
+## Draw charts and plots
 
 ```
 plot        Series(points, label)
@@ -662,10 +657,9 @@ println(charts.render)
   <sub><a href="demos/shots/AllCharts.scala">AllCharts.scala</a></sub>
 </p>
 
-## Interactive Apps
+## Build interactive apps
 
-`LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
-view is a `layoutz.Element`
+`LayoutzApp` follows the [Elm Architecture](https://guide.elm-lang.org/architecture/), and your view is just an Element.
 
 > [!NOTE]
 > `LayoutzApp` is currently JVM + Native only
@@ -679,7 +673,8 @@ trait LayoutzApp[State, Message] {
 }
 ```
 
-Three daemon threads coordinate rendering (~50ms), tick/timers, and input capture. State updates flow through `update` synchronously. Rendering uses incremental line-diffing: only changed lines are redrawn, eliminating flicker.
+Behind the scenes, three threads handle rendering (~50ms), timers and input. State changes go through `update` one at a
+time, and only the lines that changed get redrawn, so there's no flicker. You can tune it when you call `run`:
 
 ```scala
 app.run(
@@ -694,7 +689,7 @@ app.run(
 )
 ```
 
-Implicit conversion: return just state instead of `(state, Cmd.none)`:
+If there's no command to run, `update` can just return the new state:
 ```scala
 def update(msg: Msg, state: State) = msg match {
   case Increment => state.copy(count = state.count + 1)
@@ -702,7 +697,7 @@ def update(msg: Msg, state: State) = msg match {
 }
 ```
 
-### Key Types
+### Handle keys
 ```scala
 /* Printable */
 Key.Char(c: Char)
@@ -729,7 +724,7 @@ Key.Ctrl(c: Char)        // Ctrl+A, Ctrl+S, etc.
 Key.Unknown(code: Int)   // Unrecognized input
 ```
 
-### Subscriptions
+### Subscribe to time, files and HTTP
 
 ```scala
 Sub.none                                           // No subscriptions
@@ -749,7 +744,7 @@ def subscriptions(state: State) = Sub.batch(
 )
 ```
 
-### Commands
+### Run commands
 
 ```scala
 Cmd.none                                         // No-op (default)
@@ -771,14 +766,10 @@ Cmd.clipboard.read(onResult)                     // Read clipboard
 Cmd.clipboard.write(content, onResult)           // Write clipboard
 ```
 
-## Prompts (Ask)
+## Ask for input with `Ask`
 
-You often want to have one-shot CLI prompts, spinners, filters, file pickers etc in your Scala
-programs ... and dropping down into "Elm-territory" and thinking about things as a flipbook
-each time can get a bit tedious.
-
-This is why **layoutz** offers one-shot CLI actions with `Ask.*`
-
+Writing a whole Elm-style app just to ask for a name or pick a file gets tedious. `Ask` gives you one-shot prompts,
+pickers and spinners instead:
 
 ```scala
 import layoutz._
@@ -800,7 +791,7 @@ val answer = Ask.spin("Awaking Smaug…") { Thread.sleep(1500); 42 }
 <sub><a href="examples/AskMini.scala">AskMini.scala</a></sub>
 </p>
 
-Each `Ask.*` returns its result directly:
+Each one just returns the result:
 
 ```scala
 Ask.input(prompt, placeholder, initial)  : Option[String]
@@ -815,10 +806,9 @@ Ask.spin(label) { task }                 : A
 ```
 
 
-## Progress (loader)
+## Show progress with `loader`
 
-You often want to simply want to be able to wrap Ìterable`s and `Iterator`s as you
-are processing collections like below.
+Wrap whatever you're looping over:
 
 ```scala
 for (file <- loader("Resizing", imageFiles)) resize(file)
@@ -826,16 +816,16 @@ for (row  <- loader(rows)) insert(row)
 for (line <- loader.stream("Tailing", logLines())) index(line)
 ```
 
-`Iterable` gets a live bar, an unbounded `Iterator` gets a spinner with a running count.
+An Iterable gets a live bar, and an Iterator (which could go on forever) gets a spinner with a running count.
 
-Chain a style to change the look like so:
+Chain a style to change the look:
 ```
 .blocks (default)
 .bar
 .ascii
 .dots
 .line
-.pipe
+.pipes
 .styled(...) (for custom bars)
 ```
 
@@ -847,7 +837,7 @@ val crawling = loader("Crawling", urls)
 for (url <- crawling) fetch(url)
 ```
 
-Every built-in style, then an unbounded stream:
+Every built-in style, then an endless stream:
 
 ```scala
 import layoutz._
@@ -872,7 +862,7 @@ for (_ <- loader.stream("Streaming", it).styled(spinner = SpinnerStyle.Dots)) Th
 
 ## Contributing
 
-You need [Mill](https://mill-build.org) and a JDK (11+).
+You'll need [Mill](https://mill-build.org) and a JDK (11+).
 
 ```bash
 make test

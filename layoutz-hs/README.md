@@ -55,8 +55,8 @@ import Layoutz
      - The runtime has some little niceties built-in like common cmd's for IO, timers, and a key input handler.
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
-## TUIs
-Just fill in a [`LayoutzApp`](#interactive-apps), then call `runApp`:
+## Build TUIs
+Fill in a [`LayoutzApp`](#build-interactive-apps) and call `runApp`:
 ```haskell
 data LayoutzApp state msg = LayoutzApp
   { appInit          :: (state, Cmd msg)
@@ -65,7 +65,7 @@ data LayoutzApp state msg = LayoutzApp
   , appView          :: state -> L
   }
 ```
-You have built-in `Cmd`/`Sub` for IO tasks, timers, delayed messages and key input...
+IO tasks, timers, delayed messages and key input come built in.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase-tour.gif" width="600">
@@ -73,7 +73,7 @@ You have built-in `Cmd`/`Sub` for IO tasks, timers, delayed messages and key inp
   <sub><a href="examples/ShowcaseApp.hs">ShowcaseApp.hs</a></sub>
 </p>
 
-## Plots
+## Draw plots
 ```haskell
 let sinePoints = [(x, sin x * 5) | x <- [0, 0.15 .. 7.5]]
 plotLine 50 12 [Series sinePoints "sin(x)" ColorBrightCyan]
@@ -82,9 +82,8 @@ plotLine 50 12 [Series sinePoints "sin(x)" ColorBrightCyan]
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-charts.png" width="600">
 </p>
 
-## Prompts
-You often want one-shot CLI prompts with pickers, file pickers, fuzzy-finders, pagers, etc... without dropping
-down into Elm-territory to make them. This is why layoutz has the `ask*` helpers.
+## Prompt the user
+For one-off prompts (pickers, fuzzy finders, pagers...) you don't need a whole app. Just call one of the `ask*` functions:
 ```haskell
 name   <- askInput "Name › " "anonymous" ""
 realm  <- askChoose "Choose a realm" ["The Shire", "Rivendell", "Mirkwood"] id
@@ -98,7 +97,7 @@ quest  <- askConfirm "Venture on the quest?" True "Yes" "No"
   <sub><a href="examples/AskDemo.hs">AskDemo.hs</a></sub>
 </p>
 
-## Progress
+## Show progress bars
 Wrap any list with `loader` for a live bar, or use `loaderStream` for a spinner. Works in any script that writes to stdout.
 ```haskell
 _ <- loader "Resizing" files resize
@@ -112,61 +111,58 @@ n <- askSpin "Awaking Smaug…" SpinnerDots (threadDelay 1500000 >> pure 42)
 
 ## Reference
 
-- [Core Concepts](#core-concepts)
-- [Border Styles](#border-styles)
-- [Elements](#elements)
-  - [Layout](#layout)
-  - [Content](#content)
-- [Custom Elements](#custom-elements)
-- [Collections](#collections)
-- [Colors](#colors)
-- [Styles](#styles)
-- [Charts & Plots](#charts--plots)
-- [Interactive Apps](#interactive-apps)
-  - [Keys](#key-types)
-  - [Subscriptions](#subscriptions)
-  - [Commands](#commands)
-- [Prompts (Ask)](#prompts-ask)
-- [Progress (loader)](#progress-loader)
+- [Build and render elements](#build-and-render-elements)
+- [Change borders](#change-borders)
+- [Use the built-in elements](#use-the-built-in-elements)
+  - [Lay things out](#lay-things-out)
+  - [Show content](#show-content)
+- [Make your own elements](#make-your-own-elements)
+- [Generate elements from collections](#generate-elements-from-collections)
+- [Add color](#add-color)
+- [Style text](#style-text)
+- [Draw charts and plots](#draw-charts-and-plots)
+- [Build interactive apps](#build-interactive-apps)
+  - [Handle keys](#handle-keys)
+  - [Subscribe to time and keys](#subscribe-to-time-and-keys)
+  - [Run commands](#run-commands)
+- [Ask for input with `ask*`](#ask-for-input-with-ask)
+- [Show progress with `loader`](#show-progress-with-loader)
 - [Examples](#examples)
 
 
 
-## Core Concepts
-- Every piece of content is an `Element`
-- Elements are **immutable** and **composable** - build complex layouts by combining simple elements
-- A `layout` arranges elements **vertically**:
+## Build and render elements
+Everything is an `Element`. Elements are immutable, and you build bigger layouts by combining small ones.
+`layout` stacks them vertically:
 ```haskell
 layout [elem1, elem2, elem3]  -- Joins with "\n"
 ```
-Call `render` on any element to get a string
+Call `render` on any element to get a String. Since everything is an Element, anything can go inside anything else.
 
-The power comes from **uniform composition** - since everything has the `Element` typeclass, everything can be combined.
-
-### String Literals
-With `OverloadedStrings` enabled, you can use string literals directly:
+### Use string literals
+With `OverloadedStrings` on, plain string literals work as elements:
 ```haskell
 layout ["Hello", "World"]  -- Instead of layout [text "Hello", text "World"]
 ```
 
 > [!NOTE]
-> When passing to functions that take polymorphic `Element a` parameters (like `underline'`, `center'`, `pad`), use `text` explicitly:
+> Functions that take any `Element a` (like `underline'`, `center'`, `pad`) can't guess the type, so wrap the string in `text`:
 
 ```haskell
 underline' "=" $ text "Title"  -- Correct
 underline' "=" "Title"         -- Ambiguous type error
 ```
 
-## Border Styles
+## Change borders
 
-Applied via `withBorder` to any element with the `HasBorder` typeclass (`box`, `statusCard`, `table`):
+Use `withBorder` on anything with a border (`box`, `statusCard`, `table`):
 ```haskell
 withBorder BorderRound $ box "Info" ["content"]
 withBorder BorderDouble $ statusCard "API" "UP"
 withBorder BorderThick $ table ["Name"] [["Alice"]]
 ```
 
-Write generic code over bordered elements:
+You can also write code that works on any bordered element:
 ```haskell
 makeThick :: HasBorder a => a -> a
 makeThick = setBorder BorderThick
@@ -188,11 +184,11 @@ BorderCustom "+" "=" "|"      -- Custom border
 BorderNone                    -- No borders
 ```
 
-## Elements
+## Use the built-in elements
 
-### Layout
+### Lay things out
 
-#### Stacking & rows
+#### Stack and line up elements
 ```haskell
 vstack ["First", "Second", "Third"]          -- vertical (alias of layout)
 -- First
@@ -210,7 +206,7 @@ tightRow [text "A", text "B", text "C"]      -- no spacing
 -- ABC
 ```
 
-#### Spacing & rules
+#### Add spacing and rules
 ```haskell
 layout [text "Line 1", br, text "Line 2"]    -- br is a blank line
 
@@ -223,7 +219,7 @@ vr' "║"            -- custom char
 vr'' "|" 5         -- custom char + height
 ```
 
-#### Text transforms
+#### Align, wrap and pad text
 ```haskell
 center $ text "Auto-centered"                -- width taken from siblings
 center' 20 $ text "TITLE"                    -- │       TITLE        │
@@ -259,9 +255,9 @@ margin "[error]"
 -- [error] Expected Int, found String
 ```
 
-### Content
+### Show content
 
-#### Basics
+#### Show text and key-values
 ```haskell
 text "hello"
 "hello"   - with OverloadedStrings
@@ -278,7 +274,7 @@ kv [("Name", "Alice"), ("Age", "30"), ("City", "NYC")]
 -- City: NYC
 ```
 
-#### Boxes, cards & banners
+#### Draw boxes, cards and banners
 ```haskell
 box "Status" [text "All systems go"]
 -- ┌──Status──────────┐
@@ -309,14 +305,14 @@ banner ["System Dashboard"]
 -- ╚══════════════════╝
 ```
 
-Pipe any `HasBorder` element through `withBorder`:
+Or pipe it through `withBorder`:
 ```haskell
 withBorder BorderRound $ box "Info" ["content"]
 withBorder BorderDouble $ statusCard "API" "UP"
 withBorder BorderThick $ table ["Name"] [["Alice"]]
 ```
 
-#### Lists & trees
+#### Make lists and trees
 ```haskell
 ul ["Backend", ul ["API", ul ["REST", "GraphQL"], "DB"], "Frontend"]
 -- • Backend
@@ -346,7 +342,7 @@ tree "Project"
 --     └── README.md
 ```
 
-#### Table
+#### Make a table
 ```haskell
 table ["Name", "Age", "City"]
   [ ["Alice", "30", "New York"]
@@ -364,7 +360,7 @@ table ["Name", "Age", "City"]
 └─────────┴─────┴──────────┘
 ```
 
-#### Progress & spinners
+#### Draw progress bars and spinners
 ```haskell
 inlineBar "Download" 0.75
 -- Download [███████████████─────] 75%
@@ -384,11 +380,10 @@ spinner "Loading" frame SpinnerGrow     -- ▏ ▎ ▍ ▌ ▋ ▊ ▉ █ ▉ �
 spinner "Loading" frame SpinnerArrow    -- ← ↖ ↑ ↗ → ↘ ↓ ↙
 ```
 
-#### Inline Images
+#### Show images inline
 
-Inline raster images via the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
-A `KittyImage` measures exactly `cols`×`rows` cells, so it composes with every other
-element: drop it into boxes, rows, tables, `center`, etc.
+You can show images with the [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/). An image
+takes up exactly `cols`×`rows` cells, so you can drop it into boxes, rows, tables and so on like anything else.
 
 ```haskell
 img <- kittyImageFile "pix/sakuraba.png" 35 14   -- PNG sized to 35×14 cells
@@ -402,7 +397,7 @@ putStrLn $ render $ row
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/haskell-kitty-1.png" width="600">
 </p>
 
-Build straight from bytes or raw pixels:
+Or build one straight from bytes or raw pixels:
 
 ```haskell
 kittyImage  bytes 35 14       -- PNG bytes            -> cols rows
@@ -427,13 +422,12 @@ putStrLn $ render $ box "gradient" [kittyRGBA pixels w h 18 9]
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/haskell-kitty-2.png" width="600">
 </p>
 
-Needs a kitty-graphics-capable terminal (kitty, WezTerm, Ghostty). Inside a
-`LayoutzApp`, each distinct image is transmitted once and re-placed cheaply on
-every frame.
+You'll need a terminal that supports it (kitty, WezTerm, Ghostty). Inside an app, each image is only sent once, so
+redrawing it every frame is cheap.
 
-## Custom Elements
+## Make your own elements
 
-Create your own components by implementing the `Element` typeclass
+Implement the `Element` typeclass:
 
 ```haskell
 data Square = Square Int
@@ -469,7 +463,8 @@ putStrLn $ render $ row
                   └────────────┘
 ```
 
-## Collections
+## Generate elements from collections
+Elements are just values, so build them with normal list code:
 ```haskell
 import Data.List (groupBy, sortOn)
 import Data.Function (on)
@@ -501,9 +496,9 @@ putStrLn $ render $ section "Users by Role"
 └────────┘
 ```
 
-## Colors
+## Add color
 
-Add ANSI colors to any element:
+Color any element:
 
 ```haskell
 layout
@@ -540,9 +535,9 @@ ColorTrue 255 128 0   -- 24-bit RGB
 ColorDefault          -- Conditional no-op
 ```
 
-### Color Gradients
+### Make gradients
 
-Create gradients with extended colors:
+The 256-color and true-color palettes are good for gradients:
 
 ```haskell
 let palette   = tightRow $ map (\i -> withColor (ColorFull i) $ text "█") [16, 19..205]
@@ -563,9 +558,9 @@ putStrLn $ render $ layout [palette, redToBlue, greenFade, rainbow]
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-color-1.png" width="700">
 </p>
 
-## Styles
+## Style text
 
-Add ANSI styles to any element:
+Make any element bold, italic, underlined and so on:
 
 ```haskell
 layout
@@ -591,9 +586,7 @@ StyleDefault                  -- Conditional no-op
 StyleBold <> StyleItalic      -- Combine with <>
 ```
 
-**Combining Styles:**
-
-Use `<>` to combine multiple styles at once:
+Combine several with `<>`:
 
 ```haskell
 layout
@@ -605,13 +598,13 @@ layout
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/layoutz-hs/pix/layoutz-styles-2.png" width="700">
 </p>
 
-You can also combine colors and styles:
+And mix colors and styles:
 
 ```haskell
 withColor ColorBrightYellow $ withStyle (StyleBold <> StyleItalic) $ text "The quick brown fox..."
 ```
 
-## Charts & Plots
+## Draw charts and plots
 
 ```
 plotLine        Series points label color
@@ -690,13 +683,11 @@ putStrLn $ render charts
   <sub><a href="../demos/shots/AllCharts.hs">AllCharts.hs</a></sub>
 </p>
 
-See also [Granite](https://github.com/mchav/granite) for terminal plots in Haskell - which was the
-inspiration here.
+See also [Granite](https://github.com/mchav/granite) for terminal plots in Haskell, which inspired these.
 
-## Interactive Apps
+## Build interactive apps
 
-`LayoutzApp` uses the [Elm Architecture](https://guide.elm-lang.org/architecture/) where your
-view is a `layoutz` `Element`.
+`LayoutzApp` follows the [Elm Architecture](https://guide.elm-lang.org/architecture/), and your view is just an Element.
 
 ```haskell
 data LayoutzApp state msg = LayoutzApp
@@ -707,13 +698,12 @@ data LayoutzApp state msg = LayoutzApp
   }
 ```
 
-Three daemon threads coordinate rendering (~30fps), tick/timers, and input capture. State updates flow through `appUpdate` synchronously.
+Behind the scenes, three threads handle rendering (~30fps), timers and input, and state changes go through
+`appUpdate` one at a time. Press **ESC** to exit.
 
-Press **ESC** to exit.
+### Change how the app runs
 
-### App Options
-
-Customise how your app runs with `runAppWith` and the `AppOptions` record. Override only the fields you need:
+Use `runAppWith` and override only the `AppOptions` fields you care about:
 
 ```haskell
 runApp app                                                          -- Default options
@@ -721,9 +711,10 @@ runAppWith defaultAppOptions { optAlignment = AppAlignCenter } app  -- Centered 
 runInline app                                                       -- Animate in-place, no alt screen
 ```
 
-`runInline` renders the app below existing terminal output without clearing the screen. Useful for embedding progress bars or spinners in build scripts... use `CmdExit` to quit programmatically.
+`runInline` draws the app below whatever's already in the terminal instead of clearing the screen. Handy for progress
+bars and spinners in build scripts. Use `CmdExit` to quit from code.
 
-Terminal width is detected once at startup via ANSI cursor position report (zero dependencies).
+The terminal width is detected once at startup.
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/pix/inline-demo.gif" width="650">
@@ -731,7 +722,7 @@ Terminal width is detected once at startup via ANSI cursor position report (zero
 <sub><a href="examples/InlineBar.hs">InlineBar.hs</a></sub>
 </p>
 
-### Key Types
+### Handle keys
 
 ```haskell
 -- Printable
@@ -759,7 +750,7 @@ KeyCtrl Char        -- Ctrl+'C', Ctrl+'Q', etc.
 KeySpecial String   -- Other unrecognized sequences
 ```
 
-### Subscriptions
+### Subscribe to time and keys
 
 ```haskell
 subKeyPress (\key -> ...)    -- Keyboard input
@@ -767,7 +758,7 @@ subEveryMs 100 msg           -- Periodic ticks (interval in ms)
 subBatch [sub1, sub2, ...]   -- Combine subscriptions
 ```
 
-### Commands
+### Run commands
 
 ```haskell
 CmdNone                                -- No effect
@@ -805,14 +796,11 @@ loggerApp = LayoutzApp
 main = runApp loggerApp
 ```
 
-## Prompts (Ask)
+## Ask for input with `ask*`
 
-You often just want a one-shot CLI prompt (a spinner, a filter, a file picker)
-without dropping into "Elm-territory" and thinking about a whole flipbook each time.
-
-**layoutz** offers one-shot interactive actions with the `ask*` family. Each takes
-over the tty briefly, returns a value, and leaves a single committed line behind.
-`Nothing` means the user cancelled (Esc / Ctrl-C / Ctrl-D).
+Writing a whole Elm-style app just to ask for a name or pick a file gets tedious. The `ask*` functions give you
+one-shot prompts instead. Each one takes over the terminal for a moment, returns a value, and leaves a single line
+behind. `Nothing` means the user cancelled (Esc / Ctrl-C / Ctrl-D).
 
 ```haskell
 import Layoutz
@@ -836,7 +824,7 @@ main = do
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/ask-mini.gif" width="650">
 </p>
 
-Each `ask*` returns in `IO`... and a `Maybe` if the user can cancel midway:
+They all run in IO, and return a Maybe when the user can cancel:
 
 ```haskell
 askInput      prompt placeholder initial       -- IO (Maybe String)
@@ -850,11 +838,10 @@ askPager      content height lineNumbers       -- IO ()
 askSpin       label style task                 -- IO a
 ```
 
-## Progress (loader)
+## Show progress with `loader`
 
-Wrap any list with `loader` to get a live progress bar while you process it: map
-an `IO` action over each item. Unbounded work gets `loaderStream`, a spinner
-with a running count.
+Wrap a list with `loader` and you get a live progress bar while you run an IO action on each item. For work that
+could go on forever, `loaderStream` gives you a spinner with a running count.
 
 ```haskell
 _ <- loader "Resizing" imageFiles resize
@@ -862,7 +849,7 @@ _ <- loader "Inserting" rows insertRow
 _ <- loaderStream "Tailing" logLines indexLine
 ```
 
-Pick a `LoaderStyle` with `loaderStyled` / `loaderStreamStyled`
+Change the look with `loaderStyled` / `loaderStreamStyled`:
 ```
 styleBlocks -- (default)
 styleBar
@@ -878,7 +865,7 @@ _ <- loaderStyled styleAscii "Reindexing" docIds reindex
 _ <- loaderStyled stylePipes "Crawling" urls fetch
 ```
 
-Every built-in style, then an unbounded stream:
+Every built-in style, then an endless stream:
 
 ```haskell
 import Layoutz
@@ -902,7 +889,7 @@ main = do
 
 ## Examples
 
-Small, copy-pasteable snippets for everyday CLI chores.
+Small snippets for everyday CLI chores, ready to copy.
 
 <details>
 <summary>Print a deploy / status summary (<code>section</code> + <code>statusCard</code> + <code>kv</code>)</summary>
@@ -1010,7 +997,7 @@ main = do
 
 ## Contributing
 
-You need [GHC](https://www.haskell.org/ghcup/) (8.10+) and [Cabal](https://www.haskell.org/cabal/).
+You'll need [GHC](https://www.haskell.org/ghcup/) (8.10+) and [Cabal](https://www.haskell.org/cabal/).
 
 ```bash
 make build     # build library
