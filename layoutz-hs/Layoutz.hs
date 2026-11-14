@@ -75,6 +75,7 @@ module Layoutz
   , clip
   , fill
   , sized
+  , overlay
   , fixedWidth
   , fixedHeight
   , alignLeft
@@ -178,7 +179,7 @@ module Layoutz
   , askPager
   ) where
 
-import Data.List (transpose, nub, sortOn, intercalate, elemIndex)
+import Data.List (transpose, nub, sortOn, intercalate, elemIndex, find)
 import Data.Text (type Text, pattern (:<), pattern Empty)
 import qualified Data.Text as T
 import qualified Data.Text.IO.Utf8 as Utf8
@@ -391,6 +392,7 @@ data View msg
   | Scrolled (Viewport -> msg) Viewport (View msg)
   | Following Int (View msg)               -- keep this row in sight
   | Sized (Int -> Int -> View msg)         -- built from the room it gets
+  | Overlay (View msg) (View msg)          -- base, then centred on top of it
 
 data Axis = Horizontal | Vertical
 
@@ -915,6 +917,26 @@ drawView room = \case
     let r = Room (mw <|> roomW room) (mh <|> roomH room) True
     in crop mw mh (claim r (drawView r v))
   Sized k           -> drawView room (k (fromMaybe 80 (roomW room)) (fromMaybe 24 (roomH room)))
+  Overlay b t       -> drawOverlay (drawView room b) (drawView natural t)
+
+-- | Paste @top@ centred over @base@. Where it covers, its cells and handlers
+-- win; a wide character it cuts in half becomes a space.
+drawOverlay :: Block m -> Block m -> Block m
+drawOverlay base top = Block rows (bHits base <> moveHits dy dx (bHits top)) (bRaw base <> bRaw top)
+  where
+    bw = blockWidth base
+    tw = blockWidth top
+    dy = max 0 ((length (bRows base) - length (bRows top)) `div` 2)
+    dx = max 0 ((bw - tw) `div` 2)
+    rows = zipWith pick [0 ..] (bRows base)
+    pick i r = maybe r (paste r) (lookup (i - dy) (zip [0 ..] (bRows top)))
+    paste r t =
+      let (pre, rest) = splitAt dx (padTo bw r)
+          post        = drop tw rest
+          halved      = \case Cell c _ : _ -> T.null c; [] -> False
+          pre'        = if halved rest then take (dx - 1) pre <> [blank] else pre
+          post'       = if halved post then blank : drop 1 post else post
+      in pre' <> take (bw - dx) (padTo tw t) <> post'
 
 -- | Under 'fill', take the whole room even where nothing was drawn.
 claim :: Room -> Block m -> Block m
@@ -1391,6 +1413,15 @@ fill = Fill
 sized :: (Int -> Int -> View m) -> View m
 sized = Sized
 
+-- | Draw the second view centred over the first, for popups and dialogs. Its
+-- handlers take clicks where it covers the base.
+--
+-- @
+-- 'overlay' screen ('box' "Quit?" ['row' ['button' "yes" Quit, 'button' "no" Stay]])
+-- @
+overlay :: View m -> View m -> View m
+overlay = Overlay
+
 fixedWidth :: Int -> View m -> View m
 fixedWidth w = \case
   Fixed _ h v -> Fixed (Just w) h v
@@ -1494,6 +1525,7 @@ descend onMsg f = \case
   Scrolled k vp v   -> Scrolled (onMsg . k) vp (f v)
   Following i v     -> Following i (f v)
   Sized k           -> Sized (\w h -> f (k w h))
+  Overlay b t       -> Overlay (f b) (f t)
 
 -- | Embed a child component: @fmap ChildMsg (childView model)@.
 instance Functor View where
@@ -1727,6 +1759,21 @@ formatAxisNum v
   | otherwise            = T.pack (printf "%.1f" (fromInteger tenths / 10 :: Double))
   where tenths = round (v * 10) :: Integer
 
+-- | The smallest of 1, 2, 5, 10, 20, 50 ... (or 0.1, 0.2, 0.5 ...) that is at
+-- least @minStep@, and how many decimals it takes to write its multiples.
+tickStep :: Double -> (Double, Int)
+tickStep minStep = (step, max 0 (negate e))
+  where
+    e    = floor (logBase 10 minStep) :: Int
+    step = fromMaybe (10 ^^ (e + 1)) (find (>= minStep * (1 - 1e-9)) [ m * 10 ^^ e | m <- [1, 2, 5] ])
+
+-- | A tick value with at most @d@ decimals, trailing zeros dropped: @0.5@, @1@, @-0.25@.
+formatTick :: Int -> Double -> Text
+formatTick d t = T.dropWhileEnd (== '.') (if d > 0 then T.dropWhileEnd (== '0') s else s)
+  where
+    n = round (t * 10 ^^ d) :: Integer
+    s = T.pack (printf "%.*f" d (fromInteger n / 10 ^^ d :: Double))
+
 bgColor256 :: Int -> Text
 bgColor256 n = "\ESC[48;5;" <> T.show n <> "m"
 
@@ -1780,8 +1827,17 @@ instance Element PlotData where
           grid = [ [ IntMap.findWithDefault (0, -1) (r * w + c) dots | c <- [0 .. w - 1] ]
                  | r <- [0 .. h - 1] ]
 
-          yTicks  = [ yMax - yRng * fromIntegral i / fromIntegral (max 1 (h - 1)) | i <- [0 .. h-1] ]
-          yLabels = map formatAxisNum yTicks
+          -- Label the rows nearest round values (1, 2 or 5 times a power of
+          -- ten), at least two rows apart so labels never touch.
+          rowStep = yRng / fromIntegral (max 1 (h - 1))
+          (step, decimals) = tickStep (2 * rowStep)
+          -- a tick within half a row of either edge still labels that edge row
+          slack   = rowStep / 2
+          ticks   = [ fromInteger k * step
+                    | k <- [ceiling ((yMax - yRng - slack) / step) .. floor ((yMax + slack) / step)] ]
+          rowOf t = floor ((yMax - t) / rowStep + 0.5) :: Int
+          labeled = IntMap.fromList [ (rowOf t, formatTick decimals t) | t <- ticks ]
+          yLabels = [ IntMap.findWithDefault "" r labeled | r <- [0 .. h - 1] ]
           yLabelW = maximum (0 : map T.length yLabels)
 
           cell (bits, si)

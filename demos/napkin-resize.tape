@@ -20,8 +20,19 @@ Wait+Screen@10m /waves/
 Sleep 500ms
 Show
 
-# Just the squeeze and release on sin: starts and ends at full width, so it loops seamlessly
+# Flick through a few waves, back to sin, then squeeze and release.
+# Starts and ends on sin at full width, so it loops seamlessly.
 Sleep 600ms
+Down
+Sleep 700ms
+Down
+Sleep 700ms
+Down
+Sleep 700ms
+Down
+Sleep 700ms
+Up@120ms 4
+Sleep 800ms
 Alt+n
 Sleep 1.6s
 Alt+w

@@ -1,16 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 
--- | The Ainur, house by house.
---
--- Each Vala with their spouse, their kin and the Maiar who followed them;
--- the ones who fell; and the few nobody can place. Enter zooms into a house
--- or opens a card, the arrows walk between neighbours, Esc steps back out.
---
--- The map is a treemap drawn cell by cell, and a camera zooms through it.
--- It moves on layoutz's animation frames, which stop once nothing is moving.
---
--- > cabal run zoom-demo
 module Main where
 
 import Control.Monad (foldM_, forM_, unless, void, when)
@@ -28,9 +18,6 @@ import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Lazy.Builder.Int as TB
 import GHC.Clock (getMonotonicTime)
 import Layoutz (Cmd, Key (..), LayoutzApp (..), Options (..), cmdQuit, cmdTask, defaultOptions, run, sized, subAnimationFrame, subKeyPress, text)
-
---------------------------------------------------------------------------------
--- Colour: a night sky, a muted colour per house, gold for the selection
 
 type RGB = Int
 
@@ -457,11 +444,11 @@ land :: Double -> Double
 land t = (easeOut t + 0.15 * t) / 1.15
 
 zoomTime, hurriedTime, openingTime, glideTime, fadeTime, oneFrame :: Double
-zoomTime    = 0.28
-hurriedTime = 0.15
-openingTime = 0.9
-glideTime   = 0.16
-fadeTime    = 0.2
+zoomTime    = 0.22
+hurriedTime = 0.11
+openingTime = 0.5
+glideTime   = 0.12
+fadeTime    = 0.1
 oneFrame    = 1 / 60
 
 -- | Into a kid, or back out of it. Either way the camera holds on the kid,
@@ -540,16 +527,18 @@ moving m = case mOpenedAt m of
     [ t0 + openingTime, mFocusMovedAt m + fadeTime
     , mOutlineMovedAt m + glideTime, mOutlineLitAt m + fadeTime ]
 
--- | The node the camera holds on, and where it is on screen.
-camera :: Model -> Rect -> (Path, Rect)
+-- | The node the camera holds on, where it is on screen, and where the
+-- move under way takes it from and to, if one is.
+camera :: Model -> Rect -> (Path, Rect, Maybe (Rect, Rect))
 camera m screen = case (mMoves m, mOpenedAt m) of
   (Move kid into duration started : _, _) ->
     let sits = place (inside screen) (nSlots (nodeAt (init kid)) !! last kid)
         t = maybe 0 (\t0 -> since land m t0 duration) started
-    in (kid, if into then zoom t sits screen else zoom t screen sits)
-  ([], Nothing) -> ([], speck)
-  ([], Just t0) -> (mAt m, zoom (since land m t0 openingTime) speck screen)
+    in if into then travel kid t sits screen else travel kid t screen sits
+  ([], Nothing) -> ([], speck, Nothing)
+  ([], Just t0) -> travel (mAt m) (since land m t0 openingTime) speck screen
   where
+    travel held t from to = (held, zoom t from to, if t < 1 then Just (from, to) else Nothing)
     Rect x y w h = screen
     speck = Rect (x + w / 2 - 2) (y + h / 2 - 1) 4 2
 
@@ -757,20 +746,22 @@ data Look = Look
   { lWidth  :: Int
   , lRecede :: Path -> Double   -- how far a node has faded back
   , lLit    :: Maybe Path       -- the selected tile, once the camera has stopped
+  , lEnds   :: Maybe (Rect, Rect)  -- where the top starts and ends the move under way
   }
 
 scene :: Model -> Int -> Int -> TL.Text
 scene m width height = toAnsi width height $ runST $ do
   g <- newGrid width height
   let screen = Rect 1 1 (fromIntegral width - 2) (fromIntegral height - 3)
-      (held, heldAt) = camera m screen
+      (held, heldAt, ends) = camera m screen
       top = rootFor held heldAt
       settled = null (mMoves m) && maybe False (\t0 -> mNow m >= t0 + openingTime) (mOpenedAt m)
       showOutline = settled && isGroup (here m)
       look = Look
         { lWidth = width
         , lRecede = recede m
-        , lLit = if showOutline then Just (mAt m ++ [mSelected m]) else Nothing }
+        , lLit = if showOutline then Just (mAt m ++ [mSelected m]) else Nothing
+        , lEnds = fmap (\(a, b) -> (rootFor held a, rootFor held b)) ends }
       mapArea = g { gClip = (0, 1, width, height - 1) }
   drawNode mapArea look [] ainur top
   when showOutline $ drawSelection mapArea m (descend top (mAt m))
@@ -816,23 +807,28 @@ drawGroup g look path n r = do
 
 -- | A card is set as a page, centred once there's room. A small tile shows
 -- only the name and title; the rest comes up as it grows, wrapped to fit.
+--
+-- While the camera moves, the card keeps the page it has at the bigger end
+-- of the move, so nothing reflows on the way. Its corner rides along at
+-- the same place in the tile, so the text goes wherever the tile goes, never
+-- back. Anything that doesn't fit yet is cut off at the tile's edges.
 drawCard :: Grid s -> Look -> Path -> Node -> Card -> Rect -> ST s ()
 drawCard g look path n c area@(Rect x y w h) = do
   let (c0, r0, c1, r1) = cells area
       cols = c1 - c0
-      rows = r1 - r0
       tone shade = mix shade ground (lRecede look path)
       lit = lLit look == Just path
       bg = tone (mix ground (nHue n) (if lit then 0.15 else 0.08))
-      -- wrapped in steps of four, so a growing tile reflows now and then
-      -- rather than every frame
-      width = max 16 (min measure ((cols - 3) `div` 4 * 4))
-      page = setCard width n c
-      shown = if cols < 30 || rows < 6 then take 2 page else page
-      -- centred on where the tile really is rather than on its rounded
-      -- size, so the text only moves when the tile does
-      left = max (c0 + 1) (nearest (x + (w - fromIntegral width) / 2))
-      top = max r0 (nearest (y + (h - fromIntegral (length shown)) / 2))
+      (shown, left, top) = case lEnds look of
+        Nothing -> let s = settle n c area in (sShown s, nearest (sLeft s), nearest (sTop s))
+        Just (topA, topB) ->
+          let ra@(Rect xa ya wa ha) = cardArea (descend topA path)
+              rb@(Rect xb yb wb hb) = cardArea (descend topB path)
+              a = settle n c ra
+              b = settle n c rb
+          in ( sShown (if wb > wa then b else a)
+             , ride (xa, wa, sLeft a) (xb, wb, sLeft b) (x, w)
+             , ride (ya, ha, sTop a) (yb, hb, sTop b) (y, h) )
       right = c1 - 1
       clarity = clamp01 (fromIntegral (cols - 30) / 24)
       headline role = role == Name || role == Title
@@ -841,10 +837,45 @@ drawCard g look path n c area@(Rect x y w h) = do
         | otherwise     = tone (mix bg (roleColour (nHue n) role) clarity)
       fit s | length s <= right - left = s
             | otherwise                = take (max 0 (right - left - 1)) s ++ "…"
+      (x0, y0, x1, y1) = gClip g
+      page = g { gClip = (max x0 (c0 + 1), max y0 r0, min x1 right, min y1 r1) }
   fillRect g c0 r0 c1 r1 bg
-  forM_ (zip [top ..] shown) $ \(row, pieces) -> when (row < r1) $
-    foldM_ (\col (role, s) -> write g col row right (if headline role then fit s else s) (colour role) (roleStyle role))
+  forM_ (zip [top ..] shown) $ \(row, pieces) ->
+    foldM_ (\col (role, s) -> write page col row right (if headline role then fit s else s) (colour role) (roleStyle role))
            left pieces
+
+-- | How a card sits in a tile once the camera has stopped: the lines it
+-- shows, and the corner of the block they make, before rounding. Kept
+-- unrounded so a corner held against the tile's edge rounds with that edge
+-- all the way through a move, rather than a cell outside it now and then.
+data Setting = Setting { sShown :: [[(Role, String)]], sLeft, sTop :: Double }
+
+settle :: Node -> Card -> Rect -> Setting
+settle n c area@(Rect x y w h) = Setting shown left top
+  where
+    (c0, r0, c1, r1) = cells area
+    cols = c1 - c0
+    rows = r1 - r0
+    -- wrapped in steps of four, so a tile a column wider than another
+    -- still sets the same page
+    width = max 16 (min measure ((cols - 3) `div` 4 * 4))
+    page = setCard width n c
+    shown = if cols < 30 || rows < 6 then take 2 page else page
+    -- centred on where the tile really is rather than on its rounded size
+    left = max (x + 1) (x + (w - fromIntegral width) / 2)
+    top = max y (y + (h - fromIntegral (length shown)) / 2)
+
+-- | A point in a tile that moves from @pa@ to @pb@ as the tile goes from
+-- @(xa, wa)@ to @(xb, wb)@, kept at the same fraction of the tile plus the
+-- same offset. The camera moves every such point one way only, so this one
+-- never turns back.
+ride :: (Double, Double, Double) -> (Double, Double, Double) -> (Double, Double) -> Int
+ride (xa, wa, pa) (xb, wb, pb) (x, w)
+  | abs (wb - wa) < 1e-9 = nearest (x + offA)
+  | otherwise            = nearest (x + f * w + offA - f * wa)
+  where
+    offA = pa - xa
+    f = (pb - xb - offA) / (wb - wa)
 
 -- | A gold outline around the selected tile, with a soft glow, fading in.
 drawSelection :: Grid s -> Model -> Rect -> ST s ()

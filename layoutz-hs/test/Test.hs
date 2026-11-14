@@ -531,6 +531,16 @@ eventTests = testGroup "Events"
       clickAt (0, 0) v @?= Just Outer
       clickAt (1, 0) v @?= Just Outer
 
+  , testCase "overlay centres the top view and its clicks win where it covers" $ do
+      let v = overlay (onClick Outer (vstack ["abcdefg", "hijklmn", "opqrstu"])) (onClick Inc "x")
+      render v @?= "abcdefg\nhijxlmn\nopqrstu"
+      clickAt (1, 3) v @?= Just Inc
+      clickAt (1, 0) v @?= Just Outer
+      clickAt (0, 3) v @?= Just Outer
+
+  , testCase "overlay blanks a wide character it cuts in half" $
+      render (overlay (text "日本語") (text "x")) @?= "日x 語"   -- 本 lost its right half
+
   , testCase "scroll bubbles past click-only children" $ do
       let v = onScroll Scrolled (vstack [button "a" Inc, "b"])
       scrollAt 1 (0, 1) v @?= Just (Scrolled 1)
