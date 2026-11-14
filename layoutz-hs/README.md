@@ -7,7 +7,8 @@
 **Simple, beautiful CLI output**
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
-and interactive Elm-style TUI's in pure Haskell.
+and inline or full-screen interactive Elm-style TUI's in pure Haskell. You can just drop **Layoutz.hs** into your project
+and use it like a header file.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase.gif" width="600">
