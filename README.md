@@ -7,7 +7,7 @@
 **Simple, beautiful CLI output**
 
 A lightweight, zero-dep lib to build compositional ANSI strings, terminal plots,
-and interactive Elm-style TUI's in Scala (JVM, JS, Native).
+and inline or full-screen interactive Elm-style TUI's in Scala (JVM, JS, Native).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mattlianje/layoutz/refs/heads/master/demos/showcase-mini.gif" width="600">
