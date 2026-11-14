@@ -55,7 +55,7 @@ import layoutz._
 - But at the end of the day, you can use layoutz merely to structure Strings (without any of the TUI stuff).
 
 ## Build TUIs
-Implement [`LayoutzApp`](#build-interactive-apps) and call `.run`:
+Implement [LayoutzApp](#build-interactive-apps) and call `.run`:
 ```scala
 trait LayoutzApp[State, Message] {
   def init: (State, Cmd[Message])
